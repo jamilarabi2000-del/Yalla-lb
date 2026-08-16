@@ -219,17 +219,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Auth state listener
   useEffect(() => {
+    console.log("[ShopContext] Initializing Firebase Auth & Firestore connection state...");
     const unsubscribe = onAuthStateChanged(auth, async (userObj) => {
+      console.log("[ShopContext] onAuthStateChanged fired. User:", userObj ? userObj.uid : "None");
       setFirebaseUser(userObj);
       if (userObj) {
         // Sync user profile, wishlist, cart & orders from Firestore if available
         try {
+          console.log(`[ShopContext] Fetching user doc for uid: ${userObj.uid}`);
           const userDocRef = doc(db, 'users', userObj.uid);
           const userSnap = await getDoc(userDocRef);
           if (userSnap.exists()) {
+            console.log(`[ShopContext] User doc retrieved successfully for uid: ${userObj.uid}`);
             const data = userSnap.data() as UserProfile;
             setUser(prev => ({ ...prev, ...data }));
           } else {
+            console.log(`[ShopContext] User doc not found for uid: ${userObj.uid}, initializing new doc...`);
             // Initialize user doc
             await setDoc(userDocRef, {
               uid: userObj.uid,
@@ -241,28 +246,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultCity: INITIAL_USER.defaultCity,
               defaultAddress: INITIAL_USER.defaultAddress
             });
+            console.log(`[ShopContext] Initialized user doc for uid: ${userObj.uid}`);
           }
 
+          console.log(`[ShopContext] Fetching wishlist for uid: ${userObj.uid}`);
           const wishlistRef = doc(db, 'wishlists', userObj.uid);
           const wishlistSnap = await getDoc(wishlistRef);
           if (wishlistSnap.exists()) {
+            console.log(`[ShopContext] Wishlist retrieved for uid: ${userObj.uid}`);
             const wData = wishlistSnap.data();
             if (wData.productIds && Array.isArray(wData.productIds)) {
               setWishlist(wData.productIds);
             }
           }
 
+          console.log(`[ShopContext] Fetching cart for uid: ${userObj.uid}`);
           const cartRef = doc(db, 'carts', userObj.uid);
           const cartSnap = await getDoc(cartRef);
           if (cartSnap.exists()) {
+            console.log(`[ShopContext] Cart retrieved for uid: ${userObj.uid}`);
             const cData = cartSnap.data();
             if (cData.items && Array.isArray(cData.items)) {
               setCart(cData.items);
             }
           }
 
+          console.log(`[ShopContext] Fetching orders collection snapshot...`);
           const ordersColRef = collection(db, 'orders');
           const ordersSnap = await getDocs(ordersColRef);
+          console.log(`[ShopContext] Orders collection snapshot retrieved. Total documents: ${ordersSnap.size}`);
           const userOrders: Order[] = [];
           ordersSnap.forEach(docSnap => {
             const ord = docSnap.data() as Order;
@@ -270,6 +282,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               userOrders.push(ord);
             }
           });
+          console.log(`[ShopContext] Filtered user orders count: ${userOrders.length}`);
           if (userOrders.length > 0) {
             setOrders(prev => {
               const combined = [...userOrders, ...prev];
@@ -278,7 +291,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           }
         } catch (err) {
-          console.error("Error syncing user data from Firestore:", err);
+          console.error("[ShopContext] Error syncing user data from Firestore:", err);
         }
       }
     });

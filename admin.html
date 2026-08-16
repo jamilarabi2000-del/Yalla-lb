@@ -825,20 +825,29 @@
 
     // 1. ORDERS
     async function loadOrders() {
+      console.log("[AdminDashboard] loadOrders: attempting to fetch orders collection from Firestore...");
       let ords = [];
       try {
         const snap = await getDocs(collection(db, 'orders'));
+        console.log(`[AdminDashboard] loadOrders: Firestore snapshot retrieved successfully. Document count: ${snap.size}`);
         snap.forEach(d => ords.push({ id: d.id, ...d.data() }));
       } catch (err) {
-        console.error("Firestore orders error:", err);
+        console.error("[AdminDashboard] Firestore orders error:", err);
       }
       if (ords.length === 0) {
+        console.log("[AdminDashboard] loadOrders: Firestore returned 0 orders, checking localStorage cache...");
         try {
           const local = localStorage.getItem('yallalb_orders');
-          if (local) ords = JSON.parse(local);
-        } catch {}
+          if (local) {
+            ords = JSON.parse(ords ? JSON.parse(local) : local);
+            console.log(`[AdminDashboard] loadOrders: Loaded ${ords.length} orders from localStorage cache.`);
+          }
+        } catch (e) {
+          console.error("[AdminDashboard] localStorage orders parse error:", e);
+        }
       }
       if (ords.length === 0) {
+        console.log("[AdminDashboard] loadOrders: Using default fallback orders catalog.");
         ords = [
           {
             id: 'YLB-98421',
@@ -940,23 +949,32 @@
 
     // 2. PRODUCTS
     async function loadProducts() {
+      console.log("[AdminDashboard] loadProducts: attempting to fetch products collection from Firestore...");
       let prods = [];
       try {
         const snap = await getDocs(collection(db, 'products'));
+        console.log(`[AdminDashboard] loadProducts: Firestore snapshot retrieved successfully. Document count: ${snap.size}`);
         snap.forEach(d => prods.push({ id: d.id, ...d.data() }));
       } catch (err) {
-        console.error("Firestore products error:", err);
+        console.error("[AdminDashboard] Firestore products error:", err);
       }
       if (!prods || prods.length === 0) {
+        console.log("[AdminDashboard] loadProducts: Firestore returned 0 products, checking localStorage cache...");
         try {
           const local = localStorage.getItem('yallalb_products');
           if (local) {
             const parsed = JSON.parse(local);
-            if (Array.isArray(parsed) && parsed.length > 0) prods = parsed;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              prods = parsed;
+              console.log(`[AdminDashboard] loadProducts: Loaded ${prods.length} products from localStorage cache.`);
+            }
           }
-        } catch {}
+        } catch (e) {
+          console.error("[AdminDashboard] localStorage products parse error:", e);
+        }
       }
       if (!prods || prods.length === 0) {
+        console.log("[AdminDashboard] loadProducts: Using default fallback products catalog.");
         prods = [
           { id: 'prod-1', name: 'Classic Building Blocks Set — 245 pcs', category: 'toys', artisan: 'BrickWorld Toys Guild', priceUSD: 34.99, stock: 48, rating: 4.9, reviewsCount: 142, image: 'https://images.unsplash.com/photo-1587654780291-39c9404d746b?auto=format&fit=crop&w=800&q=80', description: 'High-grade interlocking colored building bricks designed to foster spatial creativity.' },
           { id: 'prod-2', name: 'Extra Virgin Olive Oil 750ml — Koura', category: 'grocery', artisan: 'Terroir Du Liban', priceUSD: 18.99, stock: 75, rating: 5.0, reviewsCount: 219, image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=800&q=80', description: 'Cold-pressed from century-old Souri olive groves in Northern Lebanon.' },
