@@ -1,0 +1,68 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and delivery info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string", "maxLength": 30 },
+        "defaultCity": { "type": "string", "maxLength": 50 },
+        "defaultAddress": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["uid", "name", "email"]
+    },
+    "Wishlist": {
+      "title": "Wishlist",
+      "description": "User saved artisan products",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "productIds": { "type": "array" }
+      },
+      "required": ["userId"]
+    },
+    "Cart": {
+      "title": "Cart",
+      "description": "User shopping cart items",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["userId"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order with status and items",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "totalUSD": { "type": "number" },
+        "status": { "type": "string", "enum": ["crafting", "in_transit", "delivered", "cancelled"] }
+      },
+      "required": ["id", "userId", "totalUSD"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile document"
+    },
+    "/wishlists/{userId}": {
+      "schema": { "$ref": "#/entities/Wishlist" },
+      "description": "User wishlist collection"
+    },
+    "/carts/{userId}": {
+      "schema": { "$ref": "#/entities/Cart" },
+      "description": "User shopping cart collection"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Global orders collection"
+    }
+  }
+}

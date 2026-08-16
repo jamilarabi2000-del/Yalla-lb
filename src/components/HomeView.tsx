@@ -1,0 +1,332 @@
+import React from 'react';
+import { HeroBanner } from './HeroBanner';
+import { OffersCarousel } from './OffersCarousel';
+import { ProductCard } from './ProductCard';
+import { useShop } from '../context/ShopContext';
+import { 
+  ArrowRight, 
+  Truck, 
+  ShieldCheck, 
+  RotateCcw, 
+  Clock,
+  Sparkles
+} from 'lucide-react';
+
+export const HomeView: React.FC = () => {
+  const { products, setActiveTab, setSelectedCategory, t, language } = useShop();
+
+  const categoriesGrid = [
+    {
+      id: 'electronics',
+      name: t('cat_electronics'),
+      subtitle: language === 'ar' ? 'أحدث الأجهزة والتكنولوجيا' : 'Latest gadgets & tech',
+      image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'fashion',
+      name: t('cat_fashion'),
+      subtitle: language === 'ar' ? 'أزياء تناسب ذوقك' : 'Style that moves',
+      image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'home',
+      name: t('cat_home'),
+      subtitle: language === 'ar' ? 'أثاث وديكور لمنزلك' : 'Elevate your space',
+      image: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'beauty',
+      name: t('cat_beauty'),
+      subtitle: language === 'ar' ? 'منتجات العناية بالبشرة' : 'Glow naturally',
+      image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'sports',
+      name: t('cat_sports'),
+      subtitle: language === 'ar' ? 'معدات رياضية متميزة' : 'Push your limits',
+      image: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'books',
+      name: t('cat_books'),
+      subtitle: language === 'ar' ? 'كتب وروايات عربية وعالمية' : 'Feed your mind',
+      image: 'https://images.unsplash.com/photo-1495640388908-05fa85288e61?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'toys',
+      name: t('cat_toys'),
+      subtitle: language === 'ar' ? 'ألعاب لكل الأعمار' : 'Fun for all ages',
+      image: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'grocery',
+      name: t('cat_grocery'),
+      subtitle: language === 'ar' ? 'منتجات طازجة وحرفية' : 'Fresh from Lebanon',
+      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'yalla-global',
+      name: t('cat_yalla_global'),
+      subtitle: language === 'ar' ? 'منتجات مميزة من حول العالم' : 'Handpicked worldwide selections',
+      image: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'stationery',
+      name: t('cat_stationery'),
+      subtitle: language === 'ar' ? 'دفاتر وأدوات مكتبية' : 'Desk & office essentials',
+      image: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'tools-hardware',
+      name: t('cat_tools_hardware'),
+      subtitle: language === 'ar' ? 'أدوات ومعدات صلبة' : 'Reliable tools & hardware',
+      image: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'plumbing',
+      name: t('cat_plumbing'),
+      subtitle: language === 'ar' ? 'مستلزمات وأدوات السباكة' : 'Premium pipes & fixtures',
+      image: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'bath-beyond',
+      name: t('cat_bath_beyond'),
+      subtitle: language === 'ar' ? 'مستلزمات حمام فاخرة' : 'Luxe bath essentials',
+      image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'linen',
+      name: t('cat_linen'),
+      subtitle: language === 'ar' ? 'بياضات منسوجة وملاءات' : 'Woven linens & sheets',
+      image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'houseware',
+      name: t('cat_houseware'),
+      subtitle: language === 'ar' ? 'أواني وأدوات المطبخ' : 'Daily kitchen utilities',
+      image: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'digital',
+      name: t('cat_digital'),
+      subtitle: language === 'ar' ? 'ملحقات وإكسسوارات ذكية' : 'Smart accessories',
+      image: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'furniture',
+      name: t('cat_furniture'),
+      subtitle: language === 'ar' ? 'قطع أثاث مصنوعة يدوياً' : 'Handcrafted wooden pieces',
+      image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'decor',
+      name: t('cat_decor'),
+      subtitle: language === 'ar' ? 'لمسات وتحف فنية' : 'Artistic home accents',
+      image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'lighting',
+      name: t('cat_lighting'),
+      subtitle: language === 'ar' ? 'مصابيح ووحدات إنارة' : 'Warm ambient light fixtures',
+      image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'electrical',
+      name: t('cat_electrical'),
+      subtitle: language === 'ar' ? 'توصيلات ومعدات كهربائية' : 'Sockets & electrical gear',
+      image: 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'cleaning',
+      name: t('cat_cleaning'),
+      subtitle: language === 'ar' ? 'أدوات ومواد تنظيف' : 'Eco-friendly cleaning supplies',
+      image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'consumable',
+      name: t('cat_consumable'),
+      subtitle: language === 'ar' ? 'مؤونة، قهوة، عسل ومربيات' : 'Artisanal coffee, honey & jams',
+      image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80'
+    }
+  ];
+
+  const featuredProducts = products.filter(p => p.isFeatured || p.isBestseller).slice(0, 8);
+  const todaysDeals = products.filter(p => p.discountPercentage && p.discountPercentage > 0).slice(0, 8);
+  const newArrivals = products.slice(0, 12);
+
+  const handleCategoryClick = (catId: string) => {
+    setSelectedCategory(catId);
+    setActiveTab('products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <div className="space-y-16 pb-24 bg-slate-50">
+      
+      {/* Hero Banner with Search */}
+      <HeroBanner />
+
+      {/* Shop by Category Grid */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+              {t('exploreDepartments')}
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              {language === 'ar' ? (
+                <>التسوق حسب <span className="gold-gradient font-serif italic">الفئة</span></>
+              ) : (
+                <>Shop by <span className="gold-gradient font-serif italic">Category</span></>
+              )}
+            </h2>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          {categoriesGrid.map((cat) => (
+            <div
+              key={cat.id}
+              onClick={() => handleCategoryClick(cat.id)}
+              className="group relative h-44 rounded-2xl overflow-hidden cursor-pointer premium-card border border-slate-200 hover:border-[#b89753] transition-all duration-300 shadow-md"
+            >
+              <img 
+                src={cat.image} 
+                alt={cat.name}
+                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 brightness-90 group-hover:brightness-100"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+              <div className="absolute bottom-3 left-3 right-3 space-y-0.5">
+                <h3 className="text-sm font-bold text-white group-hover:text-[#f3e5ab] transition-colors">
+                  {cat.name}
+                </h3>
+                <p className="text-[11px] text-slate-200 font-light">
+                  {cat.subtitle}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Multi-Offer Promotional Slider Carousel */}
+      <OffersCarousel />
+
+      {/* Featured Products */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+              {t('topPicks')}
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              {language === 'ar' ? (
+                <>المنتجات <span className="gold-gradient font-serif italic">المميزة</span></>
+              ) : (
+                <>Featured <span className="gold-gradient font-serif italic">Products</span></>
+              )}
+            </h2>
+          </div>
+
+          <button
+            onClick={() => { setActiveTab('products'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#b89753] hover:text-[#96783d] transition-colors cursor-pointer"
+          >
+            <span>{t('viewAllProducts')}</span>
+            <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          {featuredProducts.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      </section>
+
+      {/* Trust Badges Banner */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-2 gap-4 sm:gap-6 py-8 px-4 sm:px-6 rounded-3xl bg-white border border-slate-200 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-2 sm:gap-4 justify-center text-center sm:text-left">
+            <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-50 text-[#b89753] border border-amber-200 flex-shrink-0">
+              <Truck className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{t('freeDelivery')}</h4>
+              <p className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">{t('freeDeliverySub')}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-2 sm:gap-4 justify-center text-center sm:text-left">
+            <div className="p-2.5 sm:p-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex-shrink-0">
+              <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div>
+              <h4 className="text-xs sm:text-sm font-bold text-slate-900">{t('fastShipping')}</h4>
+              <p className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">{t('fastShippingSub')}</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Today's Deals */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 mb-1 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{t('flashDiscounts')}</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              {language === 'ar' ? (
+                <>عروض <span className="gold-gradient font-serif italic">اليوم</span></>
+              ) : (
+                <>Today's <span className="gold-gradient font-serif italic">Deals</span></>
+              )}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">{t('limitedTimeOffers')}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          {todaysDeals.map((product) => (
+            <ProductCard key={`deal-${product.id}`} product={product} />
+          ))}
+        </div>
+      </section>
+
+      {/* New Arrivals */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+              {t('freshlyStocked')}
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              {language === 'ar' ? (
+                <>وصل حديثاً <span className="gold-gradient font-serif italic">إلينا</span></>
+              ) : (
+                <>New <span className="gold-gradient font-serif italic">Arrivals</span></>
+              )}
+            </h2>
+          </div>
+
+          <button
+            onClick={() => { setActiveTab('products'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#b89753] hover:text-[#96783d] transition-colors cursor-pointer"
+          >
+            <span>{t('viewAllProducts')} ({newArrivals.length})</span>
+            <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          {newArrivals.slice(0, 8).map((product) => (
+            <ProductCard key={`new-${product.id}`} product={product} />
+          ))}
+        </div>
+      </section>
+
+    </div>
+  );
+};
