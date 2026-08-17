@@ -19,6 +19,7 @@ export interface Product {
   stock: number;
   isFeatured?: boolean;
   isBestseller?: boolean;
+  isPublished?: boolean; // Admin can publish/hide individual products
   tags: string[];
   weightOrVolume?: string;
 }
@@ -83,6 +84,7 @@ export interface CMSOfferSlide {
   bgGradient: string;
   imageUrl?: string;
   isCustomSchoolLayout?: boolean;
+  isPublished?: boolean;
 }
 
 export interface CMSNewsArticle {
@@ -94,20 +96,107 @@ export interface CMSNewsArticle {
   imageUrl: string;
   tag: string;
   readTime: string;
+  isPublished?: boolean;
 }
 
 export interface CMSNavTab {
   id: string;
   label: string;
   arabicLabel?: string;
+  isPublished?: boolean;
 }
 
 export interface CMSHeroStat {
   label: string;
   value: string;
+  isPublished?: boolean;
+}
+
+export interface CMSCustomBlock {
+  id: string;
+  title: string;
+  subtitle?: string;
+  content: string; // HTML, rich text or description
+  badge?: string;
+  buttonText?: string;
+  buttonUrl?: string;
+  imageUrl?: string;
+  bgStyle: 'dark' | 'light' | 'gold_gradient' | 'emerald_gradient' | 'custom_image' | 'glass';
+  customBgColor?: string;
+  customTextColor?: string;
+  targetPage: 'home' | 'products' | 'checkout' | 'account' | 'product_detail' | 'all';
+  position: 'top' | 'middle' | 'bottom';
+  isPublished: boolean;
+  order: number;
+}
+
+export interface SectionVisibilityConfig {
+  // Global & Navbar
+  announcementTicker: boolean;
+  phoneSupport: boolean;
+  navbarSearch: boolean;
+  currencySwitcher: boolean;
+  languageSwitcher: boolean;
+  
+  // Home Page
+  homeHero: boolean;
+  homeCategories: boolean;
+  homeOffers: boolean;
+  homeFeatured: boolean;
+  homeTrustBadges: boolean;
+  homeDeals: boolean;
+  homeNewArrivals: boolean;
+  homeHeritage: boolean;
+  homeReviews: boolean;
+  homeNewsletter: boolean;
+  homeNews: boolean;
+  
+  // Products Page
+  productsHeader: boolean;
+  productsSearchFilter: boolean;
+  productsCategoryTabs: boolean;
+  productsSort: boolean;
+  productsGrid: boolean;
+  
+  // Product Detail Page
+  detailBreadcrumbs: boolean;
+  detailGallery: boolean;
+  detailPriceBox: boolean;
+  detailArtisanBio: boolean;
+  detailCraftStory: boolean;
+  detailWhatsAppInquiry: boolean;
+  detailCustomerReviews: boolean;
+  detailRelatedProducts: boolean;
+  
+  // Checkout Page
+  checkoutSteps: boolean;
+  checkoutAddressForm: boolean;
+  checkoutDeliverySpeed: boolean;
+  checkoutPaymentMethod: boolean;
+  checkoutOrderSummary: boolean;
+  checkoutGuarantees: boolean;
+  
+  // Account Page
+  accountOrders: boolean;
+  accountProfile: boolean;
+  accountWishlist: boolean;
+  accountSupportCard: boolean;
+  
+  // Footer
+  footerAbout: boolean;
+  footerQuickLinks: boolean;
+  footerContact: boolean;
+  footerSocial: boolean;
+  footerCopyright: boolean;
 }
 
 export interface SiteContent {
+  seo?: {
+    title: string;
+    description: string;
+  };
+  visibility: SectionVisibilityConfig;
+  customBlocks: CMSCustomBlock[];
   navbar: {
     announcementTicker: string;
     brandName: string;
@@ -152,6 +241,15 @@ export interface SiteContent {
     filterAllLabel: string;
     noProductsText: string;
   };
+  productDetailPage: {
+    inquiryWhatsAppNumber: string;
+    inquiryText: string;
+    authenticityGuaranteeText: string;
+    freeDeliveryBadgeText: string;
+    returnsPolicyText: string;
+    craftStoryTitle: string;
+    relatedItemsTitle: string;
+  };
   checkoutPage: {
     title: string;
     subtitle: string;
@@ -173,6 +271,13 @@ export interface SiteContent {
     subtitle: string;
     articles: CMSNewsArticle[];
   };
+  socialLinks: {
+    instagram: string;
+    facebook: string;
+    whatsapp: string;
+    email: string;
+    phone: string;
+  };
   footer: {
     aboutTitle: string;
     aboutText: string;
@@ -184,5 +289,14 @@ export interface SiteContent {
     hours: string;
     copyrightText: string;
   };
+}
+
+export interface RecentActivity {
+  id: string;
+  timestamp: string; // ISO 8601 string
+  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'meta_change' | 'cms_update';
+  summary: string;
+  details: string;
+  adminEmail: string;
 }
 

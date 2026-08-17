@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { ProductCard } from './ProductCard';
 import { OrderHistory } from './OrderHistory';
+import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { 
   User, 
   Package, 
@@ -64,6 +65,9 @@ export const AccountView: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#1a1a2e] pb-24">
       
+      {/* Top Custom Divs / Banners */}
+      <CustomBlocksRenderer page="account" position="top" />
+
       {/* Account Hero Banner */}
       <div className="bg-[#121222] border-b border-[#c5a059]/20 pt-6 pb-10 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto space-y-4">
@@ -330,6 +334,9 @@ export const AccountView: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Bottom Custom Divs / Banners */}
+      <CustomBlocksRenderer page="account" position="bottom" />
     </div>
   );
 };

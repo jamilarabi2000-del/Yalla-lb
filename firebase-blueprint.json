@@ -134,6 +134,29 @@
         "contactAddress": { "type": "string" },
         "contactHours": { "type": "string" }
       }
+    },
+    "RecentActivity": {
+      "title": "RecentActivity",
+      "description": "Log of critical admin actions and system state shifts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "actionType": { "type": "string", "enum": ["product_add", "product_update", "product_delete", "order_status", "meta_change", "cms_update"] },
+        "summary": { "type": "string", "maxLength": 500 },
+        "details": { "type": "string", "maxLength": 1000 },
+        "adminEmail": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "actionType", "summary"]
+    },
+    "AdminConfig": {
+      "title": "AdminConfig",
+      "description": "Secure administration and portal settings",
+      "type": "object",
+      "properties": {
+        "passcode": { "type": "string" }
+      },
+      "required": ["passcode"]
     }
   },
   "firestore": {
@@ -164,6 +187,14 @@
     "/cms/{docId}": {
       "schema": { "$ref": "#/entities/CMSContent" },
       "description": "Dynamic site content fully managed by the admin"
+    },
+    "/recent_activity/{activityId}": {
+      "schema": { "$ref": "#/entities/RecentActivity" },
+      "description": "Audit log for tracking administration events"
+    },
+    "/admin_config/{docId}": {
+      "schema": { "$ref": "#/entities/AdminConfig" },
+      "description": "Secure administrative lock parameters"
     }
   }
 }

@@ -6,6 +6,7 @@ import { ProductsView } from './components/ProductsView';
 import { CheckoutView } from './components/CheckoutView';
 import { AccountView } from './components/AccountView';
 import { AdminView } from './components/AdminView';
+import { AdminErrorBoundary } from './components/AdminErrorBoundary';
 import { ProductDetailView } from './components/ProductDetailView';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
@@ -13,7 +14,25 @@ import { Footer } from './components/Footer';
 import { CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
-  const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast } = useShop();
+  const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast, siteContent } = useShop();
+
+  // Dynamically update SEO metadata
+  useEffect(() => {
+    if (siteContent?.seo) {
+      if (siteContent.seo.title) {
+        document.title = siteContent.seo.title;
+      }
+      if (siteContent.seo.description) {
+        let metaDescription = document.querySelector('meta[name="description"]');
+        if (!metaDescription) {
+          metaDescription = document.createElement('meta');
+          metaDescription.setAttribute('name', 'description');
+          document.head.appendChild(metaDescription);
+        }
+        metaDescription.setAttribute('content', siteContent.seo.description);
+      }
+    }
+  }, [siteContent?.seo]);
 
   // On initial mount, ensure current history entry has depth
   useEffect(() => {
@@ -26,13 +45,19 @@ const MainAppContent: React.FC = () => {
   useEffect(() => {
     const syncRouteFromUrl = () => {
       const path = window.location.pathname.replace(/^\/+/, '');
-      if (path.startsWith('product/')) {
+      const searchParams = new URLSearchParams(window.location.search);
+      const isAdminQuery = searchParams.get('admin') === 'true' || searchParams.has('admin');
+
+      if (isAdminQuery || path === 'admin' || path === 'admin.html') {
+        setSelectedProductDetail(null);
+        setActiveTab('admin');
+      } else if (path.startsWith('product/')) {
         const prodId = path.replace('product/', '');
         const foundProduct = products.find(p => p.id === prodId);
         if (foundProduct) {
           openProductDetail(foundProduct);
         }
-      } else if (path === 'products' || path === 'checkout' || path === 'account' || path === 'admin' || path === 'home' || path === '') {
+      } else if (path === 'products' || path === 'checkout' || path === 'account' || path === 'home' || path === '') {
         const targetTab = (path === '' || path === 'home' ? 'home' : path) as any;
         if (activeTab !== targetTab) {
           setSelectedProductDetail(null);
@@ -41,9 +66,12 @@ const MainAppContent: React.FC = () => {
       }
     };
 
+    // Execute immediately on initial mount
+    syncRouteFromUrl();
+
     window.addEventListener('popstate', syncRouteFromUrl);
     return () => window.removeEventListener('popstate', syncRouteFromUrl);
-  }, [products, openProductDetail, setActiveTab, setSelectedProductDetail, activeTab]);
+  }, [products, openProductDetail, setActiveTab, setSelectedProductDetail]);
 
   // Sync browser URL when activeTab or selectedProductDetail changes
   useEffect(() => {
@@ -112,7 +140,7 @@ const MainAppContent: React.FC = () => {
       </div>
 
       {/* Main Top Navigation Header */}
-      <Navbar />
+      {activeTab !== 'admin' && <Navbar />}
 
       {/* Dynamic View Display */}
       <main className="flex-1">
@@ -121,7 +149,11 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'product_detail' && <ProductDetailView />}
         {activeTab === 'checkout' && <CheckoutView />}
         {activeTab === 'account' && <AccountView />}
-        {activeTab === 'admin' && <AdminView />}
+        {activeTab === 'admin' && (
+          <AdminErrorBoundary>
+            <AdminView />
+          </AdminErrorBoundary>
+        )}
       </main>
 
       {/* Modals & Overlays */}
@@ -151,7 +183,7 @@ const MainAppContent: React.FC = () => {
       )}
 
       {/* Lebanese Craftsmanship Footer */}
-      <Footer />
+      {activeTab !== 'admin' && <Footer />}
 
     </div>
   );

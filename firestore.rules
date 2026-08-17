@@ -58,5 +58,23 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isValidId(docId);
     }
+
+    // 8. Categories Collection (Catalog taxonomy)
+    match /categories/{catId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(catId);
+    }
+
+    // 9. Recent Activity Collection (Audit log)
+    match /recent_activity/{activityId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(activityId);
+    }
+
+    // 10. Admin Config Collection (Credential Settings)
+    match /admin_config/{docId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(docId);
+    }
   }
 }

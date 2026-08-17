@@ -31,6 +31,7 @@ export const Navbar: React.FC = () => {
     setLanguage,
     t,
     isAdminUnlocked,
+    isAdminUser = false,
     firebaseUser,
     user,
     siteContent
@@ -39,6 +40,8 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+
+  const showAdminTab = isAdminUser || isAdminUnlocked;
 
   const categoriesList = [
     { id: 'all', name: t('cat_all'), icon: '✨' },
@@ -198,7 +201,7 @@ export const Navbar: React.FC = () => {
             >
               {t('account')}
             </button>
-            {isAdminUnlocked && (
+            {showAdminTab && (
               <button
                 id="nav-admin-btn"
                 onClick={() => setActiveTab('admin')}
@@ -389,7 +392,7 @@ export const Navbar: React.FC = () => {
               <span>{t('checkoutAndDelivery')}</span>
             </button>
 
-            {isAdminUnlocked && (
+            {showAdminTab && (
               <button
                 onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
                 className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between ${
