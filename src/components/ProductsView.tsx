@@ -21,7 +21,8 @@ export const ProductsView: React.FC = () => {
     setSelectedCategory,
     goBack,
     t,
-    language
+    language,
+    siteContent
   } = useShop();
 
   const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'rating'>('featured');
@@ -41,11 +42,13 @@ export const ProductsView: React.FC = () => {
     { id: 'stationery', name: t('cat_stationery'), icon: '📝' },
     { id: 'tools-hardware', name: t('cat_tools_hardware'), icon: '🛠️' },
     { id: 'plumbing', name: t('cat_plumbing'), icon: '🚰' },
-    { id: 'bath-beyond', name: t('cat_bath_beyond'), icon: '🛁' },
-    { id: 'linen', name: t('cat_linen'), icon: '🛌' },
+    { id: 'beauty-personal-care', name: t('cat_beauty_personal_care'), icon: '🧴' },
+    { id: 'linen-bath', name: t('cat_linen_bath'), icon: '🛌' },
     { id: 'houseware', name: t('cat_houseware'), icon: '🍳' },
     { id: 'digital', name: t('cat_digital'), icon: '📱' },
-    { id: 'furniture', name: t('cat_furniture'), icon: '🪑' },
+    { id: 'indoor-furniture', name: t('cat_indoor_furniture'), icon: '🪑' },
+    { id: 'outdoor-furniture', name: t('cat_outdoor_furniture'), icon: '🪴' },
+    { id: 'lawn-garden', name: t('cat_lawn_garden'), icon: '🌿' },
     { id: 'decor', name: t('cat_decor'), icon: '🖼️' },
     { id: 'lighting', name: t('cat_lighting'), icon: '💡' },
     { id: 'electrical', name: t('cat_electrical'), icon: '🔌' },
@@ -121,16 +124,20 @@ export const ProductsView: React.FC = () => {
                 <span>{t('verifiedProvenance')}</span>
               </div>
               <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                {language === 'ar' ? (
-                  <>كتالوج المنتجات الحرفية <span className="text-amber-400 font-serif italic">اللبنانية</span></>
-                ) : (
-                  <>Lebanese Artisan <span className="text-amber-400 font-serif italic">Catalog</span></>
+                {siteContent?.productsPage?.title || (
+                  language === 'ar' ? (
+                    <>كتالوج المنتجات الحرفية <span className="text-amber-400 font-serif italic">اللبنانية</span></>
+                  ) : (
+                    <>Lebanese Artisan <span className="text-amber-400 font-serif italic">Catalog</span></>
+                  )
                 )}
               </h1>
               <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1">
-                {language === 'ar' 
-                  ? 'اكتشف المؤونة الغذائية، والحرف اليدوية التراثية، وزيت الزيتون العضوي، والمنتجات المحلية المباشرة من جميع المناطق اللبنانية.'
-                  : 'Discover culinary treasures, heirloom handcrafts, organic olive oils, and artisanal creations directly sourced across Lebanon.'}
+                {siteContent?.productsPage?.subtitle || (
+                  language === 'ar' 
+                    ? 'اكتشف المؤونة الغذائية، والحرف اليدوية التراثية، وزيت الزيتون العضوي، والمنتجات المحلية المباشرة من جميع المناطق اللبنانية.'
+                    : 'Discover culinary treasures, heirloom handcrafts, organic olive oils, and artisanal creations directly sourced across Lebanon.'
+                )}
               </p>
             </div>
 

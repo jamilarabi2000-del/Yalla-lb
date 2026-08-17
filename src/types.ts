@@ -72,3 +72,117 @@ export interface UserProfile {
   defaultCity: string;
   defaultAddress: string;
 }
+
+export interface CMSOfferSlide {
+  id: string;
+  badge: string;
+  title: string;
+  subtitle: string;
+  buttonText: string;
+  discountBadge?: string;
+  bgGradient: string;
+  imageUrl?: string;
+  isCustomSchoolLayout?: boolean;
+}
+
+export interface CMSNewsArticle {
+  id: string;
+  title: string;
+  excerpt: string;
+  source: string;
+  date: string;
+  imageUrl: string;
+  tag: string;
+  readTime: string;
+}
+
+export interface CMSNavTab {
+  id: string;
+  label: string;
+  arabicLabel?: string;
+}
+
+export interface CMSHeroStat {
+  label: string;
+  value: string;
+}
+
+export interface SiteContent {
+  navbar: {
+    announcementTicker: string;
+    brandName: string;
+    brandSubtitle: string;
+    phoneSupport: string;
+    searchPlaceholder: string;
+    navTabs: CMSNavTab[];
+  };
+  hero: {
+    badgeText: string;
+    title: string;
+    subtitle: string;
+    primaryBtnText: string;
+    secondaryBtnText: string;
+    bgImageUrl: string;
+    stats: CMSHeroStat[];
+  };
+  offers: {
+    sectionTitle: string;
+    sectionSubtitle: string;
+    slides: CMSOfferSlide[];
+  };
+  home: {
+    featuredTitle: string;
+    featuredSubtitle: string;
+    regionsTitle: string;
+    regionsSubtitle: string;
+    artisansTitle: string;
+    artisansSubtitle: string;
+    heritageTitle: string;
+    heritageText: string;
+    reviewsTitle: string;
+    reviewsSubtitle: string;
+    newsletterTitle: string;
+    newsletterSubtitle: string;
+    newsletterButtonText: string;
+  };
+  productsPage: {
+    title: string;
+    subtitle: string;
+    searchPlaceholder: string;
+    filterAllLabel: string;
+    noProductsText: string;
+  };
+  checkoutPage: {
+    title: string;
+    subtitle: string;
+    shippingHeading: string;
+    paymentHeading: string;
+    summaryHeading: string;
+    orderButtonText: string;
+    guaranteeBadgeText: string;
+  };
+  accountPage: {
+    title: string;
+    subtitle: string;
+    ordersTabLabel: string;
+    profileTabLabel: string;
+    wishlistTabLabel: string;
+  };
+  newsSection: {
+    title: string;
+    subtitle: string;
+    articles: CMSNewsArticle[];
+  };
+  footer: {
+    aboutTitle: string;
+    aboutText: string;
+    quickLinksTitle: string;
+    contactTitle: string;
+    phone: string;
+    email: string;
+    address: string;
+    hours: string;
+    copyrightText: string;
+  };
+}
+

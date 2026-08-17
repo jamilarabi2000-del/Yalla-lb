@@ -1,225 +1,132 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useShop } from '../context/ShopContext';
-import systemLogo from '../assets/images/system_logo_1786837577985.jpg';
 import { 
-  MapPin, 
-  Phone, 
+  PhoneCall, 
   Mail, 
-  ShieldCheck, 
-  Truck, 
-  Sparkles,
-  Lock,
-  Unlock,
-  KeyRound
+  Instagram, 
+  Facebook, 
+  Heart 
 } from 'lucide-react';
 
 export const Footer: React.FC = () => {
-  const { setActiveTab, t, isAdminUnlocked, setIsAdminUnlocked, showToast, language } = useShop();
-  const [showUnlockModal, setShowUnlockModal] = useState(false);
-  const [passcode, setPasscode] = useState('');
-  const [error, setError] = useState('');
+  const { language, siteContent } = useShop();
+
+  const footerData = siteContent?.footer || {
+    aboutTitle: 'About Us',
+    aboutText: 'Yalla is a premier digital marketplace bridging authentic Lebanese artisan workshops, cooperatives, and culinary masters with customers across Lebanon and the global diaspora.',
+    phone: '+961 70 889 234',
+    email: 'concierge@yalla.lb',
+    copyrightText: '© 2026 Yalla. All Rights Reserved.'
+  };
 
   return (
-    <footer className="bg-[#121222] border-t border-[#c5a059]/20 text-slate-400 text-xs">
+    <footer className="bg-gradient-to-b from-[#10101e] via-[#131326] to-[#0c0c17] border-t border-[#c5a059]/25 text-slate-400 text-xs relative overflow-hidden select-none">
       
-      {/* Top Value Banner */}
-      <div className="border-b border-white/5 py-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          
-          <div className="flex items-start gap-3.5">
-            <div className="p-3 rounded-2xl bg-white/[0.04] border border-[#c5a059]/30 text-[#f1d592] flex-shrink-0">
-              <Truck className="w-5 h-5 text-[#c5a059]" />
-            </div>
-            <div>
-              <h4 className="font-bold text-white uppercase tracking-wider text-[11px]">2-Hour Beirut Express</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">Direct motorcycle dispatch across Achrafieh, Hamra, Badaro & suburbs.</p>
-            </div>
-          </div>
+      {/* Background Decorative Ambient Radial Pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.035] pointer-events-none" />
+      <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-96 h-48 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
 
-          <div className="flex items-start gap-3.5">
-            <div className="p-3 rounded-2xl bg-white/[0.04] border border-[#c5a059]/30 text-[#f1d592] flex-shrink-0">
-              <ShieldCheck className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div>
-              <h4 className="font-bold text-white uppercase tracking-wider text-[11px]">100% Lebanese Terroir</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">Sourced from independent generational artisans, cooperatives & wineries.</p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3.5">
-            <div className="p-3 rounded-2xl bg-white/[0.04] border border-[#c5a059]/30 text-[#f1d592] flex-shrink-0">
-              <Sparkles className="w-5 h-5 text-[#c5a059]" />
-            </div>
-            <div>
-              <h4 className="font-bold text-white uppercase tracking-wider text-[11px]">Fair Trade Artisan Payout</h4>
-              <p className="text-[11px] text-slate-400 mt-0.5">Empowering rural villages in Koura, Jezzine, Tripoli, Chouf & Bekaa.</p>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Main Footer Links */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <div className="flex flex-col md:flex-row justify-between items-start gap-10">
-          
-          {/* Brand Col */}
-          <div className="space-y-4 max-w-xl">
-            <div 
-              className="flex items-center gap-3 cursor-pointer group w-fit"
-              onClick={() => setActiveTab('home')}
-            >
-              <div className="w-10 h-10 rounded-xl bg-white/[0.05] p-1.5 border border-[#c5a059]/30 group-hover:border-[#c5a059] transition-colors">
-                <img 
-                  src={systemLogo} 
-                  alt="Yalla.lb Logo" 
-                  className="w-full h-full object-contain group-hover:scale-105 transition-transform"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div>
-                <span className="text-xl font-bold tracking-tight gold-gradient uppercase font-sans">
-                  Yalla.lb
-                </span>
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
-                  Lebanese Artisan Commerce
-                </p>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-400 leading-relaxed font-light">
-              A premium, high-velocity marketplace bridging Lebanese craftsmanship with modern digital commerce for a seamless, hyper-local shopping experience.
-            </p>
-          </div>
-
-          <div className="space-y-2.5 text-xs text-slate-300 min-w-[240px]">
-            <p className="flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-[#c5a059]" />
-              <span>Gouraud Street, Gemmayze, Beirut, Lebanon</span>
-            </p>
-            <p className="flex items-center gap-2">
-              <Phone className="w-4 h-4 text-[#c5a059]" />
-              <span>WhatsApp Dispatch: +961 70 889 234</span>
-            </p>
-            <p className="flex items-center gap-2">
-              <Mail className="w-4 h-4 text-[#c5a059]" />
-              <span>concierge@yalla.lb</span>
-            </p>
-          </div>
-
+      {/* Main Footer Central Content (About Us) */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-9 text-center relative z-10 flex flex-col items-center">
+        
+        {/* Section Title */}
+        <div className="flex items-center justify-center gap-3 mb-3">
+          <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-r from-transparent to-[#c5a059]/60" />
+          <h3 className="text-sm sm:text-base font-bold tracking-wider uppercase gold-gradient font-sans">
+            {footerData.aboutTitle || (language === 'ar' ? 'من نحن' : 'About Us')}
+          </h3>
+          <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-l from-transparent to-[#c5a059]/60" />
         </div>
 
-        {/* Bottom copyright */}
-        <div className="mt-12 pt-8 border-t border-white/5 flex flex-wrap items-center justify-between gap-4 text-[11px]">
-          <p className="text-slate-500">
-            &copy; {new Date().getFullYear()} Yalla.lb
-          </p>
-          
-          {/* Subtle Secure Merchant Gate Trigger */}
-          <button 
-            onClick={() => {
-              if (isAdminUnlocked) {
-                setIsAdminUnlocked(false);
-                setActiveTab('home');
-                showToast('Merchant session locked securely.', 'info');
-              } else {
-                setError('');
-                setPasscode('');
-                setShowUnlockModal(true);
-              }
-            }}
-            className="text-slate-600 hover:text-[#c5a059] transition-all flex items-center gap-1.5 cursor-pointer text-[10px] font-semibold tracking-wider uppercase"
+        {/* Narrative Description */}
+        <p className="text-xs text-slate-300/90 leading-relaxed font-light max-w-xl mx-auto mb-5">
+          {footerData.aboutText || (
+            language === 'ar'
+              ? 'المنصة الرائدة للتجارة الحرفية اللبنانية، تجمع نخبة الحرفيين والمزارعين لتقديم أشهى منتجات المونة والتحف التراثية بأعلى معايير الجودة والأصالة.'
+              : 'Lebanon’s premier artisan commerce ecosystem, connecting authentic heritage workshops and rural producers with local and diaspora patrons worldwide.'
+          )}
+        </p>
+
+        {/* Social Media & Direct Contact Channels */}
+        <div className="flex items-center justify-center gap-3 mb-6">
+          {/* Instagram */}
+          <a
+            href="https://instagram.com/yalla.lb"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Instagram"
+            className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-gradient-to-tr hover:from-amber-600 hover:via-rose-600 hover:to-purple-600 border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
           >
-            {isAdminUnlocked ? (
-              <>
-                <Unlock className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Lock Portal</span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-3.5 h-3.5 text-slate-600" />
-                <span>Merchant Portal</span>
-              </>
-            )}
-          </button>
+            <Instagram className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          </a>
 
-          <div className="flex items-center gap-2 text-slate-400">
-            <span>Made with love from Rachaya</span>
+          {/* WhatsApp */}
+          <a
+            href="https://wa.me/96170889234?text=Hello%20Yalla,%20I%20would%20like%20to%20inquire%20about%20my%20order"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="WhatsApp"
+            className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-emerald-600 border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+          >
+            <svg 
+              className="w-4 h-4 group-hover:scale-110 transition-transform fill-current" 
+              viewBox="0 0 24 24" 
+              aria-hidden="true"
+            >
+              <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.62C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.03 14.69 2 12.04 2ZM12.04 20.15C10.56 20.15 9.11 19.76 7.85 19.01L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.81 13.47 3.81 11.91C3.81 7.37 7.5 3.68 12.04 3.68C14.25 3.68 16.31 4.54 17.87 6.1C19.42 7.66 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.15 12.04 20.15ZM16.56 14.39C16.31 14.27 15.09 13.67 14.86 13.58C14.63 13.5 14.47 13.46 14.3 13.7C14.14 13.95 13.67 14.5 13.53 14.67C13.38 14.83 13.24 14.85 12.99 14.73C12.75 14.61 11.96 14.35 11.02 13.51C10.29 12.86 9.79 12.05 9.65 11.81C9.51 11.56 9.63 11.43 9.75 11.31C9.86 11.2 10.00 11.02 10.12 10.88C10.24 10.74 10.28 10.63 10.37 10.47C10.45 10.3 10.41 10.16 10.35 10.04C10.29 9.92 9.79 8.7 9.59 8.2C9.39 7.72 9.18 7.78 9.03 7.78L8.55 7.77C8.39 7.77 8.12 7.83 7.89 8.08C7.67 8.32 7.03 8.92 7.03 10.14C7.03 11.36 7.92 12.54 8.04 12.7C8.16 12.87 9.79 15.38 12.28 16.46C12.87 16.72 13.33 16.87 13.69 16.99C14.29 17.18 14.83 17.15 15.26 17.09C15.74 17.02 16.73 16.49 16.93 15.92C17.14 15.35 17.14 14.86 17.08 14.75C17.02 14.65 16.81 14.52 16.56 14.39Z" />
+            </svg>
+          </a>
+
+          {/* Facebook */}
+          <a
+            href="https://facebook.com/yallalb"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+            className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-[#1877F2] border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+          >
+            <Facebook className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          </a>
+
+          {/* Email Direct */}
+          <a
+            href="mailto:concierge@yalla.lb"
+            aria-label="Email"
+            className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-[#c5a059] border border-white/10 hover:border-transparent text-slate-300 hover:text-[#121222] flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+          >
+            <Mail className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          </a>
+
+          {/* Phone Call */}
+          <a
+            href="tel:+96170889234"
+            aria-label="Call"
+            className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-emerald-600 border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+          >
+            <PhoneCall className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          </a>
+        </div>
+
+        {/* Copyright & Lebanese Heritage Attribution inside About Us */}
+        <div className="pt-4 border-t border-white/[0.06] w-full flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-[11px] text-slate-400">
+          <div className="flex items-center gap-2">
+            <span>&copy; {new Date().getFullYear()} Yalla.lb</span>
+            <span className="text-slate-600">•</span>
+            <span className="text-slate-400 font-light">
+              {language === 'ar' ? 'جميع الحقوق محفوظة' : 'All Rights Reserved'}
+            </span>
+          </div>
+
+          <span className="hidden sm:inline text-slate-600">•</span>
+
+          <div className="flex items-center gap-1.5 text-slate-400 text-[10px]">
+            <span>{language === 'ar' ? 'صُنع بكل حب من راشيا' : 'Made with Love from Rachaya'}</span>
+            <Heart className="w-3 h-3 text-rose-400 fill-rose-400" />
             <span>🇱🇧</span>
           </div>
         </div>
 
       </div>
-
-      {/* Elegant Merchant Passcode Modal */}
-      {showUnlockModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90">
-          <div className="bg-[#121222] border border-[#c5a059]/40 p-6 rounded-3xl max-w-sm w-full space-y-5 shadow-2xl relative">
-            <div className="text-center space-y-2">
-              <div className="mx-auto w-12 h-12 rounded-full bg-[#c5a059]/10 border border-[#c5a059]/30 flex items-center justify-center">
-                <KeyRound className="w-5 h-5 text-[#c5a059]" />
-              </div>
-              <h3 className="text-base font-black text-white uppercase tracking-wider">
-                {language === 'ar' ? 'بوابة التجار والحرفيين' : 'Merchant & Artisan Access'}
-              </h3>
-              <p className="text-[11px] text-slate-400">
-                {language === 'ar' ? 'أدخل كلمة المرور الخاصة بالمشرف للوصول إلى بوابة الإدارة.' : 'Please enter the authorization passcode to unlock the merchant dashboard.'}
-              </p>
-            </div>
-
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              if (passcode === '1234' || passcode.toLowerCase() === 'admin' || passcode === '961') {
-                setIsAdminUnlocked(true);
-                setShowUnlockModal(false);
-                setActiveTab('admin');
-                showToast(
-                  language === 'ar' ? 'تم فتح بوابة الإدارة بنجاح!' : 'Merchant dashboard successfully unlocked!',
-                  'success'
-                );
-              } else {
-                setError(language === 'ar' ? 'كلمة المرور غير صحيحة. حاول مجدداً.' : 'Invalid passcode. Please try again.');
-              }
-            }} className="space-y-4">
-              <div>
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-[#c5a059] mb-1.5">
-                  {language === 'ar' ? 'كلمة المرور' : 'Security Passcode'}
-                </label>
-                <input
-                  type="password"
-                  value={passcode}
-                  onChange={(e) => {
-                    setPasscode(e.target.value);
-                    setError('');
-                  }}
-                  placeholder="••••"
-                  className="w-full px-4 py-3 bg-slate-950 border border-white/10 rounded-2xl text-center text-lg font-mono text-white focus:outline-none focus:border-[#c5a059] transition-all tracking-widest"
-                  autoFocus
-                />
-                {error && (
-                  <p className="text-rose-500 text-[11px] font-semibold text-center mt-2">{error}</p>
-                )}
-              </div>
-
-              <div className="flex gap-2.5 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowUnlockModal(false)}
-                  className="flex-1 py-3 bg-white/5 hover:bg-white/10 text-slate-300 font-bold rounded-2xl text-xs uppercase tracking-wider border border-white/10 transition-all cursor-pointer"
-                >
-                  {t('cancel')}
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-3 bg-[#c5a059] hover:bg-[#d4b36e] text-[#1a1a2e] font-black rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer"
-                >
-                  {language === 'ar' ? 'دخول' : 'Unlock'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
     </footer>
   );

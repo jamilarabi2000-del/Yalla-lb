@@ -1,11 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import { 
-  Sparkles, 
-  ArrowRight, 
-  Truck, 
-  ShieldCheck, 
-  Award, 
   Search
 } from 'lucide-react';
 
@@ -24,8 +19,22 @@ const HERO_IMAGES = [
 ];
 
 export const HeroBanner: React.FC = () => {
-  const { setActiveTab, setSearchQuery, t, language } = useShop();
+  const { setActiveTab, setSearchQuery, t, language, siteContent } = useShop();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const heroData = siteContent?.hero || {
+    badgeText: 'Handcrafted with Love in Lebanon',
+    title: 'Authentic Lebanese Treasures, Handcrafted by Master Artisans',
+    subtitle: 'Connecting traditional craft workshops across Beirut, Tripoli, Sidon, and Mount Lebanon directly to lovers of authentic Levantine heritage worldwide.',
+    primaryBtnText: 'Explore Collection',
+    secondaryBtnText: 'Meet the Artisans',
+    stats: [
+      { label: 'Master Artisans', value: '120+' },
+      { label: 'Lebanese Villages', value: '45+' },
+      { label: 'Orders Delivered', value: '15,000+' },
+      { label: 'Customer Rating', value: '4.9 ★' },
+    ]
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,37 +66,34 @@ export const HeroBanner: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
-        {/* Transparent Content Card */}
-        <div className="max-w-2xl mx-auto text-center space-y-6 bg-[#FFFFFF00] p-8 sm:p-10 rounded-3xl border border-white/20 shadow-2xl">
+        {/* Content Card */}
+        <div className="max-w-2xl mx-auto text-center space-y-5 bg-transparent backdrop-blur-none p-6 sm:p-8">
           
-
-
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15]">
-            {t('heroTitle')}
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">
+            {heroData.title || t('heroTitle')}
           </h1>
 
           {/* Search Bar */}
-          <div className="relative max-w-lg mx-auto pt-2">
-            <div className="relative flex items-center bg-white rounded-2xl border border-white/30 focus-within:border-amber-400 shadow-xl overflow-hidden transition-all">
-              <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} w-5 h-5 text-slate-400 pointer-events-none`} />
+          <div className="relative max-w-xl mx-auto pt-1">
+            <div className="relative flex items-center bg-white rounded-full border border-slate-200/80 focus-within:border-amber-500 shadow-2xl overflow-hidden transition-all p-1.5">
+              <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} w-5 h-5 text-slate-400 pointer-events-none z-10`} />
               <input
                 type="text"
-                placeholder={t('searchPlaceholder')}
+                placeholder={siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder')}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') setActiveTab('products');
                 }}
-                className={`w-full ${language === 'ar' ? 'pr-12 pl-28' : 'pl-12 pr-28'} py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none bg-transparent font-medium`}
+                className={`w-full ${language === 'ar' ? 'pr-11 pl-44 sm:pl-48' : 'pl-11 pr-44 sm:pr-48'} py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none bg-transparent font-medium truncate`}
               />
               <button 
                 onClick={() => setActiveTab('products')}
-                className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs uppercase tracking-wider rounded-xl cursor-pointer shadow-sm transition-all`}
+                className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center justify-center px-4 sm:px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
               >
-                {t('products')}
+                {heroData.primaryBtnText || t('products')}
               </button>
             </div>
           </div>
-
 
         </div>
 

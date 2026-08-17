@@ -2,6 +2,7 @@ import React from 'react';
 import { HeroBanner } from './HeroBanner';
 import { OffersCarousel } from './OffersCarousel';
 import { ProductCard } from './ProductCard';
+import { NewsSection } from './NewsSection';
 import { useShop } from '../context/ShopContext';
 import { 
   ArrowRight, 
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const HomeView: React.FC = () => {
-  const { products, setActiveTab, setSelectedCategory, t, language } = useShop();
+  const { products, setActiveTab, setSelectedCategory, t, language, siteContent } = useShop();
 
   const categoriesGrid = [
     {
@@ -89,15 +90,15 @@ export const HomeView: React.FC = () => {
       image: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80'
     },
     {
-      id: 'bath-beyond',
-      name: t('cat_bath_beyond'),
-      subtitle: language === 'ar' ? 'مستلزمات حمام فاخرة' : 'Luxe bath essentials',
+      id: 'beauty-personal-care',
+      name: t('cat_beauty_personal_care'),
+      subtitle: language === 'ar' ? 'عناية بالبشرة، صابون طبيعي ومستلزمات العناية الشخصية' : 'Luxe skincare, soaps & personal care',
       image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80'
     },
     {
-      id: 'linen',
-      name: t('cat_linen'),
-      subtitle: language === 'ar' ? 'بياضات منسوجة وملاءات' : 'Woven linens & sheets',
+      id: 'linen-bath',
+      name: t('cat_linen_bath'),
+      subtitle: language === 'ar' ? 'ملاءات مريحة، أغطية ومناشف حمام' : 'Comfort sheets, blankets & towels',
       image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=600&q=80'
     },
     {
@@ -113,10 +114,22 @@ export const HomeView: React.FC = () => {
       image: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80'
     },
     {
-      id: 'furniture',
-      name: t('cat_furniture'),
-      subtitle: language === 'ar' ? 'قطع أثاث مصنوعة يدوياً' : 'Handcrafted wooden pieces',
+      id: 'indoor-furniture',
+      name: t('cat_indoor_furniture'),
+      subtitle: language === 'ar' ? 'طاولات، كراسي وأثاث منازل مصمم يدوياً' : 'Handcrafted indoor tables & chairs',
       image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'outdoor-furniture',
+      name: t('cat_outdoor_furniture'),
+      subtitle: language === 'ar' ? 'جلسات حدائق، طاولات ومقاعد خارجية' : 'Patio sets & garden seating',
+      image: 'https://images.unsplash.com/photo-1519974719765-e6559eac2575?auto=format&fit=crop&w=600&q=80'
+    },
+    {
+      id: 'lawn-garden',
+      name: t('cat_lawn_garden'),
+      subtitle: language === 'ar' ? 'أدوات الحديقة، النباتات ومستلزمات الهواء الطلق' : 'Gardening tools & plants',
+      image: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=600&q=80'
     },
     {
       id: 'decor',
@@ -161,7 +174,7 @@ export const HomeView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-16 pb-24 bg-slate-50">
+    <div className="space-y-12 sm:space-y-14 pb-8 bg-slate-50">
       
       {/* Hero Banner with Search */}
       <HeroBanner />
@@ -246,8 +259,8 @@ export const HomeView: React.FC = () => {
 
       {/* Trust Badges Banner */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-4 sm:gap-6 py-8 px-4 sm:px-6 rounded-3xl bg-white border border-slate-200 shadow-sm">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-2 sm:gap-4 justify-center text-center sm:text-left">
+        <div className="grid grid-cols-2 gap-4 sm:gap-6 py-5 sm:py-6 px-4 sm:px-8 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-2.5 sm:gap-4 justify-center text-center sm:text-left">
             <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-50 text-[#b89753] border border-amber-200 flex-shrink-0">
               <Truck className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
@@ -326,6 +339,9 @@ export const HomeView: React.FC = () => {
           ))}
         </div>
       </section>
+
+      {/* News & Stories Section - Positioned right above the Footer */}
+      <NewsSection />
 
     </div>
   );

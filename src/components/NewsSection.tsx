@@ -1,0 +1,500 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useShop } from '../context/ShopContext';
+import { 
+  Calendar, 
+  X, 
+  Heart,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Pause,
+  Play
+} from 'lucide-react';
+
+export type NewsCategory = 'all' | 'events' | 'dates' | 'achievements';
+
+interface NewsItem {
+  id: string;
+  category: 'events' | 'dates' | 'achievements';
+  isAnnouncementBanner?: boolean;
+  bannerTitle?: string;
+  bannerSubtitle?: string;
+  titleEn: string;
+  titleAr: string;
+  excerptEn: string;
+  excerptAr: string;
+  contentEn: string[];
+  contentAr: string[];
+  date: string;
+  dateAr: string;
+  readTimeEn: string;
+  readTimeAr: string;
+  authorEn: string;
+  authorAr: string;
+  image: string;
+}
+
+const newsData: NewsItem[] = [
+  {
+    id: 'news-fall-harvest-announcement',
+    category: 'dates',
+    isAnnouncementBanner: true,
+    bannerTitle: 'ANNOUNCEMENT',
+    bannerSubtitle: 'TO YALLA.LB COMMUNITY',
+    titleEn: 'Registration Fall 2026 Season: Olive & Honey Harvest Pre-Orders Open',
+    titleAr: 'فتح باب التسجيل والطلب المسبق لموسم قطاف الزيتون وعسل السنديان خريف ٢٠٢٦',
+    excerptEn: 'Official registration and pre-orders are now open for guaranteed single-estate cold-pressed Koura olive oil and organic cedar honey jars.',
+    excerptAr: 'بدء استقبال الحجوزات والطلبات المسبقة لموسم زيت الزيتون المعصور على البارد من بساتين الكورة وعسل الأرز الجبلي النقي.',
+    contentEn: [
+      'We are pleased to announce the opening of pre-orders for the Fall 2026 harvest across all partner artisanal cooperatives in Lebanon.',
+      'Members of the Yalla community receive priority dispatch allocation, complimentary batch certificates of purity, and door-to-door delivery with temperature-safe packing.',
+      'Ensure your pantry is stocked with genuine first-press virgin oil and raw mountain preserves before seasonal batch allocations close.'
+    ],
+    contentAr: [
+      'يسرنا الإعلان عن فتح باب الحجز المسبق لمنتجات خريف ٢٠٢٦ من مختلف التعاونيات الحرفية اللبنانية الشريكة.',
+      'يحصل أعضاء مجتمع يلا على أولوية التوصيل مع شهادات فحص نقاوة الزيت والتغليف الحراري الآمن لباب منزلك.',
+      'احجز مخصصاتك من الزيت البكر الممتاز والمؤونة الجبلية الطازجة قبل اكتمال الحصص المتاحة للموسم.'
+    ],
+    date: 'August 12 2026',
+    dateAr: '١٢ آب ٢٠٢٦',
+    readTimeEn: '2 min read',
+    readTimeAr: 'دقيقتان للقراءة',
+    authorEn: 'Community Desk',
+    authorAr: 'ديوان المجتمع',
+    image: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'news-artisan-syndicate-mou',
+    category: 'events',
+    titleEn: 'Yalla.lb and Lebanese Heritage Artisans Syndicate signed a Memorandum of Understanding',
+    titleAr: 'يلا لبنان ونقابة حرفيي التراث اللبناني يوقعان مذكرة تفاهم استراتيجية',
+    excerptEn: 'A landmark partnership expanding fair-trade export pathways, international digital distribution, and mastercraft workshops across Mount Lebanon and the Bekaa.',
+    excerptAr: 'اتفاقية تعاون استراتيجية لفتح آفاق التصدير العادل والتوزيع الرقمي ودعم ورش الحرفيين في جبل لبنان والبقاع.',
+    contentEn: [
+      'In a formal ceremony in Beirut, representatives of Yalla.lb and the Lebanese Heritage Artisans Syndicate ratified a Memorandum of Understanding to support over 140 independent workshops.',
+      'The agreement guarantees zero middleman markups for traditional olive wood carvers, glassblowers from Sarafand, and brass coppersmiths from Tripoli.',
+      'Together, we are creating sustainable economic stability for master craftsmen while ensuring diaspora patrons receive verified, authentic Lebanese pieces.'
+    ],
+    contentAr: [
+      'في حفل رسمي ببيروت، وقّع ممثلو يلا لبنان ونقابة حرفيي التراث اللبناني مذكرة تفاهم لدعم أكثر من ١٤٠ مشغلاً وورشة عمل مستقلة.',
+      'تضمن الاتفاقية إلغاء هوامش الوسطاء لدعم نحاتي خشب الزيتون، نافخي الزجاج في الصرفند، ونحاسي طرابلس القديمة.',
+      'نهدف معاً إلى تحقيق الاستدامة الاقتصادية لأصحاب الحرف الأصيلة وتأمين قطع معتمدة وموثقة للمغتربين والجمهور المحلي.'
+    ],
+    date: 'August 03 2026',
+    dateAr: '٠٣ آب ٢٠٢٦',
+    readTimeEn: '3 min read',
+    readTimeAr: '٣ دقائق للقراءة',
+    authorEn: 'Executive Relations',
+    authorAr: 'العلاقات المؤسسية',
+    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'news-design-thinking-workshop',
+    category: 'achievements',
+    titleEn: 'Sustainable Craft Packaging & Design Thinking in Action workshop celebration',
+    titleAr: 'اختتام ورشة عمل التفكير التصميمي والتغليف المستدام للمنتجات الحرفية',
+    excerptEn: 'Honoring the winning design cohort for pioneering 100% biodegradable jute and cedarwood protection for delicate export shipments.',
+    excerptAr: 'تكريم الفريق الفائز لابتكاره حلول تغليف صديقة للبيئة من خيش الجوت وألياف الأرز لحماية الشحنات الصادرة.',
+    contentEn: [
+      'The intensive 4-week "Design Thinking in Action" cohort concluded with awards presented to youth product designers and packaging engineers.',
+      'The winning design integrates shock-absorbent cedar shavings and wax-sealed terracotta insulation, drastically reducing freight weight and eliminating single-use plastics.',
+      'All winning packaging formats are being deployed immediately across our nationwide and international delivery lines.'
+    ],
+    contentAr: [
+      'اختتمت ورشة "التفكير التصميمي في الميدان" التي استمرت ٤ أسابيع بحفل تكريم وتوزيع جوائز على المصممين الشباب ومهندسي التغليف.',
+      'ابتكر الفريق الفائز منظومة تغليف عازلة للصدمات من ألياف الأرز والطين المختوم، مما ساهم في خفض وزن الشحن والتخلص من البلاستيك.',
+      'سيتم اعتماد نماذج التغليف الفائزة فوراً في جميع خطوط الشحن المحلية والدولية.'
+    ],
+    date: 'July 27 2026',
+    dateAr: '٢٧ تموز ٢٠٢٦',
+    readTimeEn: '4 min read',
+    readTimeAr: '٤ دقائق للقراءة',
+    authorEn: 'Innovation Lab',
+    authorAr: 'مختبر الابتكار',
+    image: 'https://images.unsplash.com/photo-1531497865144-0464ef8fb9a9?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'news-state-quality-mou',
+    category: 'events',
+    titleEn: 'Yalla.lb signed a Quality Assurance Memorandum with the National Food Safety Authority',
+    titleAr: 'يلا لبنان توقع بروتوكول جودة وسلامة الغذاء مع الهيئة الوطنية لسلامة الغذاء',
+    excerptEn: 'Ensuring rigorous laboratory testing, zero artificial preservatives, and ISO-certified purity standards for all artisanal olive oils and honey.',
+    excerptAr: 'تطبيق أعلى معايير الفحص المخبري وضمان خلو المنتجات البلدية والمؤونة من أي مواد حافظة أو إضافات صناعية.',
+    contentEn: [
+      'To guarantee consumer peace of mind, Yalla.lb has formalized a collaborative quality agreement with accredited national laboratories and agricultural monitoring boards.',
+      'Every batch of extra virgin olive oil, mountain blossom honey, and solar-dried zaatar undergoes stringent acidity and purity assays before receiving the official Yalla Quality Seal.',
+      'This initiative underscores our commitment to setting the gold standard in authentic Lebanese gourmet retail.'
+    ],
+    contentAr: [
+      'حرصاً على ثقة عملائنا، أبرمت يلا لبنان بروتوكول تعاون لفحص ومراقبة الجودة مع المختبرات المعتمدة وهيئات الرقابة الزراعية.',
+      'تخضع كل دفعة من زيت الزيتون البكر الممتاز، عسل الأزهار البرية، والزعتر البلدي لفحوصات دقيقة قبل منحها ختم الجودة المعتمد.',
+      'تؤكد هذه الخطوة التزامنا بتقديم أرقى المعايير في تجارة المؤونة والمنتجات الغذائية اللبنانية الأصيلة.'
+    ],
+    date: 'July 27 2026',
+    dateAr: '٢٧ تموز ٢٠٢٦',
+    readTimeEn: '3 min read',
+    readTimeAr: '٣ دقائق للقراءة',
+    authorEn: 'Compliance Board',
+    authorAr: 'هيئة المطابقة والجودة',
+    image: 'https://images.unsplash.com/photo-1521791136064-7986c2920216?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'news-tripoli-soap-khan',
+    category: 'achievements',
+    titleEn: 'Tripoli Khan Al Saboun Guild Honored for 500-Year Heritage Preservation',
+    titleAr: 'تكريم نقابة خان الصابون في طرابلس تقديراً لحماية التراث الحرفي العريق',
+    excerptEn: 'Master soap artisans celebrated for maintaining chemical-free olive and laurel oil curing vaults and training a new generation of apprentices.',
+    excerptAr: 'احتفاء بأساتذة صناعة صابون الغار وزيت الزيتون المعتق في أقبية طرابلس التراثية وتدريب جيل شاب على سر المهنة.',
+    contentEn: [
+      'The historic Khan Al Saboun in Tripoli has been recognized by international cultural foundations for sustaining ancient soap-curing methods since the 15th century.',
+      'Through our exclusive artisan partnership, these hand-stamped botanical soap cakes are now shipped directly to verified buyers worldwide in certified eco-boxes.'
+    ],
+    contentAr: [
+      'نال خان الصابون التاريخي بطرابلس تكريماً دولياً لحفاظه على أسرار تعتيق الصابون الطبيعي منذ القرن الخامس عشر.',
+      'من خلال شراكتنا الحصرية، تصل قوالب الصابون المختومة يدوياً مباشرة إلى عشاق المنتجات الطبيعية حول العالم.'
+    ],
+    date: 'July 19 2026',
+    dateAr: '١٩ تموز ٢٠٢٦',
+    readTimeEn: '3 min read',
+    readTimeAr: '٣ دقائق للقراءة',
+    authorEn: 'Heritage Guild',
+    authorAr: 'نقابة التراث',
+    image: 'https://images.unsplash.com/photo-1608248597261-e4d0450cbf1b?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'news-anfeh-sea-salt-festival',
+    category: 'dates',
+    titleEn: 'Anfeh White Gold: Summer Sea Salt Harvesting Dates & Artisan Tastings Announced',
+    titleAr: 'ذهب أنفه الأبيض: الإعلان عن مواعيد قطاف ملح البحر الصخري وجلسات التذوق',
+    excerptEn: 'Join traditional salters on the Mediterranean limestone basins of Anfeh for the pristine summer mineral salt collection and culinary workshop.',
+    excerptAr: 'انضم إلى حرفيي استخراج الملح البحري في أحواض أنفه الصخرية لحضور موسم الجمع الصيفي وورش التذوق التراثية.',
+    contentEn: [
+      'Anfeh\'s historic salinas, carved directly into white sea cliffs, have begun their annual pure sun-evaporated crystallizing cycle.',
+      'Limited batches of unprocessed fleur de sel and wild herb salt blends are now scheduled for autumn delivery exclusively on Yalla.lb.'
+    ],
+    contentAr: [
+      'بدأت ملاحات أنفه التاريخية المحفورة في الصخور البيضاء دورتها السنوية لتبخير مياه البحر وإنتاج بلورات الملح النقية.',
+      'سيتم توفير كميات محدودة من زهرة الملح الطبيعية وخلاصات الأعشاب البرية حصرياً على منصة يلا لبنان.'
+    ],
+    date: 'July 14 2026',
+    dateAr: '١٤ تموز ٢٠٢٦',
+    readTimeEn: '2 min read',
+    readTimeAr: 'دقيقتان للقراءة',
+    authorEn: 'Coastal Heritage',
+    authorAr: 'تراث الساحل',
+    image: 'https://images.unsplash.com/photo-1518457607834-6e8d80c183c5?auto=format&fit=crop&w=800&q=80'
+  },
+  {
+    id: 'news-cedar-craft-showcase',
+    category: 'events',
+    titleEn: 'Bcharreh & Chouf Foresters Launch Annual Sustainable Cedarwood Carving Exhibition',
+    titleAr: 'حرفيو بشري والشوف يطلقون المعرض السنوي لمنحوتات خشب الأرز المستدام',
+    excerptEn: 'Master carvers showcase reclaimed cedar sculptures, heirloom jewelry chests, and culinary boards sourced strictly from natural pruning programs.',
+    excerptAr: 'معرض فني يجمع نخبة النحاتين لتقديم تحف وصناديق خشب الأرز المعمر المستخرج حصرياً من برامج تشذيب الغابات المحمية.',
+    contentEn: [
+      'Under strict forestry conservation oversight, woodworkers from Bcharreh and the Shouf Biosphere Reserve presented their latest collection of hand-carved heritage crafts.',
+      'Each finished piece carries a certified geographical timber tag proving zero harm to living ancient cedar trees.'
+    ],
+    contentAr: [
+      'تحت إشراف محميات الأرز الطبيعية، استعرض حرفيو بشري والشوف تشكيلتهم الجديدة من التحف الخشبية التراثية المنحوتة يدوياً.',
+      'تحمل كل قطعة رقماً تسلسلياً يثبت مصدر الخشب المستدام وحماية الأشجار المعمرة.'
+    ],
+    date: 'June 30 2026',
+    dateAr: '٣٠ حزيران ٢٠٢٦',
+    readTimeEn: '3 min read',
+    readTimeAr: '٣ دقائق للقراءة',
+    authorEn: 'Forest Reserve Guild',
+    authorAr: 'هيئة محميات الأرز',
+    image: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=800&q=80'
+  }
+];
+
+export const NewsSection: React.FC = () => {
+  const { language, showToast, siteContent } = useShop();
+  const [activeCategory, setActiveCategory] = useState<NewsCategory>('all');
+  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+  const [isAutoPlay, setIsAutoPlay] = useState(false);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const sliderRef = useRef<HTMLDivElement>(null);
+
+  const [likes, setLikes] = useState<{ [id: string]: number }>({
+    'news-fall-harvest-announcement': 54,
+    'news-artisan-syndicate-mou': 82,
+    'news-design-thinking-workshop': 67,
+    'news-state-quality-mou': 49,
+    'news-tripoli-soap-khan': 91,
+    'news-anfeh-sea-salt-festival': 63,
+    'news-cedar-craft-showcase': 78
+  });
+
+  const categories: { id: NewsCategory; labelEn: string; labelAr: string }[] = [
+    { id: 'all', labelEn: 'ALL', labelAr: 'الكل' },
+    { id: 'events', labelEn: 'PREVIOUS EVENTS', labelAr: 'الفعاليات السابقة' },
+    { id: 'dates', labelEn: 'IMPORTANT DATES', labelAr: 'تواريخ ومواعيد هامة' },
+    { id: 'achievements', labelEn: 'ACHIEVEMENTS', labelAr: 'الإنجازات والجوائز' }
+  ];
+
+  const filteredNews = activeCategory === 'all' 
+    ? newsData 
+    : newsData.filter(item => item.category === activeCategory);
+
+  const updateScrollButtons = () => {
+    if (sliderRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = sliderRef.current;
+      // In RTL, scrollLeft can be negative or inverted depending on browser
+      const maxScroll = scrollWidth - clientWidth;
+      const currentScroll = Math.abs(scrollLeft);
+      
+      setCanScrollLeft(currentScroll > 10);
+      setCanScrollRight(currentScroll < maxScroll - 10);
+
+      // Estimate active dot index
+      const cardWidth = 300; // approximate card width + gap
+      const index = Math.round(currentScroll / cardWidth);
+      setActiveSlideIndex(Math.min(index, filteredNews.length - 1));
+    }
+  };
+
+  useEffect(() => {
+    updateScrollButtons();
+    const current = sliderRef.current;
+    if (current) {
+      current.addEventListener('scroll', updateScrollButtons, { passive: true });
+      window.addEventListener('resize', updateScrollButtons);
+      return () => {
+        current.removeEventListener('scroll', updateScrollButtons);
+        window.removeEventListener('resize', updateScrollButtons);
+      };
+    }
+  }, [filteredNews]);
+
+  // Handle slide scrolling
+  const scrollSlider = (direction: 'left' | 'right') => {
+    if (sliderRef.current) {
+      const scrollAmount = 340; // width of card + gap
+      const multiplier = language === 'ar' 
+        ? (direction === 'left' ? 1 : -1) 
+        : (direction === 'left' ? -1 : 1);
+      
+      sliderRef.current.scrollBy({
+        left: multiplier * scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handleLike = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLikes(prev => ({
+      ...prev,
+      [id]: (prev[id] || 0) + 1
+    }));
+    showToast(language === 'ar' ? 'شكراً على تفاعلك!' : 'Thank you for your feedback!', 'success');
+  };
+
+  return (
+    <section className="bg-gradient-to-b from-[#121222] via-[#16162a] to-[#0f0f1c] text-white py-8 sm:py-10 px-4 sm:px-6 lg:px-8 border-t border-b border-[#c5a059]/25 select-none relative overflow-hidden">
+      
+      {/* Background Decorative Ambient Radial Pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:28px_28px] opacity-10 pointer-events-none" />
+      <div className="absolute -left-20 top-0 w-80 h-80 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -right-20 bottom-0 w-80 h-80 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto relative z-10">
+        
+        {/* Section Heading & Slider Controls Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-light tracking-tight text-white">
+              {(!siteContent?.newsSection?.title || siteContent.newsSection.title === 'Press, Craft Stories & Cultural News' || siteContent.newsSection.title === 'News & Announcements') ? (
+                language === 'ar' ? (
+                  <>الأخبار <span className="gold-gradient font-serif italic">والإعلانات</span></>
+                ) : (
+                  <>News & <span className="gold-gradient font-serif italic">Announcements</span></>
+                )
+              ) : (
+                siteContent.newsSection.title
+              )}
+            </h2>
+          </div>
+
+          {/* Slider Navigation Arrows (Matching System Gold Theme) */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <button
+              onClick={() => scrollSlider('left')}
+              aria-label="Previous Slide"
+              disabled={!canScrollLeft && !isAutoPlay}
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[#c5a059]/30 bg-white/[0.05] text-[#f1d592] hover:bg-[#c5a059] hover:text-[#121222] hover:border-[#c5a059] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md disabled:opacity-25 disabled:cursor-not-allowed ${
+                language === 'ar' ? 'rotate-180' : ''
+              }`}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => scrollSlider('right')}
+              aria-label="Next Slide"
+              disabled={!canScrollRight && !isAutoPlay}
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[#c5a059]/30 bg-white/[0.05] text-[#f1d592] hover:bg-[#c5a059] hover:text-[#121222] hover:border-[#c5a059] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md disabled:opacity-25 disabled:cursor-not-allowed ${
+                language === 'ar' ? 'rotate-180' : ''
+              }`}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Horizontal Slider Track Container */}
+        <div 
+          ref={sliderRef}
+          className="flex gap-4 sm:gap-5 overflow-x-auto pb-3 scroll-smooth snap-x snap-mandatory scrollbar-none"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {filteredNews.map((item) => (
+            <div
+              key={item.id}
+              onClick={() => setSelectedNews(item)}
+              className="w-[260px] sm:w-[280px] md:w-[290px] flex-shrink-0 snap-start bg-white rounded-xl border border-amber-900/10 hover:border-[#c5a059]/60 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer group transform hover:-translate-y-0.5"
+            >
+              {/* Card Image / Banner Header */}
+              <div className="w-full h-32 sm:h-36 relative overflow-hidden bg-slate-100 flex-shrink-0">
+                {/* Real Photography with subtle zoom */}
+                <div className="w-full h-full relative">
+                  <img
+                    src={item.image}
+                    alt={language === 'ar' ? item.titleAr : item.titleEn}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent group-hover:from-black/30 transition-colors" />
+                </div>
+              </div>
+
+              {/* Card Body matching typography and system gold accent line */}
+              <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between bg-white text-slate-800">
+                
+                {/* Title in clean italicized font */}
+                <div>
+                  <h3 className="text-xs sm:text-[13px] text-slate-900 italic leading-snug font-semibold line-clamp-2 min-h-[34px] group-hover:text-[#96783d] transition-colors">
+                    {language === 'ar' ? item.titleAr : item.titleEn}
+                  </h3>
+                </div>
+
+                {/* Divider with active system gold accent line */}
+                <div className="mt-2.5 pt-1.5">
+                  <div className="w-full bg-slate-100 h-[1px] relative mb-2">
+                    <div className={`absolute top-0 w-10 h-[1.5px] bg-[#c5a059] ${language === 'ar' ? 'right-0' : 'left-0'}`} />
+                  </div>
+
+                  {/* Date format at the bottom */}
+                  <div className="flex items-center justify-between text-[11px] text-[#96783d] font-semibold">
+                    <span>{language === 'ar' ? item.dateAr : item.date}</span>
+                    <button
+                      onClick={(e) => handleLike(item.id, e)}
+                      className="text-slate-400 hover:text-rose-500 flex items-center gap-1 transition-colors p-0.5 cursor-pointer"
+                    >
+                      <Heart className="w-3 h-3" />
+                      <span className="text-[10px] font-mono">{likes[item.id] || 0}</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Slider Pagination Dots & Hint */}
+        <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center gap-1.5">
+            {filteredNews.map((_, idx) => (
+              <span
+                key={idx}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  activeSlideIndex === idx
+                    ? 'w-6 bg-[#c5a059] shadow-[0_0_8px_#c5a059]'
+                    : 'w-2 bg-white/20'
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="text-[11px] text-[#f1d592]/70 hidden sm:flex items-center gap-2">
+            <span>{language === 'ar' ? 'اسحب للتنقل بين الأخبار والإعلانات' : 'Scroll or use arrows to view all stories'}</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Modal View for full news narrative */}
+      {selectedNews && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#121222] text-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-[#c5a059]/40">
+            
+            <div className="relative h-60 w-full overflow-hidden bg-slate-900">
+              <img 
+                src={selectedNews.image} 
+                alt={language === 'ar' ? selectedNews.titleAr : selectedNews.titleEn}
+                className="w-full h-full object-cover opacity-90"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#121222] via-black/40 to-black/20" />
+              <button 
+                onClick={() => setSelectedNews(null)}
+                className="absolute top-4 right-4 p-2.5 rounded-full bg-black/70 hover:bg-black text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <div className="absolute bottom-4 left-6 right-6 text-white space-y-1.5">
+                <span className="inline-block px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-[#c5a059] text-[#121222] shadow">
+                  {selectedNews.category.toUpperCase()}
+                </span>
+                <h2 className="text-lg sm:text-xl font-bold leading-snug">
+                  {language === 'ar' ? selectedNews.titleAr : selectedNews.titleEn}
+                </h2>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="flex items-center justify-between text-xs text-slate-400 pb-3 border-b border-white/10">
+                <span className="flex items-center gap-1.5 font-medium text-[#f1d592]">
+                  <Calendar className="w-3.5 h-3.5 text-[#c5a059]" />
+                  <span>{language === 'ar' ? selectedNews.dateAr : selectedNews.date}</span>
+                </span>
+                <span className="font-semibold text-slate-300">
+                  {language === 'ar' ? selectedNews.authorAr : selectedNews.authorEn}
+                </span>
+              </div>
+
+              <div className="space-y-4 text-sm sm:text-base text-slate-200 leading-relaxed font-light">
+                {(language === 'ar' ? selectedNews.contentAr : selectedNews.contentEn).map((paragraph, index) => (
+                  <p key={index}>{paragraph}</p>
+                ))}
+              </div>
+
+              <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+                <button
+                  onClick={(e) => handleLike(selectedNews.id, e)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 border border-rose-500/20 transition-colors text-xs font-bold cursor-pointer"
+                >
+                  <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
+                  <span>{likes[selectedNews.id] || 0} {language === 'ar' ? 'إعجاب' : 'Likes'}</span>
+                </button>
+
+                <button
+                  onClick={() => setSelectedNews(null)}
+                  className="px-6 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#d4b36e] text-[#121222] text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  {language === 'ar' ? 'إغلاق' : 'Close'}
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+    </section>
+  );
+};

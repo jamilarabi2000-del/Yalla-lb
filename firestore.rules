@@ -1,8 +1,62 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
+
+    // Helper functions
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+
+    // Connection test document (required by Firebase verification health check)
+    match /test/connection {
+      allow read: if true;
+    }
+
+    // 1. Products Catalog Collection (Public read, valid document writes)
+    match /products/{productId} {
+      allow get, list: if true;
+      allow create, update: if isValidId(productId) && request.resource.data.priceUSD is number && request.resource.data.priceUSD >= 0;
+      allow delete: if isValidId(productId);
+    }
+
+    // 2. User Profiles Collection
+    match /users/{userId} {
+      allow get, create, update, delete: if isValidId(userId);
+    }
+
+    // 3. Wishlists Collection
+    match /wishlists/{userId} {
+      allow get, create, update, delete: if isValidId(userId);
+    }
+
+    // 4. Shopping Carts Collection
+    match /carts/{userId} {
+      allow get, create, update, delete: if isValidId(userId);
+    }
+
+    // 5. Orders Collection (Customer Purchases & Dispatch Coordination)
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if true;
+      allow create: if isValidId(orderId) && request.resource.data.totalUSD is number;
+      allow update, delete: if isValidId(orderId);
+    }
+
+    // 6. Product Reviews Collection
+    match /reviews/{reviewId} {
+      allow get, list: if true;
+      allow create: if isValidId(reviewId) && request.resource.data.rating is number;
+      allow update, delete: if isValidId(reviewId);
+    }
+
+    // 7. Site Content CMS Collection
+    match /cms/{docId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(docId);
     }
   }
 }

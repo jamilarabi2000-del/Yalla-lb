@@ -316,7 +316,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 <div className="p-4 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
                   <p className="text-white font-bold">{selectedOrder.shipping.fullName} ({selectedOrder.shipping.phone})</p>
                   <p>{selectedOrder.shipping.street}, {selectedOrder.shipping.city}, Lebanon</p>
-                  <p className="text-slate-400 italic">Delivery Note: {selectedOrder.shipping.notes || 'Standard artisanal delivery'}</p>
+                  <p className="text-slate-400 italic">Delivery Note: {selectedOrder.shipping.deliveryNotes || 'Standard artisanal delivery'}</p>
                 </div>
               </div>
 
@@ -343,11 +343,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
               <div className="p-4 rounded-2xl bg-[#c5a059]/10 border border-[#c5a059]/30 space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span>Subtotal</span>
-                  <span className="font-mono">{formatPrice(selectedOrder.totalUSD - (selectedOrder.shippingFee || 5))}</span>
+                  <span className="font-mono">{formatPrice(selectedOrder.subtotalUSD ?? (selectedOrder.totalUSD - (selectedOrder.deliveryFeeUSD || 3)))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Lebanon Express Shipping</span>
-                  <span className="font-mono">{formatPrice(selectedOrder.shippingFee || 5)}</span>
+                  <span className="font-mono">{formatPrice(selectedOrder.deliveryFeeUSD ?? 3)}</span>
                 </div>
                 <div className="flex justify-between pt-2 border-t border-[#c5a059]/30 text-sm font-bold text-white">
                   <span>Total Paid</span>
