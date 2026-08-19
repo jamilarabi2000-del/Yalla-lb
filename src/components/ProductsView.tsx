@@ -93,8 +93,9 @@ export const ProductsView: React.FC = () => {
         const matchesArtisan = product.artisan.toLowerCase().includes(query);
         const matchesOrigin = product.origin.toLowerCase().includes(query);
         const matchesTags = product.tags.some(t => t.toLowerCase().includes(query));
+        const matchesKeywords = product.keywords ? product.keywords.some(k => k.toLowerCase().includes(query)) : false;
         const matchesDesc = product.description.toLowerCase().includes(query);
-        if (!matchesName && !matchesAr && !matchesArtisan && !matchesOrigin && !matchesTags && !matchesDesc) {
+        if (!matchesName && !matchesAr && !matchesArtisan && !matchesOrigin && !matchesTags && !matchesKeywords && !matchesDesc) {
           return false;
         }
       }

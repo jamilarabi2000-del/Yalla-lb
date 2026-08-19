@@ -6,6 +6,7 @@ import { EcommerceOverview } from './admin/EcommerceOverview';
 import { CategoriesDetailsView } from './admin/CategoriesDetailsView';
 import { CustomersView } from './admin/CustomersView';
 import { ActiveCartsView } from './admin/ActiveCartsView';
+import { DiscountsManager } from './admin/DiscountsManager';
 import { DatabaseActivityLogs } from './admin/DatabaseActivityLogs';
 import { PageCMSManager } from './PageCMSManager';
 import { 
@@ -117,7 +118,8 @@ export const AdminView: React.FC = () => {
     stock: 25,
     image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
     weightOrVolume: '500ml',
-    tags: ['Artisanal', 'Lebanese Terroir']
+    tags: ['Artisanal', 'Lebanese Terroir'],
+    keywordsInput: 'lebanese, artisanal, authentic, gourmet'
   });
 
   // Calculate distinct counts for sidebar badges
@@ -157,6 +159,7 @@ export const AdminView: React.FC = () => {
 
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   if (!firebaseUser) {
@@ -191,20 +194,29 @@ export const AdminView: React.FC = () => {
                   required
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="jamilarabi2000@gmail.com"
+                  placeholder="example@gmail.com"
                   className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none transition-all"
                 />
               </div>
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none transition-all"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2.5 pr-10 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -327,6 +339,10 @@ export const AdminView: React.FC = () => {
       return;
     }
 
+    const keywordsArray = newProduct.keywordsInput 
+      ? newProduct.keywordsInput.split(',').map(s => s.trim()).filter(Boolean) 
+      : ['lebanese', 'artisanal', 'authentic'];
+
     const created: Omit<Product, 'id'> = {
       name: newProduct.name,
       arabicName: newProduct.arabicName,
@@ -344,7 +360,8 @@ export const AdminView: React.FC = () => {
       isBestseller: false,
       isPublished: true,
       weightOrVolume: newProduct.weightOrVolume || '',
-      tags: ['Authentic', 'Handmade', 'Lebanon']
+      tags: ['Authentic', 'Handmade', 'Lebanon'],
+      keywords: keywordsArray
     };
 
     await addProduct(created);
@@ -354,6 +371,10 @@ export const AdminView: React.FC = () => {
   const handleSaveFullProductEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullEditProduct) return;
+
+    const keywordsArray = (fullEditProduct as any).keywordsInput !== undefined
+      ? (fullEditProduct as any).keywordsInput.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : (fullEditProduct.keywords || []);
 
     await updateProduct(fullEditProduct.id, {
       name: fullEditProduct.name,
@@ -368,7 +389,8 @@ export const AdminView: React.FC = () => {
       craftStory: fullEditProduct.craftStory,
       isPublished: fullEditProduct.isPublished !== false,
       isFeatured: !!fullEditProduct.isFeatured,
-      isBestseller: !!fullEditProduct.isBestseller
+      isBestseller: !!fullEditProduct.isBestseller,
+      keywords: keywordsArray
     });
 
     showToast(`Updated product "${fullEditProduct.name}"!`, 'success');
@@ -792,7 +814,7 @@ export const AdminView: React.FC = () => {
 
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setFullEditProduct({ ...prod })}
+                              onClick={() => setFullEditProduct({ ...prod, keywordsInput: prod.keywords ? prod.keywords.join(', ') : '' } as any)}
                               className="p-1.5 text-slate-400 hover:text-[#4f46e5] rounded-lg transition-colors cursor-pointer"
                               title="Full Edit"
                             >
@@ -837,6 +859,11 @@ export const AdminView: React.FC = () => {
           {/* 4. Categories & Details */}
           {currentTab === 'categories' && (
             <CategoriesDetailsView />
+          )}
+
+          {/* Discounts & Promos */}
+          {currentTab === 'discounts' && (
+            <DiscountsManager />
           )}
 
           {/* 5. Customers */}
@@ -1053,6 +1080,17 @@ export const AdminView: React.FC = () => {
               </div>
 
               <div>
+                <label className="block font-bold text-slate-700 mb-1">SEO Keywords (Comma Separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. zaatar, olive oil, lebanese spice, organic"
+                  value={newProduct.keywordsInput}
+                  onChange={(e) => setNewProduct({ ...newProduct, keywordsInput: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                />
+              </div>
+
+              <div>
                 <label className="block font-bold text-slate-700 mb-1">Description & Heritage Story</label>
                 <textarea
                   rows={2}
@@ -1189,6 +1227,17 @@ export const AdminView: React.FC = () => {
                   type="url"
                   value={fullEditProduct.image}
                   onChange={(e) => setFullEditProduct({ ...fullEditProduct, image: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">SEO Keywords (Comma Separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. zaatar, olive oil, lebanese spice, organic"
+                  value={(fullEditProduct as any).keywordsInput || ''}
+                  onChange={(e) => setFullEditProduct({ ...fullEditProduct, keywordsInput: e.target.value } as any)}
                   className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
                 />
               </div>

@@ -119,7 +119,7 @@ export const CheckoutView: React.FC = () => {
       }
 
       if (!fName || !lName) {
-        const emailToParse = firebaseUser.email || user?.email || '';
+        const emailToParse = firebaseUser?.email || user?.email || '';
         if (emailToParse.includes('@')) {
           const raw = emailToParse.split('@')[0].replace(/[0-9]+/g, ' ').trim();
           const parts = raw.split(/[\._\-\s]+/).filter(Boolean);
@@ -128,29 +128,29 @@ export const CheckoutView: React.FC = () => {
             lName = lName || (parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase());
           } else if (parts.length === 1 && parts[0].length > 0) {
             fName = fName || (parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase());
-            lName = lName || 'Ghattas';
+            lName = lName || '';
           }
         }
       }
 
-      fName = fName || 'Walid';
-      lName = lName || 'Ghattas';
+      fName = fName || '';
+      lName = lName || '';
 
       // Phone formatting & fallback
       let phoneVal = user?.phone || '';
       if (!phoneVal || phoneVal.trim() === '') {
-        phoneVal = '+961 70 123 456';
+        phoneVal = '';
       } else if (!phoneVal.startsWith('+961')) {
         const clean = phoneVal.replace(/\D/g, '');
-        phoneVal = clean ? `+961 ${clean}` : '+961 70 123 456';
+        phoneVal = clean ? `+961 ${clean}` : '';
       }
 
       // Address & Notes defaults
-      const emailVal = firebaseUser.email || user?.email || 'customer@yalla.lb';
-      const cityVal = user?.defaultCity || 'Achrafieh, Beirut';
-      const streetVal = user?.defaultAddress || 'Gouraud Street, next to Paul Bakery';
-      const buildingVal = user?.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B';
-      const notesVal = user?.defaultNotes || 'Call upon arrival, leave with building concierge if not present';
+      const emailVal = firebaseUser?.email || user?.email || '';
+      const cityVal = user?.defaultCity || '';
+      const streetVal = user?.defaultAddress || '';
+      const buildingVal = user?.defaultBuilding || '';
+      const notesVal = user?.defaultNotes || '';
 
       setFormData(prev => ({
         firstName: prev.firstName || fName,
@@ -180,10 +180,10 @@ export const CheckoutView: React.FC = () => {
   // Sync guest-entered checkout details to user profile immediately upon logging in or signing up
   useEffect(() => {
     if (firebaseUser && user) {
-      const hasGuestFirstName = formData.firstName && formData.firstName.trim() !== '' && formData.firstName !== 'Walid';
-      const hasGuestLastName = formData.lastName && formData.lastName.trim() !== '' && formData.lastName !== 'Ghattas';
-      const hasGuestPhone = formData.phone && formData.phone.trim() !== '' && formData.phone !== '+961 70 123 456';
-      const hasGuestAddress = formData.street && formData.street.trim() !== '' && formData.street !== 'Gouraud Street, next to Paul Bakery';
+      const hasGuestFirstName = formData.firstName && formData.firstName.trim() !== '';
+      const hasGuestLastName = formData.lastName && formData.lastName.trim() !== '';
+      const hasGuestPhone = formData.phone && formData.phone.trim() !== '';
+      const hasGuestAddress = formData.street && formData.street.trim() !== '';
 
       if (hasGuestFirstName || hasGuestLastName || hasGuestPhone || hasGuestAddress) {
         const isProfileDifferent = 

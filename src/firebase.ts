@@ -70,9 +70,8 @@ try {
 } catch (e) {
   if (isIframe) {
     try {
-      // In an iframe, bypass indexedDBLocalPersistence which hooks pagehide/visibilitychange listeners that crash with "Database is closing/hidden"
       authInstance = initializeAuth(app, {
-        persistence: [browserLocalPersistence, browserSessionPersistence]
+        persistence: [browserSessionPersistence]
       });
     } catch (err) {
       authInstance = getAuth(app);
@@ -80,7 +79,7 @@ try {
   } else {
     try {
       authInstance = initializeAuth(app, {
-        persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence]
+        persistence: [browserSessionPersistence]
       });
     } catch (err) {
       authInstance = getAuth(app);

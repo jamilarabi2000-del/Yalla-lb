@@ -157,6 +157,23 @@
         "passcode": { "type": "string" }
       },
       "required": ["passcode"]
+    },
+    "DiscountRule": {
+      "title": "DiscountRule",
+      "description": "Admin configured promotional discount rule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 150 },
+        "type": { "type": "string", "enum": ["percentage", "fixed"] },
+        "value": { "type": "number" },
+        "target": { "type": "string", "enum": ["checkout", "product", "category", "seller", "brand"] },
+        "targetValue": { "type": "string", "maxLength": 150 },
+        "couponCode": { "type": "string", "maxLength": 50 },
+        "isActive": { "type": "boolean" },
+        "minPurchaseUSD": { "type": "number" }
+      },
+      "required": ["id", "name", "type", "value", "target", "isActive"]
     }
   },
   "firestore": {
@@ -195,6 +212,10 @@
     "/admin_config/{docId}": {
       "schema": { "$ref": "#/entities/AdminConfig" },
       "description": "Secure administrative lock parameters"
+    },
+    "/discounts/{discountId}": {
+      "schema": { "$ref": "#/entities/DiscountRule" },
+      "description": "Promotional discount rules managed by admin"
     }
   }
 }

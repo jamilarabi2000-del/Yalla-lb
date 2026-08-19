@@ -21,6 +21,7 @@ export interface Product {
   isBestseller?: boolean;
   isPublished?: boolean; // Admin can publish/hide individual products
   tags: string[];
+  keywords?: string[];
   weightOrVolume?: string;
 }
 
@@ -87,6 +88,7 @@ export interface CMSOfferSlide {
   title: string;
   subtitle: string;
   buttonText: string;
+  targetUrl?: string;
   discountBadge?: string;
   bgGradient: string;
   imageUrl?: string;
@@ -218,6 +220,7 @@ export interface SiteContent {
     subtitle: string;
     primaryBtnText: string;
     secondaryBtnText: string;
+    targetUrl?: string;
     bgImageUrl: string;
     stats: CMSHeroStat[];
   };
@@ -334,4 +337,17 @@ export interface Review {
   comment: string;
   createdAt: string; // ISO timestamp string
 }
+
+export interface DiscountRule {
+  id: string;
+  name: string;
+  type: 'percentage' | 'fixed';
+  value: number; // e.g. 15 for 15% or 5 for $5
+  target: 'checkout' | 'product' | 'category' | 'seller' | 'brand';
+  targetValue?: string; // specific product id, category id/name, artisan/seller name, or origin/brand name
+  couponCode?: string; // optional coupon code e.g. SUMMER20
+  isActive: boolean;
+  minPurchaseUSD?: number;
+}
+
 

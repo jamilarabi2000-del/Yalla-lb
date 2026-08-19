@@ -71,6 +71,11 @@ service cloud.firestore {
     match /admin_config/{docId} {
       allow read, write: if isAdmin();
     }
+
+    match /discounts/{discountId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
   }
 }
 

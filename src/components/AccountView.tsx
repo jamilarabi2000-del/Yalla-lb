@@ -78,22 +78,22 @@ export const AccountView: React.FC = () => {
       }
 
       // Add identical fallbacks as CheckoutView to ensure identical user experience and data representation
-      fName = fName || 'Walid';
-      lName = lName || 'Ghattas';
+      fName = fName || '';
+      lName = lName || '';
 
       const emailVal = user.email || (firebaseUser ? firebaseUser.email : '') || '';
       
       let phoneVal = user.phone || '';
       if (!phoneVal || phoneVal.trim() === '') {
-        phoneVal = '70 123 456';
+        phoneVal = '';
       } else {
         phoneVal = phoneVal.replace('+961', '').replace(/\s+/g, '').trim();
       }
 
-      const cityVal = user.defaultCity || 'Achrafieh, Beirut';
-      const addressVal = user.defaultAddress || 'Gouraud Street, next to Paul Bakery';
-      const buildingVal = user.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B';
-      const notesVal = user.defaultNotes || 'Call upon arrival, leave with building concierge if not present';
+      const cityVal = user.defaultCity || '';
+      const addressVal = user.defaultAddress || '';
+      const buildingVal = user.defaultBuilding || '';
+      const notesVal = user.defaultNotes || '';
 
       setProfileFirstName(fName);
       setProfileLastName(lName);

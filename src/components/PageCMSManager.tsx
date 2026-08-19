@@ -834,6 +834,19 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
             </div>
+            
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                Primary Button Link (URL)
+              </label>
+              <input
+                type="text"
+                value={cmsForm.hero?.targetUrl || ''}
+                placeholder="/products, /product/123, or https://..."
+                onChange={(e) => updateSectionField('hero', 'targetUrl', e.target.value)}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+              />
+            </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
@@ -1003,6 +1016,25 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
                       className="w-full px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-xs text-white"
                     />
                   </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      Button Link (URL)
+                    </label>
+                    <input
+                      type="text"
+                      value={slide.targetUrl || ''}
+                      placeholder="/products, /product/123, or https://..."
+                      onChange={(e) => {
+                        const newSlides = [...cmsForm.offers.slides];
+                        newSlides[idx].targetUrl = e.target.value;
+                        updateSectionField('offers', 'slides', newSlides);
+                      }}
+                      className="w-full px-3 py-1.5 rounded-lg bg-slate-800 border border-white/10 text-xs text-white"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
                       Discount Pill

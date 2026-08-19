@@ -494,18 +494,7 @@ export const ProductDetailView: React.FC = () => {
             <div className="space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
               <p>{product.description}</p>
 
-              {/* Heritage Story Callout Box */}
-              {(visibility.detailCraftStory || isVisualEditMode) && (
-                <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-1.5">
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#96783d]">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
-                    <span>{t('artisanLegacy')}</span>
-                  </div>
-                  <p className="text-xs text-slate-800 italic font-medium leading-relaxed">
-                    "{product.craftStory || product.description}"
-                  </p>
-                </div>
-              )}
+
             </div>
 
             {/* Quantity Selector & Add to Cart Action */}
@@ -580,21 +569,7 @@ export const ProductDetailView: React.FC = () => {
                   </button>
                 )}
 
-                {/* Value propositions */}
-                <div className="grid grid-cols-3 gap-3 pt-2 text-[11px] text-slate-600 font-medium text-center">
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-1">
-                    <Truck className="w-4 h-4 text-amber-600" />
-                    <span>{siteContent.productDetailPage?.freeDeliveryBadgeText || (language === 'ar' ? 'توصيل سريع' : 'Beirut Express')}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-1">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    <span>{language === 'ar' ? 'منشأ موثوق' : 'Verified Origin'}</span>
-                  </div>
-                  <div className="p-2.5 rounded-xl bg-white border border-slate-200 flex flex-col items-center gap-1">
-                    <RotateCcw className="w-4 h-4 text-amber-600" />
-                    <span>{language === 'ar' ? 'إرجاع سهل' : 'Easy Return'}</span>
-                  </div>
-                </div>
+
               </div>
             )}
 

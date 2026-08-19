@@ -211,64 +211,7 @@ export const HomeView: React.FC = () => {
         </div>
       )}
 
-      {/* Shop by Category Grid */}
-      {(visibility.homeCategories || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          {!visibility.homeCategories && isVisualEditMode && (
-            <div className="mb-4 bg-rose-600/90 text-white px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1">
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>Category Grid Hidden</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {t('exploreDepartments')}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {language === 'ar' ? (
-                  <>التسوق حسب <span className="gold-gradient font-serif italic">الفئة</span></>
-                ) : (
-                  <>Shop by <span className="gold-gradient font-serif italic">Category</span></>
-                )}
-              </h2>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {categoriesGrid.map((cat) => (
-              <div
-                key={cat.id}
-                onClick={() => handleCategoryClick(cat.id)}
-                className="group relative h-44 rounded-2xl overflow-hidden cursor-pointer premium-card border border-slate-200 hover:border-[#b89753] transition-all duration-300 shadow-md"
-              >
-                <img 
-                  src={cat.image} 
-                  alt={cat.name}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 brightness-90 group-hover:brightness-100"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
-                <div className="absolute bottom-3 left-3 right-3 space-y-0.5">
-                  <h3 className="text-sm font-bold text-white group-hover:text-[#f3e5ab] transition-colors">
-                    {cat.name}
-                  </h3>
-                  <p className="text-[11px] text-slate-200 font-light">
-                    {cat.subtitle}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Multi-Offer Promotional Slider Carousel */}
-      {(visibility.homeOffers || isVisualEditMode) && (
-        <div className={`relative ${!visibility.homeOffers && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl' : ''}`}>
-          <OffersCarousel />
-        </div>
-      )}
 
       {/* Middle Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="middle" />
@@ -304,32 +247,7 @@ export const HomeView: React.FC = () => {
         </section>
       )}
 
-      {/* Trust Badges Banner */}
-      {(visibility.homeTrustBadges || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeTrustBadges && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl' : ''}`}>
-          <div className="grid grid-cols-2 gap-4 sm:gap-6 py-5 sm:py-6 px-4 sm:px-8 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
-            <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-2.5 sm:gap-4 justify-center text-center sm:text-left">
-              <div className="p-2.5 sm:p-3 rounded-2xl bg-amber-50 text-[#b89753] border border-amber-200 flex-shrink-0">
-                <Truck className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900">{t('freeDelivery')}</h4>
-                <p className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">{t('freeDeliverySub')}</p>
-              </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row items-center sm:items-start md:items-center gap-2 sm:gap-4 justify-center text-center sm:text-left">
-              <div className="p-2.5 sm:p-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex-shrink-0">
-                <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div>
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900">{t('fastShipping')}</h4>
-                <p className="text-[10px] sm:text-xs text-slate-500 whitespace-nowrap">{t('fastShippingSub')}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
 
       {/* Today's Flash Deals */}
       {(visibility.homeDeals || isVisualEditMode) && todaysDeals.length > 0 && (

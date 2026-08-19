@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity } from '../types';
+import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule } from '../types';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
 import { LBP_USD_RATE } from '../data/regions';
@@ -230,6 +230,12 @@ interface ShopContextType {
   // Recent Activities (Audit Logs)
   recentActivities: RecentActivity[];
   logAdminActivity: (actionType: RecentActivity['actionType'], summary: string, details: string) => Promise<void>;
+
+  // Discounts & Promos
+  discountRules: DiscountRule[];
+  addDiscountRule: (rule: Omit<DiscountRule, 'id'>) => Promise<void>;
+  updateDiscountRule: (id: string, updates: Partial<DiscountRule>) => Promise<void>;
+  deleteDiscountRule: (id: string) => Promise<void>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -244,78 +250,7 @@ const INITIAL_USER: UserProfile = {
   defaultAddress: ''
 };
 
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'YLB-98421',
-    date: '2026-08-10T14:30:00Z',
-    items: [
-      {
-        product: INITIAL_PRODUCTS[0],
-        quantity: 2
-      },
-      {
-        product: INITIAL_PRODUCTS[1],
-        quantity: 3
-      }
-    ],
-    shipping: {
-      fullName: 'Karim Chamoun',
-      phone: '+961 70 123 456',
-      email: 'karim.chamoun@yalla.lb',
-      governorate: 'beirut',
-      city: 'Achrafieh',
-      street: 'Sursock Street',
-      building: 'Building 14',
-      floorApartment: '3rd Floor',
-      deliveryNotes: 'Please call upon arrival',
-      deliverySpeed: 'express_beirut'
-    },
-    paymentMethod: 'cod_usd',
-    currency: 'USD',
-    subtotalUSD: 53.00,
-    deliveryFeeUSD: 3.00,
-    totalUSD: 56.00,
-    totalLBP: 56.00 * 89500,
-    status: 'in_transit',
-    estimatedDelivery: 'Tomorrow afternoon',
-    trackingNumber: 'BEY-EXP-98421'
-  },
-  {
-    id: 'YLB-91120',
-    date: '2026-08-04T09:15:00Z',
-    items: [
-      {
-        product: INITIAL_PRODUCTS[2],
-        quantity: 1
-      },
-      {
-        product: INITIAL_PRODUCTS[3],
-        quantity: 2
-      }
-    ],
-    shipping: {
-      fullName: 'Karim Chamoun',
-      phone: '+961 70 123 456',
-      email: 'karim.chamoun@yalla.lb',
-      governorate: 'mount_lebanon',
-      city: 'Broummana',
-      street: 'Main Pine Road',
-      building: 'Villa Al-Arz',
-      floorApartment: 'Ground Floor',
-      deliveryNotes: 'Gate passcode 4421',
-      deliverySpeed: 'standard'
-    },
-    paymentMethod: 'wish_omt',
-    currency: 'USD',
-    subtotalUSD: 80.00,
-    deliveryFeeUSD: 5.00,
-    totalUSD: 85.00,
-    totalLBP: 85.00 * 89500,
-    status: 'delivered',
-    estimatedDelivery: 'Delivered on Aug 6',
-    trackingNumber: 'BEY-EXP-91120'
-  }
-];
+const INITIAL_ORDERS: Order[] = [];
 
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTabState] = useState<NavTab>(getInitialNavTab);
@@ -503,6 +438,149 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error('[ShopContext] Failed to log admin activity:', err);
     }
+  };
+
+  const hasSeededDiscountsRef = useRef(false);
+
+  const [discountRules, setDiscountRules] = useState<DiscountRule[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_discount_rules');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: 'rule-1',
+        name: 'Koura Olive Oil Special (15% Off)',
+        type: 'percentage',
+        value: 15,
+        target: 'brand',
+        targetValue: 'Koura, North Lebanon',
+        couponCode: 'KOURA15',
+        isActive: true
+      },
+      {
+        id: 'rule-2',
+        name: 'Checkout Extra $5 Off',
+        type: 'fixed',
+        value: 5,
+        target: 'checkout',
+        couponCode: 'WELCOME5',
+        isActive: true,
+        minPurchaseUSD: 30
+      }
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('yallalb_discount_rules', JSON.stringify(discountRules));
+    } catch {}
+  }, [discountRules]);
+
+  // Real-time Discounts Sync from Firestore Database
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
+    const discountsColRef = collection(db, 'discounts');
+    const unsubscribe = onSnapshot(
+      discountsColRef,
+      async (snapshot) => {
+        if (snapshot.empty && !hasSeededDiscountsRef.current) {
+          hasSeededDiscountsRef.current = true;
+          console.log("[ShopContext] Database discounts collection is empty. Seeding initial discount rules to Firestore...");
+          try {
+            const batch = writeBatch(db);
+            const initialRules = [
+              {
+                id: 'rule-1',
+                name: 'Koura Olive Oil Special (15% Off)',
+                type: 'percentage',
+                value: 15,
+                target: 'brand',
+                targetValue: 'Koura, North Lebanon',
+                couponCode: 'KOURA15',
+                isActive: true
+              },
+              {
+                id: 'rule-2',
+                name: 'Checkout Extra $5 Off',
+                type: 'fixed',
+                value: 5,
+                target: 'checkout',
+                couponCode: 'WELCOME5',
+                isActive: true,
+                minPurchaseUSD: 30
+              }
+            ];
+            initialRules.forEach(rule => {
+              const docRef = doc(db, 'discounts', rule.id);
+              batch.set(docRef, sanitizeDocumentData(rule));
+            });
+            await monitoredBatchCommit(batch, initialRules.length, 'discounts', 'ShopContext:AutoSeedDiscounts');
+            setDiscountRules(initialRules as DiscountRule[]);
+          } catch (seedErr) {
+            console.error("[ShopContext] Error seeding discount rules:", seedErr);
+          }
+        } else if (!snapshot.empty) {
+          const rules: DiscountRule[] = [];
+          snapshot.forEach(docSnap => {
+            rules.push(docSnap.data() as DiscountRule);
+          });
+          setDiscountRules(rules);
+        }
+      },
+      (error) => {
+        console.warn("[ShopContext] Non-blocking discounts listener warning:", error);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const addDiscountRule = async (ruleData: Omit<DiscountRule, 'id'>) => {
+    const id = 'rule-' + Math.random().toString(36).substring(2, 9);
+    const newRule: DiscountRule = {
+      ...ruleData,
+      id
+    };
+    try {
+      if (IS_FIREBASE_ENABLED) {
+        await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(newRule), undefined, 'ShopContext:addDiscountRule');
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error saving discount rule to Firestore:", err);
+    }
+    setDiscountRules(prev => [newRule, ...prev]);
+    await logAdminActivity('meta_change', 'Created Discount Rule', `Created discount: ${newRule.name}`);
+  };
+
+  const updateDiscountRule = async (id: string, updates: Partial<DiscountRule>) => {
+    let updatedRule: DiscountRule | null = null;
+    setDiscountRules(prev => prev.map(r => {
+      if (r.id === id) {
+        updatedRule = { ...r, ...updates };
+        return updatedRule;
+      }
+      return r;
+    }));
+    try {
+      if (IS_FIREBASE_ENABLED && updatedRule) {
+        await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(updatedRule), { merge: true }, 'ShopContext:updateDiscountRule');
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error updating discount rule in Firestore:", err);
+    }
+    await logAdminActivity('meta_change', 'Updated Discount Rule', `Updated discount ID: ${id}`);
+  };
+
+  const deleteDiscountRule = async (id: string) => {
+    try {
+      if (IS_FIREBASE_ENABLED) {
+        await monitoredDeleteDoc(doc(db, 'discounts', id), 'ShopContext:deleteDiscountRule');
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error deleting discount rule from Firestore:", err);
+    }
+    setDiscountRules(prev => prev.filter(r => r.id !== id));
+    await logAdminActivity('meta_change', 'Deleted Discount Rule', `Deleted discount ID: ${id}`);
   };
 
   // Local storage persistence for CMS
@@ -1002,11 +1080,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setWishlist([]);
         setCart([]);
         setOrders([]);
+        setIsAdminUser(false);
+        setIsAdminUnlockedState(false);
         localStorage.removeItem('yallalb_user');
         localStorage.removeItem('yallalb_wishlist');
         localStorage.removeItem('yallalb_cart');
         localStorage.removeItem('yallalb_orders');
         localStorage.removeItem('yallalb_saved_checkout_data');
+        localStorage.removeItem('yallalb_admin_unlocked');
         return;
       }
       setFirebaseUser(userObj);
@@ -1037,10 +1118,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return { firstName: f, lastName: l, name: `${f} ${l}` };
               } else if (parts.length === 1 && parts[0].length > 0) {
                 const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-                return { firstName: f, lastName: 'Ghattas', name: `${f} Ghattas` };
+                return { firstName: f, lastName: '', name: f };
               }
             }
-            return { firstName: 'Walid', lastName: 'Ghattas', name: 'Walid Ghattas' };
+            return { firstName: '', lastName: '', name: '' };
           };
 
           const fallbackNames = deriveNames(userObj.displayName, userObj.email);
@@ -1058,11 +1139,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const data = userSnap.data() as UserProfile;
             const firstName = data.firstName || (data.name ? data.name.split(' ')[0] : '') || cachedShipping.firstName || fallbackNames.firstName;
             const lastName = data.lastName || (data.name ? data.name.split(' ').slice(1).join(' ') : '') || cachedShipping.lastName || fallbackNames.lastName;
-            const phone = data.phone || cachedShipping.phone || '+961 70 123 456';
-            const defaultCity = data.defaultCity || cachedShipping.defaultCity || 'Achrafieh, Beirut';
-            const defaultAddress = data.defaultAddress || cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery';
-            const defaultBuilding = data.defaultBuilding || cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B';
-            const defaultNotes = data.defaultNotes || cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present';
+            const phone = data.phone || cachedShipping.phone || '';
+            const defaultCity = data.defaultCity || cachedShipping.defaultCity || '';
+            const defaultAddress = data.defaultAddress || cachedShipping.defaultAddress || '';
+            const defaultBuilding = data.defaultBuilding || cachedShipping.defaultBuilding || '';
+            const defaultNotes = data.defaultNotes || cachedShipping.defaultNotes || '';
 
             const mergedProfile: UserProfile = {
               ...data,
@@ -1092,19 +1173,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             } catch {}
 
             const newUserData: UserProfile = {
+              uid: userKey,
               name: tempSignup.firstName && tempSignup.lastName 
                 ? `${tempSignup.firstName} ${tempSignup.lastName}`.trim()
                 : fallbackNames.name,
               firstName: tempSignup.firstName || cachedShipping.firstName || fallbackNames.firstName,
               lastName: tempSignup.lastName || cachedShipping.lastName || fallbackNames.lastName,
               email: userObj.email || INITIAL_USER.email,
-              phone: tempSignup.phone || cachedShipping.phone || '+961 70 123 456',
+              phone: tempSignup.phone || cachedShipping.phone || '',
               avatar: userObj.photoURL || INITIAL_USER.avatar,
               defaultGovernorate: INITIAL_USER.defaultGovernorate,
-              defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || 'Achrafieh, Beirut',
-              defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery',
-              defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B',
-              defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present'
+              defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || '',
+              defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || '',
+              defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || '',
+              defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || ''
             };
             await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
             setUser(newUserData);
@@ -1998,7 +2080,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdminUnlocked,
     setIsAdminUnlocked,
     recentActivities,
-    logAdminActivity
+    logAdminActivity,
+    discountRules,
+    addDiscountRule,
+    updateDiscountRule,
+    deleteDiscountRule
   }), [
     activeTab,
     selectedProductDetail,
@@ -2022,7 +2108,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     siteContent,
     isVisualEditMode,
     isAdminUnlocked,
-    recentActivities
+    recentActivities,
+    discountRules
   ]);
 
   return (

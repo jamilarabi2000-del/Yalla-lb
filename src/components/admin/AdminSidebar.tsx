@@ -13,6 +13,7 @@ export type AdminMenuTab =
   | 'orders' 
   | 'products' 
   | 'categories' 
+  | 'discounts'
   | 'customers' 
   | 'active_carts' 
   | 'pages_cms'
@@ -82,6 +83,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       label: 'Categories & Details',
       icon: '📁',
       badge: categoriesCount
+    },
+    {
+      id: 'discounts',
+      label: 'Discounts & Promos',
+      icon: '🏷️'
     },
     {
       id: 'customers',

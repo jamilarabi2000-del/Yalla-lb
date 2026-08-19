@@ -155,7 +155,35 @@ export const OffersCarousel: React.FC = () => {
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  const handleShopAction = (category: string) => {
+  const handleShopAction = (category: string, index: number) => {
+    const cmsSlide = siteContent?.offers?.slides?.[index];
+    const targetUrl = cmsSlide?.targetUrl;
+
+    if (targetUrl) {
+      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+        window.open(targetUrl, '_blank');
+        return;
+      }
+      
+      // Parse internal URLs like /products?category=Pantry or /product/123
+      if (targetUrl.startsWith('/products')) {
+        const urlObj = new URL(targetUrl, window.location.origin);
+        const urlCategory = urlObj.searchParams.get('category');
+        if (urlCategory) {
+          setSelectedCategory(urlCategory);
+        } else {
+          setSelectedCategory('All');
+        }
+        setActiveTab('products');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      
+      // Add more internal route handling if necessary
+      // Fallback if not matching specific internal paths
+    }
+
+    // Default behavior if no targetUrl or unrecognized
     setSelectedCategory(category);
     setActiveTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -212,7 +240,7 @@ export const OffersCarousel: React.FC = () => {
         {/* 1. Custom School Essentials Slide Container */}
         {currentOffer.isCustomSchoolLayout && (
         <div 
-          onClick={() => handleShopAction(currentOffer.targetCategory)}
+          onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}
           style={{ 
             backgroundImage: `url(${schoolBannerImg})`,
             backgroundSize: 'cover',
@@ -254,7 +282,7 @@ export const OffersCarousel: React.FC = () => {
       {/* 2. Custom Crayola Collection Slide Container - "As-Is" Campaign Banner */}
       {currentOffer.isCustomCrayolaLayout && (
         <div 
-          onClick={() => handleShopAction(currentOffer.targetCategory)}
+          onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}
           className="relative overflow-hidden rounded-3xl bg-[#f8f5eb] border-2 border-emerald-300/80 shadow-2xl h-[460px] sm:h-[420px] md:h-[380px] flex flex-col md:flex-row items-center justify-between p-4 sm:p-6 md:p-8 transition-all duration-500 cursor-pointer group"
         >
           {/* Notebook Graph Grid Paper Pattern Background */}
@@ -427,7 +455,7 @@ export const OffersCarousel: React.FC = () => {
 
             {/* Primary Action Button */}
             <button
-              onClick={() => handleShopAction(currentOffer.targetCategory)}
+              onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}
               className="mt-2 flex items-center justify-center gap-2 w-full sm:w-auto py-3 px-8 bg-[#00873d] hover:bg-[#006e32] text-white font-extrabold rounded-2xl text-xs uppercase tracking-wider shadow-lg transition-all duration-300 cursor-pointer border border-emerald-700"
             >
               <ShoppingBag className="w-4 h-4" />
@@ -492,7 +520,7 @@ export const OffersCarousel: React.FC = () => {
 
           {/* Right visual Column: SAVE 20% badge */}
           <div className="w-full md:w-1/2 h-full flex flex-col items-center justify-center relative md:px-8 py-2">
-            <div className="relative group cursor-pointer" onClick={() => handleShopAction(currentOffer.targetCategory)}>
+            <div className="relative group cursor-pointer" onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}>
               <div className="absolute inset-0 bg-slate-100/30 rounded-full blur-2xl transition-all duration-500" />
               
               <div className="relative w-32 h-32 sm:w-36 sm:h-36 rounded-full border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-3 bg-slate-50/50 shadow-sm hover:scale-105 hover:border-slate-300 transition-all duration-300">
@@ -511,7 +539,7 @@ export const OffersCarousel: React.FC = () => {
 
             {/* Shop Button */}
             <button
-              onClick={() => handleShopAction(currentOffer.targetCategory)}
+              onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}
               className="mt-3 flex items-center justify-center gap-2 w-full max-w-xs py-2.5 px-6 bg-slate-900 text-white font-bold rounded-xl text-xs uppercase tracking-wider shadow-md hover:bg-[#c5a059] hover:text-slate-950 transition-all duration-300 cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4" />

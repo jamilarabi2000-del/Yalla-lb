@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ShopProvider, useShop } from './context/ShopContext';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
@@ -16,6 +16,7 @@ import { CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
   const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast, siteContent } = useShop();
+  const isPopStateRef = useRef(false);
 
   // Dynamically update SEO metadata
   useEffect(() => {
@@ -45,6 +46,7 @@ const MainAppContent: React.FC = () => {
   // Sync route / path from URL on initial mount & browser back/forward buttons
   useEffect(() => {
     const syncRouteFromUrl = () => {
+      isPopStateRef.current = true;
       const path = window.location.pathname.replace(/^\/+/, '');
       const searchParams = new URLSearchParams(window.location.search);
       const isAdminQuery = searchParams.get('admin') === 'true' || searchParams.has('admin');
@@ -76,6 +78,10 @@ const MainAppContent: React.FC = () => {
 
   // Sync browser URL when activeTab or selectedProductDetail changes
   useEffect(() => {
+    if (isPopStateRef.current) {
+      isPopStateRef.current = false;
+      return;
+    }
     let targetPath = activeTab === 'home' ? '' : activeTab;
     if (activeTab === 'product_detail' && selectedProductDetail) {
       targetPath = `product/${selectedProductDetail.id}`;

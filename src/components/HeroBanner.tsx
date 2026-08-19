@@ -19,7 +19,8 @@ const HERO_IMAGES = [
 ];
 
 export const HeroBanner: React.FC = () => {
-  const { setActiveTab, setSearchQuery, t, language, siteContent } = useShop();
+  const { setActiveTab, setSelectedCategory, setSearchQuery, t, language, siteContent } = useShop();
+  
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   const heroData = siteContent?.hero || {
@@ -28,12 +29,35 @@ export const HeroBanner: React.FC = () => {
     subtitle: 'Connecting traditional craft workshops across Beirut, Tripoli, Sidon, and Mount Lebanon directly to lovers of authentic Levantine heritage worldwide.',
     primaryBtnText: 'Explore Collection',
     secondaryBtnText: 'Meet the Artisans',
+    targetUrl: '/products',
     stats: [
       { label: 'Master Artisans', value: '120+' },
       { label: 'Lebanese Villages', value: '45+' },
       { label: 'Orders Delivered', value: '15,000+' },
       { label: 'Customer Rating', value: '4.9 ★' },
     ]
+  };
+
+  const handleHeroClick = () => {
+    const targetUrl = heroData.targetUrl;
+    if (targetUrl) {
+      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+        window.open(targetUrl, '_blank');
+        return;
+      }
+      
+      if (targetUrl.startsWith('/products')) {
+        const urlObj = new URL(targetUrl, window.location.origin);
+        const urlCategory = urlObj.searchParams.get('category');
+        if (urlCategory) {
+          setSelectedCategory(urlCategory);
+        } else {
+          setSelectedCategory('All');
+        }
+      }
+    }
+    setActiveTab('products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -87,7 +111,7 @@ export const HeroBanner: React.FC = () => {
                 className={`w-full ${language === 'ar' ? 'pr-11 pl-44 sm:pl-48' : 'pl-11 pr-44 sm:pr-48'} py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none bg-transparent font-medium truncate`}
               />
               <button 
-                onClick={() => setActiveTab('products')}
+                onClick={handleHeroClick}
                 className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center justify-center px-4 sm:px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
               >
                 {heroData.primaryBtnText || t('products')}
