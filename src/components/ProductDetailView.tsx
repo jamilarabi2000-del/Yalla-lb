@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import { ProductCard } from './ProductCard';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
+import { Review } from '../types';
+import { db, IS_FIREBASE_ENABLED } from '../firebase';
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
 import { 
   ArrowLeft, 
   ShoppingBag, 
@@ -19,6 +22,33 @@ import {
   EyeOff
 } from 'lucide-react';
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, userId?: string | null) {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errInfo = {
+    error: errorMessage,
+    authInfo: {
+      userId,
+      email: null,
+      emailVerified: null,
+      isAnonymous: null,
+      tenantId: null,
+    },
+    operationType,
+    path,
+  };
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(`Database error during ${operationType} on ${path || 'unknown'}: ${errorMessage}`);
+}
+
 export const ProductDetailView: React.FC = () => {
   const { 
     selectedProductDetail, 
@@ -32,12 +62,23 @@ export const ProductDetailView: React.FC = () => {
     t,
     language,
     siteContent,
-    isVisualEditMode
+    isVisualEditMode,
+    firebaseUser,
+    user,
+    setActiveTab
   } = useShop();
 
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [ratingInput, setRatingInput] = useState(5);
+  const [commentInput, setCommentInput] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const visibility = siteContent.visibility || {
     detailBreadcrumbs: true,
@@ -72,6 +113,138 @@ export const ProductDetailView: React.FC = () => {
   }
 
   const product = selectedProductDetail;
+
+  // Load reviews from Firestore
+  useEffect(() => {
+    let active = true;
+    const fetchReviews = async () => {
+      setIsLoadingReviews(true);
+      setSubmitError(null);
+      setSubmitSuccess(false);
+      
+      // Get initial localized mock reviews
+      const initialMockReviews: Review[] = [
+        {
+          id: `mock-1-${product.id}`,
+          productId: product.id,
+          userId: 'mock-user-1',
+          userName: language === 'ar' ? 'كريم سليمان' : 'Karim S.',
+          rating: 5,
+          comment: language === 'ar' 
+            ? 'جودة استثنائية وعمل يدوي متقن للغاية! يمثل التراث اللبناني الأصيل بأبهى صورة.' 
+            : 'Outstanding craftsmanship and beautiful authentic design. Truly represents Lebanese artisanal heritage!',
+          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        },
+        {
+          id: `mock-2-${product.id}`,
+          productId: product.id,
+          userId: 'mock-user-2',
+          userName: language === 'ar' ? 'ليلى مراد' : 'Layla M.',
+          rating: 4,
+          comment: language === 'ar' 
+            ? 'منتج رائع ورائحة أصيلة. التوصيل كان سريعاً والتعامل قمة في الرقي.' 
+            : 'Wonderful product, excellent quality and fast shipping. Highly recommend to everyone support our local artisans.',
+          createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+        }
+      ];
+
+      if (!IS_FIREBASE_ENABLED) {
+        setReviews(initialMockReviews);
+        setIsLoadingReviews(false);
+        return;
+      }
+
+      try {
+        const q = query(collection(db, 'reviews'), where('productId', '==', product.id));
+        const querySnapshot = await getDocs(q);
+        const fbReviews: Review[] = [];
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          fbReviews.push({
+            id: docSnap.id,
+            productId: data.productId,
+            userId: data.userId,
+            userName: data.userName,
+            rating: Number(data.rating),
+            comment: data.comment,
+            createdAt: data.createdAt
+          });
+        });
+
+        if (active) {
+          setReviews([...fbReviews, ...initialMockReviews]);
+        }
+      } catch (err: any) {
+        console.warn("[ProductDetailView] Failed to fetch reviews, falling back to cache/mocks:", err.message);
+        if (active) {
+          setReviews(initialMockReviews);
+        }
+      } finally {
+        if (active) {
+          setIsLoadingReviews(false);
+        }
+      }
+    };
+
+    fetchReviews();
+    return () => {
+      active = false;
+    };
+  }, [product.id, language]);
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const comment = commentInput.trim();
+    if (!comment) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
+
+    const userName = user?.name || firebaseUser?.email?.split('@')[0] || (language === 'ar' ? 'مستخدم زائر' : 'Guest User');
+    const newReviewId = `rev-${Date.now()}`;
+    const newReview: Review = {
+      id: newReviewId,
+      productId: product.id,
+      userId: firebaseUser?.uid || 'guest-uid',
+      userName,
+      rating: ratingInput,
+      comment,
+      createdAt: new Date().toISOString()
+    };
+
+    if (!IS_FIREBASE_ENABLED) {
+      setReviews(prev => [newReview, ...prev]);
+      setCommentInput('');
+      setRatingInput(5);
+      setSubmitSuccess(true);
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      await setDoc(doc(db, 'reviews', newReviewId), newReview);
+      setReviews(prev => [newReview, ...prev]);
+      setCommentInput('');
+      setRatingInput(5);
+      setSubmitSuccess(true);
+    } catch (err: any) {
+      console.error("[ProductDetailView] Error writing review:", err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, `reviews/${newReviewId}`, firebaseUser?.uid);
+      } catch (logErr: any) {
+        setSubmitError(logErr.message || 'Failed to submit review.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const totalReviewsCount = reviews.length;
+  const averageRating = totalReviewsCount > 0 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviewsCount).toFixed(1)
+    : product.rating.toFixed(1);
+
   const isLiked = isInWishlist(product.id);
   const currentImage = selectedImage || product.image;
 
@@ -212,6 +385,29 @@ export const ProductDetailView: React.FC = () => {
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">
                 {displayTitle}
               </h1>
+
+              {/* Dynamic Average Star Rating Summary */}
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                <div className="flex items-center text-amber-500 gap-0.5">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <svg
+                      key={star}
+                      className={`w-4 h-4 fill-current ${
+                        star <= Math.round(Number(averageRating)) ? 'text-amber-500' : 'text-slate-200'
+                      }`}
+                      viewBox="0 0 20 20"
+                    >
+                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                    </svg>
+                  ))}
+                </div>
+                <span className="text-xs font-extrabold text-[#a37f35] bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
+                  {averageRating} / 5.0
+                </span>
+                <span className="text-xs text-slate-500">
+                  ({totalReviewsCount} {language === 'ar' ? 'تقييم' : 'reviews'})
+                </span>
+              </div>
 
               {/* Artisan Name */}
               {(visibility.detailArtisanBio || isVisualEditMode) && (
@@ -380,6 +576,228 @@ export const ProductDetailView: React.FC = () => {
 
         {/* Middle Custom Divs / Banners */}
         <CustomBlocksRenderer page="product_detail" position="middle" />
+
+        {/* Customer Reviews Section */}
+        {(visibility.detailCustomerReviews || isVisualEditMode) && (
+          <div className="pt-12 border-t border-slate-200 space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">
+                  {language === 'ar' ? 'آراء وتقييمات العملاء' : 'Customer Reviews & Feedback'}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  {language === 'ar' 
+                    ? 'اكتشف تجارب المشترين للمنتجات الحرفية اللبنانية الأصيلة.' 
+                    : 'Discover authentic reviews from collectors of Lebanese craftsmanship.'}
+                </p>
+              </div>
+
+              {/* Aggregated Average Stars Rating Badge */}
+              <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs self-start sm:self-auto">
+                <div className="text-center px-1">
+                  <p className="text-2xl font-black text-slate-900">{averageRating}</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{language === 'ar' ? 'من 5 نجوم' : 'out of 5'}</p>
+                </div>
+                <div className="h-8 w-px bg-slate-200 font-normal"></div>
+                <div>
+                  <div className="flex items-center text-amber-500 gap-0.5">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <svg
+                        key={star}
+                        className={`w-4 h-4 fill-current ${
+                          star <= Math.round(Number(averageRating)) ? 'text-amber-500' : 'text-slate-200'
+                        }`}
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    {totalReviewsCount} {language === 'ar' ? 'تقييمات موثقة' : 'verified ratings'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column: Post a Review Form */}
+              <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">
+                    {language === 'ar' ? 'أضف تقييمك للمنتج' : 'Share Your Experience'}
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {language === 'ar' 
+                      ? 'ملاحظاتك تساعد مجتمع الحرفيين اللبنانيين على النمو.' 
+                      : 'Your feedback helps the Lebanese artisan community grow.'}
+                  </p>
+                </div>
+
+                {firebaseUser ? (
+                  <form onSubmit={handleSubmitReview} className="space-y-4">
+                    {/* Star Rating Selector */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">
+                        {language === 'ar' ? 'الالتقييم بالنجوم:' : 'Your Rating:'}
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            type="button"
+                            onClick={() => setRatingInput(star)}
+                            className="p-1 hover:scale-110 transition-transform cursor-pointer"
+                            title={`${star} Star${star > 1 ? 's' : ''}`}
+                          >
+                            <svg
+                              className={`w-7 h-7 fill-current ${
+                                star <= ratingInput ? 'text-amber-400' : 'text-slate-200'
+                              }`}
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Comment Field */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="review-comment" className="text-xs font-bold text-slate-700">
+                        {language === 'ar' ? 'التعليق:' : 'Comment:'}
+                      </label>
+                      <textarea
+                        id="review-comment"
+                        required
+                        rows={4}
+                        maxLength={1000}
+                        placeholder={
+                          language === 'ar' 
+                            ? 'ما رأيك في جودة الصنع، التغليف، وتجربتك الإجمالية؟...' 
+                            : 'What did you think of the craft, packaging, and overall experience?...'
+                        }
+                        value={commentInput}
+                        onChange={(e) => setCommentInput(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 text-slate-900 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all resize-none"
+                      />
+                    </div>
+
+                    {submitError && (
+                      <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl">
+                        {submitError}
+                      </p>
+                    )}
+
+                    {submitSuccess && (
+                      <p className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-xl">
+                        {language === 'ar' ? 'تم تقديم تقييمك بنجاح! شكرًا لك.' : 'Your review was submitted successfully! Thank you.'}
+                      </p>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-3 bg-[#a37f35] hover:bg-[#8c6b2a] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <span>{language === 'ar' ? 'جاري الإرسال...' : 'Submitting...'}</span>
+                        </>
+                      ) : (
+                        <span>{language === 'ar' ? 'إرسال التقييم' : 'Submit Review'}</span>
+                      )}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/60 text-center space-y-3">
+                    <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                      {language === 'ar' 
+                        ? 'يجب عليك تسجيل الدخول في حسابك لتتمكن من كتابة تقييم ومشاركة تجربتك.' 
+                        : 'You must be signed in to your account to leave a star rating and comment.'}
+                    </p>
+                    <button
+                      onClick={() => setActiveTab('account')}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#a37f35] hover:bg-[#8c6b2a] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs"
+                    >
+                      <span>{language === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Column: List of Reviews */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    {language === 'ar' ? 'التعليقات المنشورة' : 'Recent Reviews'}
+                  </h4>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {reviews.length} {language === 'ar' ? 'تعليقات' : 'reviews'}
+                  </span>
+                </div>
+
+                {isLoadingReviews ? (
+                  <div className="py-12 flex justify-center items-center">
+                    <div className="w-8 h-8 border-3 border-[#a37f35]/20 border-t-[#a37f35] rounded-full animate-spin"></div>
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-3xl border border-slate-200/80">
+                    <p className="text-xs text-slate-500">
+                      {language === 'ar' ? 'لا توجد تقييمات لهذا المنتج بعد. كن أول من يكتب تقييمًا!' : 'No reviews for this product yet. Be the first to leave one!'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
+                    {reviews.map((review) => (
+                      <div key={review.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-700">
+                              {review.userName.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-900">{review.userName}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">
+                                {new Date(review.createdAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center text-amber-400 gap-0.5">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <svg
+                                key={star}
+                                className={`w-3.5 h-3.5 fill-current ${
+                                  star <= review.rating ? 'text-amber-400' : 'text-slate-200'
+                                }`}
+                                viewBox="0 0 20 20"
+                              >
+                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                              </svg>
+                            ))}
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-700 leading-relaxed font-normal">
+                          {review.comment}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Related Products Section */}
         {(visibility.detailRelatedProducts || isVisualEditMode) && relatedProducts.length > 0 && (

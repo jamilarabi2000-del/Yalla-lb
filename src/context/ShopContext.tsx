@@ -28,11 +28,28 @@ import {
   getDocs, 
   onSnapshot, 
   getDocFromServer,
+  getDocFromCache,
   writeBatch,
   query,
   where,
   orderBy
 } from 'firebase/firestore';
+
+const safeGetDoc = async (docRef: any): Promise<any> => {
+  try {
+    return await getDoc(docRef);
+  } catch (err: any) {
+    if (err.code === 'unavailable' || err.message?.includes('offline') || err.message?.includes('Failed to get document')) {
+      console.warn("[ShopContext] safeGetDoc: Client is offline. Falling back to cache...", err.message);
+      try {
+        return await getDocFromCache(docRef);
+      } catch (cacheErr) {
+        throw err;
+      }
+    }
+    throw err;
+  }
+};
 
 enum OperationType {
   CREATE = 'create',
@@ -993,7 +1010,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userObj) {
         try {
           const userDocRef = doc(db, 'users', userObj.uid);
-          const userSnap = await getDoc(userDocRef);
+          const userSnap = await safeGetDoc(userDocRef);
           
           // Helper to extract first/last name from display name or email
           const deriveNames = (displayName?: string | null, email?: string | null) => {
@@ -1086,37 +1103,52 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
             setUser(newUserData);
           }
-        } catch (err) {
-          console.error("[ShopContext] Error syncing user profile from Firestore:", err);
+        } catch (err: any) {
+          const isOffline = err.code === 'unavailable' || err.message?.includes('offline') || err.message?.includes('Failed to get document');
+          if (isOffline) {
+            console.warn("[ShopContext] User profile sync notice: client is offline or serving cached copy.", err.message);
+          } else {
+            console.error("[ShopContext] Error syncing user profile from Firestore:", err);
+          }
         }
       }
 
       // Sync Wishlist from Firestore
       try {
         const wishlistRef = doc(db, 'wishlists', userKey);
-        const wishlistSnap = await getDoc(wishlistRef);
+        const wishlistSnap = await safeGetDoc(wishlistRef);
         if (wishlistSnap.exists()) {
           const wData = wishlistSnap.data();
           if (wData.productIds && Array.isArray(wData.productIds)) {
             setWishlist(wData.productIds);
           }
         }
-      } catch (err) {
-        console.error("[ShopContext] Error syncing wishlist from Firestore:", err);
+      } catch (err: any) {
+        const isOffline = err.code === 'unavailable' || err.message?.includes('offline') || err.message?.includes('Failed to get document');
+        if (isOffline) {
+          console.warn("[ShopContext] Wishlist sync notice: client is offline or serving cached copy.", err.message);
+        } else {
+          console.error("[ShopContext] Error syncing wishlist from Firestore:", err);
+        }
       }
 
       // Sync Cart from Firestore
       try {
         const cartRef = doc(db, 'carts', userKey);
-        const cartSnap = await getDoc(cartRef);
+        const cartSnap = await safeGetDoc(cartRef);
         if (cartSnap.exists()) {
           const cData = cartSnap.data();
           if (cData.items && Array.isArray(cData.items)) {
             setCart(cData.items);
           }
         }
-      } catch (err) {
-        console.error("[ShopContext] Error syncing cart from Firestore:", err);
+      } catch (err: any) {
+        const isOffline = err.code === 'unavailable' || err.message?.includes('offline') || err.message?.includes('Failed to get document');
+        if (isOffline) {
+          console.warn("[ShopContext] Cart sync notice: client is offline or serving cached copy.", err.message);
+        } else {
+          console.error("[ShopContext] Error syncing cart from Firestore:", err);
+        }
       }
     });
 
