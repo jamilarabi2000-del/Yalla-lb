@@ -67,6 +67,7 @@ export interface Order {
 }
 
 export interface UserProfile {
+  uid?: string;
   name: string;
   firstName?: string;
   lastName?: string;
@@ -264,6 +265,24 @@ export interface SiteContent {
     summaryHeading: string;
     orderButtonText: string;
     guaranteeBadgeText: string;
+  };
+  checkoutSuccessPage?: {
+    successBadge: string;
+    successBadgeArabic?: string;
+    successTitle: string;
+    successTitleArabic?: string;
+    nextStepsHeading: string;
+    nextStepsHeadingArabic?: string;
+    step1Text: string;
+    step1TextArabic?: string;
+    step2Text: string;
+    step2TextArabic?: string;
+    step3Text: string;
+    step3TextArabic?: string;
+    buttonTrackText: string;
+    buttonTrackTextArabic?: string;
+    buttonContinueText: string;
+    buttonContinueTextArabic?: string;
   };
   accountPage: {
     title: string;

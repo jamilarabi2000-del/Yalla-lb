@@ -170,6 +170,24 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     orderButtonText: 'Confirm & Place Order',
     guaranteeBadgeText: '100% Authentic Lebanese Guarantee • Fast Courier Tracking'
   },
+  checkoutSuccessPage: {
+    successBadge: 'Order Placed Successfully',
+    successBadgeArabic: 'تم تأكيد الطلب بنجاح',
+    successTitle: 'Shukran! Your Lebanese Order is',
+    successTitleArabic: 'شكراً! تم استلام طلبك اللبناني',
+    nextStepsHeading: 'Next Steps & Dispatch Logistics:',
+    nextStepsHeadingArabic: 'الخطوات التالية واللوجستيات:',
+    step1Text: 'Our Beirut central depot has routed your basket to the regional artisan guilds.',
+    step1TextArabic: 'تم توجيه طلبك من المستودع الرئيسي في بيروت إلى الحرفيين المعنيين.',
+    step2Text: 'You will receive a WhatsApp message from your dedicated courier to confirm exact GPS drop-off.',
+    step2TextArabic: 'ستصلك رسالة عبر تطبيق واتساب من السائق المخصص لتأكيد موقع التسليم بدقة.',
+    step3Text: 'Settlement is strictly cash upon handover or digital transfer.',
+    step3TextArabic: 'الدفع نقداً عند الاستلام بقيمة الطلب أو بالليرة اللبنانية.',
+    buttonTrackText: 'Track in My Account',
+    buttonTrackTextArabic: 'متابعة الطلب في حسابي',
+    buttonContinueText: 'Continue Shopping',
+    buttonContinueTextArabic: 'متابعة التسوق'
+  },
   accountPage: {
     title: 'Patron Account & Preferences',
     subtitle: 'Manage delivery addresses, track courier dispatches, and review saved wishlist items.',

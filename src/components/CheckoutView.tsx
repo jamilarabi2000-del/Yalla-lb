@@ -43,7 +43,8 @@ export const CheckoutView: React.FC = () => {
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,
-    signOutUser
+    signOutUser,
+    siteContent
   } = useShop();
 
   const isArabic = language === 'ar';
@@ -62,6 +63,31 @@ export const CheckoutView: React.FC = () => {
     building: '',
     notes: ''
   });
+
+  // Save recipient fields to local cache as the user types to prevent loss and enable seamless checkout-profile sync on login
+  useEffect(() => {
+    const hasTypedData = 
+      (formData.firstName && formData.firstName.trim() !== '') ||
+      (formData.lastName && formData.lastName.trim() !== '') ||
+      (formData.phone && formData.phone.trim() !== '') ||
+      (formData.street && formData.street.trim() !== '') ||
+      (formData.building && formData.building.trim() !== '') ||
+      (formData.notes && formData.notes.trim() !== '');
+
+    if (hasTypedData) {
+      try {
+        localStorage.setItem('yallalb_saved_checkout_data', JSON.stringify({
+          firstName: formData.firstName.trim(),
+          lastName: formData.lastName.trim(),
+          phone: formData.phone,
+          defaultCity: formData.city,
+          defaultAddress: formData.street,
+          defaultBuilding: formData.building,
+          defaultNotes: formData.notes
+        }));
+      } catch {}
+    }
+  }, [formData]);
 
   // Auth Card Local State (when unauthenticated)
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -151,6 +177,41 @@ export const CheckoutView: React.FC = () => {
     }
   }, [firebaseUser, user]);
 
+  // Sync guest-entered checkout details to user profile immediately upon logging in or signing up
+  useEffect(() => {
+    if (firebaseUser && user) {
+      const hasGuestFirstName = formData.firstName && formData.firstName.trim() !== '' && formData.firstName !== 'Walid';
+      const hasGuestLastName = formData.lastName && formData.lastName.trim() !== '' && formData.lastName !== 'Ghattas';
+      const hasGuestPhone = formData.phone && formData.phone.trim() !== '' && formData.phone !== '+961 70 123 456';
+      const hasGuestAddress = formData.street && formData.street.trim() !== '' && formData.street !== 'Gouraud Street, next to Paul Bakery';
+
+      if (hasGuestFirstName || hasGuestLastName || hasGuestPhone || hasGuestAddress) {
+        const isProfileDifferent = 
+          user.firstName !== formData.firstName || 
+          user.lastName !== formData.lastName || 
+          user.phone !== formData.phone ||
+          user.defaultCity !== formData.city ||
+          user.defaultAddress !== formData.street;
+
+        if (isProfileDifferent) {
+          const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`.trim();
+          updateUser({
+            name: fullName || user.name,
+            firstName: formData.firstName.trim() || user.firstName,
+            lastName: formData.lastName.trim() || user.lastName,
+            phone: formData.phone || user.phone,
+            defaultCity: formData.city || user.defaultCity,
+            defaultAddress: formData.street || user.defaultAddress,
+            defaultBuilding: formData.building || user.defaultBuilding,
+            defaultNotes: formData.notes || user.defaultNotes
+          }).catch((err) => {
+            console.error("[CheckoutView] Error syncing guest data to user profile:", err);
+          });
+        }
+      }
+    }
+  }, [firebaseUser, firebaseUser?.uid]);
+
   const quickCities = [
     'Achrafieh, Beirut',
     'Hamra, Beirut',
@@ -222,7 +283,9 @@ export const CheckoutView: React.FC = () => {
           lastName: signupLastName.trim(),
           phone: formattedPhone,
           defaultCity: formData.city || 'Achrafieh, Beirut',
-          defaultAddress: formData.street || ''
+          defaultAddress: formData.street || '',
+          defaultBuilding: formData.building || '',
+          defaultNotes: formData.notes || ''
         }));
       } catch {}
       await signUpWithEmail(authEmail, authPassword);
@@ -233,7 +296,9 @@ export const CheckoutView: React.FC = () => {
         email: authEmail,
         phone: formattedPhone,
         defaultCity: formData.city || 'Achrafieh, Beirut',
-        defaultAddress: formData.street || ''
+        defaultAddress: formData.street || '',
+        defaultBuilding: formData.building || '',
+        defaultNotes: formData.notes || ''
       });
       // Auto fill form data
       setFormData(prev => ({
@@ -353,6 +418,41 @@ export const CheckoutView: React.FC = () => {
   };
 
   if (orderComplete) {
+    const successBadge = isArabic 
+      ? (siteContent?.checkoutSuccessPage?.successBadgeArabic || 'تم تأكيد الطلب بنجاح')
+      : (siteContent?.checkoutSuccessPage?.successBadge || 'Order Placed Successfully');
+
+    const successTitle = isArabic
+      ? (siteContent?.checkoutSuccessPage?.successTitleArabic || 'شكراً! تم استلام طلبك اللبناني')
+      : (siteContent?.checkoutSuccessPage?.successTitle || 'Shukran! Your Lebanese Order is');
+
+    const nextStepsHeading = isArabic
+      ? (siteContent?.checkoutSuccessPage?.nextStepsHeadingArabic || 'الخطوات التالية واللوجستيات:')
+      : (siteContent?.checkoutSuccessPage?.nextStepsHeading || 'Next Steps & Dispatch Logistics:');
+
+    const step1 = isArabic
+      ? (siteContent?.checkoutSuccessPage?.step1TextArabic || 'تم توجيه طلبك من المستودع الرئيسي في بيروت إلى الحرفيين المعنيين.')
+      : (siteContent?.checkoutSuccessPage?.step1Text || 'Our Beirut central depot has routed your basket to the regional artisan guilds.');
+
+    const step2 = isArabic
+      ? (siteContent?.checkoutSuccessPage?.step2TextArabic || 'ستصلك رسالة عبر تطبيق واتساب من السائق المخصص لتأكيد موقع التسليم بدقة.')
+      : (siteContent?.checkoutSuccessPage?.step2Text || 'You will receive a WhatsApp message from your dedicated courier to confirm exact GPS drop-off.');
+
+    let step3 = isArabic
+      ? (siteContent?.checkoutSuccessPage?.step3TextArabic || `الدفع نقداً عند الاستلام بقيمة ($${finalTotalUSD.toFixed(2)}) أو بالليرة اللبنانية.`)
+      : (siteContent?.checkoutSuccessPage?.step3Text || `Settlement is strictly ($${finalTotalUSD.toFixed(2)}) upon handover or digital transfer.`);
+
+    // Support dynamic price insertion in CMS
+    step3 = step3.replace('{price}', `$${finalTotalUSD.toFixed(2)}`);
+
+    const btnTrack = isArabic
+      ? (siteContent?.checkoutSuccessPage?.buttonTrackTextArabic || 'متابعة الطلب في حسابي')
+      : (siteContent?.checkoutSuccessPage?.buttonTrackText || 'Track in My Account');
+
+    const btnContinue = isArabic
+      ? (siteContent?.checkoutSuccessPage?.buttonContinueTextArabic || 'متابعة التسوق')
+      : (siteContent?.checkoutSuccessPage?.buttonContinueText || 'Continue Shopping');
+
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4 py-16 bg-slate-50">
         <div className="max-w-xl w-full p-8 sm:p-12 rounded-3xl premium-card text-center space-y-6 animate-fadeIn">
@@ -362,10 +462,10 @@ export const CheckoutView: React.FC = () => {
 
           <div className="space-y-2">
             <span className="text-xs font-black uppercase tracking-[0.25em] text-amber-700">
-              {isArabic ? 'تم تأكيد الطلب بنجاح' : 'Order Placed Successfully'}
+              {successBadge}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-light text-slate-900">
-              {isArabic ? 'شكراً! تم استلام طلبك اللبناني' : 'Shukran! Your Lebanese Order is'} <span className="gold-gradient font-serif italic font-normal">{isArabic ? 'بنجاح' : 'Confirmed'}</span>
+            <h2 className="text-3xl sm:text-4xl font-light text-slate-900 leading-tight">
+              {successTitle} <span className="gold-gradient font-serif italic font-normal">{isArabic ? 'بنجاح' : 'Confirmed'}</span>
             </h2>
             <p className="text-xs sm:text-sm text-slate-600">
               {isArabic ? 'رمز التتبع المرجعي:' : 'Reference code:'} <span className="font-mono font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-lg border border-amber-200 inline-block mt-1">#{orderComplete}</span>
@@ -375,19 +475,19 @@ export const CheckoutView: React.FC = () => {
           <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-200/60 text-left text-xs space-y-2.5 text-slate-700">
             <div className="flex items-center gap-2 text-emerald-700 font-bold">
               <Clock className="w-4 h-4" />
-              <span>{isArabic ? 'الخطوات التالية واللوجستيات:' : 'Next Steps & Dispatch Logistics:'}</span>
+              <span>{nextStepsHeading}</span>
             </div>
             <p className="flex items-start gap-2">
               <span className="text-[#c5a059] font-bold">1.</span>
-              <span>{isArabic ? 'تم توجيه طلبك من المستودع الرئيسي في بيروت إلى الحرفيين المعنيين.' : 'Our Beirut central depot has routed your basket to the regional artisan guilds.'}</span>
+              <span>{step1}</span>
             </p>
             <p className="flex items-start gap-2">
               <span className="text-[#c5a059] font-bold">2.</span>
-              <span>{isArabic ? 'ستصلك رسالة عبر تطبيق واتساب من السائق المخصص لتأكيد موقع التسليم بدقة.' : 'You will receive a WhatsApp message from your dedicated courier to confirm exact GPS drop-off.'}</span>
+              <span>{step2}</span>
             </p>
             <p className="flex items-start gap-2">
               <span className="text-[#c5a059] font-bold">3.</span>
-              <span>{isArabic ? `الدفع نقداً عند الاستلام بقيمة ($${finalTotalUSD.toFixed(2)}) أو بالليرة اللبنانية.` : `Settlement is strictly ($${finalTotalUSD.toFixed(2)}) upon handover or digital transfer.`}</span>
+              <span>{step3}</span>
             </p>
           </div>
 
@@ -396,13 +496,13 @@ export const CheckoutView: React.FC = () => {
               onClick={() => setActiveTab('account')}
               className="px-8 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs tracking-widest transition-all cursor-pointer shadow-lg rounded-xl"
             >
-              {isArabic ? 'متابعة الطلب في حسابي' : 'Track in My Account'}
+              {btnTrack}
             </button>
             <button
               onClick={() => { setOrderComplete(null); setActiveTab('products'); }}
               className="px-8 py-3.5 border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059]/10 font-bold uppercase text-xs tracking-widest transition-all cursor-pointer rounded-xl"
             >
-              {isArabic ? 'متابعة التسوق' : 'Continue Shopping'}
+              {btnContinue}
             </button>
           </div>
         </div>

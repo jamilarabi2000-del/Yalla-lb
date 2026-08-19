@@ -65,7 +65,9 @@ export const ProductDetailView: React.FC = () => {
     isVisualEditMode,
     firebaseUser,
     user,
-    setActiveTab
+    setActiveTab,
+    setSearchQuery,
+    setSelectedCategory
   } = useShop();
 
   const [quantity, setQuantity] = useState(1);
@@ -213,31 +215,33 @@ export const ProductDetailView: React.FC = () => {
       createdAt: new Date().toISOString()
     };
 
+    // Optimistic Update: Instantly add the review to the UI and clear inputs
+    setReviews(prev => [newReview, ...prev]);
+    setCommentInput('');
+    setRatingInput(5);
+    setSubmitSuccess(true);
+    setIsSubmitting(false);
+
     if (!IS_FIREBASE_ENABLED) {
-      setReviews(prev => [newReview, ...prev]);
-      setCommentInput('');
-      setRatingInput(5);
-      setSubmitSuccess(true);
-      setIsSubmitting(false);
       return;
     }
 
-    try {
-      await setDoc(doc(db, 'reviews', newReviewId), newReview);
-      setReviews(prev => [newReview, ...prev]);
-      setCommentInput('');
-      setRatingInput(5);
-      setSubmitSuccess(true);
-    } catch (err: any) {
-      console.error("[ProductDetailView] Error writing review:", err);
-      try {
-        handleFirestoreError(err, OperationType.WRITE, `reviews/${newReviewId}`, firebaseUser?.uid);
-      } catch (logErr: any) {
-        setSubmitError(logErr.message || 'Failed to submit review.');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Persist to Firestore in the background to avoid blocking the user
+    setDoc(doc(db, 'reviews', newReviewId), newReview)
+      .then(() => {
+        console.log("[ProductDetailView] Review synced with Firestore successfully:", newReviewId);
+      })
+      .catch((err: any) => {
+        console.error("[ProductDetailView] Error syncing review to Firestore:", err);
+        // Rollback on failure
+        setReviews(prev => prev.filter(r => r.id !== newReviewId));
+        setSubmitSuccess(false);
+        try {
+          handleFirestoreError(err, OperationType.WRITE, `reviews/${newReviewId}`, firebaseUser?.uid);
+        } catch (logErr: any) {
+          setSubmitError(logErr.message || 'Failed to sync review.');
+        }
+      });
   };
 
   const totalReviewsCount = reviews.length;
@@ -270,6 +274,13 @@ export const ProductDetailView: React.FC = () => {
       `Hello Yalla-lb! I am interested in inquiring about "${displayTitle}" (ID: ${product.id}) priced at $${product.priceUSD}. Can you please assist me?`
     );
     window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank');
+  };
+
+  const discoverSellerProducts = (artisan: string) => {
+    setSearchQuery(artisan);
+    setSelectedCategory('all');
+    setSelectedProductDetail(null);
+    setActiveTab('products');
   };
 
   return (
@@ -411,33 +422,50 @@ export const ProductDetailView: React.FC = () => {
 
               {/* Artisan Name */}
               {(visibility.detailArtisanBio || isVisualEditMode) && (
-                <p className="text-xs sm:text-sm text-slate-600">
+                <div className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 flex-wrap">
+                  <span>{language === 'ar' ? 'البائع:' : 'Seller:'}</span>
                   {product.artisan === 'Maison El-Helou Firebird Cutlers' ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-950 font-bold">e.i PhotoCell</span>
-                    </>
+                    <button
+                      onClick={() => discoverSellerProducts('Maison El-Helou Firebird Cutlers')}
+                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
+                    >
+                      e.i PhotoCell
+                    </button>
                   ) : product.artisan === 'Seller A' ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-950 font-bold">A</span>
-                    </>
+                    <button
+                      onClick={() => discoverSellerProducts('Seller A')}
+                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
+                    >
+                      A
+                    </button>
                   ) : product.artisan === 'Seller B' ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-950 font-bold">B</span>
-                    </>
+                    <button
+                      onClick={() => discoverSellerProducts('Seller B')}
+                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
+                    >
+                      B
+                    </button>
                   ) : product.artisan.startsWith('Seller:') ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-950 font-bold">{product.artisan.replace('Seller:', '').trim()}</span>
-                    </>
+                    <button
+                      onClick={() => discoverSellerProducts(product.artisan)}
+                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
+                    >
+                      {product.artisan.replace('Seller:', '').trim()}
+                    </button>
                   ) : (
-                    <>
-                      {t('craftedBy')} <span className="text-slate-950 font-bold">{product.artisan}</span>
-                    </>
+                    <button
+                      onClick={() => discoverSellerProducts(product.artisan)}
+                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
+                    >
+                      {product.artisan}
+                    </button>
                   )}
-                </p>
+                </div>
               )}
             </div>
 

@@ -1304,6 +1304,207 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               />
             </div>
           </div>
+
+          <div className="pt-6 border-t border-white/10 space-y-4">
+            <h4 className="text-sm font-bold text-amber-400">Checkout Success Screen Content</h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Success Badge Text (English)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.successBadge || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'successBadge', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Success Badge Text (Arabic)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.successBadgeArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'successBadgeArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Success Title (English)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.successTitle || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'successTitle', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Success Title (Arabic)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.successTitleArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'successTitleArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Next Steps Heading (English)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.nextStepsHeading || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'nextStepsHeading', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Next Steps Heading (Arabic)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.nextStepsHeadingArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'nextStepsHeadingArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Step 1 Instructions (English)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cmsForm.checkoutSuccessPage?.step1Text || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'step1Text', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Step 1 Instructions (Arabic)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cmsForm.checkoutSuccessPage?.step1TextArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'step1TextArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none text-right"
+                  dir="rtl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Step 2 Instructions (English)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cmsForm.checkoutSuccessPage?.step2Text || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'step2Text', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Step 2 Instructions (Arabic)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cmsForm.checkoutSuccessPage?.step2TextArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'step2TextArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none text-right"
+                  dir="rtl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Step 3 Settlement Info (English - use {"{price}"} to insert total price dynamically)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cmsForm.checkoutSuccessPage?.step3Text || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'step3Text', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Step 3 Settlement Info (Arabic - use {"{price}"} to insert total price dynamically)
+                </label>
+                <textarea
+                  rows={2}
+                  value={cmsForm.checkoutSuccessPage?.step3TextArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'step3TextArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none text-right"
+                  dir="rtl"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Track Button Text (English)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.buttonTrackText || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'buttonTrackText', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Track Button Text (Arabic)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.buttonTrackTextArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'buttonTrackTextArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Continue Button Text (English)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.buttonContinueText || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'buttonContinueText', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                  Continue Button Text (Arabic)
+                </label>
+                <input
+                  type="text"
+                  value={cmsForm.checkoutSuccessPage?.buttonContinueTextArabic || ''}
+                  onChange={(e) => updateSectionField('checkoutSuccessPage', 'buttonContinueTextArabic', e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

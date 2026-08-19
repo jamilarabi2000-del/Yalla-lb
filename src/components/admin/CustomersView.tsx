@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { 
   Users, 
@@ -15,7 +15,9 @@ import {
   Sparkles,
   CheckCircle2
 } from 'lucide-react';
-import { Order } from '../../types';
+import { Order, UserProfile } from '../../types';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 interface CustomerSummary {
   id: string;
@@ -35,26 +37,45 @@ export const CustomersView: React.FC = () => {
   const { orders, formatPrice, convertUSDToLBP, showToast, user } = useShop();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
+  const [dbUsers, setDbUsers] = useState<UserProfile[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+        const usersData: UserProfile[] = [];
+        snapshot.forEach(doc => {
+          usersData.push(doc.data() as UserProfile);
+        });
+        setDbUsers(usersData);
+      } catch (err) {
+        console.error("Failed to fetch users:", err);
+      }
+    };
+    fetchUsers();
+  }, []);
 
   // Group orders by customer (phone or email or name)
   const customersMap = new Map<string, CustomerSummary>();
 
-  // Include user profile
-  if (user && user.email) {
-    customersMap.set(user.email, {
-      id: user.email,
-      name: user.name || 'Jamil Arabi (Admin/Registered Shopper)',
-      email: user.email,
-      phone: user.phone || '+961 70 882 193',
-      governorate: user.defaultGovernorate || 'Beirut',
-      city: user.defaultCity || 'Achrafieh / Mar Mikhael',
-      street: user.defaultAddress || 'Rue Gouraud, Building 14',
+  // Include users from DB
+  dbUsers.forEach((dbUser) => {
+    const key = dbUser.phone || dbUser.email || dbUser.uid || 'anonymous';
+    customersMap.set(key, {
+      id: dbUser.uid || key,
+      name: dbUser.name || 'Shopper in Lebanon',
+      email: dbUser.email || 'shopper@yalla.lb',
+      phone: dbUser.phone || '+961 70 882 193',
+      governorate: dbUser.defaultGovernorate || 'Beirut',
+      city: dbUser.defaultCity || 'Achrafieh / Mar Mikhael',
+      street: dbUser.defaultAddress || 'Rue Gouraud, Building 14',
       ordersCount: 0,
       totalSpentUSD: 0,
-      lastOrderDate: 'Active today',
+      lastOrderDate: 'No recent orders',
       recentOrders: []
     });
-  }
+  });
 
   // Aggregate from orders
   orders.forEach((order) => {
@@ -65,7 +86,7 @@ export const CustomersView: React.FC = () => {
       existing.ordersCount += 1;
       existing.totalSpentUSD += order.totalUSD;
       existing.recentOrders.push(order);
-      if (!existing.lastOrderDate || existing.lastOrderDate === 'Active today') {
+      if (!existing.lastOrderDate || existing.lastOrderDate === 'No recent orders' || existing.lastOrderDate === 'Active today') {
         existing.lastOrderDate = order.date;
       }
     } else {

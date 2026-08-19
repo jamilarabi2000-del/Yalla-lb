@@ -45,6 +45,8 @@ export const AccountView: React.FC = () => {
   const [profilePhone, setProfilePhone] = useState(user.phone);
   const [profileCity, setProfileCity] = useState(user.defaultCity);
   const [profileAddress, setProfileAddress] = useState(user.defaultAddress);
+  const [profileBuilding, setProfileBuilding] = useState(user.defaultBuilding || '');
+  const [profileNotes, setProfileNotes] = useState(user.defaultNotes || '');
   const [isSaving, setIsSaving] = useState(false);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -54,17 +56,56 @@ export const AccountView: React.FC = () => {
 
   useEffect(() => {
     if (user) {
-      const fName = user.firstName || (user.name ? user.name.split(' ')[0] : '');
-      const lName = user.lastName || (user.name ? user.name.split(' ').slice(1).join(' ') : '');
+      let fName = user.firstName || (user.name ? user.name.split(' ')[0] : '');
+      let lName = user.lastName || (user.name ? user.name.split(' ').slice(1).join(' ') : '');
+      
+      // Derive name from firebaseUser display name or email if empty
+      if (!fName && !lName && firebaseUser) {
+        if (firebaseUser.displayName) {
+          const parts = firebaseUser.displayName.trim().split(/\s+/);
+          fName = parts[0] || '';
+          lName = parts.slice(1).join(' ') || '';
+        } else if (firebaseUser.email && firebaseUser.email.includes('@')) {
+          const raw = firebaseUser.email.split('@')[0].replace(/[0-9]+/g, ' ').trim();
+          const parts = raw.split(/[\._\-\s]+/).filter(Boolean);
+          if (parts.length >= 2) {
+            fName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+            lName = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
+          } else if (parts.length === 1 && parts[0].length > 0) {
+            fName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+          }
+        }
+      }
+
+      // Add identical fallbacks as CheckoutView to ensure identical user experience and data representation
+      fName = fName || 'Walid';
+      lName = lName || 'Ghattas';
+
+      const emailVal = user.email || (firebaseUser ? firebaseUser.email : '') || '';
+      
+      let phoneVal = user.phone || '';
+      if (!phoneVal || phoneVal.trim() === '') {
+        phoneVal = '70 123 456';
+      } else {
+        phoneVal = phoneVal.replace('+961', '').replace(/\s+/g, '').trim();
+      }
+
+      const cityVal = user.defaultCity || 'Achrafieh, Beirut';
+      const addressVal = user.defaultAddress || 'Gouraud Street, next to Paul Bakery';
+      const buildingVal = user.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B';
+      const notesVal = user.defaultNotes || 'Call upon arrival, leave with building concierge if not present';
+
       setProfileFirstName(fName);
       setProfileLastName(lName);
       setProfileName(user.name || `${fName} ${lName}`.trim());
-      setProfileEmail(user.email || '');
-      setProfilePhone(user.phone ? user.phone.replace('+961', '').replace(/\s+/g, '').trim() : '');
-      setProfileCity(user.defaultCity || '');
-      setProfileAddress(user.defaultAddress || '');
+      setProfileEmail(emailVal);
+      setProfilePhone(phoneVal);
+      setProfileCity(cityVal);
+      setProfileAddress(addressVal);
+      setProfileBuilding(buildingVal);
+      setProfileNotes(notesVal);
     }
-  }, [user]);
+  }, [user, firebaseUser]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,7 +154,9 @@ export const AccountView: React.FC = () => {
           lastName: profileLastName.trim(),
           phone: '+961 ' + profilePhone,
           defaultCity: profileCity,
-          defaultAddress: profileAddress
+          defaultAddress: profileAddress,
+          defaultBuilding: profileBuilding,
+          defaultNotes: profileNotes
         }));
       } catch {}
       await signUpWithEmail(authEmail, authPassword);
@@ -124,7 +167,9 @@ export const AccountView: React.FC = () => {
         email: authEmail,
         phone: '+961 ' + profilePhone,
         defaultCity: profileCity,
-        defaultAddress: profileAddress
+        defaultAddress: profileAddress,
+        defaultBuilding: profileBuilding,
+        defaultNotes: profileNotes
       });
     } catch (err) {} finally {
       setIsAuthLoading(false);
@@ -152,7 +197,9 @@ export const AccountView: React.FC = () => {
         email: profileEmail,
         phone: formattedPhone,
         defaultCity: profileCity,
-        defaultAddress: profileAddress
+        defaultAddress: profileAddress,
+        defaultBuilding: profileBuilding,
+        defaultNotes: profileNotes
       });
       showToast('Profile details saved successfully!', 'success');
     } catch {
@@ -210,15 +257,20 @@ export const AccountView: React.FC = () => {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-2xl font-bold text-slate-900">
-                    {user.firstName && user.lastName 
-                      ? `${user.firstName} ${user.lastName}` 
-                      : (user.name || (language === 'ar' ? 'زائر جديد' : 'New Guest Patron'))}
+                    {profileFirstName && profileLastName 
+                      ? `${profileFirstName} ${profileLastName}` 
+                      : (profileName || (language === 'ar' ? 'زائر جديد' : 'New Guest Patron'))}
                   </h1>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">{user.email || (language === 'ar' ? 'يرجى تحديث بريدك الإلكتروني ورقم هاتفك أدناه' : 'Please fill out your profile details below to complete sign up')} {user.phone ? `• ${user.phone}` : ''}</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {profileEmail || (language === 'ar' ? 'يرجى تحديث بريدك الإلكتروني ورقم هاتفك أدناه' : 'Please fill out your profile details below to complete sign up')} 
+                  {profilePhone ? ` • +961 ${profilePhone.replace('+961', '').trim()}` : ''}
+                </p>
                 <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-1 font-medium">
                   <MapPin className="w-3 h-3 text-slate-400" />
-                  <span>{user.defaultAddress || 'Beirut'}, {user.defaultCity || 'Lebanon'}</span>
+                  <span>
+                    {profileAddress ? `${profileAddress}, ` : ''}{profileCity || 'Lebanon'}
+                  </span>
                 </p>
               </div>
             </div>
@@ -496,14 +548,38 @@ export const AccountView: React.FC = () => {
                           />
                         </div>
                       </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Street / Landmark *</label>
+                          <input 
+                            type="text" 
+                            value={profileAddress} 
+                            onChange={(e) => setProfileAddress(e.target.value)} 
+                            placeholder="Gouraud Street, next to Paul Bakery"
+                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            required 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Building, Floor & Apt *</label>
+                          <input 
+                            type="text" 
+                            value={profileBuilding} 
+                            onChange={(e) => setProfileBuilding(e.target.value)} 
+                            placeholder="Al-Nour Bldg, 4th Floor, Apt B"
+                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            required 
+                          />
+                        </div>
+                      </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Detailed Address</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Delivery Notes & Courier Instructions (Optional)</label>
                         <input 
                           type="text" 
-                          value={profileAddress} 
-                          onChange={(e) => setProfileAddress(e.target.value)} 
+                          value={profileNotes} 
+                          onChange={(e) => setProfileNotes(e.target.value)} 
+                          placeholder="Call upon arrival, leave with building concierge if not present"
                           className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
-                          required 
                         />
                       </div>
                       <button 
@@ -594,16 +670,42 @@ export const AccountView: React.FC = () => {
                           required 
                         />
                       </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Detailed Address</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Street / Landmark *</label>
                         <input 
                           type="text" 
                           value={profileAddress} 
                           onChange={(e) => setProfileAddress(e.target.value)} 
+                          placeholder="Gouraud Street, next to Paul Bakery"
                           className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all" 
                           required 
                         />
                       </div>
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Building, Floor & Apt *</label>
+                        <input 
+                          type="text" 
+                          value={profileBuilding} 
+                          onChange={(e) => setProfileBuilding(e.target.value)} 
+                          placeholder="Al-Nour Bldg, 4th Floor, Apt B"
+                          className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all" 
+                          required 
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Delivery Notes & Courier Instructions (Optional)</label>
+                      <input 
+                        type="text" 
+                        value={profileNotes} 
+                        onChange={(e) => setProfileNotes(e.target.value)} 
+                        placeholder="Call upon arrival, leave with building concierge if not present"
+                        className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all" 
+                      />
                     </div>
 
                     <div className="pt-4 flex justify-end">

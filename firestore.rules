@@ -17,12 +17,14 @@ service cloud.firestore {
     // Profiles: owner only. No list — never enumerable.
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       allow create, update: if isOwner(userId);
       allow delete: if isOwner(userId);
     }
 
     match /carts/{userId} {
       allow read, write: if isOwner(userId);
+      allow read: if isAdmin();
     }
 
     match /wishlists/{userId} {
@@ -32,12 +34,12 @@ service cloud.firestore {
     // Orders: a customer reads/lists only their own; only admins list all.
     match /orders/{orderId} {
       allow get: if isAdmin()
-        || (isSignedIn() && resource.data.userId == request.auth.uid);
+        || (isSignedIn() && resource.data.userId == request.auth.uid)
+        || (!isSignedIn() && resource.data.userId == 'guest');
       allow list: if isAdmin() 
         || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending';
+      allow create: if (isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending')
+        || (!isSignedIn() && request.resource.data.userId == 'guest' && request.resource.data.status == 'pending');
       allow update, delete: if isAdmin();
     }
 

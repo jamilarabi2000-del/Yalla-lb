@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity } from '../types';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
@@ -419,11 +419,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile>(() => {
     try {
       const saved = localStorage.getItem('yallalb_user');
-      if (saved && auth.currentUser) {
-        const parsed = JSON.parse(saved);
-        return parsed;
+      if (saved) {
+        return JSON.parse(saved);
       }
-      localStorage.removeItem('yallalb_user');
       return INITIAL_USER;
     } catch {
       return INITIAL_USER;
@@ -844,10 +842,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const productsColRef = collection(db, 'products');
-    const unsubscribe = onSnapshot(
-      productsColRef,
-      async (snapshot) => {
+    const fetchProducts = async () => {
+      try {
+        const productsColRef = collection(db, 'products');
+        const snapshot = await getDocs(productsColRef);
+
         if (snapshot.empty && !hasSeededProductsRef.current) {
           hasSeededProductsRef.current = true;
           console.log("[ShopContext] Database products collection is empty. Seeding initial catalog to Firestore...");
@@ -859,8 +858,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
             await monitoredBatchCommit(batch, INITIAL_PRODUCTS.length, 'products', 'ShopContext:AutoSeedProducts');
             console.log(`[ShopContext] Successfully seeded ${INITIAL_PRODUCTS.length} artisan products to Firestore database.`);
+            setProducts(INITIAL_PRODUCTS);
           } catch (seedErr) {
             console.error("[ShopContext] Error seeding products to Firestore:", seedErr);
+            setProducts(INITIAL_PRODUCTS);
           }
         } else if (!snapshot.empty) {
           const dbProductsMap = new Map<string, Product>();
@@ -870,7 +871,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           dbMonitor.logSnapshotSync({
             path: 'products/*',
-            caller: 'ShopContext:onSnapshot(products)',
+            caller: 'ShopContext:getDocs(products)',
             itemCount: snapshot.docs.length,
             metadata: { totalItems: dbProductsMap.size }
           });
@@ -896,18 +897,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           const allProducts = Array.from(dbProductsMap.values());
           setProducts(allProducts);
-          setIsDbSyncing(false);
         }
-      },
-      (error) => {
-        dbMonitor.logOperationFailure('snap-products-err', error, {
-          metadata: { path: 'products/*', operation: 'SNAPSHOT_SYNC' }
+      } catch (error: any) {
+        dbMonitor.logOperationFailure('fetch-products-err', error, {
+          metadata: { path: 'products/*', operation: 'GET_DOCS_FETCH' }
         });
         handleFirestoreError(error, OperationType.GET, 'products');
+      } finally {
+        setIsDbSyncing(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    fetchProducts();
   }, []);
 
   // Real-time Orders Sync from Firestore Database (scoped for security)
@@ -999,8 +1000,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setFirebaseUser(null);
         setUser(INITIAL_USER);
         setWishlist([]);
+        setCart([]);
+        setOrders([]);
         localStorage.removeItem('yallalb_user');
         localStorage.removeItem('yallalb_wishlist');
+        localStorage.removeItem('yallalb_cart');
+        localStorage.removeItem('yallalb_orders');
+        localStorage.removeItem('yallalb_saved_checkout_data');
         return;
       }
       setFirebaseUser(userObj);
@@ -1097,8 +1103,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultGovernorate: INITIAL_USER.defaultGovernorate,
               defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || 'Achrafieh, Beirut',
               defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery',
-              defaultBuilding: cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B',
-              defaultNotes: cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present'
+              defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B',
+              defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present'
             };
             await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
             setUser(newUserData);
@@ -1155,7 +1161,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  // Sync Cart to Firestore whenever cart changes
+  // Sync Cart to Firestore whenever cart changes (debounced by 1000ms)
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
     if (!firebaseUser) return;
@@ -1166,12 +1172,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       items: cart,
       updatedAt: new Date().toISOString()
     });
-    setDoc(cartDocRef, sanitizedCartPayload, { merge: true }).catch((err) => {
-      console.warn("[ShopContext] Non-blocking cart sync notice:", err);
-    });
+
+    const handler = setTimeout(() => {
+      setDoc(cartDocRef, sanitizedCartPayload, { merge: true }).catch((err) => {
+        console.warn("[ShopContext] Non-blocking cart sync notice:", err);
+      });
+    }, 1000);
+
+    return () => clearTimeout(handler);
   }, [cart, firebaseUser]);
 
-  // Sync Wishlist to Firestore whenever wishlist changes
+  // Sync Wishlist to Firestore whenever wishlist changes (debounced by 1000ms)
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
     if (!firebaseUser) return;
@@ -1182,9 +1193,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       productIds: wishlist,
       updatedAt: new Date().toISOString()
     });
-    setDoc(wishlistDocRef, sanitizedWishlistPayload, { merge: true }).catch((err) => {
-      console.warn("[ShopContext] Non-blocking wishlist sync notice:", err);
-    });
+
+    const handler = setTimeout(() => {
+      setDoc(wishlistDocRef, sanitizedWishlistPayload, { merge: true }).catch((err) => {
+        console.warn("[ShopContext] Non-blocking wishlist sync notice:", err);
+      });
+    }, 1000);
+
+    return () => clearTimeout(handler);
   }, [wishlist, firebaseUser]);
 
   const signInWithGoogle = async () => {
@@ -1858,7 +1874,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const sanitizedUser = sanitizeDocumentData(updatedUser);
     setUser(updatedUser);
 
-    const userKey = firebaseUser ? firebaseUser.uid : 'guest_profile';
+    if (!firebaseUser) {
+      try {
+        localStorage.setItem('yallalb_saved_checkout_data', JSON.stringify(sanitizedUser));
+      } catch {}
+      return;
+    }
+
+    const userKey = firebaseUser.uid;
 
     const { startTime } = dbLogger.logFirestoreWriteStart({
       operation: 'setDoc',
@@ -1907,79 +1930,103 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const providerValue = useMemo(() => ({
+    activeTab,
+    setActiveTab,
+    navigateToProductCategory,
+    selectedProductDetail,
+    setSelectedProductDetail,
+    openProductDetail,
+    goBack,
+    language,
+    setLanguage,
+    t,
+    products,
+    addProduct,
+    updateProduct,
+    deleteProduct,
+    syncAllProductsToDatabase,
+    selectedProductForModal,
+    setSelectedProductForModal,
+    isDbSyncing,
+    currency,
+    setCurrency,
+    formatPrice,
+    convertUSDToLBP,
+    cart,
+    addToCart,
+    addMultipleToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    cartTotalUSD,
+    cartCount,
+    isCartOpen,
+    setIsCartOpen,
+    wishlist,
+    toggleWishlist,
+    removeFromWishlist,
+    isInWishlist,
+    clearWishlist,
+    orders,
+    placeOrder,
+    updateOrderStatus,
+    user,
+    updateUser,
+    firebaseUser,
+    isAdminUser,
+    signInWithEmail,
+    signUpWithEmail,
+    resetPassword,
+    signInWithGoogle,
+    signOutUser,
+    searchQuery,
+    setSearchQuery,
+    selectedCategory,
+    setSelectedCategory,
+    toast,
+    showToast,
+    siteContent,
+    updateSiteContent,
+    toggleSectionVisibility,
+    toggleProductPublish,
+    addCustomBlock,
+    updateCustomBlock,
+    deleteCustomBlock,
+    isVisualEditMode,
+    setIsVisualEditMode,
+    isAdminUnlocked,
+    setIsAdminUnlocked,
+    recentActivities,
+    logAdminActivity
+  }), [
+    activeTab,
+    selectedProductDetail,
+    language,
+    products,
+    selectedProductForModal,
+    isDbSyncing,
+    currency,
+    cart,
+    cartTotalUSD,
+    cartCount,
+    isCartOpen,
+    wishlist,
+    orders,
+    user,
+    firebaseUser,
+    isAdminUser,
+    searchQuery,
+    selectedCategory,
+    toast,
+    siteContent,
+    isVisualEditMode,
+    isAdminUnlocked,
+    recentActivities
+  ]);
+
   return (
-    <ShopContext.Provider
-      value={{
-        activeTab,
-        setActiveTab,
-        navigateToProductCategory,
-        selectedProductDetail,
-        setSelectedProductDetail,
-        openProductDetail,
-        goBack,
-        language,
-        setLanguage,
-        t,
-        products,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        syncAllProductsToDatabase,
-        selectedProductForModal,
-        setSelectedProductForModal,
-        isDbSyncing,
-        currency,
-        setCurrency,
-        formatPrice,
-        convertUSDToLBP,
-        cart,
-        addToCart,
-        addMultipleToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        cartTotalUSD,
-        cartCount,
-        isCartOpen,
-        setIsCartOpen,
-        wishlist,
-        toggleWishlist,
-        removeFromWishlist,
-        isInWishlist,
-        clearWishlist,
-        orders,
-        placeOrder,
-        updateOrderStatus,
-        user,
-        updateUser,
-        firebaseUser,
-        isAdminUser,
-        signInWithEmail,
-        signUpWithEmail,
-        resetPassword,
-        signInWithGoogle,
-        signOutUser,
-        searchQuery,
-        setSearchQuery,
-        selectedCategory,
-        setSelectedCategory,
-        toast,
-        showToast,
-        siteContent,
-        updateSiteContent,
-        toggleSectionVisibility,
-        toggleProductPublish,
-        addCustomBlock,
-        updateCustomBlock,
-        deleteCustomBlock,
-        isVisualEditMode,
-        setIsVisualEditMode,
-        isAdminUnlocked,
-        setIsAdminUnlocked,
-        recentActivities,
-        logAdminActivity
-      }}
-    >
+    <ShopContext.Provider value={providerValue}>
       {children}
     </ShopContext.Provider>
   );

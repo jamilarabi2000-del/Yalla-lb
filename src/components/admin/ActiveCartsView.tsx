@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { 
   ShoppingCart, 
@@ -14,32 +14,82 @@ import {
   ShoppingBag,
   Sparkles
 } from 'lucide-react';
-import { CartItem } from '../../types';
+import { CartItem, UserProfile } from '../../types';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase';
 
 export const ActiveCartsView: React.FC = () => {
   const { cart, cartTotalUSD, clearCart, formatPrice, convertUSDToLBP, showToast, user } = useShop();
   const [selectedCartDetail, setSelectedCartDetail] = useState<boolean>(false);
+  const [activeCartsList, setActiveCartsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Derive mock/live active carts data
-  const hasCurrentCart = cart.length > 0;
-  const currentCartTotalLBP = convertUSDToLBP(cartTotalUSD);
+  useEffect(() => {
+    const fetchCarts = async () => {
+      try {
+        const [usersSnap, cartsSnap] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'carts'))
+        ]);
+        
+        const usersMap = new Map<string, UserProfile>();
+        usersSnap.forEach(doc => {
+          usersMap.set(doc.id, doc.data() as UserProfile);
+        });
 
-  // Generate simulated guest carts for realistic multi-cart tracking in admin
-  const activeCartsList = [
-    ...(hasCurrentCart ? [{
-      id: 'cart-session-active',
-      userLabel: user.name || 'Current Active Shopper (You)',
-      email: user.email || 'shopper@yalla.lb',
-      phone: user.phone || '+961 70 123 456',
-      city: user.defaultCity || 'Achrafieh, Beirut',
-      items: cart,
-      totalUSD: cartTotalUSD,
-      itemCount: cart.reduce((s, i) => s + i.quantity, 0),
-      lastActive: 'Just now',
-      status: 'In Checkout / Active',
-      isLive: true
-    }] : [])
-  ];
+        const fetchedCarts: any[] = [];
+        cartsSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.items && data.items.length > 0) {
+            const cartUser = usersMap.get(data.userId) || (data.userId === user?.uid ? user : null);
+            const items = data.items as CartItem[];
+            const totalUSD = items.reduce((sum, item) => sum + (item.product.priceUSD * item.quantity), 0);
+            const isLive = data.userId === user?.uid;
+            
+            fetchedCarts.push({
+              id: doc.id,
+              userLabel: cartUser?.name || 'Anonymous Shopper',
+              email: cartUser?.email || 'shopper@yalla.lb',
+              phone: cartUser?.phone || '+961 70 123 456',
+              city: cartUser?.defaultCity || 'Lebanon',
+              items: items,
+              totalUSD: totalUSD,
+              itemCount: items.reduce((s, i) => s + i.quantity, 0),
+              lastActive: data.updatedAt ? new Date(data.updatedAt).toLocaleString() : 'Recently',
+              status: isLive ? 'In Checkout / Active' : 'Abandoned Cart',
+              isLive: isLive
+            });
+          }
+        });
+
+        // Ensure the current user's local cart is also shown if they are a guest and not in DB yet
+        if (cart.length > 0 && !fetchedCarts.find(c => c.isLive)) {
+          fetchedCarts.push({
+            id: 'cart-session-active',
+            userLabel: user.name || 'Current Active Shopper (You)',
+            email: user.email || 'shopper@yalla.lb',
+            phone: user.phone || '+961 70 123 456',
+            city: user.defaultCity || 'Achrafieh, Beirut',
+            items: cart,
+            totalUSD: cartTotalUSD,
+            itemCount: cart.reduce((s, i) => s + i.quantity, 0),
+            lastActive: 'Just now',
+            status: 'In Checkout / Active',
+            isLive: true
+          });
+        }
+
+        fetchedCarts.sort((a, b) => b.isLive ? 1 : -1);
+        setActiveCartsList(fetchedCarts);
+      } catch (err) {
+        console.error("Failed to fetch carts:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchCarts();
+  }, [cart, cartTotalUSD, user]);
 
   const handleSendReminder = (phone: string, total: number) => {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
@@ -192,12 +242,12 @@ export const ActiveCartsView: React.FC = () => {
               <div className="space-y-3 text-xs">
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
                   <span className="text-slate-600">Total In-Cart Value</span>
-                  <span className="font-black text-slate-900">{formatPrice(cartTotalUSD)}</span>
+                  <span className="font-black text-slate-900">{formatPrice(activeCartsList.reduce((s, c) => s + c.totalUSD, 0))}</span>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
                   <span className="text-slate-600">Total Cart Items</span>
-                  <span className="font-black text-slate-900">{cart.reduce((s, i) => s + i.quantity, 0)} Units</span>
+                  <span className="font-black text-slate-900">{activeCartsList.reduce((s, c) => s + c.itemCount, 0)} Units</span>
                 </div>
 
                 <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
