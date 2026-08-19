@@ -53,8 +53,6 @@ export const AdminView: React.FC = () => {
     language = 'en',
     isAdminUnlocked = false,
     setIsAdminUnlocked = () => {},
-    adminPasscode = 'YallaLebanon2026!',
-    updateAdminPasscode = async () => {},
     isVisualEditMode = false,
     setIsVisualEditMode = () => {},
     user = null,

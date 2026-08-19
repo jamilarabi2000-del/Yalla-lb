@@ -50,6 +50,31 @@ export interface FirestoreLogRecord {
   metadata?: Record<string, any>;
 }
 
+function redactPII(data: any): any {
+  if (!data) return data;
+  if (typeof data !== 'object') return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(redactPII);
+  }
+  
+  const redacted = { ...data };
+  const piiKeys = [
+    'fullName', 'firstName', 'lastName', 'phone', 'email', 'street', 
+    'building', 'floorApartment', 'deliveryNotes', 'address', 
+    'defaultAddress', 'defaultNotes', 'name'
+  ];
+  
+  for (const key of Object.keys(redacted)) {
+    if (piiKeys.includes(key)) {
+      redacted[key] = '[REDACTED_PII]';
+    } else if (typeof redacted[key] === 'object') {
+      redacted[key] = redactPII(redacted[key]);
+    }
+  }
+  return redacted;
+}
+
 export interface SyncDiagnosticsSummary {
   totalOperations: number;
   totalReads: number;
@@ -344,11 +369,16 @@ class DatabaseMonitorService {
   }
 
   private pushLog(record: FirestoreLogRecord) {
-    this.logs.unshift(record);
+    const redactedRecord: FirestoreLogRecord = {
+      ...record,
+      payload: redactPII(record.payload),
+      diff: redactPII(record.diff)
+    };
+    this.logs.unshift(redactedRecord);
     if (this.logs.length > this.maxLogCapacity) {
       this.logs = this.logs.slice(0, this.maxLogCapacity);
     }
-    this.notifySubscribers(record);
+    this.notifySubscribers(redactedRecord);
   }
 
   private notifySubscribers(record: FirestoreLogRecord) {
@@ -382,8 +412,8 @@ class DatabaseMonitorService {
     console.log('Collection:', record.collection);
     console.log('Full Path:', record.path);
     console.log('Caller:', record.caller);
-    if (record.diff) console.log('Changes / Diff:', record.diff);
-    if (record.payload !== undefined) console.log('Payload / Data:', record.payload);
+    if (record.diff) console.log('Changes / Diff:', redactPII(record.diff));
+    if (record.payload !== undefined) console.log('Payload / Data:', redactPII(record.payload));
     if (record.errorMessage) console.error(`Error (${record.errorCode}):`, record.errorMessage, record.errorStack);
     if (record.metadata) console.log('Metadata:', record.metadata);
     console.groupEnd();

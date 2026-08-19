@@ -31,6 +31,31 @@ export interface DataFlowLogEntry {
   errorCode?: string;
 }
 
+function redactPII(data: any): any {
+  if (!data) return data;
+  if (typeof data !== 'object') return data;
+  
+  if (Array.isArray(data)) {
+    return data.map(redactPII);
+  }
+  
+  const redacted = { ...data };
+  const piiKeys = [
+    'fullName', 'firstName', 'lastName', 'phone', 'email', 'street', 
+    'building', 'floorApartment', 'deliveryNotes', 'address', 
+    'defaultAddress', 'defaultNotes', 'name'
+  ];
+  
+  for (const key of Object.keys(redacted)) {
+    if (piiKeys.includes(key)) {
+      redacted[key] = '[REDACTED_PII]';
+    } else if (typeof redacted[key] === 'object') {
+      redacted[key] = redactPII(redacted[key]);
+    }
+  }
+  return redacted;
+}
+
 type LogListener = (entry: DataFlowLogEntry, logs: DataFlowLogEntry[]) => void;
 
 class DatabaseLoggerService {
@@ -88,6 +113,8 @@ class DatabaseLoggerService {
     const now = new Date();
     const fullEntry: DataFlowLogEntry = {
       ...entry,
+      payload: redactPII(entry.payload),
+      diff: redactPII(entry.diff),
       id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       timestamp: now.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }),
       isoTime: now.toISOString()

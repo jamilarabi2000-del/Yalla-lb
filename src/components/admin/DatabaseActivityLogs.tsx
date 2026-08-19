@@ -39,33 +39,7 @@ import { doc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 export const DatabaseActivityLogs: React.FC = () => {
-  const { products, orders, showToast, adminPasscode = 'YallaLebanon2026!', updateAdminPasscode = async () => {} } = useShop();
-
-  const [newPasscodeInput, setNewPasscodeInput] = useState('');
-  const [isChangingPasscode, setIsChangingPasscode] = useState(false);
-  const [showCurrentPasscode, setShowCurrentPasscode] = useState(false);
-
-  const handleUpdatePasscodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPasscodeInput.trim()) {
-      showToast('Please enter a valid non-empty passcode', 'warning');
-      return;
-    }
-    if (newPasscodeInput.length < 4) {
-      showToast('Passcode must be at least 4 characters for basic safety', 'warning');
-      return;
-    }
-    setIsChangingPasscode(true);
-    try {
-      await updateAdminPasscode(newPasscodeInput.trim());
-      showToast('Portal passcode updated successfully!', 'success');
-      setNewPasscodeInput('');
-    } catch (err: any) {
-      showToast(`Error updating passcode: ${err?.message || 'Access denied'}`, 'warning');
-    } finally {
-      setIsChangingPasscode(false);
-    }
-  };
+  const { products, orders, showToast } = useShop();
 
   // Tab: 'operations' (dbMonitor) vs 'pipeline' (dbLogger)
   const [activeTab, setActiveTab] = useState<'operations' | 'pipeline'>('operations');
@@ -326,61 +300,6 @@ export const DatabaseActivityLogs: React.FC = () => {
         </div>
       </div>
 
-      {/* Portal Access Security Credentials Section */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-slate-900">Portal Credentials & Locks</h3>
-            <p className="text-xs text-slate-500">Configure a private passcode to restrict unauthorized store management access.</p>
-          </div>
-        </div>
-
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-1">
-          {/* Current Passcode Status */}
-          <div className="space-y-1.5 max-w-sm">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Current Security Passcode</span>
-            <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-2xl w-fit">
-              <span className="font-mono text-xs font-bold text-slate-800 min-w-[80px]">
-                {showCurrentPasscode ? adminPasscode : '••••••••••••'}
-              </span>
-              <button 
-                type="button"
-                onClick={() => setShowCurrentPasscode(!showCurrentPasscode)}
-                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
-              >
-                {showCurrentPasscode ? 'Hide' : 'Reveal'}
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-400 leading-normal">
-              Note: The initial secure system passcode defaults to <span className="font-mono font-bold text-slate-500">YallaLebanon2026!</span>. Change this immediately to keep catalog alterations private.
-            </p>
-          </div>
-
-          {/* Change Passcode Action Form */}
-          <form onSubmit={handleUpdatePasscodeSubmit} className="flex-1 max-w-md flex flex-col sm:flex-row gap-2">
-            <div className="flex-1 space-y-1">
-              <input
-                id="new_passcode_field"
-                type="text"
-                placeholder="Type strong new passcode..."
-                value={newPasscodeInput}
-                onChange={(e) => setNewPasscodeInput(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white transition-all"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isChangingPasscode}
-              className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 text-white text-xs font-semibold rounded-2xl transition-all shrink-0 cursor-pointer text-center"
-            >
-              {isChangingPasscode ? 'Saving...' : 'Update Passcode'}
-            </button>
-          </form>
-        </div>
-      </div>
 
       {/* Sync Health & Latency Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">

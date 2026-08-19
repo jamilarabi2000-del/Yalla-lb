@@ -16,9 +16,9 @@ import {
 } from 'firebase/auth';
 import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, setLogLevel } from 'firebase/firestore';
 
-// Suppress transient connection info messages in console
+// Suppress transient connection info messages in console but keep warnings in development
 try {
-  setLogLevel('error');
+  setLogLevel(import.meta.env.DEV ? 'warn' : 'error');
 } catch {}
 
 // Hardcoded local copy of the config to ensure compilation succeeds even without firebase-applet-config.json
@@ -36,7 +36,7 @@ const firebaseConfig = {
 };
 
 // Toggle switch to decouple active database calls to bypass project locked / billing requirements
-export const IS_FIREBASE_ENABLED = true;
+export const IS_FIREBASE_ENABLED = !import.meta.env.DEV ? true : (import.meta.env.VITE_USE_FIREBASE !== 'false');
 
 const app = initializeApp(firebaseConfig);
 
@@ -48,13 +48,13 @@ if (isIframe) {
 } else {
   try {
     firestoreInstance = initializeFirestore(app, {
-      experimentalForceLongPolling: true,
+      experimentalAutoDetectLongPolling: true,
       localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
     }, firebaseConfig.firestoreDatabaseId);
   } catch (e) {
     try {
       firestoreInstance = initializeFirestore(app, {
-        experimentalForceLongPolling: true,
+        experimentalAutoDetectLongPolling: true,
         localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
       });
     } catch (err) {

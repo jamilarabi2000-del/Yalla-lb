@@ -57,11 +57,13 @@ interface FirestoreErrorInfo {
 }
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errInfo = {
+    error: errorMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
+      // Redact email to prevent PII leakage
+      email: auth.currentUser?.email ? '[REDACTED_PII]' : null,
       emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
       tenantId: auth.currentUser?.tenantId,
@@ -70,7 +72,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  throw new Error(`Database error during ${operationType} on ${path || 'unknown'}: ${errorMessage}`);
 }
 
 interface Toast {
@@ -207,8 +209,6 @@ interface ShopContextType {
   // Admin Security Lock
   isAdminUnlocked: boolean;
   setIsAdminUnlocked: (val: boolean) => void;
-  adminPasscode: string;
-  updateAdminPasscode: (newPasscode: string) => Promise<void>;
 
   // Recent Activities (Audit Logs)
   recentActivities: RecentActivity[];
@@ -306,21 +306,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
 
-  const isUserAdminEmail = (email?: string | null): boolean => {
-    if (!email) return false;
-    const lower = email.toLowerCase().trim();
-    return lower === 'jamilarabi2000@gmail.com' || lower.endsWith('@yalla.lb');
-  };
-
   useEffect(() => {
     if (firebaseUser) {
-      const emailIsAdmin = isUserAdminEmail(firebaseUser.email);
-      firebaseUser.getIdTokenResult()
+      firebaseUser.getIdTokenResult(true) // true = force refresh
         .then(result => {
-          setIsAdminUser(!!result.claims.admin || emailIsAdmin);
+          setIsAdminUser(result.claims.admin === true);
         })
         .catch(() => {
-          setIsAdminUser(emailIsAdmin);
+          setIsAdminUser(false); // fail closed
         });
     } else {
       setIsAdminUser(false);
@@ -447,63 +440,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return [];
     }
   });
-
-  const [adminPasscode, setAdminPasscode] = useState<string>(() => {
-    try {
-      const saved = localStorage.getItem('yallalb_admin_passcode');
-      return saved || 'YallaLebanon2026!';
-    } catch {
-      return 'YallaLebanon2026!';
-    }
-  });
-
-  // Real-time Sync for Admin Credentials Config
-  useEffect(() => {
-    if (!IS_FIREBASE_ENABLED) return;
-    const configDocRef = doc(db, 'admin_config', 'passcode');
-    const unsubscribe = onSnapshot(configDocRef, async (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        if (data && data.passcode) {
-          setAdminPasscode(data.passcode);
-        }
-      } else {
-        // Automatically seed secure default passcode to Firestore
-        try {
-          await monitoredSetDoc(configDocRef, { passcode: 'YallaLebanon2026!' }, undefined, 'ShopContext:AutoSeedPasscode');
-          setAdminPasscode('YallaLebanon2026!');
-        } catch (err) {
-          console.warn("[ShopContext] Passcode auto-seeding non-blocking warning:", err);
-        }
-      }
-    }, (error) => {
-      console.warn("[ShopContext] Admin config listener warning:", error);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  const updateAdminPasscode = async (newPasscode: string) => {
-    try {
-      setAdminPasscode(newPasscode);
-      try {
-        localStorage.setItem('yallalb_admin_passcode', newPasscode);
-      } catch {}
-
-      if (IS_FIREBASE_ENABLED) {
-        const configDocRef = doc(db, 'admin_config', 'passcode');
-        await monitoredSetDoc(configDocRef, { passcode: newPasscode }, { merge: true }, 'ShopContext:updateAdminPasscode');
-      }
-
-      await logAdminActivity(
-        'cms_update',
-        'Admin passcode updated',
-        'The security passcode to access the administration portal was successfully modified.'
-      );
-    } catch (err) {
-      console.error('[ShopContext] Failed to update admin passcode:', err);
-      throw err;
-    }
-  };
 
   // Real-time Recent Activity Sync from Firestore
   useEffect(() => {
@@ -1444,14 +1380,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Place Order - Saves directly to Firestore database for both guests and authenticated patrons
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
-    const randomSuffix = Math.floor(10000 + Math.random() * 90000);
-    const trackingSuffix = Math.floor(10000 + Math.random() * 90000);
+    const orderDocRef = doc(collection(db, 'orders'));
+    const orderId = orderDocRef.id;
+    const trackingSuffix = Math.floor(100000 + Math.random() * 900000);
     const newOrder: Order = {
       ...orderData,
-      id: `YLB-${randomSuffix}`,
+      id: orderId,
       date: new Date().toISOString(),
       trackingNumber: `LB-EXP-${trackingSuffix}`,
-      status: 'crafting',
+      status: 'pending',
       userId: firebaseUser ? firebaseUser.uid : 'guest'
     };
 
@@ -1489,7 +1426,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      await monitoredSetDoc(doc(db, 'orders', newOrder.id), sanitizedOrder, undefined, 'ShopContext:placeOrder');
+      await monitoredSetDoc(orderDocRef, sanitizedOrder, undefined, 'ShopContext:placeOrder');
       
       dbLogger.logFirestoreWriteSuccess({
         operation: 'setDoc',
@@ -1976,8 +1913,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsVisualEditMode,
         isAdminUnlocked,
         setIsAdminUnlocked,
-        adminPasscode,
-        updateAdminPasscode,
         recentActivities,
         logAdminActivity
       }}
