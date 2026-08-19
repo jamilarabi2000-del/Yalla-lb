@@ -107,6 +107,15 @@ export const AccountView: React.FC = () => {
     const fullName = `${profileFirstName.trim()} ${profileLastName.trim()}`;
     setIsAuthLoading(true);
     try {
+      try {
+        localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
+          firstName: profileFirstName.trim(),
+          lastName: profileLastName.trim(),
+          phone: '+961 ' + profilePhone,
+          defaultCity: profileCity,
+          defaultAddress: profileAddress
+        }));
+      } catch {}
       await signUpWithEmail(authEmail, authPassword);
       await updateUser({
         name: fullName,

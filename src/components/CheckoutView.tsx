@@ -216,6 +216,15 @@ export const CheckoutView: React.FC = () => {
 
     setIsAuthLoading(true);
     try {
+      try {
+        localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
+          firstName: signupFirstName.trim(),
+          lastName: signupLastName.trim(),
+          phone: formattedPhone,
+          defaultCity: formData.city || 'Achrafieh, Beirut',
+          defaultAddress: formData.street || ''
+        }));
+      } catch {}
       await signUpWithEmail(authEmail, authPassword);
       await updateUser({
         name: fullName,

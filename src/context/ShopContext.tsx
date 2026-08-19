@@ -384,9 +384,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [wishlist, setWishlist] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('yallalb_wishlist');
-      return saved ? JSON.parse(saved) : ['prod-1', 'prod-3'];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return ['prod-1', 'prod-3'];
+      return [];
     }
   });
 
@@ -981,7 +981,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!userObj) {
         setFirebaseUser(null);
         setUser(INITIAL_USER);
+        setWishlist([]);
         localStorage.removeItem('yallalb_user');
+        localStorage.removeItem('yallalb_wishlist');
         return;
       }
       setFirebaseUser(userObj);
@@ -1057,16 +1059,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               ...mergedProfile
             }));
           } else {
+            let tempSignup: any = {};
+            try {
+              const rawTemp = localStorage.getItem('yallalb_signup_profile_temp');
+              if (rawTemp) {
+                tempSignup = JSON.parse(rawTemp);
+                localStorage.removeItem('yallalb_signup_profile_temp');
+              }
+            } catch {}
+
             const newUserData: UserProfile = {
-              name: fallbackNames.name,
-              firstName: cachedShipping.firstName || fallbackNames.firstName,
-              lastName: cachedShipping.lastName || fallbackNames.lastName,
+              name: tempSignup.firstName && tempSignup.lastName 
+                ? `${tempSignup.firstName} ${tempSignup.lastName}`.trim()
+                : fallbackNames.name,
+              firstName: tempSignup.firstName || cachedShipping.firstName || fallbackNames.firstName,
+              lastName: tempSignup.lastName || cachedShipping.lastName || fallbackNames.lastName,
               email: userObj.email || INITIAL_USER.email,
-              phone: cachedShipping.phone || '+961 70 123 456',
+              phone: tempSignup.phone || cachedShipping.phone || '+961 70 123 456',
               avatar: userObj.photoURL || INITIAL_USER.avatar,
               defaultGovernorate: INITIAL_USER.defaultGovernorate,
-              defaultCity: cachedShipping.defaultCity || 'Achrafieh, Beirut',
-              defaultAddress: cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery',
+              defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || 'Achrafieh, Beirut',
+              defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery',
               defaultBuilding: cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B',
               defaultNotes: cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present'
             };
@@ -1144,10 +1157,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
+      if (!auth) {
+        throw new Error("Firebase Authentication is not fully initialized in this environment.");
+      }
+      if (!googleProvider) {
+        throw new Error("Google Authentication Provider is not fully initialized in this environment.");
+      }
       await signInWithPopup(auth, googleProvider);
       showToast('Successfully signed in with Google!', 'success');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'auth');
+    } catch (error: any) {
+      console.error("Google Sign In Error:", error);
+      let msg = 'Failed to sign in with Google: ' + error.message;
+      if (error.code === 'auth/network-request-failed') {
+        msg = 'Network connection error. Please check your internet connection and try again.';
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        msg = 'Google Sign-In popup was closed. Please try again.';
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        return;
+      } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
+        msg = 'Configuration issue detected. Please check your browser third-party cookie settings or try signing in with email/password.';
+      }
+      showToast(msg, 'warning');
     }
   };
   
@@ -1156,7 +1186,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await sendPasswordResetEmail(auth, email);
       showToast('Password reset email sent. Please check your inbox.', 'success');
     } catch (error: any) {
-      showToast('Failed to send reset email: ' + error.message, 'warning');
+      let msg = 'Failed to send reset email: ' + error.message;
+      if (error.code === 'auth/network-request-failed') {
+        msg = 'Network connection error. Please check your internet connection and try again.';
+      } else if (error.code === 'auth/user-not-found') {
+        msg = 'No account found with this email address.';
+      }
+      showToast(msg, 'warning');
     }
   };
 
@@ -1165,44 +1201,37 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await createUserWithEmailAndPassword(auth, email, pass);
       showToast('Account created successfully!', 'success');
     } catch (err: any) {
-      showToast('Sign up failed: ' + err.message, 'warning');
+      console.error("Sign up error:", err);
+      let msg = 'Sign up failed: ' + err.message;
+      if (err.code === 'auth/email-already-in-use') {
+        msg = 'This email is already in use. If you already have an account, please Sign In instead.';
+      } else if (err.code === 'auth/network-request-failed') {
+        msg = 'Network connection error. Please check your internet connection and try again.';
+      } else if (err.code === 'auth/weak-password') {
+        msg = 'Password is too weak. Please choose a stronger password.';
+      } else if (err.code === 'auth/invalid-email') {
+        msg = 'Invalid email address format.';
+      }
+      showToast(msg, 'warning');
       throw err;
     }
   };
 
   const signInWithEmail = async (email: string, pass: string) => {
     try {
-      try {
-        await signInWithEmailAndPassword(auth, email, pass);
-        showToast('Successfully signed in!', 'success');
-      } catch (err: any) {
-        if (err.code === 'auth/user-not-found') {
-          // Attempt to create user if not found
-          await createUserWithEmailAndPassword(auth, email, pass);
-          showToast('Account created and signed in!', 'success');
-        } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
-          // Might be a Google account or just wrong password. Let's try to create to see if it's not found
-          try {
-            await createUserWithEmailAndPassword(auth, email, pass);
-            showToast('Account created and signed in!', 'success');
-          } catch (createErr: any) {
-             if (createErr.code === 'auth/email-already-in-use') {
-               throw new Error('This email is already registered (likely via Google). Please use a different email or reset your password in Firebase console.');
-             }
-             throw createErr;
-          }
-        } else {
-          throw err;
-        }
-      }
-    } catch (error: any) {
-      // Remove the prefix if we threw a custom error message
-      const isEmailInUse = error.message.includes('email-already-in-use') || error.message.includes('already registered');
-      const msg = isEmailInUse 
-        ? 'This email is already registered. If you forgot your password, please click "Forgot Password?".' 
-        : (error.message.includes('invalid-credential') ? 'Incorrect password. Try again or click "Forgot Password?".' : 'Authentication failed: ' + error.message);
-      showToast(msg, 'warning');
+      await signInWithEmailAndPassword(auth, email, pass);
+      showToast('Successfully signed in!', 'success');
+    } catch (error) {
       console.error("Auth error:", error);
+      let msg = 'Authentication failed: ' + error.message;
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+        msg = 'Incorrect email or password. If you forgot your password, please click "Forgot Password?".';
+      } else if (error.code === 'auth/network-request-failed') {
+        msg = 'Network connection error. Please check your internet connection and try again.';
+      } else if (error.code === 'auth/invalid-email') {
+        msg = 'Invalid email address format.';
+      }
+      showToast(msg, 'warning');
     }
   };
 
@@ -1298,9 +1327,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart(prev => {
       const existingIndex = prev.findIndex(item => item.product.id === product.id && item.selectedOption === option);
       if (existingIndex > -1) {
-        const updated = [...prev];
-        updated[existingIndex].quantity += quantity;
-        return updated;
+        return prev.map((item, idx) =>
+          idx === existingIndex
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
       }
       return [...prev, { product, quantity, selectedOption: option }];
     });

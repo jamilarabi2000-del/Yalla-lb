@@ -64,22 +64,36 @@ if (isIframe) {
 }
 
 let authInstance;
-if (isIframe) {
-  try {
-    // In an iframe, bypass indexedDBLocalPersistence which hooks pagehide/visibilitychange listeners that crash with "Database is closing/hidden"
-    authInstance = initializeAuth(app, {
-      persistence: [browserLocalPersistence, browserSessionPersistence]
-    });
-  } catch (e) {
-    authInstance = getAuth(app);
+try {
+  // Try getting the default auth instance first
+  authInstance = getAuth(app);
+} catch (e) {
+  if (isIframe) {
+    try {
+      // In an iframe, bypass indexedDBLocalPersistence which hooks pagehide/visibilitychange listeners that crash with "Database is closing/hidden"
+      authInstance = initializeAuth(app, {
+        persistence: [browserLocalPersistence, browserSessionPersistence]
+      });
+    } catch (err) {
+      authInstance = getAuth(app);
+    }
+  } else {
+    try {
+      authInstance = initializeAuth(app, {
+        persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence]
+      });
+    } catch (err) {
+      authInstance = getAuth(app);
+    }
   }
-} else {
+}
+
+// Guaranteed fallback
+if (!authInstance) {
   try {
-    authInstance = initializeAuth(app, {
-      persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence]
-    });
-  } catch (e) {
     authInstance = getAuth(app);
+  } catch (err) {
+    console.error("Firebase Auth fallback critical error:", err);
   }
 }
 
