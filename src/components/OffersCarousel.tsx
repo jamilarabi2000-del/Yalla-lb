@@ -46,7 +46,6 @@ export const OffersCarousel: React.FC = () => {
   const { setSelectedCategory, setActiveTab, showToast, language, t, siteContent } = useShop();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // High-fidelity promo slides configured to match the user's uploaded campaign screenshots exactly
@@ -116,12 +115,10 @@ export const OffersCarousel: React.FC = () => {
   // Auto slide effect with clean restart
   const resetAutoplay = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (!isPaused) {
-      timerRef.current = setInterval(() => {
-        setCurrentIndex(prev => (prev + 1) % offers.length);
-      }, 5000);
-    }
-  }, [isPaused, offers.length]);
+    timerRef.current = setInterval(() => {
+      setCurrentIndex(prev => (prev + 1) % offers.length);
+    }, 4000);
+  }, [offers.length]);
 
   useEffect(() => {
     resetAutoplay();
@@ -182,8 +179,6 @@ export const OffersCarousel: React.FC = () => {
   return (
     <section 
       className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-8"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
     >
       {/* Section Header for Ads & Promotions Banner */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -213,8 +208,6 @@ export const OffersCarousel: React.FC = () => {
       {/* Unified Carousel Container */}
       <div 
         className="relative group/carousel select-none"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
       >
         {/* 1. Custom School Essentials Slide Container */}
         {currentOffer.isCustomSchoolLayout && (

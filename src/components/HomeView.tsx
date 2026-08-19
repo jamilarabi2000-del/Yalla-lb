@@ -6,7 +6,6 @@ import { NewsSection } from './NewsSection';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { useShop } from '../context/ShopContext';
 import { 
-  ArrowRight, 
   Truck, 
   ShieldCheck, 
   RotateCcw, 
@@ -295,14 +294,6 @@ export const HomeView: React.FC = () => {
                 <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredSubtitle}</p>
               )}
             </div>
-
-            <button
-              onClick={() => { setActiveTab('products'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#b89753] hover:text-[#96783d] transition-colors cursor-pointer"
-            >
-              <span>{t('viewAllProducts')}</span>
-              <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-            </button>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
@@ -384,14 +375,6 @@ export const HomeView: React.FC = () => {
                 )}
               </h2>
             </div>
-
-            <button
-              onClick={() => { setActiveTab('products'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-              className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#b89753] hover:text-[#96783d] transition-colors cursor-pointer"
-            >
-              <span>{t('viewAllProducts')} ({newArrivals.length})</span>
-              <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-            </button>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">

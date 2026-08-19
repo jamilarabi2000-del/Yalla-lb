@@ -2,79 +2,73 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
-    }
-    
-    function isSignedIn() { 
-      return request.auth != null; 
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
     }
 
-    // Connection test document (required by Firebase verification health check)
-    match /test/connection {
-      allow read: if true;
-    }
-
-    // 1. Products Catalog Collection (Public read, valid document writes)
+    // Catalog: public read, admin-only write.
     match /products/{productId} {
       allow get, list: if true;
-      allow create, update: if isValidId(productId) && request.resource.data.priceUSD is number && request.resource.data.priceUSD >= 0;
-      allow delete: if isValidId(productId);
+      allow create, update, delete: if isAdmin();
     }
 
-    // 2. User Profiles Collection
+    // Profiles: owner only. No list — never enumerable.
     match /users/{userId} {
-      allow get, create, update, delete: if isValidId(userId);
+      allow get: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId);
+      allow delete: if isOwner(userId);
     }
 
-    // 3. Wishlists Collection
-    match /wishlists/{userId} {
-      allow get, create, update, delete: if isValidId(userId);
-    }
-
-    // 4. Shopping Carts Collection
     match /carts/{userId} {
-      allow get, create, update, delete: if isValidId(userId);
+      allow read, write: if isOwner(userId);
     }
 
-    // 5. Orders Collection (Customer Purchases & Dispatch Coordination)
+    match /wishlists/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Orders: a customer reads/lists only their own; only admins list all.
     match /orders/{orderId} {
-      allow get: if isValidId(orderId);
-      allow list: if true;
-      allow create: if isValidId(orderId) && request.resource.data.totalUSD is number;
-      allow update, delete: if isValidId(orderId);
+      allow get: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() 
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update, delete: if isAdmin();
     }
 
-    // 6. Product Reviews Collection
     match /reviews/{reviewId} {
       allow get, list: if true;
-      allow create: if isValidId(reviewId) && request.resource.data.rating is number;
-      allow update, delete: if isValidId(reviewId);
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+      allow update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
-    // 7. Site Content CMS Collection
+    // Site content: public read, admin-only write.
     match /cms/{docId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(docId);
+      allow create, update, delete: if isAdmin();
     }
 
-    // 8. Categories Collection (Catalog taxonomy)
     match /categories/{catId} {
       allow get, list: if true;
-      allow create, update, delete: if isValidId(catId);
+      allow create, update, delete: if isAdmin();
     }
 
-    // 9. Recent Activity Collection (Audit log)
     match /recent_activity/{activityId} {
-      allow get, list: if true;
-      allow create, update, delete: if isValidId(activityId);
+      allow read, write: if isAdmin();
     }
 
-    // 10. Admin Config Collection (Credential Settings)
     match /admin_config/{docId} {
-      allow get, list: if true;
-      allow create, update, delete: if isValidId(docId);
+      allow read, write: if isAdmin();
     }
   }
 }
+

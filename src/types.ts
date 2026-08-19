@@ -32,6 +32,8 @@ export interface CartItem {
 
 export interface ShippingDetails {
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   phone: string; // WhatsApp number
   email: string;
   governorate: string; // Beirut, Mount Lebanon, North, South, Bekaa, Nabatieh, International
@@ -66,12 +68,16 @@ export interface Order {
 
 export interface UserProfile {
   name: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   avatar: string;
   defaultGovernorate: string;
   defaultCity: string;
   defaultAddress: string;
+  defaultBuilding?: string;
+  defaultNotes?: string;
 }
 
 export interface CMSOfferSlide {

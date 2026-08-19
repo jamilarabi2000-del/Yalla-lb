@@ -5,6 +5,7 @@ import { HomeView } from './components/HomeView';
 import { ProductsView } from './components/ProductsView';
 import { CheckoutView } from './components/CheckoutView';
 import { AccountView } from './components/AccountView';
+import { FavoritesView } from './components/FavoritesView';
 import { AdminView } from './components/AdminView';
 import { AdminErrorBoundary } from './components/AdminErrorBoundary';
 import { ProductDetailView } from './components/ProductDetailView';
@@ -57,7 +58,7 @@ const MainAppContent: React.FC = () => {
         if (foundProduct) {
           openProductDetail(foundProduct);
         }
-      } else if (path === 'products' || path === 'checkout' || path === 'account' || path === 'home' || path === '') {
+      } else if (path === 'products' || path === 'checkout' || path === 'account' || path === 'favorites' || path === 'home' || path === '') {
         const targetTab = (path === '' || path === 'home' ? 'home' : path) as any;
         if (activeTab !== targetTab) {
           setSelectedProductDetail(null);
@@ -130,10 +131,6 @@ const MainAppContent: React.FC = () => {
                 <a href="/account">Account</a>
                 — Account on Yalla.lb. A premium, high-velocity marketplace bridging Lebanese craftsmanship with modern.
               </li>
-              <li>
-                <a href="/admin">Admin</a>
-                — Admin on Yalla.lb. A premium, high-velocity marketplace bridging Lebanese craftsmanship with modern.
-              </li>
             </ul>
           </nav>
         </main>
@@ -149,6 +146,7 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'product_detail' && <ProductDetailView />}
         {activeTab === 'checkout' && <CheckoutView />}
         {activeTab === 'account' && <AccountView />}
+        {activeTab === 'favorites' && <FavoritesView />}
         {activeTab === 'admin' && (
           <AdminErrorBoundary>
             <AdminView />

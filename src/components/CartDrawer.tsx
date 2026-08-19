@@ -213,18 +213,8 @@ export const CartDrawer: React.FC = () => {
                 <span>{t('proceedToCheckout')}</span>
                 <ArrowRight className={`w-4 h-4 text-white ${language === 'ar' ? 'rotate-180' : ''}`} />
               </button>
-
-              <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-500 font-medium text-center">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                <span>
-                  {language === 'ar' 
-                    ? 'الدفع نقداً عند الاستلام ($ دولار) • تحويل ويش • بطاقة ائتمانية' 
-                    : 'Cash on Delivery ($ USD) • Whish • Card'}
-                </span>
-              </div>
             </div>
           )}
-
         </div>
       </div>
     </div>

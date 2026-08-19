@@ -309,6 +309,20 @@ export const ProductDetailView: React.FC = () => {
                   </div>
 
                   <button
+                    id="detail-favorite-btn"
+                    onClick={() => toggleWishlist(product.id)}
+                    aria-label={isLiked ? "Remove from favorites" : "Add to favorites"}
+                    title={isLiked ? "Remove from favorites" : "Add to favorites"}
+                    className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-center ${
+                      isLiked 
+                        ? 'bg-rose-50 border-rose-300 text-rose-600 hover:bg-rose-100' 
+                        : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-rose-600 hover:bg-white'
+                    }`}
+                  >
+                    <Heart className={`w-5 h-5 transition-transform duration-200 ${isLiked ? 'fill-rose-600 text-rose-600 scale-110' : ''}`} />
+                  </button>
+
+                  <button
                     id="detail-add-to-cart-btn"
                     onClick={handleAddToCart}
                     className={`flex-1 py-4 px-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-98 ${

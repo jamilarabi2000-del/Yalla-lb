@@ -4,7 +4,7 @@ import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
 import { LBP_USD_RATE } from '../data/regions';
 import { translations, Language } from '../utils/translations';
-import { auth, db, googleProvider, signInWithPopup, signOut, onAuthStateChanged, FirebaseUser } from '../firebase';
+import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, googleProvider, sendPasswordResetEmail } from '../firebase';
 import { 
   dbLogger, 
   sanitizeFirestorePayload, 
@@ -79,7 +79,7 @@ interface Toast {
   type: 'success' | 'info' | 'warning';
 }
 
-export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'account' | 'admin';
+export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'account' | 'admin' | 'favorites';
 
 const getInitialNavTab = (): NavTab => {
   if (typeof window === 'undefined') return 'home';
@@ -91,7 +91,7 @@ const getInitialNavTab = (): NavTab => {
   if (path.startsWith('product/')) {
     return 'product_detail';
   }
-  if (path === 'products' || path === 'checkout' || path === 'account') {
+  if (path === 'products' || path === 'checkout' || path === 'account' || path === 'favorites') {
     return path as NavTab;
   }
   return 'home';
@@ -148,6 +148,7 @@ interface ShopContextType {
   // Cart
   cart: CartItem[];
   addToCart: (product: Product, quantity?: number, option?: string) => void;
+  addMultipleToCart: (items: { product: Product; quantity?: number; option?: string }[]) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -159,7 +160,9 @@ interface ShopContextType {
   // Wishlist
   wishlist: string[];
   toggleWishlist: (productId: string) => void;
+  removeFromWishlist: (productId: string) => void;
   isInWishlist: (productId: string) => boolean;
+  clearWishlist: () => void;
 
   // Orders
   orders: Order[];
@@ -173,6 +176,9 @@ interface ShopContextType {
   // Firebase Auth
   firebaseUser: FirebaseUser | null;
   isAdminUser: boolean;
+  signInWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOutUser: () => Promise<void>;
 
@@ -212,13 +218,13 @@ interface ShopContextType {
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
 const INITIAL_USER: UserProfile = {
-  name: 'Karim Chamoun',
-  email: 'karim.chamoun@yalla.lb',
-  phone: '+961 70 123 456',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-  defaultGovernorate: 'beirut',
-  defaultCity: 'Achrafieh',
-  defaultAddress: 'Sursock Street, Building 14, 3rd Floor'
+  name: '',
+  email: '',
+  phone: '',
+  avatar: '',
+  defaultGovernorate: '',
+  defaultCity: '',
+  defaultAddress: ''
 };
 
 const INITIAL_ORDERS: Order[] = [
@@ -341,6 +347,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Test Firestore Connection on Boot
   useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
     async function testConnection() {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
@@ -402,7 +409,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile>(() => {
     try {
       const saved = localStorage.getItem('yallalb_user');
-      return saved ? JSON.parse(saved) : INITIAL_USER;
+      if (saved && auth.currentUser) {
+        const parsed = JSON.parse(saved);
+        return parsed;
+      }
+      localStorage.removeItem('yallalb_user');
+      return INITIAL_USER;
     } catch {
       return INITIAL_USER;
     }
@@ -427,12 +439,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [isVisualEditMode, setIsVisualEditMode] = useState<boolean>(false);
 
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_recent_activities');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  const [adminPasscode, setAdminPasscode] = useState<string>('YallaLebanon2026!');
+  const [adminPasscode, setAdminPasscode] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_admin_passcode');
+      return saved || 'YallaLebanon2026!';
+    } catch {
+      return 'YallaLebanon2026!';
+    }
+  });
 
   // Real-time Sync for Admin Credentials Config
   useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
     const configDocRef = doc(db, 'admin_config', 'passcode');
     const unsubscribe = onSnapshot(configDocRef, async (snapshot) => {
       if (snapshot.exists()) {
@@ -457,9 +484,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateAdminPasscode = async (newPasscode: string) => {
     try {
-      const configDocRef = doc(db, 'admin_config', 'passcode');
-      await monitoredSetDoc(configDocRef, { passcode: newPasscode }, { merge: true }, 'ShopContext:updateAdminPasscode');
       setAdminPasscode(newPasscode);
+      try {
+        localStorage.setItem('yallalb_admin_passcode', newPasscode);
+      } catch {}
+
+      if (IS_FIREBASE_ENABLED) {
+        const configDocRef = doc(db, 'admin_config', 'passcode');
+        await monitoredSetDoc(configDocRef, { passcode: newPasscode }, { merge: true }, 'ShopContext:updateAdminPasscode');
+      }
+
       await logAdminActivity(
         'cms_update',
         'Admin passcode updated',
@@ -473,6 +507,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Real-time Recent Activity Sync from Firestore
   useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
     const activityColRef = collection(db, 'recent_activity');
     const q = query(activityColRef, orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(
@@ -502,7 +537,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         details,
         adminEmail: firebaseUser?.email || user.email || 'anonymous-admin'
       };
-      await monitoredSetDoc(doc(db, 'recent_activity', activityId), sanitizeDocumentData(newActivity), undefined, 'ShopContext:logAdminActivity');
+      
+      setRecentActivities(prev => {
+        const next = [newActivity, ...prev].slice(0, 50);
+        try {
+          localStorage.setItem('yallalb_recent_activities', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+
+      if (IS_FIREBASE_ENABLED) {
+        await monitoredSetDoc(doc(db, 'recent_activity', activityId), sanitizeDocumentData(newActivity), undefined, 'ShopContext:logAdminActivity');
+      }
     } catch (err) {
       console.error('[ShopContext] Failed to log admin activity:', err);
     }
@@ -517,6 +563,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Real-time CMS Sync from Firestore Database
   useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
     const cmsDocRef = doc(db, 'cms', 'main');
     const unsubscribe = onSnapshot(
       cmsDocRef,
@@ -663,6 +710,29 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       payload: sanitized
     });
 
+    if (!IS_FIREBASE_ENABLED) {
+      setSiteContent(sanitized);
+      try {
+        localStorage.setItem('yallalb_site_content', JSON.stringify(sanitized));
+      } catch {}
+
+      const isMetaChange = modifiedKeys.includes('seo') || Object.keys(diff).some(k => k.startsWith('seo.'));
+      if (isMetaChange) {
+        await logAdminActivity(
+          'meta_change',
+          'SEO Meta Tags updated',
+          `Modified global page title or description for search engines locally: [${modifiedKeys.join(', ')}].`
+        );
+      } else {
+        await logAdminActivity(
+          'cms_update',
+          'CMS Content updated',
+          `Modified fields locally: ${modifiedKeys.join(', ') || 'none'}.`
+        );
+      }
+      return;
+    }
+
     try {
       const cmsDocRef = doc(db, 'cms', 'main');
       await monitoredSetDoc(cmsDocRef, sanitized, { merge: true }, 'ShopContext:updateSiteContent');
@@ -805,6 +875,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Real-time Products Sync from Firestore Database
   useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) {
+      try {
+        const stored = localStorage.getItem('yallalb_products');
+        if (stored) {
+          setProducts(JSON.parse(stored));
+        } else {
+          setProducts(INITIAL_PRODUCTS);
+          localStorage.setItem('yallalb_products', JSON.stringify(INITIAL_PRODUCTS));
+        }
+      } catch {
+        setProducts(INITIAL_PRODUCTS);
+      }
+      setIsDbSyncing(false);
+      return;
+    }
+
     const productsColRef = collection(db, 'products');
     const unsubscribe = onSnapshot(
       productsColRef,
@@ -873,38 +959,36 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Real-time Orders Sync from Firestore Database (scoped for security)
   useEffect(() => {
-    let q;
-    if (firebaseUser) {
-      if (isAdminUser || isAdminUnlocked) {
-        q = query(collection(db, 'orders'), orderBy('date', 'desc'));
-      } else {
-        q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), orderBy('date', 'desc'));
+    if (!IS_FIREBASE_ENABLED) {
+      try {
+        const stored = localStorage.getItem('yallalb_orders');
+        if (stored) {
+          setOrders(JSON.parse(stored));
+        } else {
+          setOrders([]);
+        }
+      } catch {
+        setOrders([]);
       }
-    } else {
-      // Guests don't get live Firestore updates for security (no list permission).
-      // They rely on local state/localStorage orders.
-      setOrders(INITIAL_ORDERS);
       return;
+    }
+
+    if (!firebaseUser) {
+      setOrders([]);
+      return;
+    }
+
+    let q;
+    if (isAdminUser) {
+      q = query(collection(db, 'orders'), orderBy('date', 'desc'));
+    } else {
+      q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), orderBy('date', 'desc'));
     }
 
     const unsubscribe = onSnapshot(
       q,
       async (snapshot) => {
-        if (snapshot.empty && !hasSeededOrdersRef.current && (isAdminUser || isAdminUnlocked)) {
-          hasSeededOrdersRef.current = true;
-          console.log("[ShopContext] Database orders collection is empty. Seeding initial sample orders to Firestore...");
-          try {
-            const batch = writeBatch(db);
-            INITIAL_ORDERS.forEach((ord) => {
-              const ordDocRef = doc(db, 'orders', ord.id);
-              batch.set(ordDocRef, sanitizeDocumentData(ord));
-            });
-            await monitoredBatchCommit(batch, INITIAL_ORDERS.length, 'orders', 'ShopContext:AutoSeedOrders');
-            console.log(`[ShopContext] Successfully seeded ${INITIAL_ORDERS.length} sample orders to Firestore database.`);
-          } catch (seedErr) {
-            console.error("[ShopContext] Error seeding orders to Firestore:", seedErr);
-          }
-        } else if (!snapshot.empty) {
+        if (!snapshot.empty) {
           const dbOrders: Order[] = [];
           snapshot.forEach((docSnap) => {
             dbOrders.push(docSnap.data() as Order);
@@ -936,31 +1020,121 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Auth & User / Cart / Wishlist synchronization
   useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) {
+      // Offline/Local mode: Load profile, wishlist, and cart from localStorage
+      try {
+        const storedUser = localStorage.getItem('yallalb_user');
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        }
+        const storedWishlist = localStorage.getItem('yallalb_wishlist');
+        if (storedWishlist) {
+          setWishlist(JSON.parse(storedWishlist));
+        }
+        const storedCart = localStorage.getItem('yallalb_cart');
+        if (storedCart) {
+          setCart(JSON.parse(storedCart));
+        }
+      } catch {}
+      return;
+    }
+
     console.log("[ShopContext] Initializing Firebase Auth listener...");
     const unsubscribe = onAuthStateChanged(auth, async (userObj) => {
       console.log("[ShopContext] Auth state changed. User:", userObj ? userObj.uid : "None (Guest)");
+      if (!userObj) {
+        setFirebaseUser(null);
+        setUser(INITIAL_USER);
+        localStorage.removeItem('yallalb_user');
+        return;
+      }
       setFirebaseUser(userObj);
-      const userKey = userObj ? userObj.uid : 'guest_session';
+      const userKey = userObj.uid;
 
       // Sync User Profile
       if (userObj) {
         try {
           const userDocRef = doc(db, 'users', userObj.uid);
           const userSnap = await getDoc(userDocRef);
+          
+          // Helper to extract first/last name from display name or email
+          const deriveNames = (displayName?: string | null, email?: string | null) => {
+            if (displayName && displayName.trim()) {
+              const parts = displayName.trim().split(/\s+/);
+              return {
+                firstName: parts[0],
+                lastName: parts.slice(1).join(' ') || 'Patron',
+                name: displayName.trim()
+              };
+            }
+            if (email && email.includes('@')) {
+              const raw = email.split('@')[0].replace(/[0-9]+/g, ' ').trim();
+              const parts = raw.split(/[\._\-\s]+/).filter(Boolean);
+              if (parts.length >= 2) {
+                const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+                const l = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
+                return { firstName: f, lastName: l, name: `${f} ${l}` };
+              } else if (parts.length === 1 && parts[0].length > 0) {
+                const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+                return { firstName: f, lastName: 'Ghattas', name: `${f} Ghattas` };
+              }
+            }
+            return { firstName: 'Walid', lastName: 'Ghattas', name: 'Walid Ghattas' };
+          };
+
+          const fallbackNames = deriveNames(userObj.displayName, userObj.email);
+
+          // Check if local cache has shipping defaults
+          let cachedShipping: Partial<UserProfile> = {};
+          try {
+            const rawCache = localStorage.getItem('yallalb_saved_checkout_data');
+            if (rawCache) {
+              cachedShipping = JSON.parse(rawCache);
+            }
+          } catch {}
+
           if (userSnap.exists()) {
             const data = userSnap.data() as UserProfile;
-            setUser(prev => ({ ...prev, ...data }));
+            const firstName = data.firstName || (data.name ? data.name.split(' ')[0] : '') || cachedShipping.firstName || fallbackNames.firstName;
+            const lastName = data.lastName || (data.name ? data.name.split(' ').slice(1).join(' ') : '') || cachedShipping.lastName || fallbackNames.lastName;
+            const phone = data.phone || cachedShipping.phone || '+961 70 123 456';
+            const defaultCity = data.defaultCity || cachedShipping.defaultCity || 'Achrafieh, Beirut';
+            const defaultAddress = data.defaultAddress || cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery';
+            const defaultBuilding = data.defaultBuilding || cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B';
+            const defaultNotes = data.defaultNotes || cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present';
+
+            const mergedProfile: UserProfile = {
+              ...data,
+              firstName,
+              lastName,
+              name: data.name || `${firstName} ${lastName}`.trim(),
+              email: data.email || userObj.email || '',
+              phone,
+              defaultCity,
+              defaultAddress,
+              defaultBuilding,
+              defaultNotes
+            };
+
+            setUser(prev => ({ 
+              ...prev, 
+              ...mergedProfile
+            }));
           } else {
             const newUserData: UserProfile = {
-              name: userObj.displayName || INITIAL_USER.name,
+              name: fallbackNames.name,
+              firstName: cachedShipping.firstName || fallbackNames.firstName,
+              lastName: cachedShipping.lastName || fallbackNames.lastName,
               email: userObj.email || INITIAL_USER.email,
-              phone: INITIAL_USER.phone,
+              phone: cachedShipping.phone || '+961 70 123 456',
               avatar: userObj.photoURL || INITIAL_USER.avatar,
               defaultGovernorate: INITIAL_USER.defaultGovernorate,
-              defaultCity: INITIAL_USER.defaultCity,
-              defaultAddress: INITIAL_USER.defaultAddress
+              defaultCity: cachedShipping.defaultCity || 'Achrafieh, Beirut',
+              defaultAddress: cachedShipping.defaultAddress || 'Gouraud Street, next to Paul Bakery',
+              defaultBuilding: cachedShipping.defaultBuilding || 'Al-Nour Bldg, 4th Floor, Apt B',
+              defaultNotes: cachedShipping.defaultNotes || 'Call upon arrival, leave with building concierge if not present'
             };
-            await setDoc(userDocRef, { uid: userObj.uid, ...newUserData });
+            await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
             setUser(newUserData);
           }
         } catch (err) {
@@ -1002,26 +1176,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sync Cart to Firestore whenever cart changes
   useEffect(() => {
-    const userKey = firebaseUser ? firebaseUser.uid : 'guest_session';
+    if (!IS_FIREBASE_ENABLED) return;
+    if (!firebaseUser) return;
+    const userKey = firebaseUser.uid;
     const cartDocRef = doc(db, 'carts', userKey);
-    setDoc(cartDocRef, {
+    const sanitizedCartPayload = sanitizeFirestorePayload({
       userId: userKey,
       items: cart,
       updatedAt: new Date().toISOString()
-    }, { merge: true }).catch((err) => {
+    });
+    setDoc(cartDocRef, sanitizedCartPayload, { merge: true }).catch((err) => {
       console.warn("[ShopContext] Non-blocking cart sync notice:", err);
     });
   }, [cart, firebaseUser]);
 
   // Sync Wishlist to Firestore whenever wishlist changes
   useEffect(() => {
-    const userKey = firebaseUser ? firebaseUser.uid : 'guest_session';
+    if (!IS_FIREBASE_ENABLED) return;
+    if (!firebaseUser) return;
+    const userKey = firebaseUser.uid;
     const wishlistDocRef = doc(db, 'wishlists', userKey);
-    setDoc(wishlistDocRef, {
+    const sanitizedWishlistPayload = sanitizeFirestorePayload({
       userId: userKey,
       productIds: wishlist,
       updatedAt: new Date().toISOString()
-    }, { merge: true }).catch((err) => {
+    });
+    setDoc(wishlistDocRef, sanitizedWishlistPayload, { merge: true }).catch((err) => {
       console.warn("[ShopContext] Non-blocking wishlist sync notice:", err);
     });
   }, [wishlist, firebaseUser]);
@@ -1032,6 +1212,61 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showToast('Successfully signed in with Google!', 'success');
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'auth');
+    }
+  };
+  
+  const resetPassword = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showToast('Password reset email sent. Please check your inbox.', 'success');
+    } catch (error: any) {
+      showToast('Failed to send reset email: ' + error.message, 'warning');
+    }
+  };
+
+  const signUpWithEmail = async (email: string, pass: string) => {
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+      showToast('Account created successfully!', 'success');
+    } catch (err: any) {
+      showToast('Sign up failed: ' + err.message, 'warning');
+      throw err;
+    }
+  };
+
+  const signInWithEmail = async (email: string, pass: string) => {
+    try {
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        showToast('Successfully signed in!', 'success');
+      } catch (err: any) {
+        if (err.code === 'auth/user-not-found') {
+          // Attempt to create user if not found
+          await createUserWithEmailAndPassword(auth, email, pass);
+          showToast('Account created and signed in!', 'success');
+        } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+          // Might be a Google account or just wrong password. Let's try to create to see if it's not found
+          try {
+            await createUserWithEmailAndPassword(auth, email, pass);
+            showToast('Account created and signed in!', 'success');
+          } catch (createErr: any) {
+             if (createErr.code === 'auth/email-already-in-use') {
+               throw new Error('This email is already registered (likely via Google). Please use a different email or reset your password in Firebase console.');
+             }
+             throw createErr;
+          }
+        } else {
+          throw err;
+        }
+      }
+    } catch (error: any) {
+      // Remove the prefix if we threw a custom error message
+      const isEmailInUse = error.message.includes('email-already-in-use') || error.message.includes('already registered');
+      const msg = isEmailInUse 
+        ? 'This email is already registered. If you forgot your password, please click "Forgot Password?".' 
+        : (error.message.includes('invalid-credential') ? 'Incorrect password. Try again or click "Forgot Password?".' : 'Authentication failed: ' + error.message);
+      showToast(msg, 'warning');
+      console.error("Auth error:", error);
     }
   };
 
@@ -1096,6 +1331,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const goBack = useCallback(() => {
+    if (typeof window !== 'undefined' && window.history) {
+      const hasDepth = window.history.state && typeof window.history.state.depth === 'number' && window.history.state.depth > 0;
+      if (hasDepth) {
+        window.history.back();
+        return;
+      }
+    }
     setActiveTabState('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -1129,6 +1371,29 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(`Added ${quantity}x "${product.name.split('(')[0].trim()}" to cart!`);
   };
 
+  const addMultipleToCart = (itemsToAdd: { product: Product; quantity?: number; option?: string }[]) => {
+    setCart(prev => {
+      const nextCart = [...prev];
+      for (const item of itemsToAdd) {
+        const qty = item.quantity || 1;
+        const existingIndex = nextCart.findIndex(c => c.product.id === item.product.id && c.selectedOption === item.option);
+        if (existingIndex > -1) {
+          nextCart[existingIndex] = {
+            ...nextCart[existingIndex],
+            quantity: nextCart[existingIndex].quantity + qty
+          };
+        } else {
+          nextCart.push({
+            product: item.product,
+            quantity: qty,
+            selectedOption: item.option
+          });
+        }
+      }
+      return nextCart;
+    });
+  };
+
   const removeFromCart = (productId: string) => {
     setCart(prev => prev.filter(item => item.product.id !== productId));
     showToast('Item removed from cart', 'info');
@@ -1155,15 +1420,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const exists = wishlist.includes(productId);
     if (exists) {
       nextWishlist = wishlist.filter(id => id !== productId);
-      showToast('Removed from saved artisan wishlist', 'info');
+      showToast(language === 'ar' ? 'تمت إزالة المنتج من المفضلة' : 'Removed from saved favorites', 'info');
     } else {
       nextWishlist = [...wishlist, productId];
-      showToast('Saved to your Lebanese artisan wishlist!', 'success');
+      showToast(language === 'ar' ? 'تمت إضافة المنتج إلى المفضلة' : 'Saved to your favorites!', 'success');
     }
     setWishlist(nextWishlist);
   };
 
+  const removeFromWishlist = (productId: string) => {
+    setWishlist(prev => prev.filter(id => id !== productId));
+    showToast(language === 'ar' ? 'تمت إزالة المنتج من المفضلة' : 'Removed from saved favorites', 'info');
+  };
+
   const isInWishlist = (productId: string) => wishlist.includes(productId);
+
+  const clearWishlist = () => {
+    setWishlist([]);
+  };
 
   const cartTotalUSD = Math.round(cart.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
@@ -1201,6 +1475,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Persist to Firestore database FIRST before mutating cart state
+    if (!IS_FIREBASE_ENABLED) {
+      setOrders(prev => {
+        const next = [newOrder, ...prev];
+        try {
+          localStorage.setItem('yallalb_orders', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+      clearCart();
+      showToast(`Mabrouk! Order #${newOrder.id} placed locally.`, 'success');
+      return newOrder;
+    }
+
     try {
       await monitoredSetDoc(doc(db, 'orders', newOrder.id), sanitizedOrder, undefined, 'ShopContext:placeOrder');
       
@@ -1253,9 +1540,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Optimistic local state update
-    setOrders(prev =>
-      prev.map(ord => (ord.id === orderId ? { ...ord, status } : ord))
-    );
+    setOrders(prev => {
+      const next = prev.map(ord => (ord.id === orderId ? { ...ord, status } : ord));
+      try {
+        localStorage.setItem('yallalb_orders', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (!IS_FIREBASE_ENABLED) {
+      await logAdminActivity(
+        'order_status',
+        `Order #${orderId} status updated`,
+        `Shifted fulfillment status to "${status.replace(/_/g, ' ')}".`
+      );
+      showToast(`Order status updated to ${status.replace('_', ' ')} locally`, 'info');
+      return;
+    }
 
     // Persist status change to Firestore
     try {
@@ -1315,7 +1616,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Optimistically update state
-    setProducts(prev => [newProduct, ...prev]);
+    setProducts(prev => {
+      const next = [newProduct, ...prev];
+      try {
+        localStorage.setItem('yallalb_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (!IS_FIREBASE_ENABLED) {
+      await logAdminActivity(
+        'product_add',
+        `Product "${newProduct.name}" created`,
+        `Added new catalog item with ID: ${newProduct.id}, category: ${newProduct.category}, and price: $${newProduct.priceUSD} locally.`
+      );
+      showToast(`Product "${newProduct.name}" saved locally!`);
+      return;
+    }
 
     // Persist to Firestore
     try {
@@ -1375,9 +1692,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       payload: sanitizedUpdates
     });
 
-    setProducts(prev =>
-      prev.map(p => (p.id === id ? { ...p, ...updates } : p))
-    );
+    setProducts(prev => {
+      const next = prev.map(p => (p.id === id ? { ...p, ...updates } : p));
+      try {
+        localStorage.setItem('yallalb_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (!IS_FIREBASE_ENABLED) {
+      await logAdminActivity(
+        'product_update',
+        `Product "${existing?.name || id}" updated`,
+        `Modified attributes locally: ${Object.keys(updates).join(', ')}.`
+      );
+      showToast('Product updated locally!');
+      return;
+    }
 
     try {
       await monitoredSetDoc(doc(db, 'products', id), sanitizedUpdates, { merge: true }, 'AdminView:updateProduct');
@@ -1432,7 +1763,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       summary: `Deleting document from Firestore (products/${id})...`
     });
 
-    setProducts(prev => prev.filter(p => p.id !== id));
+    setProducts(prev => {
+      const next = prev.filter(p => p.id !== id);
+      try {
+        localStorage.setItem('yallalb_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (!IS_FIREBASE_ENABLED) {
+      await logAdminActivity(
+        'product_delete',
+        `Product "${target?.name || id}" deleted`,
+        `Permanently removed product #${id} from catalog.`
+      );
+      showToast('Product deleted locally!');
+      return;
+    }
 
     try {
       await monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteProduct');
@@ -1587,6 +1934,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         convertUSDToLBP,
         cart,
         addToCart,
+        addMultipleToCart,
         removeFromCart,
         updateQuantity,
         clearCart,
@@ -1596,7 +1944,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsCartOpen,
         wishlist,
         toggleWishlist,
+        removeFromWishlist,
         isInWishlist,
+        clearWishlist,
         orders,
         placeOrder,
         updateOrderStatus,
@@ -1604,6 +1954,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateUser,
         firebaseUser,
         isAdminUser,
+        signInWithEmail,
+        signUpWithEmail,
+        resetPassword,
         signInWithGoogle,
         signOutUser,
         searchQuery,

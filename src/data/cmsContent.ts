@@ -232,6 +232,6 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     email: 'support@yalla.shop',
     address: 'Gournaud Street, Gemmayzeh, Beirut, Lebanon',
     hours: 'Mon - Sat: 9:00 AM - 7:00 PM (EET)',
-    copyrightText: '© 2026 Yalla. All rights reserved. Handcrafted with pride in Lebanon.'
+    copyrightText: '© 2026 Yalla. All rights reserved.'
   }
 };

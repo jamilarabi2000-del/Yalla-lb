@@ -1,37 +1,56 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Product } from '../types';
 import { useShop } from '../context/ShopContext';
-import { Heart, Eye, Check, Plus } from 'lucide-react';
+import { Heart, ShoppingBag, Trash2 } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
+  showRemoveButton?: boolean;
+  onRemove?: () => void;
+  isFavoriteView?: boolean;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, showRemoveButton, onRemove, isFavoriteView }) => {
   const { 
     formatPrice, 
-    addToCart, 
-    toggleWishlist, 
-    isInWishlist, 
     openProductDetail,
-    setSelectedProductForModal,
+    addToCart,
     language,
-    t
+    t,
+    toggleWishlist,
+    removeFromWishlist,
+    isInWishlist
   } = useShop();
 
-  const [justAdded, setJustAdded] = useState(false);
   const isLiked = isInWishlist(product.id);
-
-  const handleAddToCart = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    addToCart(product);
-    setJustAdded(true);
-    setTimeout(() => setJustAdded(false), 1400);
-  };
 
   // One language only in grid card
   const displayTitle = language === 'ar' ? (product.arabicName || product.name) : product.name;
+
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (showRemoveButton && onRemove) {
+      onRemove();
+    } else if (showRemoveButton) {
+      removeFromWishlist(product.id);
+    } else {
+      toggleWishlist(product.id);
+    }
+  };
+
+  const handleRemoveClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onRemove) {
+      onRemove();
+    } else {
+      removeFromWishlist(product.id);
+    }
+  };
+
+  const handleQuickAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    addToCart(product, 1);
+  };
 
   return (
     <div 
@@ -67,35 +86,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </div>
 
-        {/* Wishlist Button */}
-        <button
-          id={`wishlist-btn-${product.id}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleWishlist(product.id);
-          }}
-          className={`absolute top-2.5 right-2.5 p-2 rounded-full transition-all z-10 cursor-pointer ${
-            isLiked 
-              ? 'bg-rose-500 text-white shadow-lg shadow-rose-500/30 scale-105' 
-              : 'bg-white text-slate-700 hover:text-slate-900 hover:scale-105 shadow-sm'
-          }`}
-          aria-label={isLiked ? 'Remove from wishlist' : 'Add to wishlist'}
-        >
-          <Heart className={`w-4 h-4 ${isLiked ? 'fill-current text-white' : ''}`} />
-        </button>
-
-        {/* View Details Page Button on Hover */}
-        <button
-          id={`view-detail-${product.id}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            openProductDetail(product);
-          }}
-          className="absolute inset-x-3 bottom-3 py-2 px-3 bg-white hover:bg-slate-50 text-slate-900 text-xs font-bold rounded-xl border border-slate-200 flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transform translate-y-2 group-hover:translate-y-0 transition-all duration-200 z-10 cursor-pointer shadow-lg"
-        >
-          <Eye className="w-3.5 h-3.5 text-amber-600" />
-          <span>{t('viewDetails')}</span>
-        </button>
+        {/* Favorite / Wishlist or Remove Button */}
+        {showRemoveButton ? (
+          <button
+            type="button"
+            id={`remove-favorite-btn-${product.id}`}
+            onClick={handleRemoveClick}
+            aria-label={language === 'ar' ? "إزالة من المفضلة" : "Remove from favorites"}
+            title={language === 'ar' ? "إزالة من المفضلة" : "Remove from favorites"}
+            className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-white/95 backdrop-blur-xs text-slate-500 hover:text-rose-600 hover:bg-rose-50 border border-slate-200/80 flex items-center justify-center transition-all duration-200 shadow-sm cursor-pointer hover:scale-110 hover:border-rose-200"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            id={`favorite-btn-${product.id}`}
+            onClick={handleFavoriteClick}
+            aria-label={isLiked ? "Remove from favorites" : "Add to favorites"}
+            title={isLiked ? "Remove from favorites" : "Add to favorites"}
+            className={`absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 shadow-sm cursor-pointer ${
+              isLiked 
+                ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 hover:scale-110' 
+                : 'bg-white/90 backdrop-blur-xs text-slate-600 hover:text-rose-600 hover:bg-white hover:scale-110 border border-slate-200/60'
+            }`}
+          >
+            <Heart className={`w-4 h-4 transition-transform duration-200 ${isLiked ? 'fill-rose-600 text-rose-600 scale-110' : ''}`} />
+          </button>
+        )}
       </div>
 
       {/* Content */}
@@ -103,16 +121,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         <div>
           {/* Title - ONE LANGUAGE ONLY */}
           <h3 
-            className="text-xs sm:text-sm font-bold text-slate-900 group-hover:text-amber-700 transition-colors line-clamp-2 leading-snug"
+            className={`text-xs sm:text-sm font-extrabold text-black transition-colors line-clamp-2 leading-snug ${isFavoriteView ? 'group-hover:text-black' : 'group-hover:text-amber-700'}`}
           >
             {displayTitle}
           </h3>
         </div>
 
-        {/* Price & Add to Cart */}
-        <div className="pt-2.5 border-t border-slate-100 flex flex-col gap-2 mt-auto">
-          {/* Price Row (Above Add Button) */}
-          <div className="flex items-center justify-center gap-2 dir-ltr text-center">
+        {/* Price Row & Quick Add / Remove */}
+        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+          <div className="flex items-center gap-1.5 dir-ltr">
             <span className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
               {formatPrice(product.priceUSD)}
             </span>
@@ -123,29 +140,31 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             )}
           </div>
 
-          {/* Add to Cart Button */}
-          <button
-            id={`add-to-cart-btn-${product.id}`}
-            type="button"
-            onClick={handleAddToCart}
-            className={`w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95 ${
-              justAdded
-                ? 'bg-emerald-600 text-white border border-emerald-600'
-                : 'bg-[#a37f35] hover:bg-[#8c6b2a] text-white'
-            }`}
-          >
-            {justAdded ? (
-              <>
-                <Check className="w-4 h-4" />
-                <span>{t('added')}</span>
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4" />
-                <span>{language === 'ar' ? 'إضافة' : 'Add'}</span>
-              </>
+          <div className="flex items-center gap-1.5">
+            {showRemoveButton && (
+              <button
+                type="button"
+                id={`remove-action-btn-${product.id}`}
+                onClick={handleRemoveClick}
+                aria-label={language === 'ar' ? 'إزالة' : 'Remove'}
+                title={language === 'ar' ? 'إزالة من المفضلة' : 'Remove from favorites'}
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/70"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             )}
-          </button>
+
+            <button
+              type="button"
+              id={`quick-add-btn-${product.id}`}
+              onClick={handleQuickAdd}
+              aria-label={t('addToCart')}
+              title={t('addToCart')}
+              className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-amber-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+            >
+              <ShoppingBag className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
       </div>

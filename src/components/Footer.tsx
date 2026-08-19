@@ -129,7 +129,7 @@ export const Footer: React.FC = () => {
         {(visibility.footerCopyright || isVisualEditMode) && (
           <div className={`pt-4 border-t border-white/[0.06] w-full flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
             <div className="flex items-center gap-2">
-              <span>{footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`}</span>
+              <span>{(footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`).replace(/\s*Handcrafted with pride in Lebanon\.?/i, '')}</span>
             </div>
 
             <span className="hidden sm:inline text-slate-600">•</span>

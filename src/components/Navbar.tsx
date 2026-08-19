@@ -41,7 +41,7 @@ export const Navbar: React.FC = () => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
 
-  const showAdminTab = isAdminUser || isAdminUnlocked;
+  const showAdminTab = isAdminUser;
 
   const categoriesList = [
     { id: 'all', name: t('cat_all'), icon: '✨' },
@@ -190,17 +190,7 @@ export const Navbar: React.FC = () => {
             >
               {t('checkout')}
             </button>
-            <button
-              id="nav-account-btn"
-              onClick={() => setActiveTab('account')}
-              className={`px-3.5 py-2 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'account' 
-                  ? 'text-slate-900 bg-amber-50 border border-amber-200' 
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              {t('account')}
-            </button>
+
             {showAdminTab && (
               <button
                 id="nav-admin-btn"
@@ -243,13 +233,15 @@ export const Navbar: React.FC = () => {
             {/* Wishlist Shortcut - Tablet & Desktop */}
             <button
               id="wishlist-shortcut-btn"
-              onClick={() => setActiveTab('account')}
-              className="relative p-2 rounded-xl text-slate-600 hover:text-rose-600 hover:bg-slate-100 transition-colors hidden sm:flex items-center justify-center flex-shrink-0 cursor-pointer"
+              onClick={() => setActiveTab('favorites')}
+              className={`relative p-2 rounded-xl transition-colors hidden sm:flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                activeTab === 'favorites' ? 'text-rose-600 bg-rose-50' : 'text-slate-600 hover:text-rose-600 hover:bg-slate-100'
+              }`}
               title="Saved Artisan Wishlist"
             >
-              <Heart className="w-5 h-5" />
+              <Heart className={`w-5 h-5 ${activeTab === 'favorites' ? 'fill-rose-600' : ''}`} />
               {wishlist.length > 0 && (
-                <span className="absolute 0 top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold bg-rose-600 text-white rounded-full">
+                <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold bg-rose-600 text-white rounded-full">
                   {wishlist.length}
                 </span>
               )}
@@ -259,7 +251,9 @@ export const Navbar: React.FC = () => {
             <button
               id="user-profile-shortcut-btn"
               onClick={() => setActiveTab('account')}
-              className="p-2 rounded-xl text-slate-600 hover:text-[#b89753] hover:bg-slate-100 transition-colors hidden sm:flex items-center justify-center flex-shrink-0 cursor-pointer"
+              className={`p-2 rounded-xl transition-colors hidden sm:flex items-center justify-center flex-shrink-0 cursor-pointer ${
+                activeTab === 'account' ? 'text-[#b89753] bg-amber-50' : 'text-slate-600 hover:text-[#b89753] hover:bg-slate-100'
+              }`}
               title={firebaseUser ? `Logged in as ${firebaseUser.displayName || user.name}` : "My Lebanese Account & Orders"}
             >
               {firebaseUser?.photoURL ? (
@@ -336,11 +330,13 @@ export const Navbar: React.FC = () => {
           <div className="lg:hidden py-4 border-t border-slate-200 bg-white rounded-b-2xl px-3 space-y-2 shadow-xl">
             {/* Wishlist in Mobile Menu */}
             <button
-              onClick={() => { setActiveTab('account'); setMobileMenuOpen(false); }}
-              className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50 flex items-center justify-between transition-colors"
+              onClick={() => { setActiveTab('favorites'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-between transition-colors ${
+                activeTab === 'favorites' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'text-slate-700 hover:bg-slate-50'
+              }`}
             >
               <div className="flex items-center gap-2.5">
-                <Heart className="w-4 h-4 text-rose-500" />
+                <Heart className={`w-4 h-4 text-rose-500 ${activeTab === 'favorites' ? 'fill-rose-500' : ''}`} />
                 <span>{t('wishlist')}</span>
               </div>
               {wishlist.length > 0 && (

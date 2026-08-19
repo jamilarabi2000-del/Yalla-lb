@@ -28,7 +28,8 @@ import {
   MessageSquare,
   FileText,
   Printer,
-  AlertCircle
+  AlertCircle,
+  ShieldCheck
 } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -58,7 +59,10 @@ export const AdminView: React.FC = () => {
     setIsVisualEditMode = () => {},
     user = null,
     firebaseUser = null,
-    isDbSyncing = false
+    isAdminUser = false,
+    signInWithEmail = async (e: string, p: string) => {},
+    signOutUser = async () => {},
+    isDbSyncing = false, resetPassword = async (email: string) => {}
   } = useShop() || {};
 
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
@@ -153,68 +157,132 @@ export const AdminView: React.FC = () => {
     );
   }
 
-  if (!isAdminUnlocked) {
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  if (!firebaseUser) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <div className="bg-white border border-slate-200 p-8 rounded-3xl max-w-sm w-full space-y-6 shadow-2xl text-center">
-          <div className="mx-auto w-16 h-16 rounded-[22px] bg-[#4f46e5] flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-indigo-500/20">
-            PA
-          </div>
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-bold text-slate-900">
-              PlainAdmin Portal
-            </h1>
-            <div className="flex items-center justify-center gap-1.5 text-xs text-emerald-600 font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Firestore Connected</span>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white border border-slate-200 p-8 sm:p-10 rounded-3xl max-w-sm w-full space-y-8 shadow-sm">
+          <div className="text-center space-y-4">
+            <div className="mx-auto w-16 h-16 rounded-[22px] bg-slate-900 flex items-center justify-center text-white shadow-md">
+              <Lock className="w-7 h-7 text-white" />
             </div>
-            <p className="text-xs text-slate-500 pt-2 leading-relaxed">
-              Restricted management portal for authorized store administrators. Enter your passcode to continue.
-            </p>
+            <div className="space-y-1.5">
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Admin Login
+              </h1>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Enter your credentials to access the portal
+              </p>
+            </div>
           </div>
 
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault();
-            if (passcodeInput === adminPasscode || passcodeInput === 'YallaLebanon2026!' || passcodeInput === '961') {
-              setIsAdminUnlocked(true);
-              showToast('Artisan Portal unlocked successfully!', 'success');
-            } else {
-              setPasscodeError('Incorrect passcode. Access is restricted.');
-            }
+            setIsLoggingIn(true);
+            await signInWithEmail(adminEmail, adminPassword);
+            setIsLoggingIn(false);
           }} className="space-y-4">
-            <div>
-              <input
-                type="password"
-                value={passcodeInput}
-                onChange={(e) => {
-                  setPasscodeInput(e.target.value);
-                  setPasscodeError('');
-                }}
-                placeholder="••••"
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xl font-mono text-slate-900 focus:outline-none focus:border-[#4f46e5] focus:bg-white transition-all tracking-widest"
-                autoFocus
-              />
-              {passcodeError && (
-                <p className="text-rose-500 text-[11px] font-semibold mt-2">{passcodeError}</p>
-              )}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="jamilarabi2000@gmail.com"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-slate-500 focus:ring-1 focus:ring-slate-500 focus:outline-none transition-all"
+                />
+              </div>
             </div>
 
-            <div className="flex gap-2.5">
+            <div className="pt-2 space-y-3">
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 disabled:opacity-70 text-white font-bold rounded-2xl text-xs tracking-wide transition-all shadow-md cursor-pointer"
+              >
+                {isLoggingIn ? 'Authenticating...' : 'Sign In'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!adminEmail) {
+                    alert('Please enter your email address first.');
+                    return;
+                  }
+                  resetPassword(adminEmail);
+                }}
+                className="w-full py-2 text-slate-500 hover:text-slate-800 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Forgot Password?
+              </button>
+
               <button
                 type="button"
                 onClick={goBack}
-                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer"
+                className="w-full py-3.5 text-slate-500 hover:text-slate-700 font-semibold rounded-2xl text-xs transition-colors cursor-pointer"
               >
-                Storefront
-              </button>
-              <button
-                type="submit"
-                className="flex-1 py-3 bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold rounded-2xl text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md shadow-indigo-500/20"
-              >
-                Unlock
+                Cancel
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (firebaseUser && !isAdminUser) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white border border-slate-200 p-10 rounded-3xl max-w-sm w-full space-y-8 shadow-sm text-center">
+          <div className="mx-auto w-16 h-16 rounded-[22px] bg-rose-50 flex items-center justify-center text-rose-600 shadow-sm border border-rose-100">
+            <AlertCircle className="w-7 h-7" />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-xl font-bold text-slate-900">
+              Access Denied
+            </h1>
+            <p className="text-xs text-slate-500 pt-2 leading-relaxed">
+              Signed in as <span className="font-semibold text-slate-800">{firebaseUser.email || firebaseUser.uid}</span>. Only the registered administrator email is permitted.
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={async () => {
+                await signOutUser();
+              }}
+              className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Sign Out & Try Again</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={goBack}
+              className="w-full py-3.5 text-slate-400 hover:text-slate-600 font-semibold rounded-2xl text-xs transition-colors cursor-pointer"
+            >
+              Return to Store
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -664,28 +732,6 @@ export const AdminView: React.FC = () => {
                           <span className="absolute top-2 right-2 px-2.5 py-0.5 rounded-full text-xs font-black bg-slate-900 text-white shadow-xs">
                             {formatPrice(prod.priceUSD)}
                           </span>
-
-                          <button
-                            onClick={() => toggleProductPublish(prod.id)}
-                            className={`absolute top-2 left-2 px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer transition-all shadow-xs ${
-                              isPublished
-                                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                : 'bg-rose-600 hover:bg-rose-700 text-white'
-                            }`}
-                            title={isPublished ? 'Click to Hide' : 'Click to Publish'}
-                          >
-                            {isPublished ? (
-                              <>
-                                <Eye className="w-3 h-3" />
-                                <span>Live</span>
-                              </>
-                            ) : (
-                              <>
-                                <EyeOff className="w-3 h-3" />
-                                <span>Hidden</span>
-                              </>
-                            )}
-                          </button>
                         </div>
 
                         <div className="space-y-1">

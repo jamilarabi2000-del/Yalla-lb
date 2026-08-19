@@ -3,7 +3,6 @@ import { useShop } from '../context/ShopContext';
 import { 
   Calendar, 
   X, 
-  Heart,
   ChevronLeft,
   ChevronRight,
   Sparkles,
@@ -219,16 +218,6 @@ export const NewsSection: React.FC = () => {
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
 
-  const [likes, setLikes] = useState<{ [id: string]: number }>({
-    'news-fall-harvest-announcement': 54,
-    'news-artisan-syndicate-mou': 82,
-    'news-design-thinking-workshop': 67,
-    'news-state-quality-mou': 49,
-    'news-tripoli-soap-khan': 91,
-    'news-anfeh-sea-salt-festival': 63,
-    'news-cedar-craft-showcase': 78
-  });
-
   const categories: { id: NewsCategory; labelEn: string; labelAr: string }[] = [
     { id: 'all', labelEn: 'ALL', labelAr: 'الكل' },
     { id: 'events', labelEn: 'PREVIOUS EVENTS', labelAr: 'الفعاليات السابقة' },
@@ -283,15 +272,6 @@ export const NewsSection: React.FC = () => {
         behavior: 'smooth'
       });
     }
-  };
-
-  const handleLike = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setLikes(prev => ({
-      ...prev,
-      [id]: (prev[id] || 0) + 1
-    }));
-    showToast(language === 'ar' ? 'شكراً على تفاعلك!' : 'Thank you for your feedback!', 'success');
   };
 
   return (
@@ -390,13 +370,6 @@ export const NewsSection: React.FC = () => {
                   {/* Date format at the bottom */}
                   <div className="flex items-center justify-between text-[11px] text-[#96783d] font-semibold">
                     <span>{language === 'ar' ? item.dateAr : item.date}</span>
-                    <button
-                      onClick={(e) => handleLike(item.id, e)}
-                      className="text-slate-400 hover:text-rose-500 flex items-center gap-1 transition-colors p-0.5 cursor-pointer"
-                    >
-                      <Heart className="w-3 h-3" />
-                      <span className="text-[10px] font-mono">{likes[item.id] || 0}</span>
-                    </button>
                   </div>
                 </div>
 
@@ -473,15 +446,7 @@ export const NewsSection: React.FC = () => {
                 ))}
               </div>
 
-              <div className="pt-4 border-t border-white/10 flex items-center justify-between">
-                <button
-                  onClick={(e) => handleLike(selectedNews.id, e)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 border border-rose-500/20 transition-colors text-xs font-bold cursor-pointer"
-                >
-                  <Heart className="w-4 h-4 text-rose-400 fill-rose-400" />
-                  <span>{likes[selectedNews.id] || 0} {language === 'ar' ? 'إعجاب' : 'Likes'}</span>
-                </button>
-
+              <div className="pt-4 border-t border-white/10 flex items-center justify-end">
                 <button
                   onClick={() => setSelectedNews(null)}
                   className="px-6 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#d4b36e] text-[#121222] text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
