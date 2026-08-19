@@ -211,10 +211,79 @@ export const HomeView: React.FC = () => {
         </div>
       )}
 
-
+      {/* Promotional Offers & Campaign Banners Carousel */}
+      {(visibility.homeOffers || isVisualEditMode) && (
+        <div className={`relative ${!visibility.homeOffers && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          {!visibility.homeOffers && isVisualEditMode && (
+            <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+              <EyeOff className="w-3.5 h-3.5" />
+              <span>Section Hidden (Draft Preview)</span>
+            </div>
+          )}
+          <OffersCarousel />
+        </div>
+      )}
 
       {/* Middle Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="middle" />
+
+      {/* Explore by Category Grid */}
+      {(visibility.homeCategories || isVisualEditMode) && (
+        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          {!visibility.homeCategories && isVisualEditMode && (
+            <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+              <EyeOff className="w-3.5 h-3.5" />
+              <span>Section Hidden (Draft Preview)</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                {language === 'ar' ? 'تصفح الأقسام' : 'Browse Departments'}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                {language === 'ar' ? (
+                  <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
+                ) : (
+                  <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
+                )}
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                {language === 'ar' 
+                  ? 'اكتشف الحرف اللبنانية، المؤونة، والأجهزة المنزلية بكل سهولة' 
+                  : 'Discover authentic Lebanese crafts, pantry delicacies, electronics, and home essentials'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            {categoriesGrid.map((cat) => (
+              <button
+                key={cat.id}
+                id={`category-card-${cat.id}`}
+                onClick={() => handleCategoryClick(cat.id)}
+                className="group relative flex flex-col items-center text-center p-3 rounded-2xl bg-white border border-slate-200/80 hover:border-amber-400/80 hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer"
+              >
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden mb-3 bg-slate-100 relative shadow-inner">
+                  <img
+                    src={cat.image}
+                    alt={cat.name}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-amber-600 transition-colors line-clamp-1">
+                  {cat.name}
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-1">
+                  {cat.subtitle}
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Featured Products */}
       {(visibility.homeFeatured || isVisualEditMode) && (

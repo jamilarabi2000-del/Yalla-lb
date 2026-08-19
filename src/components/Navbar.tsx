@@ -10,7 +10,6 @@ import {
   Globe2, 
   Menu, 
   X, 
-  Sparkles,
   MapPin,
   Clock
 } from 'lucide-react';

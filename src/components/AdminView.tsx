@@ -162,6 +162,12 @@ export const AdminView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // Clear credentials on mount / session start to prevent unwanted autofill/saving
+  useEffect(() => {
+    setAdminEmail('');
+    setAdminPassword('');
+  }, []);
+
   if (!firebaseUser) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
@@ -180,18 +186,25 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
 
-          <form onSubmit={async (e) => {
+          <form autoComplete="off" onSubmit={async (e) => {
             e.preventDefault();
             setIsLoggingIn(true);
-            await signInWithEmail(adminEmail, adminPassword);
+            try {
+              await signInWithEmail(adminEmail, adminPassword);
+            } catch {
+              setAdminPassword(''); // clear password on failure
+            }
             setIsLoggingIn(false);
           }} className="space-y-4">
+            <input type="hidden" name="remember" value="false" />
             <div className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Email</label>
                 <input
                   type="email"
                   required
+                  autoComplete="off"
+                  name="no-autocomplete-email"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
                   placeholder="example@gmail.com"
@@ -204,6 +217,8 @@ export const AdminView: React.FC = () => {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
+                    autoComplete="new-password"
+                    name="no-autocomplete-password"
                     value={adminPassword}
                     onChange={(e) => setAdminPassword(e.target.value)}
                     placeholder="••••••••"
