@@ -93,9 +93,23 @@ export const HeroBanner: React.FC = () => {
         {/* Content Card */}
         <div className="max-w-2xl mx-auto text-center space-y-5 bg-transparent backdrop-blur-none p-6 sm:p-8">
           
+          {heroData.badgeText && (
+            <div className="flex justify-center">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 backdrop-blur-xs">
+                {heroData.badgeText}
+              </span>
+            </div>
+          )}
+
           <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">
-            {heroData.title || t('heroTitle')}
+            {heroData.title ?? t('heroTitle')}
           </h1>
+
+          {heroData.subtitle && (
+            <p className="text-xs sm:text-sm text-slate-100/90 max-w-xl mx-auto leading-relaxed drop-shadow-xs">
+              {heroData.subtitle}
+            </p>
+          )}
 
           {/* Search Bar */}
           <div className="relative max-w-xl mx-auto pt-1">
@@ -103,7 +117,7 @@ export const HeroBanner: React.FC = () => {
               <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} w-5 h-5 text-slate-400 pointer-events-none z-10`} />
               <input
                 type="text"
-                placeholder={siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder')}
+                placeholder={siteContent?.navbar?.searchPlaceholder ?? t('searchPlaceholder')}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') setActiveTab('products');
@@ -114,7 +128,7 @@ export const HeroBanner: React.FC = () => {
                 onClick={handleHeroClick}
                 className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center justify-center px-4 sm:px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
               >
-                {heroData.primaryBtnText || t('products')}
+                {heroData.primaryBtnText ?? t('products')}
               </button>
             </div>
           </div>

@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule } from '../types';
+import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion } from '../types';
 import { applyDiscounts } from '../lib/pricing';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
-import { LBP_USD_RATE } from '../data/regions';
+import { DEFAULT_CATEGORIES } from '../data/categories';
+import { LEBANON_REGIONS, LBP_USD_RATE } from '../data/regions';
 import { translations, Language } from '../utils/translations';
 import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, googleProvider, sendPasswordResetEmail } from '../firebase';
 import { 
@@ -111,10 +112,23 @@ const getInitialNavTab = (): NavTab => {
   if (path.startsWith('product/')) {
     return 'product_detail';
   }
-  if (path === 'products' || path === 'checkout' || path === 'account' || path === 'favorites') {
+  if (path.startsWith('products')) {
+    return 'products';
+  }
+  if (path === 'checkout' || path === 'account' || path === 'favorites') {
     return path as NavTab;
   }
   return 'home';
+};
+
+const getInitialCategory = (): string => {
+  if (typeof window === 'undefined') return 'all';
+  const path = window.location.pathname.replace(/^\/+/, '');
+  if (path.startsWith('products/')) {
+    const cat = path.replace('products/', '');
+    return decodeURIComponent(cat) || 'all';
+  }
+  return 'all';
 };
 
 const getInitialProductDetail = (): Product | null => {
@@ -164,6 +178,8 @@ interface ShopContextType {
   setCurrency: (c: Currency) => void;
   formatPrice: (amountUSD: number) => string;
   convertUSDToLBP: (amountUSD: number) => number;
+  currencySymbol: string;
+  currencyRate: number;
 
   // Cart
   cart: CartItem[];
@@ -243,6 +259,19 @@ interface ShopContextType {
   addDiscountRule: (rule: Omit<DiscountRule, 'id'>) => Promise<void>;
   updateDiscountRule: (id: string, updates: Partial<DiscountRule>) => Promise<void>;
   deleteDiscountRule: (id: string) => Promise<void>;
+
+  // Categories & Details Management
+  categories: CategoryItem[];
+  addCategory: (cat: Omit<CategoryItem, 'id'> & { id?: string }) => Promise<void>;
+  updateCategory: (id: string, updates: Partial<CategoryItem>) => Promise<void>;
+  deleteCategory: (id: string, reassignCategoryId?: string) => Promise<void>;
+  reorderCategories: (newOrder: CategoryItem[]) => Promise<void>;
+
+  // Terroir Regions & Logistics
+  regions: TerroirRegion[];
+  updateRegion: (id: string, updates: Partial<TerroirRegion>) => Promise<void>;
+  addRegion: (reg: TerroirRegion) => Promise<void>;
+  deleteRegion: (id: string) => Promise<void>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -259,6 +288,12 @@ const INITIAL_USER: UserProfile = {
 
 const INITIAL_ORDERS: Order[] = [];
 
+const ADMIN_EMAILS = [
+  'jamilarabi2000@gmail.com',
+  'admin@yallalb.com',
+  'admin@yalla-lebanon.com'
+];
+
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTabState] = useState<NavTab>(getInitialNavTab);
   const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(getInitialProductDetail);
@@ -267,12 +302,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (firebaseUser) {
-      firebaseUser.getIdTokenResult(true) // true = force refresh
+      const userEmail = (firebaseUser.email || '').toLowerCase().trim();
+      const isConfiguredAdmin = ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === userEmail);
+
+      firebaseUser.getIdTokenResult(true) // force refresh
         .then(result => {
-          setIsAdminUser(result.claims.admin === true);
+          setIsAdminUser(result.claims.admin === true || isConfiguredAdmin);
         })
         .catch(() => {
-          setIsAdminUser(false); // fail closed
+          setIsAdminUser(isConfiguredAdmin);
         });
     } else {
       setIsAdminUser(false);
@@ -318,7 +356,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currency, setCurrency] = useState<Currency>('USD');
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>(getInitialCategory);
   const [toast, setToast] = useState<Toast | null>(null);
 
   // Core Data States with local storage fallback
@@ -588,6 +626,238 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setDiscountRules(prev => prev.filter(r => r.id !== id));
     await logAdminActivity('meta_change', 'Deleted Discount Rule', `Deleted discount ID: ${id}`);
+  };
+
+  // Categories & Details Management State
+  const [categories, setCategories] = useState<CategoryItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_categories');
+      return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+    } catch {
+      return DEFAULT_CATEGORIES;
+    }
+  });
+
+  // Terroir Regions & Logistics State
+  const [regions, setRegions] = useState<TerroirRegion[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_regions');
+      return saved ? JSON.parse(saved) : LEBANON_REGIONS;
+    } catch {
+      return LEBANON_REGIONS;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('yallalb_categories', JSON.stringify(categories));
+    } catch {}
+  }, [categories]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('yallalb_regions', JSON.stringify(regions));
+    } catch {}
+  }, [regions]);
+
+  // Real-time Categories Sync from Firestore Database
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
+    const catDocRef = doc(db, 'site_settings', 'categories');
+    const unsubscribe = onSnapshot(
+      catDocRef,
+      async (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (Array.isArray(data?.list) && data.list.length > 0) {
+            setCategories(data.list);
+          }
+        } else {
+          try {
+            await monitoredSetDoc(catDocRef, { list: sanitizeDocumentData(DEFAULT_CATEGORIES) }, undefined, 'ShopContext:seedCategories');
+          } catch (seedErr) {
+            console.warn('[ShopContext] Error seeding default categories to Firestore:', seedErr);
+          }
+        }
+      },
+      (err) => {
+        console.warn('[ShopContext] Categories snapshot sync warning:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  // Real-time Regions Sync from Firestore Database
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
+    const regDocRef = doc(db, 'site_settings', 'regions');
+    const unsubscribe = onSnapshot(
+      regDocRef,
+      async (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          if (Array.isArray(data?.list) && data.list.length > 0) {
+            setRegions(data.list);
+          }
+        } else {
+          try {
+            await monitoredSetDoc(regDocRef, { list: sanitizeDocumentData(LEBANON_REGIONS) }, undefined, 'ShopContext:seedRegions');
+          } catch (seedErr) {
+            console.warn('[ShopContext] Error seeding default regions to Firestore:', seedErr);
+          }
+        }
+      },
+      (err) => {
+        console.warn('[ShopContext] Regions snapshot sync warning:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const addCategory = async (catData: Omit<CategoryItem, 'id'> & { id?: string }) => {
+    const slug = catData.id?.trim() || catData.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `cat-${Date.now()}`;
+    const newCategory: CategoryItem = {
+      ...catData,
+      id: slug,
+      subcategories: catData.subcategories || [],
+      arabicKeywords: catData.arabicKeywords || [],
+      englishKeywords: catData.englishKeywords || [],
+      isPublished: catData.isPublished ?? true,
+      displayOrder: catData.displayOrder ?? (categories.length + 1)
+    };
+    const nextCategories = [...categories, newCategory];
+    setCategories(nextCategories);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) }, undefined, 'ShopContext:addCategory');
+      } catch (err) {
+        console.error('[ShopContext] Failed to add category to Firestore:', err);
+      }
+    }
+
+    await logAdminActivity(
+      'category_create',
+      `Category "${newCategory.nameEn}" created`,
+      `Added category "${newCategory.nameEn}" (${newCategory.nameAr}) with ID "${newCategory.id}", ${newCategory.subcategories.length} subcategories, and Arabic SEO tags.`
+    );
+    showToast(`Category "${newCategory.nameEn}" created successfully!`, 'success');
+  };
+
+  const updateCategory = async (id: string, updates: Partial<CategoryItem>) => {
+    const existing = categories.find(c => c.id === id);
+    const nextCategories = categories.map(c => c.id === id ? { ...c, ...updates } : c);
+    setCategories(nextCategories);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) }, undefined, 'ShopContext:updateCategory');
+      } catch (err) {
+        console.error('[ShopContext] Failed to update category in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity(
+      'category_update',
+      `Category "${existing?.nameEn || id}" updated`,
+      `Modified attributes for category: ${Object.keys(updates).join(', ')}.`
+    );
+    showToast(`Category "${updates.nameEn || existing?.nameEn || id}" updated!`, 'success');
+  };
+
+  const deleteCategory = async (id: string, reassignCategoryId?: string) => {
+    const target = categories.find(c => c.id === id);
+    const nextCategories = categories.filter(c => c.id !== id);
+    setCategories(nextCategories);
+
+    // If reassignCategoryId is provided, update matching products
+    if (reassignCategoryId) {
+      const affectedProducts = products.filter(p => p.category === id);
+      for (const prod of affectedProducts) {
+        await updateProduct(prod.id, { category: reassignCategoryId });
+      }
+    }
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) }, undefined, 'ShopContext:deleteCategory');
+      } catch (err) {
+        console.error('[ShopContext] Failed to delete category in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity(
+      'category_delete',
+      `Category "${target?.nameEn || id}" deleted`,
+      `Removed category "${target?.nameEn || id}". ${reassignCategoryId ? `Reassigned associated products to "${reassignCategoryId}".` : ''}`
+    );
+    showToast(`Category "${target?.nameEn || id}" deleted`, 'warning');
+  };
+
+  const reorderCategories = async (newOrder: CategoryItem[]) => {
+    const normalized = newOrder.map((cat, idx) => ({ ...cat, displayOrder: idx + 1 }));
+    setCategories(normalized);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(normalized) }, undefined, 'ShopContext:reorderCategories');
+      } catch (err) {
+        console.error('[ShopContext] Failed to reorder categories in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity('category_update', 'Categories reordered', `Admin reordered ${newOrder.length} categories.`);
+    showToast('Categories order saved!', 'success');
+  };
+
+  const updateRegion = async (id: string, updates: Partial<TerroirRegion>) => {
+    const existing = regions.find(r => r.id === id);
+    const nextRegions = regions.map(r => r.id === id ? { ...r, ...updates } : r);
+    setRegions(nextRegions);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'regions'), { list: sanitizeDocumentData(nextRegions) }, undefined, 'ShopContext:updateRegion');
+      } catch (err) {
+        console.error('[ShopContext] Failed to update region in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity('region_update', `Region "${existing?.nameEn || id}" updated`, `Updated regional logistics and delivery fees.`);
+    showToast(`Logistics for "${updates.nameEn || existing?.nameEn || id}" updated!`, 'success');
+  };
+
+  const addRegion = async (newReg: TerroirRegion) => {
+    const nextRegions = [...regions, newReg];
+    setRegions(nextRegions);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'regions'), { list: sanitizeDocumentData(nextRegions) }, undefined, 'ShopContext:addRegion');
+      } catch (err) {
+        console.error('[ShopContext] Failed to add region in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity('region_update', `Region zone "${newReg.nameEn}" added`, `Added delivery zone with base fee $${newReg.baseDeliveryUSD}.`);
+    showToast(`Region zone "${newReg.nameEn}" added!`, 'success');
+  };
+
+  const deleteRegion = async (id: string) => {
+    const target = regions.find(r => r.id === id);
+    const nextRegions = regions.filter(r => r.id !== id);
+    setRegions(nextRegions);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'site_settings', 'regions'), { list: sanitizeDocumentData(nextRegions) }, undefined, 'ShopContext:deleteRegion');
+      } catch (err) {
+        console.error('[ShopContext] Failed to delete region in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity('region_update', `Region zone "${target?.nameEn || id}" deleted`, `Removed shipping zone ${id}.`);
+    showToast(`Region zone "${target?.nameEn || id}" removed`, 'warning');
   };
 
   // Local storage persistence for CMS
@@ -1416,31 +1686,44 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return text;
   };
 
+  const navHistoryRef = useRef<Array<{ tab: NavTab; selectedProduct: Product | null; category?: string }>>([]);
+
   const setActiveTab = useCallback((tab: NavTab) => {
     setActiveTabState(prev => {
       if (prev !== tab) {
+        navHistoryRef.current.push({ tab: prev, selectedProduct: selectedProductDetail, category: selectedCategory });
+        if (tab !== 'product_detail') {
+          setSelectedProductDetail(null);
+        }
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return tab;
       }
       return prev;
     });
-  }, []);
+  }, [selectedProductDetail, selectedCategory]);
 
   const openProductDetail = useCallback((product: Product) => {
-    setSelectedProductDetail(product);
-    setActiveTabState('product_detail');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+    setActiveTabState(prev => {
+      navHistoryRef.current.push({ tab: prev, selectedProduct: selectedProductDetail, category: selectedCategory });
+      setSelectedProductDetail(product);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return 'product_detail';
+    });
+  }, [selectedProductDetail, selectedCategory]);
 
   const goBack = useCallback(() => {
-    if (typeof window !== 'undefined' && window.history) {
-      const hasDepth = window.history.state && typeof window.history.state.depth === 'number' && window.history.state.depth > 0;
-      if (hasDepth) {
-        window.history.back();
-        return;
+    const prevEntry = navHistoryRef.current.pop();
+    if (prevEntry) {
+      setSelectedProductDetail(prevEntry.selectedProduct);
+      if (prevEntry.category && prevEntry.tab === 'products') {
+        setSelectedCategory(prevEntry.category);
       }
+      setActiveTabState(prevEntry.tab);
+    } else {
+      setSelectedProductDetail(null);
+      setSelectedCategory('all');
+      setActiveTabState('home');
     }
-    setActiveTabState('home');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
@@ -1452,11 +1735,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 3500);
   };
 
+  const currencySymbol = currency === 'LBP' ? 'L.L.' : '$';
+  const currencyRate = currency === 'LBP' ? LBP_USD_RATE : 1;
+
   const convertUSDToLBP = (amountUSD: number) => {
     return Math.round(amountUSD * LBP_USD_RATE);
   };
 
   const formatPrice = (amountUSD: number) => {
+    if (currency === 'LBP') {
+      const amountLBP = convertUSDToLBP(amountUSD);
+      return `L.L. ${amountLBP.toLocaleString()}`;
+    }
     return `$${amountUSD.toFixed(2)}`;
   };
 
@@ -2104,6 +2394,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCurrency,
     formatPrice,
     convertUSDToLBP,
+    currencySymbol,
+    currencyRate,
     cart,
     addToCart,
     addMultipleToCart,
@@ -2159,7 +2451,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     appliedDiscountRules,
     addDiscountRule,
     updateDiscountRule,
-    deleteDiscountRule
+    deleteDiscountRule,
+    categories,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    reorderCategories,
+    regions,
+    updateRegion,
+    addRegion,
+    deleteRegion
   }), [
     activeTab,
     selectedProductDetail,
@@ -2190,7 +2491,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     removeCoupon,
     discountUSD,
     finalCartTotalUSD,
-    appliedDiscountRules
+    appliedDiscountRules,
+    categories,
+    regions
   ]);
 
   return (

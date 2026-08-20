@@ -2,9 +2,9 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   initializeAuth,
-  indexedDBLocalPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
+  inMemoryPersistence,
   GoogleAuthProvider, 
   signInWithPopup, 
   signOut, 
@@ -14,7 +14,7 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail 
 } from 'firebase/auth';
-import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, setLogLevel } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, memoryLocalCache, setLogLevel } from 'firebase/firestore';
 
 // Suppress transient connection info messages in console but keep warnings in development
 try {
@@ -40,55 +40,33 @@ export const IS_FIREBASE_ENABLED = !import.meta.env.DEV ? true : (import.meta.en
 
 const app = initializeApp(firebaseConfig);
 
-const isIframe = typeof window !== 'undefined' && window.self !== window.top;
-
 let firestoreInstance;
-if (isIframe) {
-  firestoreInstance = getFirestore(app);
-} else {
+try {
+  firestoreInstance = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    localCache: memoryLocalCache()
+  }, firebaseConfig.firestoreDatabaseId);
+} catch (e) {
   try {
-    firestoreInstance = initializeFirestore(app, {
-      experimentalAutoDetectLongPolling: true,
-      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-    }, firebaseConfig.firestoreDatabaseId);
-  } catch (e) {
-    try {
-      firestoreInstance = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true,
-        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-      });
-    } catch (err) {
-      firestoreInstance = getFirestore(app);
-    }
+    firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  } catch (err) {
+    firestoreInstance = getFirestore(app);
   }
 }
 
 let authInstance;
 try {
-  // Try getting the default auth instance first
-  authInstance = getAuth(app);
-} catch (e) {
+  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
   if (isIframe) {
-    try {
-      authInstance = initializeAuth(app, {
-        persistence: [browserSessionPersistence]
-      });
-    } catch (err) {
-      authInstance = getAuth(app);
-    }
+    authInstance = initializeAuth(app, {
+      persistence: [inMemoryPersistence, browserSessionPersistence]
+    });
   } else {
-    try {
-      authInstance = initializeAuth(app, {
-        persistence: [browserSessionPersistence]
-      });
-    } catch (err) {
-      authInstance = getAuth(app);
-    }
+    authInstance = initializeAuth(app, {
+      persistence: [browserLocalPersistence, browserSessionPersistence]
+    });
   }
-}
-
-// Guaranteed fallback
-if (!authInstance) {
+} catch (e) {
   try {
     authInstance = getAuth(app);
   } catch (err) {

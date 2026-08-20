@@ -183,24 +183,32 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       )}
 
       <aside className={`
-        fixed top-0 bottom-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 flex flex-col justify-between py-6 px-4
-        transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto
-        ${isOpenMobile ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
+        fixed top-0 bottom-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 flex flex-col justify-between py-5 px-3.5
+        transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto shadow-sm
+        ${isOpenMobile ? 'translate-x-0 shadow-2xl ring-1 ring-slate-900/10' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Top Header & Scrollable Navigation */}
         <div className="flex flex-col flex-1 overflow-hidden space-y-4">
-          <div className="flex items-center gap-3.5 px-2 flex-shrink-0">
+          <div className="flex items-center gap-3 px-2 pt-1 flex-shrink-0">
             {/* PA Logo Squircle */}
-            <div className="w-12 h-12 rounded-[18px] bg-[#4f46e5] flex items-center justify-center text-white font-black text-lg tracking-wider shadow-md shadow-indigo-500/20">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-700 to-indigo-500 flex items-center justify-center text-white font-black text-base tracking-wider shadow-md shadow-indigo-500/25 ring-2 ring-indigo-100">
               PA
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-tight">
-                PlainAdmin
-              </h1>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-base font-extrabold text-slate-900 tracking-tight leading-tight truncate">
+                  PlainAdmin
+                </h1>
+                <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-100/80">
+                  PRO
+                </span>
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span className="text-[12px] font-semibold text-emerald-600">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[11px] font-bold text-emerald-600 tracking-tight">
                   Firestore Connected
                 </span>
               </div>
@@ -210,12 +218,12 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           <hr className="border-slate-100 mx-1 flex-shrink-0" />
 
           {/* Navigation Sections with smooth scroll */}
-          <div className="flex-1 overflow-y-auto space-y-5 pr-1 -mr-1">
+          <div className="flex-1 overflow-y-auto space-y-5 pr-1.5 -mr-1.5 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
             
             {/* Section 1: Store Operations */}
             <div className="space-y-1">
-              <div className="px-3 pb-1 text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                MENU
+              <div className="px-3 pb-1 text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                Store Operations
               </div>
 
               <nav className="space-y-0.5">
@@ -231,26 +239,26 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         if (onCloseMobile) onCloseMobile();
                       }}
                       className={`
-                        w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-[13px] font-semibold transition-all cursor-pointer group text-left
+                        w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all cursor-pointer group text-left
                         ${isActive 
-                          ? 'bg-[#e0e7ff]/70 text-[#4f46e5] font-bold shadow-xs' 
+                          ? 'bg-indigo-50/90 text-indigo-700 font-bold shadow-xs border-l-3 border-indigo-600' 
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }
                       `}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-base select-none">{item.icon}</span>
-                        <span className={isActive ? 'text-[#4338ca]' : 'text-slate-700 group-hover:text-slate-900'}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-base select-none shrink-0">{item.icon}</span>
+                        <span className={`truncate ${isActive ? 'text-indigo-900 font-bold' : 'text-slate-700 group-hover:text-slate-900'}`}>
                           {item.label}
                         </span>
                       </div>
 
                       {item.badge !== undefined && (
                         <span className={`
-                          px-2 py-0.5 rounded-full text-[11px] font-bold transition-colors
+                          px-2 py-0.5 rounded-full text-[10px] font-black transition-colors shrink-0
                           ${isActive 
-                            ? 'bg-[#4f46e5] text-white' 
-                            : 'bg-[#e0e7ff]/70 text-[#4f46e5] group-hover:bg-[#4f46e5] group-hover:text-white'
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
                           }
                         `}>
                           {item.badge}
@@ -265,10 +273,10 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             {/* Section 2: Page Content & CMS */}
             <div className="space-y-1 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between px-3 pb-1">
-                <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                  PAGE CONTENT & CMS
+                <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  Page Content & CMS
                 </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-[#4f46e5]">
+                <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-600 border border-indigo-100/60">
                   Live
                 </span>
               </div>
@@ -286,24 +294,24 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                         if (onCloseMobile) onCloseMobile();
                       }}
                       className={`
-                        w-full flex items-center justify-between px-3 py-2 rounded-2xl text-[13px] font-medium transition-all cursor-pointer group text-left
+                        w-full flex items-center justify-between px-3 py-2 rounded-xl text-[13px] font-medium transition-all cursor-pointer group text-left
                         ${isActive 
-                          ? 'bg-[#e0e7ff]/70 text-[#4f46e5] font-bold shadow-xs' 
+                          ? 'bg-indigo-50/90 text-indigo-700 font-bold shadow-xs border-l-3 border-indigo-600' 
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                         }
                       `}
                     >
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-base select-none">{item.icon}</span>
-                        <span className={isActive ? 'text-[#4338ca]' : 'text-slate-700 group-hover:text-slate-900'}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-base select-none shrink-0">{item.icon}</span>
+                        <span className={`truncate ${isActive ? 'text-indigo-900 font-bold' : 'text-slate-700 group-hover:text-slate-900'}`}>
                           {item.label}
                         </span>
                       </div>
 
                       {item.tag && (
                         <span className={`
-                          px-1.5 py-0.5 rounded text-[10px] font-bold uppercase
-                          ${isActive ? 'bg-[#4f46e5] text-white' : 'bg-slate-100 text-slate-500'}
+                          px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-wider shrink-0
+                          ${isActive ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}
                         `}>
                           {item.tag}
                         </span>
@@ -317,11 +325,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
             {/* Section 3: System & Diagnostics */}
             <div className="space-y-1 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between px-3 pb-1">
-                <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-                  SYSTEM & DIAGNOSTICS
+                <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
+                  System & Diagnostics
                 </span>
-                <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-600">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="flex items-center gap-1 text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100/60">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                   Active
                 </span>
               </div>
@@ -334,25 +342,25 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
                     if (onCloseMobile) onCloseMobile();
                   }}
                   className={`
-                    w-full flex items-center justify-between px-3 py-2.5 rounded-2xl text-[13px] font-semibold transition-all cursor-pointer group text-left
+                    w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all cursor-pointer group text-left
                     ${currentTab === 'db_logs' 
-                      ? 'bg-[#e0e7ff]/70 text-[#4f46e5] font-bold shadow-xs' 
+                      ? 'bg-indigo-50/90 text-indigo-700 font-bold shadow-xs border-l-3 border-indigo-600' 
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                     }
                   `}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base select-none">⚡</span>
-                    <span className={currentTab === 'db_logs' ? 'text-[#4338ca]' : 'text-slate-700 group-hover:text-slate-900'}>
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-base select-none shrink-0">⚡</span>
+                    <span className={`truncate ${currentTab === 'db_logs' ? 'text-indigo-900 font-bold' : 'text-slate-700 group-hover:text-slate-900'}`}>
                       Database Sync & Logs
                     </span>
                   </div>
 
                   <span className={`
-                    px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
+                    px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0
                     ${currentTab === 'db_logs' 
-                      ? 'bg-[#4f46e5] text-white' 
-                      : 'bg-emerald-100 text-emerald-800 group-hover:bg-[#4f46e5] group-hover:text-white'
+                      ? 'bg-indigo-600 text-white' 
+                      : 'bg-emerald-100 text-emerald-800 group-hover:bg-indigo-600 group-hover:text-white'
                     }
                   `}>
                     Stream
@@ -365,15 +373,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         </div>
 
         {/* Bottom Storefront & Utilities Controls */}
-        <div className="pt-4 border-t border-slate-100 space-y-2">
+        <div className="pt-3.5 border-t border-slate-100 space-y-2 flex-shrink-0">
           {/* Visual Edit Mode Toggle */}
           <button
             onClick={() => setIsVisualEditMode(!isVisualEditMode)}
             className={`
-              w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer
+              w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs
               ${isVisualEditMode 
-                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400' 
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400/80 shadow-amber-500/20' 
+                : 'bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200/60'
               }
             `}
           >
@@ -381,7 +389,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               <Eye className="w-3.5 h-3.5" />
               <span>Visual Edit Mode</span>
             </div>
-            <span className={`text-[10px] px-1.5 py-0.5 rounded uppercase font-black ${isVisualEditMode ? 'bg-slate-950 text-amber-300' : 'bg-slate-200 text-slate-600'}`}>
+            <span className={`text-[9px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ${isVisualEditMode ? 'bg-slate-950 text-amber-300' : 'bg-slate-200 text-slate-600'}`}>
               {isVisualEditMode ? 'ON' : 'OFF'}
             </span>
           </button>
@@ -389,7 +397,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           {/* Return to Storefront */}
           <button
             onClick={goBack}
-            className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold tracking-wider transition-colors cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold tracking-wide transition-all cursor-pointer shadow-xs"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Storefront</span>
@@ -398,7 +406,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           {/* Lock / Exit Admin */}
           <button
             onClick={() => setIsAdminUnlocked(false)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-semibold transition-colors cursor-pointer"
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 text-[11px] font-semibold transition-colors cursor-pointer"
           >
             <LogOut className="w-3 h-3" />
             <span>Lock Admin Portal</span>

@@ -25,7 +25,8 @@ import {
   Mail,
   Check,
   Tag,
-  Percent
+  Percent,
+  EyeOff
 } from 'lucide-react';
 
 export const CheckoutView: React.FC = () => {
@@ -52,8 +53,18 @@ export const CheckoutView: React.FC = () => {
     signUpWithEmail,
     signInWithGoogle,
     signOutUser,
-    siteContent
+    siteContent,
+    isVisualEditMode
   } = useShop();
+
+  const visibility = siteContent?.visibility || {
+    checkoutSteps: true,
+    checkoutAddressForm: true,
+    checkoutDeliverySpeed: true,
+    checkoutPaymentMethod: true,
+    checkoutOrderSummary: true,
+    checkoutGuarantees: true,
+  };
 
   const isArabic = language === 'ar';
   const [checkoutCouponInput, setCheckoutCouponInput] = useState('');
@@ -439,39 +450,39 @@ export const CheckoutView: React.FC = () => {
 
   if (orderComplete) {
     const successBadge = isArabic 
-      ? (siteContent?.checkoutSuccessPage?.successBadgeArabic || 'تم تأكيد الطلب بنجاح')
-      : (siteContent?.checkoutSuccessPage?.successBadge || 'Order Placed Successfully');
+      ? (siteContent?.checkoutSuccessPage?.successBadgeArabic ?? 'تم تأكيد الطلب بنجاح')
+      : (siteContent?.checkoutSuccessPage?.successBadge ?? 'Order Placed Successfully');
 
     const successTitle = isArabic
-      ? (siteContent?.checkoutSuccessPage?.successTitleArabic || 'شكراً! تم استلام طلبك اللبناني')
-      : (siteContent?.checkoutSuccessPage?.successTitle || 'Shukran! Your Lebanese Order is');
+      ? (siteContent?.checkoutSuccessPage?.successTitleArabic ?? 'شكراً! تم استلام طلبك اللبناني')
+      : (siteContent?.checkoutSuccessPage?.successTitle ?? 'Shukran! Your Lebanese Order is');
 
     const nextStepsHeading = isArabic
-      ? (siteContent?.checkoutSuccessPage?.nextStepsHeadingArabic || 'الخطوات التالية واللوجستيات:')
-      : (siteContent?.checkoutSuccessPage?.nextStepsHeading || 'Next Steps & Dispatch Logistics:');
+      ? (siteContent?.checkoutSuccessPage?.nextStepsHeadingArabic ?? 'الخطوات التالية واللوجستيات:')
+      : (siteContent?.checkoutSuccessPage?.nextStepsHeading ?? 'Next Steps & Dispatch Logistics:');
 
     const step1 = isArabic
-      ? (siteContent?.checkoutSuccessPage?.step1TextArabic || 'تم توجيه طلبك من المستودع الرئيسي في بيروت إلى الحرفيين المعنيين.')
-      : (siteContent?.checkoutSuccessPage?.step1Text || 'Our Beirut central depot has routed your basket to the regional artisan guilds.');
+      ? (siteContent?.checkoutSuccessPage?.step1TextArabic ?? 'تم توجيه طلبك من المستودع الرئيسي في بيروت إلى الحرفيين المعنيين.')
+      : (siteContent?.checkoutSuccessPage?.step1Text ?? 'Our Beirut central depot has routed your basket to the regional artisan guilds.');
 
     const step2 = isArabic
-      ? (siteContent?.checkoutSuccessPage?.step2TextArabic || 'ستصلك رسالة عبر تطبيق واتساب من السائق المخصص لتأكيد موقع التسليم بدقة.')
-      : (siteContent?.checkoutSuccessPage?.step2Text || 'You will receive a WhatsApp message from your dedicated courier to confirm exact GPS drop-off.');
+      ? (siteContent?.checkoutSuccessPage?.step2TextArabic ?? 'ستصلك رسالة عبر تطبيق واتساب من السائق المخصص لتأكيد موقع التسليم بدقة.')
+      : (siteContent?.checkoutSuccessPage?.step2Text ?? 'You will receive a WhatsApp message from your dedicated courier to confirm exact GPS drop-off.');
 
-    let step3 = isArabic
-      ? (siteContent?.checkoutSuccessPage?.step3TextArabic || `الدفع نقداً عند الاستلام بقيمة ($${finalTotalUSD.toFixed(2)}) أو بالليرة اللبنانية.`)
-      : (siteContent?.checkoutSuccessPage?.step3Text || `Settlement is strictly ($${finalTotalUSD.toFixed(2)}) upon handover or digital transfer.`);
+    const step3 = isArabic
+      ? (siteContent?.checkoutSuccessPage?.step3TextArabic ?? `الدفع نقداً عند الاستلام بقيمة ($${finalTotalUSD.toFixed(2)}) أو بالليرة اللبنانية.`)
+      : (siteContent?.checkoutSuccessPage?.step3Text ?? `Settlement is strictly ($${finalTotalUSD.toFixed(2)}) upon handover or digital transfer.`);
 
     // Support dynamic price insertion in CMS
-    step3 = step3.replace('{price}', `$${finalTotalUSD.toFixed(2)}`);
+    const step3Replaced = step3.replace('{price}', `$${finalTotalUSD.toFixed(2)}`);
 
     const btnTrack = isArabic
-      ? (siteContent?.checkoutSuccessPage?.buttonTrackTextArabic || 'متابعة الطلب في حسابي')
-      : (siteContent?.checkoutSuccessPage?.buttonTrackText || 'Track in My Account');
+      ? (siteContent?.checkoutSuccessPage?.buttonTrackTextArabic ?? 'متابعة الطلب في حسابي')
+      : (siteContent?.checkoutSuccessPage?.buttonTrackText ?? 'Track in My Account');
 
     const btnContinue = isArabic
-      ? (siteContent?.checkoutSuccessPage?.buttonContinueTextArabic || 'متابعة التسوق')
-      : (siteContent?.checkoutSuccessPage?.buttonContinueText || 'Continue Shopping');
+      ? (siteContent?.checkoutSuccessPage?.buttonContinueTextArabic ?? 'متابعة التسوق')
+      : (siteContent?.checkoutSuccessPage?.buttonContinueText ?? 'Continue Shopping');
 
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4 py-16 bg-slate-50">
@@ -507,7 +518,7 @@ export const CheckoutView: React.FC = () => {
             </p>
             <p className="flex items-start gap-2">
               <span className="text-[#c5a059] font-bold">3.</span>
-              <span>{step3}</span>
+              <span>{step3Replaced}</span>
             </p>
           </div>
 
@@ -548,12 +559,23 @@ export const CheckoutView: React.FC = () => {
             <span>{t('back')}</span>
           </button>
           <h1 className="text-3xl font-light text-slate-900 tracking-tight">
-            {isArabic ? (
+            {siteContent?.checkoutPage?.title ? (
+              <span>{siteContent.checkoutPage.title}</span>
+            ) : isArabic ? (
               <>التوصيل و <span className="gold-gradient font-serif italic">إتمام التسوية والطلب</span></>
             ) : (
               <>Delivery & <span className="gold-gradient font-serif italic">Payment Settlement</span></>
             )}
           </h1>
+          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+            {siteContent?.checkoutPage?.subtitle ? (
+              siteContent.checkoutPage.subtitle
+            ) : isArabic ? (
+              'اختر سرعة التوصيل وطريقة التسوية لشحن وتجهيز طلبك اللبناني بأمان.'
+            ) : (
+              'Select delivery speed and payment method for fast dispatch across Lebanon or internationally.'
+            )}
+          </p>
         </div>
       </div>
 
@@ -580,6 +602,58 @@ export const CheckoutView: React.FC = () => {
             
             {/* Left Column: Auth Gate, Delivery & Payment Details */}
             <div className="lg:col-span-7 space-y-6">
+
+              {/* Checkout Steps Indicator */}
+              {(visibility.checkoutSteps || isVisualEditMode) && (
+                <div className={`p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative ${!visibility.checkoutSteps && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutSteps && isVisualEditMode && (
+                    <div className="absolute top-1 right-2 z-40 bg-rose-600 text-white px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1">
+                      <EyeOff className="w-2.5 h-2.5" />
+                      <span>Steps Hidden</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center ${
+                        firebaseUser 
+                          ? 'bg-emerald-500 text-white' 
+                          : 'bg-amber-500 text-white animate-pulse'
+                      }`}>
+                        {firebaseUser ? '✓' : '1'}
+                      </div>
+                      <span className={`text-xs font-bold ${firebaseUser ? 'text-slate-500' : 'text-slate-900'}`}>
+                        {isArabic ? 'حساب المستفيد' : 'Patron Account'}
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-slate-200 flex-1 mx-4" />
+
+                    <div className="flex items-center gap-2">
+                      <div className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center ${
+                        firebaseUser 
+                          ? 'bg-amber-500 text-white animate-pulse' 
+                          : 'bg-slate-100 text-slate-400'
+                      }`}>
+                        2
+                      </div>
+                      <span className={`text-xs font-bold ${firebaseUser ? 'text-slate-900' : 'text-slate-400'}`}>
+                        {isArabic ? 'بيانات الشحن' : 'Delivery Address'}
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-slate-200 flex-1 mx-4" />
+
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-400 text-[11px] font-bold flex items-center justify-center">
+                        3
+                      </div>
+                      <span className="text-xs font-bold text-slate-400">
+                        {isArabic ? 'التسوية والطلب' : 'Settlement'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 🔒 AUTHENTICATION GATE CARD IF NOT LOGGED IN */}
               {!firebaseUser ? (
@@ -852,12 +926,18 @@ export const CheckoutView: React.FC = () => {
               )}
               
               {/* Recipient Details & Address */}
-              {firebaseUser && (
-                <div className="p-6 rounded-3xl premium-card space-y-5 transition-opacity">
+              {firebaseUser && (visibility.checkoutAddressForm || isVisualEditMode) && (
+                <div className={`p-6 rounded-3xl premium-card space-y-5 transition-opacity relative ${!visibility.checkoutAddressForm && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutAddressForm && isVisualEditMode && (
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                      <EyeOff className="w-3 h-3" />
+                      <span>Address Form Hidden (Draft)</span>
+                    </div>
+                  )}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
                     <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                       <MapPin className="w-5 h-5 text-amber-600" />
-                      <span>{isArabic ? 'بيانات المستلم والعنوان في لبنان' : 'Recipient & Delivery Address'}</span>
+                      <span>{siteContent?.checkoutPage?.shippingHeading || (isArabic ? 'بيانات المستلم والعنوان في لبنان' : 'Recipient & Delivery Address')}</span>
                     </h3>
                     <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/50">
                       <Check className="w-3.5 h-3.5" />
@@ -1017,16 +1097,212 @@ export const CheckoutView: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Delivery Speed Selector Option */}
+              {firebaseUser && (visibility.checkoutDeliverySpeed || isVisualEditMode) && (
+                <div className={`p-6 rounded-3xl premium-card space-y-5 transition-opacity relative ${!visibility.checkoutDeliverySpeed && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutDeliverySpeed && isVisualEditMode && (
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Speed Options Hidden</span>
+                    </div>
+                  )}
+                  <div className="pb-2 border-b border-slate-100">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <Truck className="w-5 h-5 text-amber-600" />
+                      <span>{isArabic ? 'خيارات وسرعة التوصيل' : 'Delivery Speed Options'}</span>
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDeliverySpeed('standard')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between h-28 ${
+                        deliverySpeed === 'standard'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <Truck className={`w-5 h-5 ${deliverySpeed === 'standard' ? 'text-amber-600' : 'text-slate-400'}`} />
+                        {deliverySpeed === 'standard' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'توصيل عادي' : 'Standard Delivery'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          {isArabic ? 'خلال ٣-٥ أيام عمل' : '3-5 business days'}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliverySpeed('express_beirut')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between h-28 ${
+                        deliverySpeed === 'express_beirut'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <Clock className={`w-5 h-5 ${deliverySpeed === 'express_beirut' ? 'text-amber-600' : 'text-slate-400'}`} />
+                        {deliverySpeed === 'express_beirut' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'توصيل سريع بيروت' : 'Express Beirut'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          {isArabic ? 'يوم عمل واحد (العاصمة)' : 'Next business day (Beirut)'}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliverySpeed('diaspora_air')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between h-28 ${
+                        deliverySpeed === 'diaspora_air'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <Sparkles className={`w-5 h-5 ${deliverySpeed === 'diaspora_air' ? 'text-amber-600' : 'text-slate-400'}`} />
+                        {deliverySpeed === 'diaspora_air' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
+                      </div>
+                      <div>
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'شحن مغتربين جوي' : 'Diaspora Express'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">
+                          {isArabic ? 'توصيل دولي سريع' : 'International courier'}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Method Option */}
+              {firebaseUser && (visibility.checkoutPaymentMethod || isVisualEditMode) && (
+                <div className={`p-6 rounded-3xl premium-card space-y-5 transition-opacity relative ${!visibility.checkoutPaymentMethod && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutPaymentMethod && isVisualEditMode && (
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+                      <EyeOff className="w-3.5 h-3.5" />
+                      <span>Payment Hidden</span>
+                    </div>
+                  )}
+                  <div className="pb-2 border-b border-slate-100">
+                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      <CreditCard className="w-5 h-5 text-amber-600" />
+                      <span>{siteContent?.checkoutPage?.paymentHeading || (isArabic ? 'طريقة التسوية والدفع' : 'Payment Method Selection')}</span>
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cod_usd')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'cod_usd'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <Banknote className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'دفع كاش بالدولار (COD)' : 'Cash on Delivery (USD)'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {isArabic ? 'تسليم نقدي عند الاستلام بالدولار' : 'Handover fresh USD cash to driver'}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cod_lbp')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'cod_lbp'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <Banknote className="w-5 h-5 text-amber-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'دفع كاش بالليرة اللبنانية' : 'Cash on Delivery (LBP)'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {isArabic ? 'سعر السوق اليومي المعتمد' : 'Convert using daily market rate'}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('wish_omt')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'wish_omt'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <Building2 className="w-5 h-5 text-blue-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'تحويل عبر OMT / Whish' : 'Whish / OMT Transfer'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {isArabic ? 'تحويل قبل إرسال الشحنة' : 'Pre-pay to our corporate wallet'}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('credit_card')}
+                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'credit_card'
+                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <CreditCard className="w-5 h-5 text-indigo-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-slate-950 block">
+                          {isArabic ? 'بطاقة ائتمان / دفع إلكتروني' : 'Credit / Debit Card'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 block truncate">
+                          {isArabic ? 'قريباً - بوابة دفع أمنة' : 'Secure payment portal gateway'}
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Column: Order Summary Card */}
             <div className="lg:col-span-5 space-y-6">
               
-              <div className="p-6 rounded-3xl premium-card space-y-6 sticky top-28">
-                <h3 className="text-base font-bold text-slate-900 pb-3 border-b border-slate-100 flex items-center justify-between">
-                  <span>{isArabic ? 'ملخص الطلب' : 'Order Summary'}</span>
-                  <span className="text-xs text-amber-700 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/60">{cart.length} {isArabic ? 'منتجات' : 'Items'}</span>
-                </h3>
+              {(visibility.checkoutOrderSummary || isVisualEditMode) && (
+                <div className={`p-6 rounded-3xl premium-card space-y-6 sticky top-28 relative ${!visibility.checkoutOrderSummary && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutOrderSummary && isVisualEditMode && (
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                      <EyeOff className="w-3 h-3" />
+                      <span>Summary Box Hidden</span>
+                    </div>
+                  )}
+                  <h3 className="text-base font-bold text-slate-900 pb-3 border-b border-slate-100 flex items-center justify-between">
+                    <span>{siteContent?.checkoutPage?.summaryHeading || (isArabic ? 'ملخص الطلب' : 'Order Summary')}</span>
+                    <span className="text-xs text-amber-700 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/60">{cart.length} {isArabic ? 'منتجات' : 'Items'}</span>
+                  </h3>
 
                 {/* Items preview */}
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
@@ -1144,13 +1420,15 @@ export const CheckoutView: React.FC = () => {
                   type="submit"
                   id="place-order-btn"
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs tracking-widest shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-4 rounded-xl bg-slate-900 hover:bg-[#a37f35] text-white font-black uppercase text-xs tracking-widest shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                   <span>
                     {isSubmitting 
                       ? (isArabic ? 'جاري المعالجة...' : 'Processing Order...') 
-                      : (isArabic 
+                      : siteContent?.checkoutPage?.orderButtonText
+                        ? `${siteContent.checkoutPage.orderButtonText} ($${finalTotalUSD.toFixed(2)})`
+                        : (isArabic 
                           ? `تأكيد الطلب اللبناني ($${finalTotalUSD.toFixed(2)})` 
                           : `Confirm Lebanese Order ($${finalTotalUSD.toFixed(2)})`)}
                   </span>
@@ -1164,18 +1442,24 @@ export const CheckoutView: React.FC = () => {
                 )}
 
                 {/* Guarantee Badges */}
-                <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <LebanonFlag className="w-3.5 h-2.5 rounded-xs" />
-                    <span>100% Authentic Lebanese Artisan Guilds</span>
+                {(visibility.checkoutGuarantees || isVisualEditMode) && (
+                  <div className={`pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-1.5 relative ${!visibility.checkoutGuarantees && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 p-1.5 rounded-lg' : ''}`}>
+                    {!visibility.checkoutGuarantees && isVisualEditMode && (
+                      <div className="absolute top-0 right-0 bg-rose-600 text-white px-1.5 py-0.5 rounded text-[8px] font-bold">Hidden</div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <LebanonFlag className="w-3.5 h-2.5 rounded-xs" />
+                      <span>{siteContent?.checkoutPage?.guaranteeBadgeText || '100% Authentic Lebanese Artisan Guilds'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Dedicated courier WhatsApp confirmation before drop-off</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Dedicated courier WhatsApp confirmation before drop-off</span>
-                  </div>
-                </div>
+                )}
 
               </div>
+              )}
 
             </div>
 

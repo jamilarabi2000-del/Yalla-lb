@@ -60,25 +60,26 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
     <div className="space-y-6">
       
       {/* Top Banner */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-[#4f46e5] text-xs font-bold uppercase tracking-wider mb-1">
-            <Sparkles className="w-4 h-4 text-[#4f46e5]" />
+      <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4 relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 text-indigo-600 text-xs font-extrabold uppercase tracking-wider mb-1.5">
+            <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
             <span>Executive eCommerce Dashboard</span>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
-            PlainAdmin <span className="text-[#4f46e5]">Yalla.lb</span>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <span>PlainAdmin</span>
+            <span className="text-indigo-600">Yalla.lb</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Real-time analytics, order dispatch, catalog synchronization, and live page CMS management.
+          <p className="text-xs text-slate-500 mt-1 max-w-xl">
+            Real-time telemetry, courier dispatch operations, artisan catalog synchronization, and live storefront CMS management.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
           <button
             onClick={handleSyncDatabase}
             disabled={isSyncingDb}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
             title="Save and synchronize all products & custom sections to Firestore database"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDb ? 'animate-spin' : ''}`} />
@@ -87,9 +88,9 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
 
           <button
             onClick={() => setIsVisualEditMode(!isVisualEditMode)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs ${
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 ${
               isVisualEditMode 
-                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400' 
+                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 font-black' 
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
             }`}
           >
@@ -103,71 +104,71 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Revenue */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-2">
+        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 hover:shadow-md transition-all">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Gross Revenue</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <DollarSign className="w-4 h-4" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Gross Revenue</span>
+            <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100/60">
+              <DollarSign className="w-4.5 h-4.5" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900">{formatPrice(totalRevenueUSD)}</p>
-          <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-            <TrendingUp className="w-3 h-3" />
-            <span>Direct to Lebanese Artisans</span>
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{formatPrice(totalRevenueUSD)}</p>
+          <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-bold pt-1 border-t border-slate-100">
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Direct to Lebanese Artisans</span>
           </div>
         </div>
 
         {/* Orders */}
         <div 
           onClick={() => onNavigateToTab('orders')}
-          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-2 hover:border-indigo-200 transition-all cursor-pointer group"
+          className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Live Orders</span>
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 text-[#4f46e5] flex items-center justify-center">
-              <Package className="w-4 h-4" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Live Orders</span>
+            <div className="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/60 group-hover:scale-105 transition-transform">
+              <Package className="w-4.5 h-4.5" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900">{orders.length}</p>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-amber-600 font-semibold">{activeOrdersCount} Pending / In Transit</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#4f46e5] transition-colors" />
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{orders.length}</p>
+          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+            <span className="text-amber-600 font-bold truncate">{activeOrdersCount} In Dispatch Queue</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
           </div>
         </div>
 
         {/* Catalog Items */}
         <div 
           onClick={() => onNavigateToTab('products')}
-          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-2 hover:border-indigo-200 transition-all cursor-pointer group"
+          className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Catalog Items</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Catalog Items</span>
+            <div className="w-9 h-9 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100/60 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-4.5 h-4.5" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900">{products.length}</p>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-emerald-600 font-semibold">{publishedProductsCount} Published</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#4f46e5] transition-colors" />
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{products.length}</p>
+          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+            <span className="text-emerald-600 font-bold truncate">{publishedProductsCount} Live in Storefront</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
           </div>
         </div>
 
         {/* Active Carts */}
         <div 
           onClick={() => onNavigateToTab('active_carts')}
-          className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-2 hover:border-indigo-200 transition-all cursor-pointer group"
+          className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Active Carts</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <ShoppingCart className="w-4 h-4" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Active Carts</span>
+            <div className="w-9 h-9 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100/60 group-hover:scale-105 transition-transform">
+              <ShoppingCart className="w-4.5 h-4.5" />
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900">{cart.length > 0 ? 1 : 0}</p>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-purple-600 font-semibold">{formatPrice(cartTotalUSD)} In Carts</span>
-            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#4f46e5] transition-colors" />
+          <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{cart.length > 0 ? 1 : 0}</p>
+          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+            <span className="text-purple-600 font-bold truncate">{formatPrice(cartTotalUSD)} Potential Cart Value</span>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
           </div>
         </div>
 
@@ -177,15 +178,15 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Recent Orders Overview */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="lg:col-span-2 bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
             <div>
-              <h3 className="font-bold text-slate-900 text-sm">Recent Store Dispatches</h3>
+              <h3 className="font-extrabold text-slate-900 text-sm">Recent Store Dispatches</h3>
               <p className="text-xs text-slate-500">Latest courier orders across Beirut and Lebanese governorates</p>
             </div>
             <button
               onClick={() => onNavigateToTab('orders')}
-              className="text-xs font-bold text-[#4f46e5] hover:underline cursor-pointer flex items-center gap-1"
+              className="text-xs font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer flex items-center gap-1 transition-colors"
             >
               <span>View All ({orders.length})</span>
               <ArrowUpRight className="w-3 h-3" />
@@ -194,55 +195,70 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
 
           <div className="divide-y divide-slate-100">
             {orders.slice(0, 4).map((ord) => (
-              <div key={ord.id} className="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-700 font-bold text-xs">
-                    <Truck className="w-4 h-4" />
+              <div key={ord.id} className="py-3.5 flex items-center justify-between gap-4 first:pt-1 last:pb-1 hover:bg-slate-50/60 px-2 rounded-xl transition-colors">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xs shrink-0 border border-indigo-100/50">
+                    <Truck className="w-4.5 h-4.5" />
                   </div>
-                  <div>
-                    <div className="font-bold text-slate-900 text-xs">
-                      #{ord.id} • {ord.shipping.fullName}
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                      <span className="font-mono text-indigo-600 font-black">#{ord.id}</span>
+                      <span className="text-slate-300">•</span>
+                      <span className="truncate">{ord.shipping.fullName}</span>
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-[11px] text-slate-500 truncate">
                       {ord.shipping.city}, {ord.shipping.governorate} • {ord.items.length} items
                     </div>
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="font-black text-slate-900 text-xs">{formatPrice(ord.totalUSD)}</div>
-                  <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    ord.status === 'delivered' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider mt-0.5 ${
+                    ord.status === 'delivered' 
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                      : ord.status === 'in_transit' || ord.status === 'courier_assigned'
+                      ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}>
                     {ord.status.replace(/_/g, ' ')}
                   </span>
                 </div>
               </div>
             ))}
+
+            {orders.length === 0 && (
+              <div className="text-center py-8 text-slate-400 text-xs">
+                No orders recorded yet. As customers checkout, deliveries will stream live here.
+              </div>
+            )}
           </div>
         </div>
 
         {/* Quick Actions & Store Health */}
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              <Globe className="w-4 h-4 text-[#4f46e5]" />
+            <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <Globe className="w-4 h-4 text-indigo-600" />
               <span>Lebanon Operations</span>
             </h3>
 
             <div className="space-y-2.5 text-xs">
-              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between">
-                <span className="text-slate-600">Exchange Rate</span>
+              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
+                <span className="text-slate-600 font-medium">Exchange Rate</span>
                 <span className="font-mono font-bold text-slate-900">89,500 LBP / USD</span>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between">
-                <span className="text-slate-600">Beirut Same-Day Express</span>
-                <span className="font-bold text-emerald-600">Active (3-6h)</span>
+              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
+                <span className="text-slate-600 font-medium">Beirut Same-Day Express</span>
+                <span className="font-bold text-emerald-600 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  Active (3-6h)
+                </span>
               </div>
 
-              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between">
-                <span className="text-slate-600">Payment Modes</span>
+              <div className="p-3 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
+                <span className="text-slate-600 font-medium">Payment Modes</span>
                 <span className="font-bold text-slate-800">COD (USD/LBP) + Wish/OMT</span>
               </div>
             </div>
@@ -257,11 +273,11 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
       <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
-            <div className="flex items-center gap-2 text-[#4f46e5] text-xs font-bold uppercase tracking-wider mb-1">
+            <div className="flex items-center gap-2 text-indigo-600 text-xs font-black uppercase tracking-wider mb-1">
               <Layers className="w-4 h-4" />
               <span>Direct Page Content Management</span>
             </div>
-            <h3 className="text-xl font-bold text-slate-900 tracking-tight">
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               Manage Content for Each Storefront Page
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -271,7 +287,7 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
 
           <button
             onClick={() => onNavigateToTab('pages_cms')}
-            className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-[#4f46e5] rounded-xl text-xs font-bold transition-all cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs border border-indigo-100/60 active:scale-95"
           >
             <span>Open Full CMS Studio</span>
             <ArrowUpRight className="w-3.5 h-3.5" />
@@ -283,172 +299,190 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
           {/* Home Page */}
           <div 
             onClick={() => onNavigateToTab('page_home')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg">
-                🏠
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold text-lg border border-amber-100/80 group-hover:scale-105 transition-transform">
+                  🏠
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Home Page</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Hero title, subtitle, CTA buttons, metrics stats, deals slides, and newsletter copy.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Home Page</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Hero title, subtitle, CTA buttons, metrics stats, deals slides, and newsletter copy.
-            </p>
           </div>
 
           {/* Catalog Page */}
           <div 
             onClick={() => onNavigateToTab('page_products')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#4f46e5] flex items-center justify-center font-bold text-lg">
-                🛍️
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-lg border border-indigo-100/80 group-hover:scale-105 transition-transform">
+                  🛍️
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Products Catalog Page</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Catalog banner title, search placeholder text, filters bar, and subtitle.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Products Catalog Page</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Catalog banner title, search placeholder text, filters bar, and subtitle.
-            </p>
           </div>
 
           {/* Product Detail Page */}
           <div 
             onClick={() => onNavigateToTab('page_detail')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
-                🔍
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg border border-purple-100/80 group-hover:scale-105 transition-transform">
+                  🔍
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Product Detail View</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                WhatsApp inquiry button & phone, authenticity guarantee, delivery speed, and return policy.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Product Detail View</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              WhatsApp inquiry button & phone, authenticity guarantee, delivery speed, and return policy.
-            </p>
           </div>
 
           {/* Checkout Page */}
           <div 
             onClick={() => onNavigateToTab('page_checkout')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg">
-                💳
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-lg border border-emerald-100/80 group-hover:scale-105 transition-transform">
+                  💳
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Checkout Page</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Order submission button label, guarantee badges, payment methods copy, and courier terms.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Checkout Page</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Order submission button label, guarantee badges, payment methods copy, and courier terms.
-            </p>
           </div>
 
           {/* Account Page */}
           <div 
             onClick={() => onNavigateToTab('page_account')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
-                👤
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg border border-blue-100/80 group-hover:scale-105 transition-transform">
+                  👤
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Account & Profile</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Account portal title, orders history tab text, and patron support links.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Account & Profile</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Account portal title, orders history tab text, and patron support links.
-            </p>
           </div>
 
           {/* News & Stories */}
           <div 
             onClick={() => onNavigateToTab('page_news')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg">
-                📰
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold text-lg border border-rose-100/80 group-hover:scale-105 transition-transform">
+                  📰
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">News & Artisan Stories</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Lebanese craft articles, titles, dates, excerpts, and reading times.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">News & Artisan Stories</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Lebanese craft articles, titles, dates, excerpts, and reading times.
-            </p>
           </div>
 
           {/* Navbar & Header */}
           <div 
             onClick={() => onNavigateToTab('page_navbar')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold text-lg">
-                🧭
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center font-bold text-lg border border-teal-100/80 group-hover:scale-105 transition-transform">
+                  🧭
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Navbar & Header</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Top announcement ticker text, brand name & slogan, phone support hotline.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Navbar & Header</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Top announcement ticker text, brand name & slogan, phone support hotline.
-            </p>
           </div>
 
           {/* Footer & Contact */}
           <div 
             onClick={() => onNavigateToTab('page_footer')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-lg">
-                🦶
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-lg border border-slate-200/80 group-hover:scale-105 transition-transform">
+                  🦶
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Page <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Page <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Footer & Contact Info</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                About terroir story, support email, phone numbers, and copyright disclaimer.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Footer & Contact Info</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              About terroir story, support email, phone numbers, and copyright disclaimer.
-            </p>
           </div>
 
           {/* Custom Divs & Visibility */}
           <div 
             onClick={() => onNavigateToTab('page_custom_blocks')}
-            className="p-5 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group bg-slate-50/50 hover:bg-white"
+            className="p-5 rounded-2xl border border-slate-200/80 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group bg-slate-50/40 hover:bg-white flex flex-col justify-between"
           >
-            <div className="flex items-center justify-between mb-3">
-              <div className="w-10 h-10 rounded-xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold text-lg">
-                🧱
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center font-bold text-lg border border-cyan-100/80 group-hover:scale-105 transition-transform">
+                  🧱
+                </div>
+                <span className="text-[11px] font-extrabold text-indigo-600 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                  Edit Blocks <ArrowUpRight className="w-3 h-3" />
+                </span>
               </div>
-              <span className="text-[11px] font-bold text-[#4f46e5] group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
-                Edit Blocks <ArrowUpRight className="w-3 h-3" />
-              </span>
+              <h4 className="font-extrabold text-slate-900 text-sm">Custom Divs & Banners</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed">
+                Create and place bespoke promotional blocks, badges, banners, and CTA buttons on any page.
+              </p>
             </div>
-            <h4 className="font-bold text-slate-900 text-sm">Custom Divs & Banners</h4>
-            <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-              Create and place bespoke promotional blocks, badges, banners, and CTA buttons on any page.
-            </p>
           </div>
 
         </div>

@@ -269,7 +269,7 @@ export const ProductDetailView: React.FC = () => {
   const displayTitle = language === 'ar' ? (product.arabicName || product.name) : product.name;
 
   const handleWhatsAppInquiry = () => {
-    const phone = siteContent.productDetailPage?.inquiryWhatsAppNumber || '96170889234';
+    const phone = siteContent.productDetailPage?.inquiryWhatsAppNumber ?? '96170889234';
     const text = encodeURIComponent(
       `Hello Yalla-lb! I am interested in inquiring about "${displayTitle}" (ID: ${product.id}) priced at $${product.priceUSD}. Can you please assist me?`
     );
@@ -493,8 +493,14 @@ export const ProductDetailView: React.FC = () => {
             {/* Description & Craft Story */}
             <div className="space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
               <p>{product.description}</p>
-
-
+              {product.craftStory && (
+                <div className="mt-4 p-4 rounded-2xl bg-[#fdfbf7] border border-[#f5ece1] text-[#785b28] space-y-1.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-[#a37f35]">
+                    {siteContent.productDetailPage?.craftStoryTitle ?? 'Artisan Workshop & Provenance'}
+                  </h4>
+                  <p className="text-xs leading-relaxed italic">{product.craftStory}</p>
+                </div>
+              )}
             </div>
 
             {/* Quantity Selector & Add to Cart Action */}
@@ -559,15 +565,60 @@ export const ProductDetailView: React.FC = () => {
                 </div>
 
                 {/* WhatsApp Concierge Inquiry Button */}
-                {(visibility.detailWhatsAppInquiry || isVisualEditMode) && (
+                {((visibility.detailWhatsAppInquiry && siteContent.productDetailPage?.inquiryWhatsAppNumber) || isVisualEditMode) && (
                   <button
                     onClick={handleWhatsAppInquiry}
                     className="w-full py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4" />
-                    <span>{siteContent.productDetailPage?.inquiryText || 'Inquire on WhatsApp with Master Artisan'}</span>
+                    <span>{siteContent.productDetailPage?.inquiryText ?? 'Inquire on WhatsApp with Master Artisan'}</span>
                   </button>
                 )}
+
+                {/* Trust Badges Section */}
+                <div className="pt-4 border-t border-slate-200/80 space-y-3.5">
+                  {siteContent.productDetailPage?.authenticityGuaranteeText && (
+                    <div className="flex items-start gap-2.5 text-xs text-slate-600">
+                      <div className="p-1 rounded-lg bg-amber-50 text-[#a37f35] border border-amber-100 flex-shrink-0 mt-0.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                      </div>
+                      <div className="leading-tight">
+                        <span className="font-semibold text-slate-800 block">{language === 'ar' ? 'ضمان الأصالة' : 'Authenticity Guarantee'}</span>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{siteContent.productDetailPage.authenticityGuaranteeText}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {siteContent.productDetailPage?.freeDeliveryBadgeText && (
+                    <div className="flex items-start gap-2.5 text-xs text-slate-600">
+                      <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex-shrink-0 mt-0.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                      <div className="leading-tight">
+                        <span className="font-semibold text-slate-800 block">{language === 'ar' ? 'التسليم والشحن' : 'Delivery & Dispatch'}</span>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{siteContent.productDetailPage.freeDeliveryBadgeText}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {siteContent.productDetailPage?.returnsPolicyText && (
+                    <div className="flex items-start gap-2.5 text-xs text-slate-600">
+                      <div className="p-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0 mt-0.5">
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.21" />
+                        </svg>
+                      </div>
+                      <div className="leading-tight">
+                        <span className="font-semibold text-slate-800 block">{language === 'ar' ? 'سياسة الإرجاع' : 'Returns Policy'}</span>
+                        <p className="text-[11px] text-slate-500 mt-0.5">{siteContent.productDetailPage.returnsPolicyText}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
 
               </div>
@@ -806,7 +857,7 @@ export const ProductDetailView: React.FC = () => {
         {(visibility.detailRelatedProducts || isVisualEditMode) && relatedProducts.length > 0 && (
           <div className="pt-12 border-t border-slate-200 space-y-6">
             <h3 className="text-xl font-bold text-slate-900">
-              {siteContent.productDetailPage?.relatedItemsTitle || t('relatedProducts')}
+              {siteContent.productDetailPage?.relatedItemsTitle ?? t('relatedProducts')}
             </h3>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">

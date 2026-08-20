@@ -76,19 +76,19 @@ export const RecentActivityWidget: React.FC = () => {
   return (
     <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-slate-700">
-            <Activity className="w-4.5 h-4.5" />
+          <div className="w-8 h-8 rounded-xl bg-slate-100/70 flex items-center justify-center text-slate-700">
+            <Activity className="w-4 h-4 text-indigo-600" />
           </div>
           <div>
-            <h3 className="font-bold text-slate-900 text-sm">Recent Activity</h3>
+            <h3 className="font-extrabold text-slate-900 text-sm">Recent Activity</h3>
             <p className="text-[11px] text-slate-500">Live system and content updates</p>
           </div>
         </div>
         
         {/* Pulse Live Indicator */}
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-100/55">
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100">
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -98,7 +98,7 @@ export const RecentActivityWidget: React.FC = () => {
       </div>
 
       {/* Activity List */}
-      <div className="space-y-3.5">
+      <div className="space-y-3">
         {displayedActivities.length === 0 ? (
           <div className="py-8 text-center space-y-2">
             <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mx-auto">
@@ -110,7 +110,7 @@ export const RecentActivityWidget: React.FC = () => {
           displayedActivities.map((act) => {
             const styling = getActivityIcon(act.actionType);
             return (
-              <div key={act.id} className="flex gap-3 text-xs group">
+              <div key={act.id} className="flex gap-3 text-xs p-2 rounded-xl hover:bg-slate-50/70 transition-colors group">
                 {/* Left: Icon Badge */}
                 <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center ${styling.bg}`}>
                   {styling.icon}

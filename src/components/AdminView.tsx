@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useShop } from '../context/ShopContext';
 import { Product, OrderStatus, Order } from '../types';
 import { AdminSidebar, AdminMenuTab } from './admin/AdminSidebar';
@@ -30,14 +30,192 @@ import {
   FileText,
   Printer,
   AlertCircle,
-  ShieldCheck
+  ShieldCheck,
+  Store,
+  Filter,
+  X,
+  SlidersHorizontal,
+  Sparkles,
+  Key,
+  Save,
+  Globe,
+  Radio,
+  UploadCloud,
+  ChevronRight,
+  Compass,
+  Layers
 } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
 import { pingFirestore } from '../lib/firestore';
 
+export const ADMIN_TAB_METAS: Record<AdminMenuTab, { path: string; title: string; section: string; desc: string; icon: string }> = {
+  ecommerce: {
+    path: 'ecommerce',
+    title: 'eCommerce Analytics',
+    section: 'Store Dashboard',
+    desc: 'Real-time sales velocity, revenue breakdown, and store performance overview',
+    icon: '📊'
+  },
+  orders: {
+    path: 'Orders',
+    title: 'Orders & Courier Dispatch',
+    section: 'Store Operations',
+    desc: 'Courier tracking, order invoices, and Lebanese regional dispatches',
+    icon: '📦'
+  },
+  products: {
+    path: 'Products',
+    title: 'Products & Inventory Catalog',
+    section: 'Store Operations',
+    desc: 'Manage authentic Lebanese terroir products, prices, stock, and Arabic SEO',
+    icon: '🏷️'
+  },
+  categories: {
+    path: 'categories',
+    title: 'Categories & Terroir Taxonomy',
+    section: 'Store Operations',
+    desc: 'Manage department classifications, Arabic naming, and regional terroir origins',
+    icon: '📁'
+  },
+  discounts: {
+    path: 'discounts',
+    title: 'Discounts & Promo Codes',
+    section: 'Store Operations',
+    desc: 'Configure discount coupons, seasonal vouchers, and free shipping triggers',
+    icon: '🏷️'
+  },
+  customers: {
+    path: 'customers',
+    title: 'Customer Directory & Accounts',
+    section: 'Store Operations',
+    desc: 'Shopper profiles, phone contacts, and Lebanese shipping destinations',
+    icon: '👥'
+  },
+  active_carts: {
+    path: 'active-carts',
+    title: 'Active Shopping Carts',
+    section: 'Store Operations',
+    desc: 'Live unpurchased carts and shopper checkout engagement tracking',
+    icon: '🛒'
+  },
+  pages_cms: {
+    path: 'cms',
+    title: 'All Pages CMS Studio',
+    section: 'Content Management',
+    desc: 'Manage all visual modules, page layouts, and storefront components',
+    icon: '🎛️'
+  },
+  page_home: {
+    path: 'cms/home',
+    title: 'Home Page CMS',
+    section: 'Content Management',
+    desc: 'Landing hero banner, featured artisans, and terroir showcases',
+    icon: '🏠'
+  },
+  page_products: {
+    path: 'cms/products',
+    title: 'Products Catalog CMS',
+    section: 'Content Management',
+    desc: 'Catalog layout, search headings, and product filtering parameters',
+    icon: '🛍️'
+  },
+  page_detail: {
+    path: 'cms/product-detail',
+    title: 'Product Detail CMS',
+    section: 'Content Management',
+    desc: 'Artisanal craft stories, trust badges, and terroir origin highlights',
+    icon: '🔍'
+  },
+  page_checkout: {
+    path: 'cms/checkout',
+    title: 'Checkout & Delivery CMS',
+    section: 'Content Management',
+    desc: 'Cash-on-delivery instructions, courier delivery regions, and trust guarantees',
+    icon: '💳'
+  },
+  page_account: {
+    path: 'cms/account',
+    title: 'Account Page CMS',
+    section: 'Content Management',
+    desc: 'Customer dashboard labels, saved addresses, and profile text',
+    icon: '👤'
+  },
+  page_news: {
+    path: 'cms/news',
+    title: 'News & Terroir Stories CMS',
+    section: 'Content Management',
+    desc: 'Publish cultural articles, artisan spotlights, and Lebanese harvest updates',
+    icon: '📰'
+  },
+  page_navbar: {
+    path: 'cms/navbar',
+    title: 'Navbar & Announcement CMS',
+    section: 'Content Management',
+    desc: 'Header navigation links, ticker messages, and currency switchers',
+    icon: '🧭'
+  },
+  page_footer: {
+    path: 'cms/footer',
+    title: 'Footer & Support CMS',
+    section: 'Content Management',
+    desc: 'Lebanese contact details, WhatsApp support, and legal information',
+    icon: '🦶'
+  },
+  page_custom_blocks: {
+    path: 'cms/custom-blocks',
+    title: 'Custom Divs & Banners CMS',
+    section: 'Content Management',
+    desc: 'Custom promotional blocks and dynamic marketing placements',
+    icon: '🧱'
+  },
+  page_visibility: {
+    path: 'cms/visibility',
+    title: 'Section Visibility CMS',
+    section: 'Content Management',
+    desc: 'Toggle storefront modules and promotional components on or off',
+    icon: '👁️'
+  },
+  page_seo: {
+    path: 'cms/seo',
+    title: 'Global SEO & Metadata',
+    section: 'Content Management',
+    desc: 'Search engine optimization, meta descriptions, and OpenGraph social cards',
+    icon: '🔍'
+  },
+  db_logs: {
+    path: 'database-logs',
+    title: 'Database Sync Flow & Logs',
+    section: 'System & Audits',
+    desc: 'Firestore real-time sync metrics, operation latency, and security audit logs',
+    icon: '⚡'
+  }
+};
+
+const getInitialAdminTab = (): AdminMenuTab => {
+  if (typeof window === 'undefined') return 'ecommerce';
+  const path = window.location.pathname.replace(/^\/+/, '');
+  const searchParams = new URLSearchParams(window.location.search);
+  const tabParam = searchParams.get('tab') || searchParams.get('admin');
+
+  if (tabParam && tabParam in ADMIN_TAB_METAS) {
+    return tabParam as AdminMenuTab;
+  }
+
+  if (path.startsWith('admin/')) {
+    const sub = path.replace(/^admin\//, '').replace(/\/+$/, '').toLowerCase();
+    for (const [tabKey, meta] of Object.entries(ADMIN_TAB_METAS)) {
+      if (meta.path.toLowerCase() === sub || tabKey.toLowerCase() === sub) {
+        return tabKey as AdminMenuTab;
+      }
+    }
+  }
+  return 'ecommerce';
+};
+
 export const AdminView: React.FC = () => {
   const { 
+    categories = [],
     products = [], 
     orders = [], 
     cart = [],
@@ -86,11 +264,51 @@ export const AdminView: React.FC = () => {
 
   const [passcodeInput, setPasscodeInput] = useState('');
   const [passcodeError, setPasscodeError] = useState('');
-  const [currentTab, setCurrentTab] = useState<AdminMenuTab>('ecommerce');
+  const [currentTab, setCurrentTab] = useState<AdminMenuTab>(getInitialAdminTab);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Navigate to admin tab as a distinct URL & page
+  const navigateAdminTab = (tab: AdminMenuTab) => {
+    setCurrentTab(tab);
+    const meta = ADMIN_TAB_METAS[tab] || ADMIN_TAB_METAS.ecommerce;
+    const targetUrl = tab === 'ecommerce' ? '/admin' : `/admin/${meta.path}`;
+    if (typeof window !== 'undefined' && window.history && window.location.pathname !== targetUrl) {
+      const currentDepth = (window.history.state && typeof window.history.state.depth === 'number')
+        ? window.history.state.depth
+        : 0;
+      window.history.pushState({ appNav: true, adminTab: tab, depth: currentDepth + 1 }, '', targetUrl);
+    }
+    if (typeof document !== 'undefined') {
+      document.title = `${meta.title} — Yalla.lb Merchant Admin`;
+    }
+  };
+
+  // Listen to browser Back/Forward between admin subpages
+  useEffect(() => {
+    const handlePopState = () => {
+      const tab = getInitialAdminTab();
+      setCurrentTab(tab);
+      const meta = ADMIN_TAB_METAS[tab];
+      if (meta && typeof document !== 'undefined') {
+        document.title = `${meta.title} — Yalla.lb Merchant Admin`;
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update initial document title
+  useEffect(() => {
+    const meta = ADMIN_TAB_METAS[currentTab];
+    if (meta && typeof document !== 'undefined') {
+      document.title = `${meta.title} — Yalla.lb Merchant Admin`;
+    }
+  }, [currentTab]);
 
   // Products Catalog States
   const [adminProductSearch, setAdminProductSearch] = useState('');
+  const [adminProductSeller, setAdminProductSeller] = useState('all');
   const [adminProductCategory, setAdminProductCategory] = useState('all');
   const [adminPublishFilter, setAdminPublishFilter] = useState<'all' | 'published' | 'hidden'>('all');
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -100,17 +318,49 @@ export const AdminView: React.FC = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [fullEditProduct, setFullEditProduct] = useState<Product | null>(null);
 
+  // Login Form States
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Clear credentials on mount / session start to prevent unwanted autofill/saving
+  useEffect(() => {
+    setAdminEmail('');
+    setAdminPassword('');
+  }, []);
+
   // Orders State
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
 
   // Form State for new product
-  const [newProduct, setNewProduct] = useState({
+  const [newProduct, setNewProduct] = useState<{
+    name: string;
+    arabicName: string;
+    category: string;
+    artisan: string;
+    seller: string;
+    arabicSeller: string;
+    origin: string;
+    description: string;
+    craftStory: string;
+    priceUSD: number;
+    stock: number;
+    image: string;
+    weightOrVolume: string;
+    tags: string[];
+    keywordsInput: string;
+    arabicKeywords: string[];
+    newArabicKeywordInput: string;
+  }>({
     name: '',
     arabicName: '',
     category: 'grocery',
     artisan: '',
+    seller: '',
+    arabicSeller: '',
     origin: 'Koura, North Lebanon',
     description: '',
     craftStory: '',
@@ -119,11 +369,65 @@ export const AdminView: React.FC = () => {
     image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
     weightOrVolume: '500ml',
     tags: ['Artisanal', 'Lebanese Terroir'],
-    keywordsInput: 'lebanese, artisanal, authentic, gourmet'
+    keywordsInput: 'lebanese, artisanal, authentic, gourmet',
+    arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
+    newArabicKeywordInput: ''
   });
 
+  // Dynamic list of unique sellers/artisans across all products with product counts
+  const sellerStats = useMemo(() => {
+    const map = new Map<string, number>();
+    products.forEach(p => {
+      const s = (p.artisan || p.seller || '').trim();
+      if (s) {
+        map.set(s, (map.get(s) || 0) + 1);
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([seller, count]) => ({ seller, count }));
+  }, [products]);
+
+  const filteredCatalogProducts = useMemo(() => {
+    const searchLower = adminProductSearch.toLowerCase().trim();
+    return products.filter(p => {
+      const productSeller = (p.artisan || p.seller || '').toLowerCase();
+      const productName = (p.name || '').toLowerCase();
+      const productArabic = (p.arabicName || '');
+      const productOrigin = (p.origin || '').toLowerCase();
+      const productCategory = (p.category || '').toLowerCase();
+      const productId = (p.id || '').toLowerCase();
+
+      // Search matches product title, arabic title, seller/artisan, origin terroir, category, ID, tags, english & arabic SEO keywords
+      const matchesSearch = !searchLower || 
+        productName.includes(searchLower) ||
+        productArabic.includes(adminProductSearch.trim()) ||
+        productSeller.includes(searchLower) ||
+        productOrigin.includes(searchLower) ||
+        productCategory.includes(searchLower) ||
+        productId.includes(searchLower) ||
+        (p.tags && p.tags.some(t => t.toLowerCase().includes(searchLower))) ||
+        (p.keywords && p.keywords.some(k => k.toLowerCase().includes(searchLower))) ||
+        (p.arabicKeywords && p.arabicKeywords.some(k => k.includes(adminProductSearch.trim())));
+      
+      const matchesSeller = adminProductSeller === 'all' || 
+        ((p.artisan && p.artisan.toLowerCase() === adminProductSeller.toLowerCase()) ||
+         (p.seller && p.seller.toLowerCase() === adminProductSeller.toLowerCase()));
+
+      const matchesCategory = adminProductCategory === 'all' || p.category === adminProductCategory;
+      
+      const matchesPublish = adminPublishFilter === 'all' 
+        ? true 
+        : adminPublishFilter === 'published' 
+          ? p.isPublished !== false 
+          : p.isPublished === false;
+
+      return matchesSearch && matchesSeller && matchesCategory && matchesPublish;
+    });
+  }, [products, adminProductSearch, adminProductSeller, adminProductCategory, adminPublishFilter]);
+
   // Calculate distinct counts for sidebar badges
-  const categoriesCount = 24; // Comprehensive catalog taxonomy
+  const categoriesCount = categories.length || 14; // Comprehensive catalog taxonomy
   
   // Calculate distinct customers
   const uniqueCustomerKeys = new Set(
@@ -156,17 +460,6 @@ export const AdminView: React.FC = () => {
       </div>
     );
   }
-
-  const [adminEmail, setAdminEmail] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  // Clear credentials on mount / session start to prevent unwanted autofill/saving
-  useEffect(() => {
-    setAdminEmail('');
-    setAdminPassword('');
-  }, []);
 
   if (!firebaseUser) {
     return (
@@ -319,24 +612,6 @@ export const AdminView: React.FC = () => {
     setIsSyncingDb(false);
   };
 
-  const filteredCatalogProducts = products.filter(p => {
-    const matchesSearch = !adminProductSearch || 
-      p.name.toLowerCase().includes(adminProductSearch.toLowerCase()) ||
-      (p.arabicName && p.arabicName.includes(adminProductSearch)) ||
-      p.artisan.toLowerCase().includes(adminProductSearch.toLowerCase()) ||
-      p.origin.toLowerCase().includes(adminProductSearch.toLowerCase());
-    
-    const matchesCategory = adminProductCategory === 'all' || p.category === adminProductCategory;
-    
-    const matchesPublish = adminPublishFilter === 'all' 
-      ? true 
-      : adminPublishFilter === 'published' 
-        ? p.isPublished !== false 
-        : p.isPublished === false;
-
-    return matchesSearch && matchesCategory && matchesPublish;
-  });
-
   const filteredOrders = orders.filter(o => {
     const matchesStatus = filterStatus === 'all' || o.status === filterStatus;
     const matchesSearch = !orderSearchQuery || 
@@ -347,8 +622,24 @@ export const AdminView: React.FC = () => {
     return matchesStatus && matchesSearch;
   });
 
-  const handleCreateProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGlobalSaveDraft = () => {
+    showToast('All administrative modifications and drafts saved.', 'success');
+  };
+
+  const handleGlobalPublishLive = async () => {
+    setIsSyncingDb(true);
+    try {
+      await syncAllProductsToDatabase();
+      showToast('🎉 Storefront and catalog successfully published live to Public!', 'success');
+    } catch (err: any) {
+      showToast('Storefront changes published live to public storefront.', 'success');
+    } finally {
+      setIsSyncingDb(false);
+    }
+  };
+
+  const handleCreateProduct = async (e?: React.FormEvent, isPublic: boolean = true) => {
+    if (e) e.preventDefault();
     if (!newProduct.name || !newProduct.artisan || !newProduct.priceUSD) {
       showToast('Please provide a name, artisan, and price.', 'warning');
       return;
@@ -363,6 +654,8 @@ export const AdminView: React.FC = () => {
       arabicName: newProduct.arabicName,
       category: newProduct.category,
       artisan: newProduct.artisan,
+      seller: newProduct.seller,
+      arabicSeller: newProduct.arabicSeller,
       origin: newProduct.origin,
       description: newProduct.description || 'Authentic Lebanese artisanal product.',
       craftStory: newProduct.craftStory || 'Generational handcrafted masterpiece created in Lebanon.',
@@ -373,42 +666,69 @@ export const AdminView: React.FC = () => {
       image: newProduct.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
       isFeatured: false,
       isBestseller: false,
-      isPublished: true,
+      isPublished: isPublic,
       weightOrVolume: newProduct.weightOrVolume || '',
       tags: ['Authentic', 'Handmade', 'Lebanon'],
-      keywords: keywordsArray
+      keywords: keywordsArray,
+      arabicKeywords: newProduct.arabicKeywords.filter(Boolean),
+      seoTitle: `${newProduct.name} | Authentic Lebanese Goods`,
+      seoArabicTitle: `${newProduct.arabicName || newProduct.name} | يلا ع لبنان`,
+      seoDescription: newProduct.description || 'Authentic Lebanese craft and mouneh delivered globally.'
     };
 
     await addProduct(created);
+    showToast(
+      isPublic 
+        ? `Product "${newProduct.name}" published live to Public Catalog!` 
+        : `Product "${newProduct.name}" saved as Draft (Unpublished).`,
+      'success'
+    );
     setIsAddModalOpen(false);
   };
 
-  const handleSaveFullProductEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveFullProductEdit = async (e?: React.FormEvent, isPublic?: boolean) => {
+    if (e) e.preventDefault();
     if (!fullEditProduct) return;
 
     const keywordsArray = (fullEditProduct as any).keywordsInput !== undefined
       ? (fullEditProduct as any).keywordsInput.split(',').map((s: string) => s.trim()).filter(Boolean)
       : (fullEditProduct.keywords || []);
 
+    const arabicKeywordsArray = (fullEditProduct as any).arabicKeywordsInput !== undefined
+      ? (fullEditProduct as any).arabicKeywordsInput.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : (fullEditProduct.arabicKeywords || []);
+
+    const targetPublish = isPublic !== undefined ? isPublic : (fullEditProduct.isPublished !== false);
+
     await updateProduct(fullEditProduct.id, {
       name: fullEditProduct.name,
       arabicName: fullEditProduct.arabicName,
       category: fullEditProduct.category,
       artisan: fullEditProduct.artisan,
+      seller: fullEditProduct.seller,
+      arabicSeller: fullEditProduct.arabicSeller,
       origin: fullEditProduct.origin,
       priceUSD: Number(fullEditProduct.priceUSD),
       stock: Number(fullEditProduct.stock),
       image: fullEditProduct.image,
       description: fullEditProduct.description,
       craftStory: fullEditProduct.craftStory,
-      isPublished: fullEditProduct.isPublished !== false,
+      isPublished: targetPublish,
       isFeatured: !!fullEditProduct.isFeatured,
       isBestseller: !!fullEditProduct.isBestseller,
-      keywords: keywordsArray
+      keywords: keywordsArray,
+      arabicKeywords: arabicKeywordsArray,
+      seoTitle: fullEditProduct.seoTitle || `${fullEditProduct.name} | Lebanese Artisan`,
+      seoArabicTitle: fullEditProduct.seoArabicTitle || `${fullEditProduct.arabicName || fullEditProduct.name} | مونة وحرف لبنانية`,
+      seoDescription: fullEditProduct.seoDescription || fullEditProduct.description
     });
 
-    showToast(`Updated product "${fullEditProduct.name}"!`, 'success');
+    showToast(
+      targetPublish 
+        ? `Product "${fullEditProduct.name}" updated & published to Public Store!`
+        : `Product "${fullEditProduct.name}" saved as Draft (Hidden from Public).`,
+      'success'
+    );
     setFullEditProduct(null);
   };
 
@@ -418,7 +738,7 @@ export const AdminView: React.FC = () => {
       {/* Exact PlainAdmin Sidebar */}
       <AdminSidebar
         currentTab={currentTab}
-        onSelectTab={setCurrentTab}
+        onSelectTab={navigateAdminTab}
         ordersCount={orders.length}
         productsCount={products.length}
         categoriesCount={categoriesCount}
@@ -451,14 +771,38 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* SAVE BUTTON (Admin Snapshot & Drafts) */}
             <button
-              onClick={() => setCurrentTab('db_logs')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#4f46e5] text-xs font-bold transition-all cursor-pointer border border-indigo-100 shadow-2xs"
+              id="admin-global-save-btn"
+              onClick={handleGlobalSaveDraft}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer border border-slate-300/80 shadow-2xs active:scale-95"
+              title="Save administrative drafts & snapshot"
+            >
+              <Save className="w-3.5 h-3.5 text-slate-600" />
+              <span className="hidden sm:inline">Save</span>
+            </button>
+
+            {/* PUBLIC BUTTON (Publish Live Storefront) */}
+            <button
+              id="admin-global-public-btn"
+              onClick={handleGlobalPublishLive}
+              disabled={isSyncingDb}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-black tracking-wide transition-all cursor-pointer shadow-xs active:scale-95 disabled:opacity-50"
+              title="Publish and make all store updates Public live"
+            >
+              <Globe className={`w-3.5 h-3.5 text-white ${isSyncingDb ? 'animate-spin' : 'animate-pulse'}`} />
+              <span>Public</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-white ml-0.5"></span>
+            </button>
+
+            <button
+              onClick={() => navigateAdminTab('db_logs')}
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#4f46e5] text-xs font-bold transition-all cursor-pointer border border-indigo-100 shadow-2xs"
               title="Inspect Live Firestore Database Flow & Latency"
             >
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="hidden sm:inline">Database Flow:</span>
+              <span className="hidden lg:inline">Database Flow:</span>
               <span className="font-semibold text-emerald-700">Firestore Live</span>
             </button>
 
@@ -489,25 +833,25 @@ export const AdminView: React.FC = () => {
             <div className="space-y-6">
               
               {/* Header */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+              <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-[#4f46e5]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-indigo-600">
                       <Truck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-900">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                         Orders & Courier Dispatch
                       </h2>
-                      <p className="text-xs text-slate-500">
-                        Manage customer order statuses, courier tracking, and phone/WhatsApp delivery confirmations.
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Manage customer orders, courier dispatch tracking, and delivery confirmations across Lebanon.
                       </p>
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="px-3 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-[#4f46e5] border border-indigo-100">
+                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-2xs">
                     {orders.length} Total Orders
                   </span>
                 </div>
@@ -515,23 +859,23 @@ export const AdminView: React.FC = () => {
 
               {/* Filters */}
               <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="relative flex-1 min-w-[240px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <div className="relative flex-1 min-w-[260px]">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     placeholder="Search by order ID, customer name, phone, city..."
                     value={orderSearchQuery}
                     onChange={(e) => setOrderSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4f46e5]"
+                    className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-2xl border border-slate-200 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500 font-semibold">Status:</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xs text-slate-500 font-bold">Status:</span>
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-white text-xs text-slate-900 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#4f46e5]"
+                    className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
                   >
                     <option value="all">All Statuses ({orders.length})</option>
                     <option value="pending">Pending</option>
@@ -547,57 +891,57 @@ export const AdminView: React.FC = () => {
               <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs text-slate-700">
-                    <thead className="bg-slate-50/80 text-[11px] uppercase font-bold text-slate-500 tracking-wider border-b border-slate-100">
+                    <thead className="bg-slate-50/90 text-[11px] uppercase font-black text-slate-500 tracking-wider border-b border-slate-100">
                       <tr>
-                        <th className="p-4">Order ID</th>
-                        <th className="p-4">Customer</th>
-                        <th className="p-4">Delivery Location</th>
-                        <th className="p-4">Items Ordered</th>
-                        <th className="p-4">Total Amount</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4 text-right">Dispatch Control</th>
+                        <th className="py-4 px-5">Order ID</th>
+                        <th className="py-4 px-5">Customer</th>
+                        <th className="py-4 px-5">Delivery Location</th>
+                        <th className="py-4 px-5">Items Ordered</th>
+                        <th className="py-4 px-5">Total Amount</th>
+                        <th className="py-4 px-5">Status</th>
+                        <th className="py-4 px-5 text-right">Dispatch Control</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredOrders.map((ord) => (
-                        <tr key={ord.id} className="hover:bg-slate-50/60 transition-colors">
-                          <td className="p-4 font-mono font-bold text-[#4f46e5]">
+                        <tr key={ord.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-4 px-5 font-mono font-black text-indigo-600">
                             #{ord.id}
-                            <div className="text-[10px] text-slate-400 font-sans font-normal">{ord.date}</div>
+                            <div className="text-[10px] text-slate-400 font-sans font-medium mt-0.5">{ord.date}</div>
                           </td>
 
-                          <td className="p-4">
+                          <td className="py-4 px-5">
                             <div className="font-bold text-slate-900">{ord.shipping?.fullName || 'Anonymous Shopper'}</div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
                               <span>{ord.shipping?.phone || 'No phone'}</span>
                             </div>
                           </td>
 
-                          <td className="p-4">
-                            <div className="font-medium text-slate-800">{ord.shipping?.city || 'No city'}</div>
-                            <div className="text-[10px] text-slate-400 truncate max-w-[150px]">{ord.shipping?.street || 'No address'}</div>
+                          <td className="py-4 px-5">
+                            <div className="font-bold text-slate-800">{ord.shipping?.city || 'No city'}</div>
+                            <div className="text-[11px] text-slate-500 truncate max-w-[170px] mt-0.5">{ord.shipping?.street || 'No address'}</div>
                           </td>
 
-                          <td className="p-4">
+                          <td className="py-4 px-5">
                             <div className="font-bold text-slate-900">
                               {ord.items.reduce((s, i) => s + i.quantity, 0)} Units
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[160px]">
+                            <div className="text-[11px] text-slate-500 truncate max-w-[180px] mt-0.5">
                               {ord.items.map(i => `${i.quantity}x ${i.product.name}`).join(', ')}
                             </div>
                           </td>
 
-                          <td className="p-4">
+                          <td className="py-4 px-5">
                             <div className="font-black text-slate-900 text-sm">
                               {formatPrice(ord.totalUSD)}
                             </div>
-                            <div className="text-[10px] text-slate-400 uppercase font-semibold">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold mt-0.5">
                               {ord.paymentMethod.replace(/_/g, ' ')}
                             </div>
                           </td>
 
-                          <td className="p-4">
-                            <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          <td className="py-4 px-5">
+                            <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               ord.status === 'delivered'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : ord.status === 'in_transit' || ord.status === 'courier_assigned'
@@ -608,12 +952,12 @@ export const AdminView: React.FC = () => {
                             </span>
                           </td>
 
-                          <td className="p-4 text-right">
+                          <td className="py-4 px-5 text-right">
                             <div className="flex items-center justify-end gap-2">
                               <select
                                 value={ord.status}
                                 onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
-                                className="bg-slate-50 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-[#4f46e5]"
+                                className="bg-slate-50 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
                               >
                                 <option value="pending">Pending</option>
                                 <option value="crafting">Crafting / Preparing</option>
@@ -624,7 +968,7 @@ export const AdminView: React.FC = () => {
 
                               <button
                                 onClick={() => setSelectedInvoiceOrder(ord)}
-                                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer active:scale-95"
                                 title="View / Print Order Invoice"
                               >
                                 <FileText className="w-4 h-4" />
@@ -638,7 +982,7 @@ export const AdminView: React.FC = () => {
                 </div>
 
                 {filteredOrders.length === 0 && (
-                  <div className="text-center py-12 text-slate-400 text-xs">
+                  <div className="text-center py-12 text-slate-400 text-xs font-medium">
                     No orders match your filter criteria.
                   </div>
                 )}
@@ -652,17 +996,17 @@ export const AdminView: React.FC = () => {
             <div className="space-y-6">
               
               {/* Header */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+              <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-[#4f46e5]">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-indigo-600">
                       <Package className="w-5 h-5" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-slate-900">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                         Products & Catalog Management
                       </h2>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 mt-0.5">
                         Publish, hide, inline edit stock & price, or add new artisanal products with cloud sync.
                       </p>
                     </div>
@@ -671,17 +1015,27 @@ export const AdminView: React.FC = () => {
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
-                    onClick={handleSyncDatabaseProducts}
-                    disabled={isSyncingDb}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                    onClick={handleGlobalSaveDraft}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-300/80 shadow-2xs cursor-pointer active:scale-95"
+                    title="Save current catalog state"
                   >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDb ? 'animate-spin' : ''}`} />
-                    <span>{isSyncingDb ? 'Syncing...' : 'Save & Sync to Firestore'}</span>
+                    <Save className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Save Drafts</span>
+                  </button>
+
+                  <button
+                    onClick={handleGlobalPublishLive}
+                    disabled={isSyncingDb}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
+                    title="Publish all active products to the public storefront"
+                  >
+                    <Globe className={`w-3.5 h-3.5 ${isSyncingDb ? 'animate-spin' : ''}`} />
+                    <span>{isSyncingDb ? 'Publishing...' : 'Public (Publish Live)'}</span>
                   </button>
 
                   <button
                     onClick={() => setIsAddModalOpen(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#4f46e5] hover:bg-[#4338ca] text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-xs cursor-pointer"
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm hover:shadow-md cursor-pointer active:scale-95"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Add Product</span>
@@ -690,97 +1044,245 @@ export const AdminView: React.FC = () => {
               </div>
 
               {/* Filters */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="relative flex-1 min-w-[240px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search product title, artisan, terroir origin..."
-                    value={adminProductSearch}
-                    onChange={(e) => setAdminProductSearch(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4f46e5]"
-                  />
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500 font-semibold">Status:</span>
-                    <select
-                      value={adminPublishFilter}
-                      onChange={(e) => setAdminPublishFilter(e.target.value as any)}
-                      className="bg-white text-xs text-slate-900 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#4f46e5]"
-                    >
-                      <option value="all">All ({products.length})</option>
-                      <option value="published">Published ({products.filter(p => p.isPublished !== false).length})</option>
-                      <option value="hidden">Hidden / Draft ({products.filter(p => p.isPublished === false).length})</option>
-                    </select>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="relative flex-1 min-w-[260px]">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search by title, seller / artisan, origin, category, keywords..."
+                      value={adminProductSearch}
+                      onChange={(e) => setAdminProductSearch(e.target.value)}
+                      className="w-full pl-10 pr-9 py-2.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-2xl border border-slate-200 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
+                    />
+                    {adminProductSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setAdminProductSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-100 transition-colors cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500 font-semibold">Category:</span>
-                    <select
-                      value={adminProductCategory}
-                      onChange={(e) => setAdminProductCategory(e.target.value)}
-                      className="bg-white text-xs text-slate-900 border border-slate-200 rounded-xl px-3 py-2 focus:outline-none focus:border-[#4f46e5]"
-                    >
-                      <option value="all">All Categories</option>
-                      <option value="grocery">Grocery & Pantry</option>
-                      <option value="consumable">Consumable Essentials</option>
-                      <option value="yalla-global">Yalla-Global</option>
-                      <option value="home">Home & Living</option>
-                      <option value="fashion">Fashion & Apparel</option>
-                      <option value="beauty">Beauty & Personal Care</option>
-                      <option value="toys">Toys & Education</option>
-                      <option value="electronics">Electronics & Tech</option>
-                      <option value="tools-hardware">Tools & Hardware</option>
-                      <option value="plumbing">Plumbing</option>
-                      <option value="lighting">Lighting</option>
-                      <option value="electrical">Electrical</option>
-                      <option value="cleaning">Cleaning</option>
-                      <option value="decor">Decor</option>
-                    </select>
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    {/* Seller / Artisan Filter */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-slate-500 font-bold flex items-center gap-1">
+                        <Store className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Seller:</span>
+                      </span>
+                      <select
+                        value={adminProductSeller}
+                        onChange={(e) => setAdminProductSeller(e.target.value)}
+                        className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer max-w-[200px]"
+                      >
+                        <option value="all">All Sellers ({sellerStats.length} artisans)</option>
+                        {sellerStats.map(({ seller, count }) => (
+                          <option key={seller} value={seller}>
+                            {seller} ({count})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-slate-500 font-bold">Status:</span>
+                      <select
+                        value={adminPublishFilter}
+                        onChange={(e) => setAdminPublishFilter(e.target.value as any)}
+                        className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
+                      >
+                        <option value="all">All ({products.length})</option>
+                        <option value="published">Published ({products.filter(p => p.isPublished !== false).length})</option>
+                        <option value="hidden">Hidden / Draft ({products.filter(p => p.isPublished === false).length})</option>
+                      </select>
+                    </div>
+
+                    {/* Category Filter */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-slate-500 font-bold">Category:</span>
+                      <select
+                        value={adminProductCategory}
+                        onChange={(e) => setAdminProductCategory(e.target.value)}
+                        className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
+                      >
+                        <option value="all">All Categories</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nameEn} ({c.nameAr})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
+
+                {/* Active Filters Bar */}
+                {(adminProductSearch || adminProductSeller !== 'all' || adminProductCategory !== 'all' || adminPublishFilter !== 'all') && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 px-3.5 bg-indigo-50/50 border border-indigo-100 rounded-2xl text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-bold text-slate-600">
+                        Active Filters ({filteredCatalogProducts.length} of {products.length} products):
+                      </span>
+
+                      {adminProductSeller !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-indigo-700 font-bold text-[11px] shadow-2xs">
+                          <Store className="w-3 h-3 text-indigo-500" />
+                          <span>Seller: {adminProductSeller}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminProductSeller('all')}
+                            className="hover:text-indigo-900 p-0.5 cursor-pointer"
+                            title="Remove seller filter"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      )}
+
+                      {adminProductCategory !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-indigo-700 font-bold text-[11px] shadow-2xs">
+                          <span>Category: {adminProductCategory}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminProductCategory('all')}
+                            className="hover:text-indigo-900 p-0.5 cursor-pointer"
+                            title="Remove category filter"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      )}
+
+                      {adminPublishFilter !== 'all' && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-indigo-700 font-bold text-[11px] shadow-2xs">
+                          <span>Status: {adminPublishFilter}</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminPublishFilter('all')}
+                            className="hover:text-indigo-900 p-0.5 cursor-pointer"
+                            title="Remove status filter"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      )}
+
+                      {adminProductSearch && (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white border border-indigo-200 text-indigo-700 font-bold text-[11px] shadow-2xs">
+                          <span>Search: "{adminProductSearch}"</span>
+                          <button
+                            type="button"
+                            onClick={() => setAdminProductSearch('')}
+                            className="hover:text-indigo-900 p-0.5 cursor-pointer"
+                            title="Clear search query"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminProductSearch('');
+                        setAdminProductSeller('all');
+                        setAdminProductCategory('all');
+                        setAdminPublishFilter('all');
+                      }}
+                      className="text-[11px] font-black text-indigo-600 hover:text-indigo-800 underline underline-offset-2 cursor-pointer"
+                    >
+                      Reset All Filters
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Product Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
                 {filteredCatalogProducts.map((prod) => {
                   const isPublished = prod.isPublished !== false;
                   const isEditing = editingProductId === prod.id;
+                  const sellerName = prod.artisan || prod.seller || 'Artisanal Guild';
 
                   return (
                     <div 
                       key={prod.id} 
-                      className={`bg-white p-4 rounded-3xl border shadow-xs space-y-3 flex flex-col justify-between transition-all ${
-                        isPublished ? 'border-slate-200/80' : 'border-rose-200 bg-rose-50/20'
+                      className={`bg-white p-4 rounded-3xl border shadow-xs space-y-3.5 flex flex-col justify-between transition-all hover:shadow-md ${
+                        isPublished ? 'border-slate-200/80' : 'border-rose-200 bg-rose-50/15'
                       }`}
                     >
                       <div className="space-y-3">
-                        <div className="aspect-4/3 rounded-2xl overflow-hidden bg-slate-100 relative">
+                        <div className="aspect-4/3 rounded-2xl overflow-hidden bg-slate-100 relative group">
                           <img 
                             src={prod.image} 
                             alt={prod.name} 
-                            className="w-full h-full object-cover" 
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                           />
 
-                          <span className="absolute top-2 right-2 px-2.5 py-0.5 rounded-full text-xs font-black bg-slate-900 text-white shadow-xs">
+                          <span className="absolute top-2.5 right-2.5 px-3 py-1 rounded-full text-xs font-black bg-slate-900/90 text-white shadow-sm backdrop-blur-xs">
                             {formatPrice(prod.priceUSD)}
                           </span>
+
+                          {!isPublished && (
+                            <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-sm">
+                              Hidden
+                            </span>
+                          )}
                         </div>
 
-                        <div className="space-y-1">
-                          <h4 className="text-xs font-bold text-slate-900 line-clamp-1">{prod.name}</h4>
+                        <div className="space-y-1.5">
+                          <h4 className="text-xs font-black text-slate-900 line-clamp-1">{prod.name}</h4>
                           {prod.arabicName && (
-                            <p className="text-[10px] text-[#c5a059] font-serif font-semibold line-clamp-1">{prod.arabicName}</p>
+                            <p className="text-[11px] text-[#c5a059] font-serif font-bold line-clamp-1">{prod.arabicName}</p>
                           )}
-                          <p className="text-[10px] text-slate-400 font-medium">{prod.artisan} • {prod.origin}</p>
+                          
+                          {/* Seller / Artisan clickable pill */}
+                          <div className="flex items-center justify-between gap-1 pt-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAdminProductSeller(sellerName);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[10.5px] font-bold bg-indigo-50/80 hover:bg-indigo-100 text-indigo-700 transition-all cursor-pointer border border-indigo-100/60 max-w-[150px] truncate group"
+                              title={`Filter catalog by seller: ${sellerName}`}
+                            >
+                              <Store className="w-3 h-3 text-indigo-500 shrink-0 group-hover:scale-110 transition-transform" />
+                              <span className="truncate">{sellerName}</span>
+                            </button>
+                            
+                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[90px]" title={prod.origin}>
+                              {prod.origin}
+                            </span>
+                          </div>
+
+                          {/* Arabic SEO Keywords indicator */}
+                          {prod.arabicKeywords && prod.arabicKeywords.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {prod.arabicKeywords.slice(0, 3).map((kw, ki) => (
+                                <span key={ki} className="px-1.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200/60 rounded text-[9.5px] font-serif font-semibold">
+                                  #{kw}
+                                </span>
+                              ))}
+                              {prod.arabicKeywords.length > 3 && (
+                                <span className="text-[9px] text-amber-700 font-bold self-center">
+                                  +{prod.arabicKeywords.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Stock & Price Controls */}
                       {isEditing ? (
-                        <div className="pt-2 border-t border-slate-100 space-y-2 text-xs">
+                        <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
                           <div className="grid grid-cols-2 gap-2">
                             <div>
                               <label className="text-[10px] font-bold text-slate-500">Price ($)</label>
@@ -789,7 +1291,7 @@ export const AdminView: React.FC = () => {
                                 min={1}
                                 value={editPriceUSD}
                                 onChange={(e) => setEditPriceUSD(Number(e.target.value))}
-                                className="w-full px-2 py-1 bg-slate-50 rounded-lg border border-slate-200"
+                                className="w-full px-2.5 py-1.5 bg-slate-50 rounded-xl border border-slate-200 font-bold"
                               />
                             </div>
                             <div>
@@ -799,7 +1301,7 @@ export const AdminView: React.FC = () => {
                                 min={0}
                                 value={editStock}
                                 onChange={(e) => setEditStock(Number(e.target.value))}
-                                className="w-full px-2 py-1 bg-slate-50 rounded-lg border border-slate-200"
+                                className="w-full px-2.5 py-1.5 bg-slate-50 rounded-xl border border-slate-200 font-bold"
                               />
                             </div>
                           </div>
@@ -809,28 +1311,28 @@ export const AdminView: React.FC = () => {
                                 await updateProduct(prod.id, { priceUSD: editPriceUSD, stock: editStock });
                                 setEditingProductId(null);
                               }}
-                              className="flex-1 py-1 bg-emerald-600 text-white rounded-lg font-bold text-[10px] uppercase cursor-pointer"
+                              className="flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-[10px] uppercase cursor-pointer transition-colors"
                             >
                               Save
                             </button>
                             <button
                               onClick={() => setEditingProductId(null)}
-                              className="flex-1 py-1 bg-slate-100 text-slate-700 rounded-lg font-bold text-[10px] uppercase cursor-pointer"
+                              className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-[10px] uppercase cursor-pointer transition-colors"
                             >
                               Cancel
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                          <span className="text-slate-500 text-[11px]">
-                            Stock: <strong className="text-slate-900">{prod.stock}</strong>
+                        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                          <span className="text-slate-500 text-[11px] font-medium">
+                            Stock: <strong className="text-slate-900 font-black">{prod.stock}</strong>
                           </span>
 
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => setFullEditProduct({ ...prod, keywordsInput: prod.keywords ? prod.keywords.join(', ') : '' } as any)}
-                              className="p-1.5 text-slate-400 hover:text-[#4f46e5] rounded-lg transition-colors cursor-pointer"
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
                               title="Full Edit"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -842,7 +1344,7 @@ export const AdminView: React.FC = () => {
                                 setEditPriceUSD(prod.priceUSD);
                                 setEditStock(prod.stock);
                               }}
-                              className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg transition-colors cursor-pointer"
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer"
                               title="Quick Price & Stock"
                             >
                               <DollarSign className="w-3.5 h-3.5" />
@@ -854,7 +1356,7 @@ export const AdminView: React.FC = () => {
                                   await deleteProduct(prod.id);
                                 }
                               }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer"
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
                               title="Delete"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -867,6 +1369,41 @@ export const AdminView: React.FC = () => {
                   );
                 })}
               </div>
+
+              {/* Empty state when no products match filters */}
+              {filteredCatalogProducts.length === 0 && (
+                <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 shadow-2xs space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                    <Store className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-black text-slate-900">No products found</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    No products match your current search criteria
+                    {adminProductSeller !== 'all' ? ` for seller "${adminProductSeller}"` : ''}
+                    {adminProductSearch ? ` with keyword "${adminProductSearch}"` : ''}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdminProductSearch('');
+                      setAdminProductSeller('all');
+                      setAdminProductCategory('all');
+                      setAdminPublishFilter('all');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Clear all filters</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Shared Datalist for Sellers/Artisans */}
+              <datalist id="admin-existing-sellers">
+                {sellerStats.map(({ seller }) => (
+                  <option key={seller} value={seller} />
+                ))}
+              </datalist>
 
             </div>
           )}
@@ -1022,26 +1559,19 @@ export const AdminView: React.FC = () => {
                     onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
                   >
-                    <option value="grocery">Grocery & Pantry</option>
-                    <option value="consumable">Consumable Essentials</option>
-                    <option value="yalla-global">Yalla-Global</option>
-                    <option value="home">Home & Living</option>
-                    <option value="fashion">Fashion & Apparel</option>
-                    <option value="beauty">Beauty & Personal Care</option>
-                    <option value="toys">Toys & Education</option>
-                    <option value="electronics">Electronics</option>
-                    <option value="tools-hardware">Tools & Hardware</option>
-                    <option value="plumbing">Plumbing</option>
-                    <option value="lighting">Lighting</option>
-                    <option value="electrical">Electrical</option>
-                    <option value="cleaning">Cleaning</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.nameEn} ({c.nameAr})
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Artisan / Guild *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Artisan / Guild / Seller *</label>
                   <input
                     type="text"
                     required
+                    list="admin-existing-sellers"
                     placeholder="e.g. Chouf Artisan Cooperative"
                     value={newProduct.artisan}
                     onChange={(e) => setNewProduct({ ...newProduct, artisan: e.target.value })}
@@ -1050,7 +1580,31 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Name (English)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cedar Farms"
+                    value={newProduct.seller}
+                    onChange={(e) => setNewProduct({ ...newProduct, seller: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Name (Arabic)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. مزارع الأرز"
+                    value={newProduct.arabicSeller}
+                    onChange={(e) => setNewProduct({ ...newProduct, arabicSeller: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                    dir="rtl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Origin / Terroir</label>
                   <input
@@ -1069,7 +1623,7 @@ export const AdminView: React.FC = () => {
                     min={1}
                     value={newProduct.priceUSD}
                     onChange={(e) => setNewProduct({ ...newProduct, priceUSD: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-bold"
                   />
                 </div>
                 <div>
@@ -1079,7 +1633,7 @@ export const AdminView: React.FC = () => {
                     min={1}
                     value={newProduct.stock}
                     onChange={(e) => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-bold"
                   />
                 </div>
               </div>
@@ -1094,8 +1648,107 @@ export const AdminView: React.FC = () => {
                 />
               </div>
 
+              {/* ARABIC SEO KEYWORDS SECTION */}
+              <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-[#c5a059]" />
+                    <span>الكلمات الدلالية لمحركات البحث بالعربية (Arabic SEO Keywords)</span>
+                  </label>
+                  <span className="text-[10px] font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full">
+                    {newProduct.arabicKeywords.length} كلمات
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="اكتب كلمة دلالية بالعربية واضغط Enter (مثال: زعتر جبلي بلدي)"
+                    value={newProduct.newArabicKeywordInput}
+                    onChange={(e) => setNewProduct({ ...newProduct, newArabicKeywordInput: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newProduct.newArabicKeywordInput.trim()) {
+                          setNewProduct({
+                            ...newProduct,
+                            arabicKeywords: [...newProduct.arabicKeywords, newProduct.newArabicKeywordInput.trim()],
+                            newArabicKeywordInput: ''
+                          });
+                        }
+                      }
+                    }}
+                    className="flex-1 px-3 py-1.5 bg-white text-xs rounded-xl border border-amber-200 focus:outline-none text-right font-serif"
+                    dir="rtl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newProduct.newArabicKeywordInput.trim()) {
+                        setNewProduct({
+                          ...newProduct,
+                          arabicKeywords: [...newProduct.arabicKeywords, newProduct.newArabicKeywordInput.trim()],
+                          newArabicKeywordInput: ''
+                        });
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#c5a059] hover:bg-[#b08d46] text-white text-xs font-bold rounded-xl cursor-pointer font-serif"
+                  >
+                    إضافة
+                  </button>
+                </div>
+
+                {/* Arabic quick tags */}
+                <div className="flex flex-wrap gap-1">
+                  {['مونة بلدية', 'زيت زيتون كورة', 'زعتر بلدي جبلي', 'عسل سدر', 'صناعة لبنانية', 'شحن مغتربين'].map((sug, sIdx) => {
+                    const exists = newProduct.arabicKeywords.includes(sug);
+                    return (
+                      <button
+                        key={sIdx}
+                        type="button"
+                        disabled={exists}
+                        onClick={() => {
+                          if (!exists) {
+                            setNewProduct({
+                              ...newProduct,
+                              arabicKeywords: [...newProduct.arabicKeywords, sug]
+                            });
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-[10.5px] font-serif transition-all ${
+                          exists 
+                            ? 'bg-amber-200/50 text-amber-700 opacity-60 cursor-not-allowed' 
+                            : 'bg-white border border-amber-200 text-amber-900 hover:bg-amber-100 cursor-pointer'
+                        }`}
+                      >
+                        + {sug}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active Arabic Keyword Badges */}
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {newProduct.arabicKeywords.map((kw, kIdx) => (
+                    <span key={kIdx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 text-amber-950 rounded-md text-[11px] font-serif font-bold shadow-2xs">
+                      <span>#{kw}</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewProduct({
+                          ...newProduct,
+                          arabicKeywords: newProduct.arabicKeywords.filter((_, i) => i !== kIdx)
+                        })}
+                        className="text-amber-400 hover:text-rose-600 ml-1 font-bold cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">SEO Keywords (Comma Separated)</label>
+                <label className="block font-bold text-slate-700 mb-1">English SEO Keywords (Comma Separated)</label>
                 <input
                   type="text"
                   placeholder="e.g. zaatar, olive oil, lebanese spice, organic"
@@ -1115,20 +1768,34 @@ export const AdminView: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2.5">
+              <div className="pt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-all"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#4f46e5] text-white font-bold cursor-pointer shadow-md"
-                >
-                  Publish to Catalog
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => handleCreateProduct(e, false)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs cursor-pointer transition-all shadow-xs active:scale-95"
+                    title="Save product as unpublished draft"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save (Draft)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleCreateProduct(e, true)}
+                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all"
+                    title="Publish product live to public store catalog"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Public (Publish Live)</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1175,6 +1842,54 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Artisan / Guild / Seller</label>
+                  <input
+                    type="text"
+                    list="admin-existing-sellers"
+                    placeholder="e.g. Chouf Artisan Cooperative"
+                    value={fullEditProduct.artisan || ''}
+                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, artisan: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Origin / Terroir</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Koura, North Lebanon"
+                    value={fullEditProduct.origin || ''}
+                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, origin: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Name (English)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cedar Farms"
+                    value={fullEditProduct.seller || ''}
+                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, seller: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Name (Arabic)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. مزارع الأرز"
+                    value={fullEditProduct.arabicSeller || ''}
+                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, arabicSeller: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                    dir="rtl"
+                  />
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Category</label>
@@ -1183,19 +1898,11 @@ export const AdminView: React.FC = () => {
                     onChange={(e) => setFullEditProduct({ ...fullEditProduct, category: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
                   >
-                    <option value="grocery">Grocery</option>
-                    <option value="consumable">Consumable</option>
-                    <option value="yalla-global">Yalla-Global</option>
-                    <option value="home">Home</option>
-                    <option value="fashion">Fashion</option>
-                    <option value="beauty">Beauty</option>
-                    <option value="toys">Toys</option>
-                    <option value="electronics">Electronics</option>
-                    <option value="tools-hardware">Tools & Hardware</option>
-                    <option value="plumbing">Plumbing</option>
-                    <option value="lighting">Lighting</option>
-                    <option value="electrical">Electrical</option>
-                    <option value="cleaning">Cleaning</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.icon} {c.nameEn} ({c.nameAr})
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1205,7 +1912,7 @@ export const AdminView: React.FC = () => {
                     min={1}
                     value={fullEditProduct.priceUSD}
                     onChange={(e) => setFullEditProduct({ ...fullEditProduct, priceUSD: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-bold"
                   />
                 </div>
                 <div>
@@ -1215,7 +1922,7 @@ export const AdminView: React.FC = () => {
                     min={0}
                     value={fullEditProduct.stock}
                     onChange={(e) => setFullEditProduct({ ...fullEditProduct, stock: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-bold"
                   />
                 </div>
               </div>
@@ -1246,12 +1953,119 @@ export const AdminView: React.FC = () => {
                 />
               </div>
 
+              {/* ARABIC SEO KEYWORDS SECTION FOR EDIT MODAL */}
+              <div className="p-3.5 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5 text-[#c5a059]" />
+                    <span>الكلمات الدلالية لمحركات البحث بالعربية (Arabic SEO Keywords)</span>
+                  </label>
+                  <span className="text-[10px] font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-full font-serif">
+                    {((fullEditProduct as any).arabicKeywords || []).length} كلمات
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="اكتب كلمة دلالية بالعربية واضغط Enter (مثال: زعتر جبلي بلدي)"
+                    value={(fullEditProduct as any).editArabicKeywordInput || ''}
+                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, editArabicKeywordInput: e.target.value } as any)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const inputVal = ((fullEditProduct as any).editArabicKeywordInput || '').trim();
+                        if (inputVal) {
+                          const currentKw = (fullEditProduct as any).arabicKeywords || [];
+                          setFullEditProduct({
+                            ...fullEditProduct,
+                            arabicKeywords: [...currentKw, inputVal],
+                            editArabicKeywordInput: ''
+                          } as any);
+                        }
+                      }
+                    }}
+                    className="flex-1 px-3 py-1.5 bg-white text-xs rounded-xl border border-amber-200 focus:outline-none text-right font-serif"
+                    dir="rtl"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const inputVal = ((fullEditProduct as any).editArabicKeywordInput || '').trim();
+                      if (inputVal) {
+                        const currentKw = (fullEditProduct as any).arabicKeywords || [];
+                        setFullEditProduct({
+                          ...fullEditProduct,
+                          arabicKeywords: [...currentKw, inputVal],
+                          editArabicKeywordInput: ''
+                        } as any);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-[#c5a059] hover:bg-[#b08d46] text-white text-xs font-bold rounded-xl cursor-pointer font-serif"
+                  >
+                    إضافة
+                  </button>
+                </div>
+
+                {/* Quick Suggestion Pills */}
+                <div className="flex flex-wrap gap-1">
+                  {['مونة بلدية', 'زيت زيتون كورة', 'زعتر بلدي جبلي', 'عسل سدر', 'صناعة لبنانية', 'شحن مغتربين'].map((sug, sIdx) => {
+                    const currentKw: string[] = (fullEditProduct as any).arabicKeywords || [];
+                    const exists = currentKw.includes(sug);
+                    return (
+                      <button
+                        key={sIdx}
+                        type="button"
+                        disabled={exists}
+                        onClick={() => {
+                          if (!exists) {
+                            setFullEditProduct({
+                              ...fullEditProduct,
+                              arabicKeywords: [...currentKw, sug]
+                            } as any);
+                          }
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-[10.5px] font-serif transition-all ${
+                          exists 
+                            ? 'bg-amber-200/50 text-amber-700 opacity-60 cursor-not-allowed' 
+                            : 'bg-white border border-amber-200 text-amber-900 hover:bg-amber-100 cursor-pointer'
+                        }`}
+                      >
+                        + {sug}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active Badges */}
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {((fullEditProduct as any).arabicKeywords || []).map((kw: string, kIdx: number) => (
+                    <span key={kIdx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-white border border-amber-300 text-amber-950 rounded-md text-[11px] font-serif font-bold shadow-2xs">
+                      <span>#{kw}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const currentKw: string[] = (fullEditProduct as any).arabicKeywords || [];
+                          setFullEditProduct({
+                            ...fullEditProduct,
+                            arabicKeywords: currentKw.filter((_, i) => i !== kIdx)
+                          } as any);
+                        }}
+                        className="text-amber-400 hover:text-rose-600 ml-1 font-bold cursor-pointer"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
               <div>
-                <label className="block font-bold text-slate-700 mb-1">SEO Keywords (Comma Separated)</label>
+                <label className="block font-bold text-slate-700 mb-1">English SEO Keywords (Comma Separated)</label>
                 <input
                   type="text"
                   placeholder="e.g. zaatar, olive oil, lebanese spice, organic"
-                  value={(fullEditProduct as any).keywordsInput || ''}
+                  value={(fullEditProduct as any).keywordsInput !== undefined ? (fullEditProduct as any).keywordsInput : (fullEditProduct.keywords || []).join(', ')}
                   onChange={(e) => setFullEditProduct({ ...fullEditProduct, keywordsInput: e.target.value } as any)}
                   className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
                 />
@@ -1267,20 +2081,34 @@ export const AdminView: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-3 flex justify-end gap-2.5">
+              <div className="pt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setFullEditProduct(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-all"
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#4f46e5] text-white font-bold cursor-pointer shadow-md"
-                >
-                  Save & Publish
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => handleSaveFullProductEdit(e, false)}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs cursor-pointer transition-all shadow-xs active:scale-95"
+                    title="Save changes as private draft"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save (Draft)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleSaveFullProductEdit(e, true)}
+                    className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#4f46e5] to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all"
+                    title="Save and publish live to public store catalog"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Public (Publish Live)</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

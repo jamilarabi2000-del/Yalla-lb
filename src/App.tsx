@@ -16,7 +16,7 @@ const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({
 const AdminView = lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
 
 const MainAppContent: React.FC = () => {
-  const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast, siteContent } = useShop();
+  const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast, siteContent, selectedCategory, setSelectedCategory } = useShop();
   const isPopStateRef = useRef(false);
 
   // Dynamically update SEO metadata
@@ -44,6 +44,11 @@ const MainAppContent: React.FC = () => {
     }
   }, []);
 
+  const productsRef = useRef(products);
+  productsRef.current = products;
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
   // Sync route / path from URL on initial mount & browser back/forward buttons
   useEffect(() => {
     const syncRouteFromUrl = () => {
@@ -52,30 +57,36 @@ const MainAppContent: React.FC = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const isAdminQuery = searchParams.get('admin') === 'true' || searchParams.has('admin');
 
-      if (isAdminQuery || path === 'admin' || path === 'admin.html') {
+      if (isAdminQuery || path === 'admin' || path.startsWith('admin/') || path === 'admin.html') {
         setSelectedProductDetail(null);
         setActiveTab('admin');
       } else if (path.startsWith('product/')) {
         const prodId = path.replace('product/', '');
-        const foundProduct = products.find(p => p.id === prodId);
+        const foundProduct = productsRef.current.find(p => p.id === prodId);
         if (foundProduct) {
           openProductDetail(foundProduct);
         }
-      } else if (path === 'products' || path === 'checkout' || path === 'account' || path === 'favorites' || path === 'home' || path === '') {
+      } else if (path.startsWith('products')) {
+        setSelectedProductDetail(null);
+        setActiveTab('products');
+        const catMatch = path.match(/^products\/(.+)$/);
+        if (catMatch) {
+          setSelectedCategory(decodeURIComponent(catMatch[1]));
+        } else {
+          setSelectedCategory('all');
+        }
+      } else if (path === 'checkout' || path === 'account' || path === 'favorites' || path === 'home' || path === '') {
         const targetTab = (path === '' || path === 'home' ? 'home' : path) as any;
-        if (activeTab !== targetTab) {
+        if (activeTabRef.current !== targetTab) {
           setSelectedProductDetail(null);
           setActiveTab(targetTab);
         }
       }
     };
 
-    // Execute immediately on initial mount
-    syncRouteFromUrl();
-
     window.addEventListener('popstate', syncRouteFromUrl);
     return () => window.removeEventListener('popstate', syncRouteFromUrl);
-  }, [products, openProductDetail, setActiveTab, setSelectedProductDetail]);
+  }, [openProductDetail, setActiveTab, setSelectedProductDetail, setSelectedCategory]);
 
   // Sync browser URL when activeTab or selectedProductDetail changes
   useEffect(() => {
@@ -86,6 +97,12 @@ const MainAppContent: React.FC = () => {
     let targetPath = activeTab === 'home' ? '' : activeTab;
     if (activeTab === 'product_detail' && selectedProductDetail) {
       targetPath = `product/${selectedProductDetail.id}`;
+    } else if (activeTab === 'products' && selectedCategory && selectedCategory !== 'all') {
+      targetPath = `products/${encodeURIComponent(selectedCategory)}`;
+    }
+    // If active tab is admin and the current URL already has an admin path/sub-path, preserve it
+    if (activeTab === 'admin' && window.location.pathname.startsWith('/admin')) {
+      return;
     }
     const targetUrl = targetPath === '' || targetPath === 'home' ? '/' : `/${targetPath}`;
 
@@ -95,7 +112,7 @@ const MainAppContent: React.FC = () => {
         : 0;
       window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', targetUrl);
     }
-  }, [activeTab, selectedProductDetail]);
+  }, [activeTab, selectedProductDetail, selectedCategory]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1a1a2e] text-slate-100 selection:bg-[#c5a059] selection:text-[#1a1a2e] font-sans antialiased">

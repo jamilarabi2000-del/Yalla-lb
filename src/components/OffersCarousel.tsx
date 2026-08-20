@@ -219,7 +219,7 @@ export const OffersCarousel: React.FC = () => {
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-            {siteContent?.offers?.sectionTitle || (
+            {siteContent?.offers?.sectionTitle ?? (
               language === 'ar' ? (
                 <>العروض والحملات <span className="gold-gradient font-serif italic">الإعلانية</span></>
               ) : (
@@ -228,7 +228,7 @@ export const OffersCarousel: React.FC = () => {
             )}
           </h2>
           <p className="text-xs text-slate-500 mt-1 max-w-xl">
-            {siteContent?.offers?.sectionSubtitle || t('promotionsSubtitle')}
+            {siteContent?.offers?.sectionSubtitle ?? t('promotionsSubtitle')}
           </p>
         </div>
       </div>

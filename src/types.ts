@@ -5,6 +5,8 @@ export interface Product {
   name: string;
   arabicName?: string;
   artisan: string;
+  seller?: string;
+  arabicSeller?: string;
   origin: string; // e.g. "Beirut Central", "Tripoli", "Koura", "Batroun"
   category: string;
   priceUSD: number;
@@ -22,7 +24,38 @@ export interface Product {
   isPublished?: boolean; // Admin can publish/hide individual products
   tags: string[];
   keywords?: string[];
+  arabicKeywords?: string[];
+  seoTitle?: string;
+  seoArabicTitle?: string;
+  seoDescription?: string;
+  seoArabicDescription?: string;
   weightOrVolume?: string;
+}
+
+export interface CategoryItem {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  icon: string;
+  description: string;
+  descriptionAr?: string;
+  subcategories: string[];
+  bannerUrl: string;
+  arabicKeywords?: string[];
+  englishKeywords?: string[];
+  isPublished?: boolean;
+  displayOrder?: number;
+}
+
+export interface TerroirRegion {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  majorCities: string[];
+  expressAvailable: boolean;
+  baseDeliveryUSD: number;
+  estimatedTimeEn?: string;
+  estimatedTimeAr?: string;
 }
 
 export interface CartItem {
@@ -202,7 +235,11 @@ export interface SectionVisibilityConfig {
 export interface SiteContent {
   seo?: {
     title: string;
+    arabicTitle?: string;
     description: string;
+    arabicDescription?: string;
+    keywords?: string[];
+    arabicKeywords?: string[];
   };
   visibility: SectionVisibilityConfig;
   customBlocks: CMSCustomBlock[];
@@ -322,7 +359,7 @@ export interface SiteContent {
 export interface RecentActivity {
   id: string;
   timestamp: string; // ISO 8601 string
-  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'meta_change' | 'cms_update';
+  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'meta_change' | 'cms_update' | 'category_create' | 'category_update' | 'category_delete' | 'region_update';
   summary: string;
   details: string;
   adminEmail: string;

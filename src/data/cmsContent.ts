@@ -1,6 +1,14 @@
 import { SiteContent } from '../types';
 
 export const DEFAULT_SITE_CONTENT: SiteContent = {
+  seo: {
+    title: 'Yalla.lb - Authentic Lebanese Craftsmanship & Terroir Marketplace',
+    arabicTitle: 'يلا لبنان - السوق الحرفي والمونة اللبنانية الأصيلة',
+    description: 'Shop authentic Lebanese mouneh, artisan blown glass, cedar honey, Koura olive oil, and Levantine heritage crafts directly from Lebanese cooperatives with express worldwide shipping.',
+    arabicDescription: 'اكتشف وتسوق أفضل منتجات المونة اللبنانية، زيت زيتون الكورة، عسل السدر، الزعتر البري، والحرف اليدوية الأصيلة من الحرفيين والتعاونيات اللبنانية مع توصيل سريع.',
+    keywords: ['Lebanese artisanal', 'mouneh', 'olive oil lebanon', 'zaatar', 'beirut crafts', 'cedar honey', 'tripoli soap', 'diaspora lebanon'],
+    arabicKeywords: ['مونة لبنانية', 'زيت زيتون كورة', 'زعتر بلدي', 'عسل سدر لبناني', 'صابون غار طرابلس', 'حرف يدوية لبنانية', 'شحن مغتربين', 'صناعة لبنانية أصيلة']
+  },
   visibility: {
     // Navbar & Global
     announcementTicker: true,

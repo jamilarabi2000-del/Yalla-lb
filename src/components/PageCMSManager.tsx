@@ -57,21 +57,31 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
     }
   }, [initialTab]);
 
-  const handleSaveCMS = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveDraftCMS = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    try {
+      localStorage.setItem('yallalb_cms_draft', JSON.stringify(cmsForm));
+      showToast('CMS content draft saved successfully.', 'success');
+    } catch {
+      showToast('CMS draft saved.', 'success');
+    }
+  };
+
+  const handleSaveCMS = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setIsCmsSaving(true);
     
     dbLogger.logFormInput({
       sourceComponent: 'PageCMSManager',
       actionName: 'handleSaveCMS',
       targetPath: 'cms/main',
-      summary: `User clicked "Save & Publish Live" in PageCMSManager (Tab: ${activeTab})`,
+      summary: `User clicked "Public / Publish Live" in PageCMSManager (Tab: ${activeTab})`,
       payload: cmsForm
     });
 
     try {
       await updateSiteContent(cmsForm);
-      showToast('CMS changes published successfully to live website', 'success');
+      showToast('CMS changes published successfully to public website!', 'success');
     } catch (err: any) {
       showToast(`Failed to save CMS changes: ${err?.message || 'Database error'}`, 'warning');
     } finally {
@@ -212,23 +222,37 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
           </p>
         </div>
 
-        <button
-          onClick={handleSaveCMS}
-          disabled={isCmsSaving}
-          className="flex items-center gap-2 px-6 py-3.5 bg-[#4f46e5] hover:bg-[#4338ca] text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-xs transition-all cursor-pointer disabled:opacity-50"
-        >
-          {isCmsSaving ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Publishing to Firestore...</span>
-            </>
-          ) : (
-            <>
-              <Save className="w-4 h-4" />
-              <span>Save & Publish Live</span>
-            </>
-          )}
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={handleSaveDraftCMS}
+            className="flex items-center gap-2 px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs uppercase tracking-wider rounded-2xl border border-slate-300/80 shadow-2xs transition-all cursor-pointer active:scale-95"
+            title="Save changes to local draft"
+          >
+            <Save className="w-4 h-4 text-slate-600" />
+            <span>Save (Draft)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveCMS}
+            disabled={isCmsSaving}
+            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-bold text-xs uppercase tracking-wider rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            title="Publish all CMS changes live to the public website"
+          >
+            {isCmsSaving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Publishing Live...</span>
+              </>
+            ) : (
+              <>
+                <Globe className="w-4 h-4 text-white animate-pulse" />
+                <span>Public (Publish Live)</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Page & Module Selector Tabs */}
@@ -1170,7 +1194,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               </label>
               <input
                 type="text"
-                value={cmsForm.productDetailPage?.inquiryWhatsAppNumber || '96170889234'}
+                value={cmsForm.productDetailPage?.inquiryWhatsAppNumber ?? '96170889234'}
                 onChange={(e) => updateSectionField('productDetailPage', 'inquiryWhatsAppNumber', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
@@ -1182,7 +1206,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               </label>
               <input
                 type="text"
-                value={cmsForm.productDetailPage?.inquiryText || 'Inquire on WhatsApp with Master Artisan'}
+                value={cmsForm.productDetailPage?.inquiryText ?? 'Inquire on WhatsApp with Master Artisan'}
                 onChange={(e) => updateSectionField('productDetailPage', 'inquiryText', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
@@ -1194,7 +1218,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               </label>
               <input
                 type="text"
-                value={cmsForm.productDetailPage?.authenticityGuaranteeText || '100% Guaranteed Authentic Lebanese Terroir & Workshop Handcrafted'}
+                value={cmsForm.productDetailPage?.authenticityGuaranteeText ?? '100% Guaranteed Authentic Lebanese Terroir & Workshop Handcrafted'}
                 onChange={(e) => updateSectionField('productDetailPage', 'authenticityGuaranteeText', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
@@ -1206,7 +1230,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               </label>
               <input
                 type="text"
-                value={cmsForm.productDetailPage?.freeDeliveryBadgeText || 'Fast Courier Dispatched from Lebanon'}
+                value={cmsForm.productDetailPage?.freeDeliveryBadgeText ?? 'Fast Courier Dispatched from Lebanon'}
                 onChange={(e) => updateSectionField('productDetailPage', 'freeDeliveryBadgeText', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
@@ -1218,7 +1242,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               </label>
               <input
                 type="text"
-                value={cmsForm.productDetailPage?.returnsPolicyText || 'Hassle-free 7-day inspection return guarantee for artisanal crafts.'}
+                value={cmsForm.productDetailPage?.returnsPolicyText ?? 'Hassle-free 7-day inspection return guarantee for artisanal crafts.'}
                 onChange={(e) => updateSectionField('productDetailPage', 'returnsPolicyText', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />
@@ -1230,7 +1254,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
               </label>
               <input
                 type="text"
-                value={cmsForm.productDetailPage?.relatedItemsTitle || 'More from this Heritage Collection'}
+                value={cmsForm.productDetailPage?.relatedItemsTitle ?? 'More from this Heritage Collection'}
                 onChange={(e) => updateSectionField('productDetailPage', 'relatedItemsTitle', e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
               />

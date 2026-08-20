@@ -151,7 +151,7 @@ export const ProductsView: React.FC = () => {
                   <span>{t('verifiedProvenance')}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                  {siteContent?.productsPage?.title || (
+                  {siteContent?.productsPage?.title ?? (
                     language === 'ar' ? (
                       <>كتالوج المنتجات الحرفية <span className="text-amber-400 font-serif italic">اللبنانية</span></>
                     ) : (
@@ -160,7 +160,7 @@ export const ProductsView: React.FC = () => {
                   )}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1">
-                  {siteContent?.productsPage?.subtitle || (
+                  {siteContent?.productsPage?.subtitle ?? (
                     language === 'ar' 
                       ? 'اكتشف المؤونة الغذائية، والحرف اليدوية التراثية، وزيت الزيتون العضوي، والمنتجات المحلية المباشرة من جميع المناطق اللبنانية.'
                       : 'Discover culinary treasures, heirloom handcrafts, organic olive oils, and artisanal creations directly sourced across Lebanon.'
@@ -186,7 +186,7 @@ export const ProductsView: React.FC = () => {
                   id="products-search-input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={siteContent?.productsPage?.searchPlaceholder || t('searchPlaceholder')}
+                  placeholder={siteContent?.productsPage?.searchPlaceholder ?? t('searchPlaceholder')}
                   className={`w-full ${language === 'ar' ? 'pr-11 pl-20' : 'pl-11 pr-20'} py-3.5 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-2xl border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none transition-all shadow-lg font-medium`}
                 />
                 {searchQuery && (
