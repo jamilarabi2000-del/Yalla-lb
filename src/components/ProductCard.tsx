@@ -10,7 +10,7 @@ interface ProductCardProps {
   isFavoriteView?: boolean;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, showRemoveButton, onRemove, isFavoriteView }) => {
+const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveButton, onRemove, isFavoriteView }) => {
   const { 
     formatPrice, 
     openProductDetail,
@@ -171,4 +171,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, showRemoveBut
     </div>
   );
 };
+
+export const ProductCard = React.memo(ProductCardComponent);
+
 

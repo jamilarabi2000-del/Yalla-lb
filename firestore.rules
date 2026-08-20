@@ -34,12 +34,12 @@ service cloud.firestore {
     // Orders: a customer reads/lists only their own; only admins list all.
     match /orders/{orderId} {
       allow get: if isAdmin()
-        || (isSignedIn() && resource.data.userId == request.auth.uid)
-        || (!isSignedIn() && resource.data.userId == 'guest');
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow list: if isAdmin() 
         || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if (isSignedIn() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending')
-        || (!isSignedIn() && request.resource.data.userId == 'guest' && request.resource.data.status == 'pending');
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
       allow update, delete: if isAdmin();
     }
 

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule } from '../types';
+import { applyDiscounts } from '../lib/pricing';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
 import { LBP_USD_RATE } from '../data/regions';
@@ -89,7 +90,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     path,
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(`Database error during ${operationType} on ${path || 'unknown'}: ${errorMessage}`);
+  return `Database error during ${operationType} on ${path || 'unknown'}: ${errorMessage}`;
 }
 
 interface Toast {
@@ -233,6 +234,12 @@ interface ShopContextType {
 
   // Discounts & Promos
   discountRules: DiscountRule[];
+  appliedCouponCode: string;
+  applyCoupon: (code: string) => boolean;
+  removeCoupon: () => void;
+  discountUSD: number;
+  finalCartTotalUSD: number;
+  appliedDiscountRules: { rule: DiscountRule; savedUSD: number }[];
   addDiscountRule: (rule: Omit<DiscountRule, 'id'>) => Promise<void>;
   updateDiscountRule: (id: string, updates: Partial<DiscountRule>) => Promise<void>;
   deleteDiscountRule: (id: string) => Promise<void>;
@@ -1536,11 +1543,73 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setWishlist([]);
   };
 
-  const cartTotalUSD = Math.round(cart.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
+  const rawSubtotalUSD = Math.round(cart.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Place Order - Saves directly to Firestore database for both guests and authenticated patrons
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string>(() => {
+    try {
+      return localStorage.getItem('yallalb_applied_coupon') || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (appliedCouponCode) {
+        localStorage.setItem('yallalb_applied_coupon', appliedCouponCode);
+      } else {
+        localStorage.removeItem('yallalb_applied_coupon');
+      }
+    } catch {}
+  }, [appliedCouponCode]);
+
+  const discountCalculation = useMemo(() => {
+    return applyDiscounts(cart, discountRules, appliedCouponCode);
+  }, [cart, discountRules, appliedCouponCode]);
+
+  const discountUSD = discountCalculation.discountUSD;
+  const finalCartTotalUSD = discountCalculation.finalSubtotalUSD;
+  const appliedDiscountRules = discountCalculation.appliedRules;
+
+  // Maintain cartTotalUSD as the effective total for backwards-compatible consumers
+  const cartTotalUSD = finalCartTotalUSD;
+
+  const applyCoupon = useCallback((code: string): boolean => {
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) return false;
+    const testResult = applyDiscounts(cart, discountRules, normalized);
+    if (testResult.discountUSD > 0) {
+      setAppliedCouponCode(normalized);
+      showToast(
+        language === 'ar' 
+          ? `تم تطبيق الكوبون (${normalized}) بنجاح! وفرت $${testResult.discountUSD.toFixed(2)}` 
+          : `Coupon (${normalized}) applied! You saved $${testResult.discountUSD.toFixed(2)}`,
+        'success'
+      );
+      return true;
+    } else {
+      showToast(
+        language === 'ar' 
+          ? 'رمز الكوبون غير صالح أو لم يستوفِ الحد الأدنى للشراء' 
+          : 'Coupon is invalid or does not meet minimum order requirements',
+        'warning'
+      );
+      return false;
+    }
+  }, [cart, discountRules, language]);
+
+  const removeCoupon = useCallback(() => {
+    setAppliedCouponCode('');
+    showToast(language === 'ar' ? 'تمت إزالة الكوبون' : 'Coupon code removed', 'info');
+  }, [language]);
+
+  // Place Order - Authenticated customer order creation
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
+    if (!firebaseUser) {
+      throw new Error('Please sign in or create an account to place your order.');
+    }
+
     const orderDocRef = doc(collection(db, 'orders'));
     const orderId = orderDocRef.id;
     const trackingSuffix = Math.floor(100000 + Math.random() * 900000);
@@ -1550,7 +1619,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       date: new Date().toISOString(),
       trackingNumber: `LB-EXP-${trackingSuffix}`,
       status: 'pending',
-      userId: firebaseUser ? firebaseUser.uid : 'guest'
+      userId: firebaseUser.uid
     };
 
     const sanitizedOrder = sanitizeFirestorePayload(newOrder);
@@ -2082,6 +2151,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     recentActivities,
     logAdminActivity,
     discountRules,
+    appliedCouponCode,
+    applyCoupon,
+    removeCoupon,
+    discountUSD,
+    finalCartTotalUSD,
+    appliedDiscountRules,
     addDiscountRule,
     updateDiscountRule,
     deleteDiscountRule
@@ -2109,7 +2184,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isVisualEditMode,
     isAdminUnlocked,
     recentActivities,
-    discountRules
+    discountRules,
+    appliedCouponCode,
+    applyCoupon,
+    removeCoupon,
+    discountUSD,
+    finalCartTotalUSD,
+    appliedDiscountRules
   ]);
 
   return (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import { PaymentMethod } from '../types';
+import { LEBANON_REGIONS, GovernorateOption } from '../data/regions';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
 import { 
@@ -22,13 +23,20 @@ import {
   UserCheck,
   AlertCircle,
   Mail,
-  Check
+  Check,
+  Tag,
+  Percent
 } from 'lucide-react';
 
 export const CheckoutView: React.FC = () => {
   const { 
     cart, 
     cartTotalUSD, 
+    discountUSD,
+    appliedCouponCode,
+    applyCoupon,
+    removeCoupon,
+    appliedDiscountRules,
     formatPrice, 
     currency, 
     setActiveTab, 
@@ -48,6 +56,8 @@ export const CheckoutView: React.FC = () => {
   } = useShop();
 
   const isArabic = language === 'ar';
+  const [checkoutCouponInput, setCheckoutCouponInput] = useState('');
+  const [isApplyingCheckoutCoupon, setIsApplyingCheckoutCoupon] = useState(false);
 
   const [deliverySpeed, setDeliverySpeed] = useState<'express_beirut' | 'standard' | 'diaspora_air'>('express_beirut');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod_usd');
@@ -224,8 +234,18 @@ export const CheckoutView: React.FC = () => {
     'Saida, South'
   ];
 
-  // Delivery fee calculation
-  const deliveryFeeUSD = deliverySpeed === 'express_beirut' ? 3.0 : deliverySpeed === 'standard' ? 2.0 : 25.0;
+  // Region & Delivery fee calculation
+  const matchedRegion = LEBANON_REGIONS.find(r => 
+    r.id === user?.defaultGovernorate ||
+    r.majorCities.some(c => (formData.city || '').toLowerCase().includes(c.toLowerCase().split(' ')[0]))
+  ) || LEBANON_REGIONS[0];
+
+  const deliveryFeeUSD = deliverySpeed === 'express_beirut' 
+    ? (matchedRegion.expressAvailable ? matchedRegion.baseDeliveryUSD : matchedRegion.baseDeliveryUSD + 1.5)
+    : deliverySpeed === 'standard' 
+    ? matchedRegion.baseDeliveryUSD 
+    : 28.0;
+
   const finalTotalUSD = cartTotalUSD + (cart.length > 0 ? deliveryFeeUSD : 0);
 
   // Sign In Handler from Checkout
@@ -366,7 +386,7 @@ export const CheckoutView: React.FC = () => {
           lastName: formData.lastName.trim(),
           phone: formData.phone,
           email: formData.email || firebaseUser.email || `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}@example.com`,
-          governorate: 'beirut',
+          governorate: matchedRegion.nameEn,
           city: formData.city,
           street: formData.street,
           building: formData.building,
@@ -1028,12 +1048,78 @@ export const CheckoutView: React.FC = () => {
                   ))}
                 </div>
 
+                {/* Coupon Code Section in Checkout */}
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-[#96783d]" />
+                      <span>{isArabic ? 'كوبون الخصم' : 'Discount Coupon'}</span>
+                    </span>
+                    {appliedCouponCode && (
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                        {appliedCouponCode}
+                      </span>
+                    )}
+                  </div>
+
+                  {appliedCouponCode ? (
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs">
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-medium text-[11px]">
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>{isArabic ? `تم توفير ${formatPrice(discountUSD)}` : `Saved ${formatPrice(discountUSD)}`}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={removeCoupon}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-white px-2 py-0.5 rounded-md border border-rose-200 cursor-pointer"
+                      >
+                        {isArabic ? 'إلغاء' : 'Remove'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={checkoutCouponInput}
+                        onChange={(e) => setCheckoutCouponInput(e.target.value.toUpperCase())}
+                        placeholder={isArabic ? 'مثال: KOURA15' : 'e.g. KOURA15'}
+                        className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 font-mono uppercase focus:bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (checkoutCouponInput.trim()) {
+                            setIsApplyingCheckoutCoupon(true);
+                            applyCoupon(checkoutCouponInput);
+                            setIsApplyingCheckoutCoupon(false);
+                            setCheckoutCouponInput('');
+                          }
+                        }}
+                        disabled={isApplyingCheckoutCoupon || !checkoutCouponInput.trim()}
+                        className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-[#a37f35] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                      >
+                        {isArabic ? 'تطبيق' : 'Apply'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Totals Calculation */}
-                <div className="pt-4 border-t border-slate-100 space-y-2 text-xs">
+                <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
                   <div className="flex justify-between text-slate-600">
                     <span>{isArabic ? 'مجموع المنتجات' : 'Products Subtotal'}</span>
-                    <span className="font-bold">{formatPrice(cartTotalUSD)}</span>
+                    <span className="font-bold">{formatPrice(Math.round(cart.reduce((s, i) => s + i.product.priceUSD * i.quantity, 0) * 100) / 100)}</span>
                   </div>
+
+                  {discountUSD > 0 && (
+                    <div className="flex justify-between text-emerald-600 font-bold">
+                      <span className="flex items-center gap-1">
+                        <Percent className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'الخصم المطبق' : 'Applied Discount'}</span>
+                      </span>
+                      <span>-{formatPrice(discountUSD)}</span>
+                    </div>
+                  )}
 
                   <div className="flex justify-between text-slate-600">
                     <span>{isArabic ? 'أجور التوصيل والشحن' : 'Delivery Courier Fee'}</span>

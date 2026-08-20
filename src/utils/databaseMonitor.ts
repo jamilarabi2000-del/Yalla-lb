@@ -392,6 +392,8 @@ class DatabaseMonitorService {
   }
 
   private printConsoleLog(record: FirestoreLogRecord) {
+    if (!import.meta.env.DEV) return;
+
     const statusEmoji: Record<OperationStatus, string> = {
       PENDING: '⏳',
       SUCCESS: '✅',

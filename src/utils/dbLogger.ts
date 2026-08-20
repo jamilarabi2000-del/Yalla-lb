@@ -131,6 +131,8 @@ class DatabaseLoggerService {
   }
 
   private printToConsole(entry: DataFlowLogEntry) {
+    if (!import.meta.env.DEV) return;
+
     const stageIcons: Record<DataFlowStage, string> = {
       STAGE_1_FORM_INPUT: '📝',
       STAGE_2_SANITIZATION: '🧹',

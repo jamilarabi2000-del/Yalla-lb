@@ -137,10 +137,9 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
                 )}
 
                 {block.content && (
-                  <div 
-                    className="text-xs sm:text-sm text-slate-400 leading-relaxed font-light"
-                    dangerouslySetInnerHTML={{ __html: block.content }}
-                  />
+                  <p className="text-xs sm:text-sm text-slate-400 leading-relaxed font-light whitespace-pre-line">
+                    {block.content}
+                  </p>
                 )}
               </div>
 

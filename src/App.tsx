@@ -1,18 +1,19 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, Suspense, lazy } from 'react';
 import { ShopProvider, useShop } from './context/ShopContext';
 import { Navbar } from './components/Navbar';
 import { HomeView } from './components/HomeView';
 import { ProductsView } from './components/ProductsView';
-import { CheckoutView } from './components/CheckoutView';
 import { AccountView } from './components/AccountView';
 import { FavoritesView } from './components/FavoritesView';
-import { AdminView } from './components/AdminView';
 import { AdminErrorBoundary } from './components/AdminErrorBoundary';
 import { ProductDetailView } from './components/ProductDetailView';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
-import { CheckCircle2, AlertCircle, Info, Sparkles } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, Sparkles, Loader2 } from 'lucide-react';
+
+const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({ default: m.CheckoutView })));
+const AdminView = lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
 
 const MainAppContent: React.FC = () => {
   const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast, siteContent } = useShop();
@@ -150,12 +151,26 @@ const MainAppContent: React.FC = () => {
         {activeTab === 'home' && <HomeView />}
         {activeTab === 'products' && <ProductsView />}
         {activeTab === 'product_detail' && <ProductDetailView />}
-        {activeTab === 'checkout' && <CheckoutView />}
+        {activeTab === 'checkout' && (
+          <Suspense fallback={
+            <div className="min-h-[60vh] flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-[#96783d]" />
+            </div>
+          }>
+            <CheckoutView />
+          </Suspense>
+        )}
         {activeTab === 'account' && <AccountView />}
         {activeTab === 'favorites' && <FavoritesView />}
         {activeTab === 'admin' && (
           <AdminErrorBoundary>
-            <AdminView />
+            <Suspense fallback={
+              <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+              </div>
+            }>
+              <AdminView />
+            </Suspense>
           </AdminErrorBoundary>
         )}
       </main>
