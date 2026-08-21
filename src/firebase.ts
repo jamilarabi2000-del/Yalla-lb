@@ -5,16 +5,20 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   inMemoryPersistence,
-  GoogleAuthProvider, 
+  GoogleAuthProvider,
+  OAuthProvider, 
   signInWithPopup, 
   signOut, 
   onAuthStateChanged, 
   User as FirebaseUser, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  sendPasswordResetEmail 
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  fetchSignInMethodsForEmail
 } from 'firebase/auth';
 import { initializeFirestore, getFirestore, memoryLocalCache, setLogLevel } from 'firebase/firestore';
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
 // Suppress transient connection info messages in console but keep warnings in development
 try {
@@ -36,9 +40,25 @@ const firebaseConfig = {
 };
 
 // Toggle switch to decouple active database calls to bypass project locked / billing requirements
-export const IS_FIREBASE_ENABLED = !import.meta.env.DEV ? true : (import.meta.env.VITE_USE_FIREBASE !== 'false');
+export const IS_FIREBASE_ENABLED = import.meta.env.PROD ? true : (import.meta.env.VITE_USE_FIREBASE !== 'false');
 
 const app = initializeApp(firebaseConfig);
+
+// M-4: Initialize App Check with reCAPTCHA Enterprise
+if (typeof window !== 'undefined') {
+  const siteKey = firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+  if (siteKey) {
+    try {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(siteKey),
+        isTokenAutoRefreshEnabled: true
+      });
+      console.log("[Firebase] App Check registered with reCAPTCHA Enterprise!");
+    } catch (err) {
+      console.warn("[Firebase] Non-blocking App Check registration note:", err);
+    }
+  }
+}
 
 let firestoreInstance;
 try {
@@ -56,19 +76,12 @@ try {
 
 let authInstance;
 try {
-  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
-  if (isIframe) {
-    authInstance = initializeAuth(app, {
-      persistence: [inMemoryPersistence, browserSessionPersistence]
-    });
-  } else {
-    authInstance = initializeAuth(app, {
-      persistence: [browserLocalPersistence, browserSessionPersistence]
-    });
-  }
+  authInstance = getAuth(app);
 } catch (e) {
   try {
-    authInstance = getAuth(app);
+    authInstance = initializeAuth(app, {
+      persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence]
+    });
   } catch (err) {
     console.error("Firebase Auth fallback critical error:", err);
   }
@@ -77,7 +90,8 @@ try {
 export const db = firestoreInstance;
 export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
+export const appleProvider = new OAuthProvider('apple.com');
 
-export { signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail };
+export { GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail };
 export type { FirebaseUser };
 

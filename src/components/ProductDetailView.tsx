@@ -67,7 +67,8 @@ export const ProductDetailView: React.FC = () => {
     user,
     setActiveTab,
     setSearchQuery,
-    setSelectedCategory
+    setSelectedCategory,
+    orders
   } = useShop();
 
   const [quantity, setQuantity] = useState(1);
@@ -203,8 +204,40 @@ export const ProductDetailView: React.FC = () => {
     setSubmitError(null);
     setSubmitSuccess(false);
 
-    const userName = user?.name || firebaseUser?.email?.split('@')[0] || (language === 'ar' ? 'مستخدم زائر' : 'Guest User');
-    const newReviewId = `rev-${Date.now()}`;
+    // M-1: Protect user privacy, do not split/disclose unverified email addresses as usernames
+    const userName = user?.firstName && user?.lastName
+      ? `${user.firstName} ${user.lastName}`
+      : (user?.name && !user.name.includes('@')
+         ? user.name
+         : (language === 'ar' ? 'مشتري موثق' : 'Verified Buyer'));
+
+    if (IS_FIREBASE_ENABLED && !firebaseUser) {
+      setSubmitError(
+        language === 'ar'
+          ? 'يجب تسجيل الدخول لتقديم مراجعة.'
+          : 'You must be signed in to submit a review.'
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    // M-1: Bind reviews to fulfilled orders and to one per customer per product
+    const matchedOrder = orders.find(o => 
+      o.items.some(item => item.product.id === product.id)
+    );
+
+    if (IS_FIREBASE_ENABLED && !matchedOrder) {
+      setSubmitError(
+        language === 'ar'
+          ? 'عذراً، يمكنك فقط تقييم المنتجات التي قمت بشرائها من متجرنا.'
+          : 'Sorry, you can only review products that you have successfully purchased from our store.'
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    // M-1: Deterministic ID prevents multiple reviews and race conditions
+    const newReviewId = firebaseUser ? `${firebaseUser.uid}_${product.id}` : `rev-${Date.now()}`;
     const newReview: Review = {
       id: newReviewId,
       productId: product.id,
@@ -212,11 +245,15 @@ export const ProductDetailView: React.FC = () => {
       userName,
       rating: ratingInput,
       comment,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      orderId: matchedOrder?.id
     };
 
     // Optimistic Update: Instantly add the review to the UI and clear inputs
-    setReviews(prev => [newReview, ...prev]);
+    setReviews(prev => {
+      const filtered = prev.filter(r => r.id !== newReviewId);
+      return [newReview, ...filtered];
+    });
     setCommentInput('');
     setRatingInput(5);
     setSubmitSuccess(true);

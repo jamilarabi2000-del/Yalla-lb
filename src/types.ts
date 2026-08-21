@@ -98,6 +98,8 @@ export interface Order {
   status: OrderStatus;
   estimatedDelivery: string;
   trackingNumber: string;
+  discountUSD?: number;
+  appliedCoupon?: string;
 }
 
 export interface UserProfile {
@@ -113,6 +115,8 @@ export interface UserProfile {
   defaultAddress: string;
   defaultBuilding?: string;
   defaultNotes?: string;
+  emailVerified?: boolean;
+  isOtpVerified?: boolean;
 }
 
 export interface CMSOfferSlide {
@@ -373,6 +377,7 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: string; // ISO timestamp string
+  orderId?: string;
 }
 
 export interface DiscountRule {

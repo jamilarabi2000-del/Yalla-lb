@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { Product, OrderStatus, Order } from '../types';
 import { AdminSidebar, AdminMenuTab } from './admin/AdminSidebar';
 import { EcommerceOverview } from './admin/EcommerceOverview';
@@ -372,6 +373,21 @@ export const AdminView: React.FC = () => {
     keywordsInput: 'lebanese, artisanal, authentic, gourmet',
     arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
     newArabicKeywordInput: ''
+  });
+
+  const { containerRef: addProductModalRef } = useDialog({
+    isOpen: isAddModalOpen,
+    onClose: () => setIsAddModalOpen(false)
+  });
+
+  const { containerRef: editProductModalRef } = useDialog({
+    isOpen: !!fullEditProduct,
+    onClose: () => setFullEditProduct(null)
+  });
+
+  const { containerRef: invoiceModalRef } = useDialog({
+    isOpen: !!selectedInvoiceOrder,
+    onClose: () => setSelectedInvoiceOrder(null)
   });
 
   // Dynamic list of unique sellers/artisans across all products with product counts
@@ -1512,7 +1528,13 @@ export const AdminView: React.FC = () => {
       {/* Add Product Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white max-w-xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+          <div 
+            ref={addProductModalRef}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            className="bg-white max-w-xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">List New Lebanese Item</h3>
@@ -1805,7 +1827,13 @@ export const AdminView: React.FC = () => {
       {/* Full Edit Product Modal */}
       {fullEditProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+          <div 
+            ref={editProductModalRef}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Edit Product Details</h3>
@@ -2118,7 +2146,13 @@ export const AdminView: React.FC = () => {
       {/* Invoice Modal */}
       {selectedInvoiceOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white max-w-xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+          <div 
+            ref={invoiceModalRef}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            className="bg-white max-w-xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Courier Dispatch Invoice</h3>

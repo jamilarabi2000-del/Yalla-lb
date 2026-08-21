@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { 
    X, 
    Heart, 
@@ -29,6 +30,11 @@ export const ProductModal: React.FC = () => {
 
   const [quantity, setQuantity] = useState(1);
 
+  const { containerRef } = useDialog({
+    isOpen: !!selectedProductForModal,
+    onClose: () => setSelectedProductForModal(null)
+  });
+
   if (!selectedProductForModal) return null;
 
   const product = selectedProductForModal;
@@ -36,10 +42,7 @@ export const ProductModal: React.FC = () => {
   const displayTitle = language === 'ar' ? (product.arabicName || product.name) : product.name;
 
   const handleAddMultipleToCart = () => {
-    for (let i = 0; i < quantity; i++) {
-      addToCart(product);
-    }
-    showToast(`${t('added')} ${quantity} × ${displayTitle}`, 'success');
+    addToCart(product, quantity);
     setSelectedProductForModal(null);
   };
 
@@ -52,7 +55,13 @@ export const ProductModal: React.FC = () => {
       />
 
       {/* Modal Dialog Content */}
-      <div className="relative w-full max-w-3xl rounded-3xl bg-[#16162a] border border-[#c5a059]/30 overflow-hidden shadow-2xl z-10 my-8">
+      <div 
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative w-full max-w-3xl rounded-3xl bg-[#16162a] border border-[#c5a059]/30 overflow-hidden shadow-2xl z-10 my-8 focus:outline-hidden"
+      >
         
         {/* Close Button */}
         <button

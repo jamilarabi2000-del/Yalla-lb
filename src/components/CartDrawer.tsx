@@ -115,20 +115,20 @@ export const CartDrawer: React.FC = () => {
             <div className="mt-4 pt-3 border-t border-slate-200/80 space-y-1.5">
               <div className="flex justify-between items-center text-[11px] font-medium text-slate-700">
                 <span className="truncate pr-2">
-                  {cartTotalUSD >= 50 
+                  {rawSubtotal >= 50 
                     ? (language === 'ar' ? '🎉 تم فتح التوصيل السريع المجاني!' : '🎉 Free Beirut Express Delivery Unlocked!') 
                     : (language === 'ar' 
-                        ? `أضف ${formatPrice(50 - cartTotalUSD)} للحصول على توصيل مجاني`
-                        : `Add ${formatPrice(50 - cartTotalUSD)} for Free Delivery`)}
+                        ? `أضف ${formatPrice(50 - rawSubtotal)} للحصول على توصيل مجاني`
+                        : `Add ${formatPrice(50 - rawSubtotal)} for Free Delivery`)}
                 </span>
                 <span className="text-[#96783d] font-bold flex-shrink-0">
-                  {Math.min(100, Math.round((cartTotalUSD / 50) * 100))}%
+                  {Math.min(100, Math.round((rawSubtotal / 50) * 100))}%
                 </span>
               </div>
               <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-[#b89753] to-[#d4b572] transition-all duration-300 rounded-full"
-                  style={{ width: `${Math.min(100, (cartTotalUSD / 50) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (rawSubtotal / 50) * 100)}%` }}
                 />
               </div>
             </div>

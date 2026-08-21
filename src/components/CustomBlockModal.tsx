@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { CMSCustomBlock } from '../types';
 import { 
   X, 
@@ -42,6 +43,11 @@ export const CustomBlockModal: React.FC<CustomBlockModalProps> = ({
   const [position, setPosition] = useState<'top' | 'middle' | 'bottom'>('middle');
   const [isPublished, setIsPublished] = useState(true);
   const [order, setOrder] = useState(1);
+
+  const { containerRef } = useDialog({
+    isOpen,
+    onClose
+  });
 
   useEffect(() => {
     if (blockToEdit) {
@@ -116,8 +122,12 @@ export const CustomBlockModal: React.FC<CustomBlockModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
       <div 
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         id="custom-block-builder-modal"
-        className="bg-slate-900 border border-slate-700 text-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl my-8 animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]"
+        className="bg-slate-900 border border-slate-700 text-white rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl my-8 animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh] focus:outline-hidden"
       >
         {/* Modal Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950">

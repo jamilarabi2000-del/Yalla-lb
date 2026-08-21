@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import { ProductCard } from './ProductCard';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
@@ -11,7 +11,12 @@ import {
   RotateCcw,
   Check,
   ArrowLeft,
-  EyeOff
+  EyeOff,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  Grid
 } from 'lucide-react';
 
 export const ProductsView: React.FC = () => {
@@ -25,7 +30,10 @@ export const ProductsView: React.FC = () => {
     t,
     language,
     siteContent,
-    isVisualEditMode
+    isVisualEditMode,
+    hasMoreProducts,
+    isFetchingMore,
+    loadMoreProducts
   } = useShop();
 
   const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'rating'>('featured');
@@ -112,11 +120,65 @@ export const ProductsView: React.FC = () => {
     });
   }, [products, selectedCategory, onlyInStock, searchQuery, sortBy, isVisualEditMode]);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(12);
+
+  // Reset page to 1 whenever filters or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, searchQuery, onlyInStock, sortBy, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (safeCurrentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, safeCurrentPage, itemsPerPage]);
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      const gridElement = document.getElementById('products-grid-section');
+      if (gridElement) {
+        gridElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 300, behavior: 'smooth' });
+      }
+    }
+  };
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (safeCurrentPage > 3) {
+        pages.push('...');
+      }
+      const start = Math.max(2, safeCurrentPage - 1);
+      const end = Math.min(totalPages - 1, safeCurrentPage + 1);
+      for (let i = start; i <= end; i++) {
+        if (!pages.includes(i)) pages.push(i);
+      }
+      if (safeCurrentPage < totalPages - 2) {
+        pages.push('...');
+      }
+      if (!pages.includes(totalPages)) {
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
   const resetFilters = () => {
     setSelectedCategory('all');
     setSortBy('featured');
     setOnlyInStock(false);
     setSearchQuery('');
+    setCurrentPage(1);
   };
 
   return (
@@ -230,20 +292,26 @@ export const ProductsView: React.FC = () => {
           </div>
         )}
 
-        {/* Secondary Controls: Sort Options & Filters */}
+        {/* Secondary Controls: Sort Options, Items Per Page & Filters */}
         {(visibility.productsSort || isVisualEditMode) && (
           <div className="mt-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
             
-            <div className="text-xs font-medium text-slate-600">
-              {language === 'ar' ? 'التصفية حسب الفئة والتوافر' : 'Filtering by Category & Availability'}
+            <div className="text-xs font-semibold text-slate-700 flex items-center gap-2">
+              <Grid className="w-4 h-4 text-amber-600" />
+              <span>
+                {language === 'ar'
+                  ? `عرض ${filteredProducts.length > 0 ? (safeCurrentPage - 1) * itemsPerPage + 1 : 0}–${Math.min(safeCurrentPage * itemsPerPage, filteredProducts.length)} من إجمالي ${filteredProducts.length} منتج`
+                  : `Showing ${filteredProducts.length > 0 ? (safeCurrentPage - 1) * itemsPerPage + 1 : 0}–${Math.min(safeCurrentPage * itemsPerPage, filteredProducts.length)} of ${filteredProducts.length} items`}
+              </span>
             </div>
 
-            {/* Sort & Stock Toggles */}
+            {/* Sort & Page Size & Stock Toggles */}
             <div className="flex flex-wrap items-center gap-3">
               
+              {/* Sort selector */}
               <div className="flex items-center gap-2">
                 <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-[10px]">{language === 'ar' ? 'الترتيب حسب:' : 'Sort by:'}</span>
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-[10px]">{language === 'ar' ? 'الترتيب:' : 'Sort:'}</span>
                 <select
                   id="sort-by-select"
                   value={sortBy}
@@ -256,8 +324,26 @@ export const ProductsView: React.FC = () => {
                 </select>
               </div>
 
+              {/* Items Per Page dropdown */}
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-3 dir-ltr:border-l dir-rtl:border-r dir-rtl:pr-3">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-[10px]">{language === 'ar' ? 'في الصفحة:' : 'Per Page:'}</span>
+                <select
+                  id="items-per-page-select"
+                  value={itemsPerPage}
+                  onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                  className="bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-amber-500 focus:outline-none"
+                >
+                  <option value={8}>8</option>
+                  <option value={12}>12</option>
+                  <option value={16}>16</option>
+                  <option value={24}>24</option>
+                  <option value={36}>36</option>
+                  <option value={48}>48</option>
+                </select>
+              </div>
+
               {/* In stock only toggle */}
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium select-none">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium select-none border-l border-slate-200 pl-3">
                 <input
                   type="checkbox"
                   id="in-stock-only-checkbox"
@@ -287,12 +373,139 @@ export const ProductsView: React.FC = () => {
 
         {/* Products Grid */}
         {(visibility.productsGrid || isVisualEditMode) && (
-          <div className="mt-8">
+          <div id="products-grid-section" className="mt-8 scroll-mt-6">
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-                {filteredProducts.map(product => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
+              <div className="space-y-10">
+                
+                {/* Product Items */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+                  {paginatedProducts.map(product => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {/* Pagination Controls Bar */}
+                {totalPages > 1 && (
+                  <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    
+                    {/* Page counter summary */}
+                    <div className="text-xs font-semibold text-slate-500">
+                      {language === 'ar'
+                        ? `الصفحة ${safeCurrentPage} من ${totalPages}`
+                        : `Page ${safeCurrentPage} of ${totalPages}`}
+                    </div>
+
+                    {/* Page Navigation Buttons */}
+                    <div className="flex items-center gap-1.5">
+                      
+                      {/* First Page */}
+                      <button
+                        onClick={() => handlePageChange(1)}
+                        disabled={safeCurrentPage === 1}
+                        title={language === 'ar' ? 'الصفحة الأولى' : 'First Page'}
+                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                      >
+                        <ChevronsLeft className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {/* Previous Page */}
+                      <button
+                        onClick={() => handlePageChange(safeCurrentPage - 1)}
+                        disabled={safeCurrentPage === 1}
+                        title={language === 'ar' ? 'الصفحة السابقة' : 'Previous Page'}
+                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                      >
+                        <ChevronLeft className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {/* Page Numbers */}
+                      <div className="flex items-center gap-1 mx-1">
+                        {getPageNumbers().map((pageNum, idx) => {
+                          if (pageNum === '...') {
+                            return (
+                              <span key={`dots-${idx}`} className="px-2 py-1 text-slate-400 text-xs font-bold">
+                                ...
+                              </span>
+                            );
+                          }
+                          const page = pageNum as number;
+                          const isActive = page === safeCurrentPage;
+                          return (
+                            <button
+                              key={`page-${page}`}
+                              onClick={() => handlePageChange(page)}
+                              className={`w-9 h-9 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-2xs ${
+                                isActive
+                                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20 scale-105'
+                                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Next Page */}
+                      <button
+                        onClick={() => handlePageChange(safeCurrentPage + 1)}
+                        disabled={safeCurrentPage === totalPages}
+                        title={language === 'ar' ? 'الصفحة التالية' : 'Next Page'}
+                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                      >
+                        <ChevronRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {/* Last Page */}
+                      <button
+                        onClick={() => handlePageChange(totalPages)}
+                        disabled={safeCurrentPage === totalPages}
+                        title={language === 'ar' ? 'الصفحة الأخيرة' : 'Last Page'}
+                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                      >
+                        <ChevronsRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                      </button>
+
+                    </div>
+
+                    {/* Page Size Fast Select */}
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                      <span>{language === 'ar' ? 'منتجات في الصفحة:' : 'Items per page:'}</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
+                      >
+                        <option value={8}>8</option>
+                        <option value={12}>12</option>
+                        <option value={16}>16</option>
+                        <option value={24}>24</option>
+                        <option value={36}>36</option>
+                        <option value={48}>48</option>
+                      </select>
+                    </div>
+
+                  </div>
+                )}
+
+                {hasMoreProducts && (
+                  <div className="flex justify-center pt-2">
+                    <button
+                      onClick={loadMoreProducts}
+                      disabled={isFetchingMore}
+                      className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white font-bold uppercase text-xs tracking-widest cursor-pointer rounded-xl transition-all shadow-xs active:scale-95 flex items-center gap-2"
+                    >
+                      {isFetchingMore ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</span>
+                        </>
+                      ) : (
+                        <span>{language === 'ar' ? 'تحميل المزيد من خادم البيانات' : 'Fetch More From Server'}</span>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="py-20 text-center space-y-4 max-w-md mx-auto">

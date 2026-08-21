@@ -26,7 +26,9 @@ import {
   Check,
   Tag,
   Percent,
-  EyeOff
+  EyeOff,
+  Eye,
+  KeyRound
 } from 'lucide-react';
 
 export const CheckoutView: React.FC = () => {
@@ -51,7 +53,9 @@ export const CheckoutView: React.FC = () => {
     updateUser,
     signInWithEmail,
     signUpWithEmail,
+    resetPassword,
     signInWithGoogle,
+    signInWithApple,
     signOutUser,
     siteContent,
     isVisualEditMode
@@ -72,6 +76,29 @@ export const CheckoutView: React.FC = () => {
 
   const [deliverySpeed, setDeliverySpeed] = useState<'express_beirut' | 'standard' | 'diaspora_air'>('express_beirut');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod_usd');
+
+  // Password visibility and reset modal states
+  const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const handleResetPassword = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const targetEmail = (forgotEmail || authEmail).trim();
+    if (!targetEmail) {
+      showToast(isArabic ? 'الرجاء إدخال البريد الإلكتروني لإعادة تعيين كلمة المرور' : 'Please enter your email address to reset password', 'warning');
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      await resetPassword(targetEmail);
+      setShowForgotPasswordModal(false);
+    } catch (err: any) {
+    } finally {
+      setIsSendingReset(false);
+    }
+  };
   
   // Checkout form recipient data
   const [formData, setFormData] = useState({
@@ -360,32 +387,37 @@ export const CheckoutView: React.FC = () => {
     }
   };
 
+  // Apple Sign In Handler
+  const handleCheckoutApple = async () => {
+    setIsAuthLoading(true);
+    try {
+      await signInWithApple();
+      showToast(isArabic ? 'تم تسجيل الدخول بواسطة Apple!' : 'Signed in with Apple!', 'success');
+    } catch {
+      // Handled in context
+    } finally {
+      setIsAuthLoading(false);
+    }
+  };
+
   // Submit Final Order
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!firebaseUser) {
-      showToast(isArabic ? 'يرجى تسجيل الدخول أولاً لإتمام الطلب' : 'Please sign in or create an account to place your order.', 'warning');
-      window.scrollTo({ top: 150, behavior: 'smooth' });
-      return;
-    }
 
     if (cart.length === 0) {
       showToast(isArabic ? 'حقيبة التسوق فارغة' : 'Your cart is empty. Add products before placing an order.', 'warning');
       return;
     }
 
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
-      showToast(isArabic ? 'يرجى إدخال الاسم الأول واسم العائلة للمستلم' : 'Please enter both first name and last name for delivery.', 'warning');
-      return;
-    }
+    // Fallbacks if user profile or form data is not filled out
+    const fName = formData.firstName.trim() || user?.firstName || (user?.name ? user.name.split(' ')[0] : 'Valued');
+    const lName = formData.lastName.trim() || user?.lastName || (user?.name ? user.name.split(' ').slice(1).join(' ') : 'Customer');
+    const finalPhone = formData.phone.trim() || user?.phone || '+961 (Contact Required)';
+    const finalStreet = formData.street.trim() || user?.defaultAddress || 'Beirut, Lebanon';
+    const finalEmail = formData.email.trim() || firebaseUser?.email || user?.email || `${fName.toLowerCase()}.${lName.toLowerCase()}@example.com`;
+    const finalCity = formData.city.trim() || user?.defaultCity || 'Beirut';
 
-    if (!formData.phone.trim() || !formData.street.trim()) {
-      showToast(isArabic ? 'يرجى إدخال رقم الهاتف اللبناني والعنوان بالتفصيل' : 'Please fill in your Lebanese phone number and street address.', 'warning');
-      return;
-    }
-
-    const fullName = `${formData.firstName.trim()} ${formData.lastName.trim()}`;
+    const fullName = `${fName} ${lName}`;
 
     setIsSubmitting(true);
     try {
@@ -393,23 +425,25 @@ export const CheckoutView: React.FC = () => {
         items: [...cart],
         shipping: {
           fullName: fullName,
-          firstName: formData.firstName.trim(),
-          lastName: formData.lastName.trim(),
-          phone: formData.phone,
-          email: formData.email || firebaseUser.email || `${formData.firstName.toLowerCase()}.${formData.lastName.toLowerCase()}@example.com`,
-          governorate: matchedRegion.nameEn,
-          city: formData.city,
-          street: formData.street,
-          building: formData.building,
-          deliveryNotes: formData.notes,
+          firstName: fName,
+          lastName: lName,
+          phone: finalPhone,
+          email: finalEmail,
+          governorate: matchedRegion?.nameEn || 'Beirut',
+          city: finalCity,
+          street: finalStreet,
+          building: formData.building.trim() || 'N/A',
+          deliveryNotes: formData.notes.trim() || '',
           deliverySpeed: deliverySpeed
         },
         paymentMethod: paymentMethod,
         currency: currency,
-        subtotalUSD: cartTotalUSD,
+        subtotalUSD: Math.round(cart.reduce((s, i) => s + i.product.priceUSD * i.quantity, 0) * 100) / 100,
         deliveryFeeUSD: deliveryFeeUSD,
         totalUSD: finalTotalUSD,
         totalLBP: finalTotalUSD * 89500,
+        discountUSD: discountUSD,
+        appliedCoupon: appliedCouponCode || undefined,
         estimatedDelivery: deliverySpeed === 'express_beirut' 
           ? 'Within 2 Hours (Beirut Express)' 
           : deliverySpeed === 'standard' 
@@ -711,22 +745,24 @@ export const CheckoutView: React.FC = () => {
                       : 'To track courier dispatch, receive WhatsApp notifications, and auto-fill your delivery coordinates, please sign in or register below.'}
                   </p>
 
-                  {/* Google Instant Sign In */}
-                  <button
-                    type="button"
-                    id="checkout-google-signin-btn"
-                    onClick={handleCheckoutGoogle}
-                    disabled={isAuthLoading}
-                    className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24">
-                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                    </svg>
-                    <span>{isArabic ? 'المتابعة السريعة باستخدام حساب Google' : 'Continue with Google Account'}</span>
-                  </button>
+                  {/* Social Instant Sign In */}
+                  <div>
+                    <button
+                      type="button"
+                      id="checkout-google-signin-btn"
+                      onClick={handleCheckoutGoogle}
+                      disabled={isAuthLoading}
+                      className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                      <span>{isArabic ? 'المتابعة السريعة باستخدام حساب Google' : 'Continue with Google Account'}</span>
+                    </button>
+                  </div>
 
                   <div className="relative flex py-1 items-center">
                     <div className="flex-grow border-t border-slate-200"></div>
@@ -754,17 +790,41 @@ export const CheckoutView: React.FC = () => {
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                          {isArabic ? 'كلمة المرور *' : 'Password *'}
-                        </label>
-                        <input
-                          type="password"
-                          id="checkout-auth-password-input"
-                          placeholder="••••••••"
-                          value={authPassword}
-                          onChange={(e) => setAuthPassword(e.target.value)}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
-                        />
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                            {isArabic ? 'كلمة المرور *' : 'Password *'}
+                          </label>
+                          <button
+                            type="button"
+                            id="checkout-forgot-password-btn"
+                            onClick={() => {
+                              setForgotEmail(authEmail);
+                              setShowForgotPasswordModal(true);
+                            }}
+                            className="text-[11px] font-bold text-amber-600 hover:text-amber-700 hover:underline transition-colors cursor-pointer"
+                          >
+                            {isArabic ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}
+                          </button>
+                        </div>
+                        <div className="relative flex items-center">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            id="checkout-auth-password-input"
+                            placeholder="••••••••"
+                            value={authPassword}
+                            onChange={(e) => setAuthPassword(e.target.value)}
+                            className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            title={showPassword ? 'Hide password' : 'Show password'}
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
 
                       <button
@@ -852,27 +912,49 @@ export const CheckoutView: React.FC = () => {
                           <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                             {isArabic ? 'كلمة المرور *' : 'Password *'}
                           </label>
-                          <input
-                            type="password"
-                            id="checkout-signup-password-input"
-                            placeholder="Minimum 6 characters"
-                            value={authPassword}
-                            onChange={(e) => setAuthPassword(e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
-                          />
+                          <div className="relative flex items-center">
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              id="checkout-signup-password-input"
+                              placeholder="Minimum 6 characters"
+                              value={authPassword}
+                              onChange={(e) => setAuthPassword(e.target.value)}
+                              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              title={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
                         <div>
                           <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                             {isArabic ? 'تأكيد كلمة المرور *' : 'Confirm Password *'}
                           </label>
-                          <input
-                            type="password"
-                            id="checkout-signup-confirm-password-input"
-                            placeholder="Repeat password"
-                            value={authConfirmPassword}
-                            onChange={(e) => setAuthConfirmPassword(e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
-                          />
+                          <div className="relative flex items-center">
+                            <input
+                              type={showPassword ? 'text' : 'password'}
+                              id="checkout-signup-confirm-password-input"
+                              placeholder="Repeat password"
+                              value={authConfirmPassword}
+                              onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
+                              title={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -969,12 +1051,10 @@ export const CheckoutView: React.FC = () => {
                       <input
                         type="text"
                         id="checkout-first-name-input"
-                        required
                         placeholder="e.g. Walid"
                         value={formData.firstName}
                         onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        disabled={true}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-medium disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-medium"
                       />
                     </div>
 
@@ -985,12 +1065,10 @@ export const CheckoutView: React.FC = () => {
                       <input
                         type="text"
                         id="checkout-last-name-input"
-                        required
                         placeholder="e.g. Ghattas"
                         value={formData.lastName}
                         onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        disabled={true}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-medium disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-medium"
                       />
                     </div>
                   </div>
@@ -1007,12 +1085,10 @@ export const CheckoutView: React.FC = () => {
                         <input
                           type="tel"
                           id="checkout-phone-input"
-                          required
                           placeholder="+961 70 123 456"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          disabled={true}
-                          className="w-full pl-10 pr-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-mono disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                          className="w-full pl-10 pr-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-mono"
                         />
                       </div>
                     </div>
@@ -1027,8 +1103,7 @@ export const CheckoutView: React.FC = () => {
                         placeholder="name@example.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        disabled={true}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
                       />
                     </div>
                   </div>
@@ -1043,8 +1118,7 @@ export const CheckoutView: React.FC = () => {
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       placeholder="e.g. Achrafieh, Beirut"
-                      disabled={true}
-                      className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                      className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
                     />
                   </div>
 
@@ -1056,12 +1130,10 @@ export const CheckoutView: React.FC = () => {
                       <input
                         type="text"
                         id="checkout-street-input"
-                        required
                         placeholder="e.g. Gouraud Street, next to Paul Bakery"
                         value={formData.street}
                         onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                        disabled={true}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
                       />
                     </div>
 
@@ -1075,8 +1147,7 @@ export const CheckoutView: React.FC = () => {
                         placeholder="e.g. Al-Nour Bldg, 4th Floor, Apt B"
                         value={formData.building}
                         onChange={(e) => setFormData({ ...formData, building: e.target.value })}
-                        disabled={true}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
                       />
                     </div>
                   </div>
@@ -1091,201 +1162,13 @@ export const CheckoutView: React.FC = () => {
                       placeholder="e.g. Call upon arrival, leave with building concierge if not present"
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      disabled={true}
-                      className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:cursor-not-allowed disabled:select-none"
+                      className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
                     />
                   </div>
                 </div>
               )}
 
-              {/* Delivery Speed Selector Option */}
-              {firebaseUser && (visibility.checkoutDeliverySpeed || isVisualEditMode) && (
-                <div className={`p-6 rounded-3xl premium-card space-y-5 transition-opacity relative ${!visibility.checkoutDeliverySpeed && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
-                  {!visibility.checkoutDeliverySpeed && isVisualEditMode && (
-                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>Speed Options Hidden</span>
-                    </div>
-                  )}
-                  <div className="pb-2 border-b border-slate-100">
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <Truck className="w-5 h-5 text-amber-600" />
-                      <span>{isArabic ? 'خيارات وسرعة التوصيل' : 'Delivery Speed Options'}</span>
-                    </h3>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setDeliverySpeed('standard')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between h-28 ${
-                        deliverySpeed === 'standard'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <Truck className={`w-5 h-5 ${deliverySpeed === 'standard' ? 'text-amber-600' : 'text-slate-400'}`} />
-                        {deliverySpeed === 'standard' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'توصيل عادي' : 'Standard Delivery'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block">
-                          {isArabic ? 'خلال ٣-٥ أيام عمل' : '3-5 business days'}
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeliverySpeed('express_beirut')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between h-28 ${
-                        deliverySpeed === 'express_beirut'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <Clock className={`w-5 h-5 ${deliverySpeed === 'express_beirut' ? 'text-amber-600' : 'text-slate-400'}`} />
-                        {deliverySpeed === 'express_beirut' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'توصيل سريع بيروت' : 'Express Beirut'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block">
-                          {isArabic ? 'يوم عمل واحد (العاصمة)' : 'Next business day (Beirut)'}
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeliverySpeed('diaspora_air')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex flex-col justify-between h-28 ${
-                        deliverySpeed === 'diaspora_air'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <Sparkles className={`w-5 h-5 ${deliverySpeed === 'diaspora_air' ? 'text-amber-600' : 'text-slate-400'}`} />
-                        {deliverySpeed === 'diaspora_air' && <div className="w-2 h-2 rounded-full bg-amber-600" />}
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'شحن مغتربين جوي' : 'Diaspora Express'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block">
-                          {isArabic ? 'توصيل دولي سريع' : 'International courier'}
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Payment Method Option */}
-              {firebaseUser && (visibility.checkoutPaymentMethod || isVisualEditMode) && (
-                <div className={`p-6 rounded-3xl premium-card space-y-5 transition-opacity relative ${!visibility.checkoutPaymentMethod && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
-                  {!visibility.checkoutPaymentMethod && isVisualEditMode && (
-                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>Payment Hidden</span>
-                    </div>
-                  )}
-                  <div className="pb-2 border-b border-slate-100">
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <CreditCard className="w-5 h-5 text-amber-600" />
-                      <span>{siteContent?.checkoutPage?.paymentHeading || (isArabic ? 'طريقة التسوية والدفع' : 'Payment Method Selection')}</span>
-                    </h3>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('cod_usd')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
-                        paymentMethod === 'cod_usd'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <Banknote className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'دفع كاش بالدولار (COD)' : 'Cash on Delivery (USD)'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {isArabic ? 'تسليم نقدي عند الاستلام بالدولار' : 'Handover fresh USD cash to driver'}
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('cod_lbp')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
-                        paymentMethod === 'cod_lbp'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <Banknote className="w-5 h-5 text-amber-600 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'دفع كاش بالليرة اللبنانية' : 'Cash on Delivery (LBP)'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {isArabic ? 'سعر السوق اليومي المعتمد' : 'Convert using daily market rate'}
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('wish_omt')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
-                        paymentMethod === 'wish_omt'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <Building2 className="w-5 h-5 text-blue-600 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'تحويل عبر OMT / Whish' : 'Whish / OMT Transfer'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {isArabic ? 'تحويل قبل إرسال الشحنة' : 'Pre-pay to our corporate wallet'}
-                        </span>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod('credit_card')}
-                      className={`p-4 rounded-2xl border text-start transition-all cursor-pointer flex items-center gap-3 ${
-                        paymentMethod === 'credit_card'
-                          ? 'border-amber-500 bg-amber-50/25 ring-1 ring-amber-500'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      }`}
-                    >
-                      <CreditCard className="w-5 h-5 text-indigo-600 shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-slate-950 block">
-                          {isArabic ? 'بطاقة ائتمان / دفع إلكتروني' : 'Credit / Debit Card'}
-                        </span>
-                        <span className="text-[10px] text-slate-500 block truncate">
-                          {isArabic ? 'قريباً - بوابة دفع أمنة' : 'Secure payment portal gateway'}
-                        </span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Right Column: Order Summary Card */}
@@ -1470,6 +1353,77 @@ export const CheckoutView: React.FC = () => {
 
       {/* Bottom Custom Divs / Banners */}
       <CustomBlocksRenderer page="checkout" position="bottom" />
+
+      {/* Forgot Password Modal */}
+      {showForgotPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative">
+            <button
+              type="button"
+              onClick={() => setShowForgotPasswordModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">
+                  {isArabic ? 'إعادة تعيين كلمة المرور' : 'Reset Your Password'}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {isArabic ? 'أدخل بريدك الإلكتروني وسيتم إرسال رابط إعادة التعيين.' : 'Enter your registered email address to receive a reset link.'}
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                  {isArabic ? 'البريد الإلكتروني *' : 'Email Address *'}
+                </label>
+                <div className="relative flex items-center">
+                  <Mail className="w-4 h-4 absolute left-3.5 text-slate-400" />
+                  <input
+                    type="email"
+                    required
+                    id="checkout-forgot-email-input"
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="name@example.com"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPasswordModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  {isArabic ? 'إلغاء' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  id="checkout-send-reset-btn"
+                  disabled={isSendingReset}
+                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSendingReset ? (
+                    <span>{isArabic ? 'جاري الإرسال...' : 'Sending Link...'}</span>
+                  ) : (
+                    <span>{isArabic ? 'إرسال رابط التعيين' : 'Send Reset Link'}</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

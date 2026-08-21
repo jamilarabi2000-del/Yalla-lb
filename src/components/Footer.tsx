@@ -5,7 +5,6 @@ import {
   Mail, 
   Instagram, 
   Facebook, 
-  Heart,
   EyeOff
 } from 'lucide-react';
 
@@ -127,17 +126,9 @@ export const Footer: React.FC = () => {
 
         {/* Copyright & Lebanese Heritage Attribution */}
         {(visibility.footerCopyright || isVisualEditMode) && (
-          <div className={`pt-4 border-t border-white/[0.06] w-full flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
+          <div className={`pt-4 border-t border-white/[0.06] w-full flex items-center justify-center text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
             <div className="flex items-center gap-2">
-              <span>{(footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`).replace(/\s*Handcrafted with pride in Lebanon\.?/i, '')}</span>
-            </div>
-
-            <span className="hidden sm:inline text-slate-600">•</span>
-
-            <div className="flex items-center gap-1.5 text-slate-400 text-[10px]">
-              <span>{language === 'ar' ? 'صُنع بكل حب من راشيا' : 'Made with Love from Rachaya'}</span>
-              <Heart className="w-3 h-3 text-rose-400 fill-rose-400" />
-              <span>🇱🇧</span>
+              <span>{footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`}</span>
             </div>
           </div>
         )}

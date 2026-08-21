@@ -5,16 +5,22 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true ||
-        request.auth.token.email == 'jamilarabi2000@gmail.com'
-      );
+      return isSignedIn() &&
+        (request.auth.token.admin == true || request.auth.token.email == 'jamilarabi2000@gmail.com') &&
+        request.auth.token.email_verified == true;
     }
 
-    // Catalog: public read, admin-only write.
+    // Catalog: public read, admin-only write except for atomic stock decrements.
     match /products/{productId} {
       allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock']) &&
+        request.resource.data.stock is int &&
+        request.resource.data.stock >= 0 &&
+        request.resource.data.stock < resource.data.stock
+      );
+      allow create, delete: if isAdmin();
     }
 
     // Profiles: owner only. No list — never enumerable.
@@ -41,18 +47,25 @@ service cloud.firestore {
       allow list: if isAdmin() 
         || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow create: if isSignedIn()
+        && request.auth.token.email_verified == true
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending';
+        && request.resource.data.status == 'pending'
+        && request.resource.data.totalUSD is number
+        && request.resource.data.totalUSD >= 0;
       allow update, delete: if isAdmin();
     }
 
     match /reviews/{reviewId} {
       allow get, list: if true;
       allow create: if isSignedIn()
+        && reviewId == request.auth.uid + '_' + request.resource.data.productId
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.rating is number
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5;
+        && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.comment.size() <= 1000
+        && exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
+        && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
+             .data.userId == request.auth.uid;
       allow update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
@@ -63,6 +76,11 @@ service cloud.firestore {
     }
 
     match /categories/{catId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /site_settings/{docId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
     }

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { 
   Calendar, 
   X, 
@@ -212,6 +213,11 @@ export const NewsSection: React.FC = () => {
   const { language, showToast, siteContent } = useShop();
   const [activeCategory, setActiveCategory] = useState<NewsCategory>('all');
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+
+  const { containerRef } = useDialog({
+    isOpen: !!selectedNews,
+    onClose: () => setSelectedNews(null)
+  });
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
@@ -403,7 +409,13 @@ export const NewsSection: React.FC = () => {
       {/* Modal View for full news narrative */}
       {selectedNews && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-[#121222] text-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-[#c5a059]/40">
+          <div 
+            ref={containerRef}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            className="bg-[#121222] text-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-[#c5a059]/40 focus:outline-hidden"
+          >
             
             <div className="relative h-60 w-full overflow-hidden bg-slate-900">
               <img 

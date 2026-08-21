@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useDialog } from '../hooks/useDialog';
 import { 
   Package, 
   Truck, 
@@ -32,6 +33,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const { containerRef } = useDialog({
+    isOpen: !!selectedOrder,
+    onClose: () => setSelectedOrder(null)
+  });
 
   const [trackingInput, setTrackingInput] = useState('');
   const [trackedOrder, setTrackedOrder] = useState<Order | null>(null);
@@ -425,7 +431,13 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             className="absolute inset-0 cursor-pointer"
             onClick={() => setSelectedOrder(null)}
           />
-          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+          <div 
+            ref={containerRef}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden focus:outline-hidden"
+          >
             
             <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <div className="space-y-1">

@@ -6,7 +6,7 @@ import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
 import { DEFAULT_CATEGORIES } from '../data/categories';
 import { LEBANON_REGIONS, LBP_USD_RATE } from '../data/regions';
 import { translations, Language } from '../utils/translations';
-import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, googleProvider, sendPasswordResetEmail } from '../firebase';
+import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail } from '../firebase';
 import { 
   dbLogger, 
   sanitizeFirestorePayload, 
@@ -34,7 +34,10 @@ import {
   writeBatch,
   query,
   where,
-  orderBy
+  orderBy,
+  limit,
+  startAfter,
+  runTransaction
 } from 'firebase/firestore';
 
 const safeGetDoc = async (docRef: any): Promise<any> => {
@@ -172,6 +175,9 @@ interface ShopContextType {
   selectedProductForModal: Product | null;
   setSelectedProductForModal: (p: Product | null) => void;
   isDbSyncing: boolean;
+  hasMoreProducts: boolean;
+  isFetchingMore: boolean;
+  loadMoreProducts: () => Promise<void>;
 
   // Currency
   currency: Currency;
@@ -209,14 +215,24 @@ interface ShopContextType {
   user: UserProfile;
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
 
-  // Firebase Auth
+  // Firebase Auth & OTP Verification
   firebaseUser: FirebaseUser | null;
   isAdminUser: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOutUser: () => Promise<void>;
+
+  // OTP Email Verification
+  pendingVerificationEmail: string | null;
+  setPendingVerificationEmail: (email: string | null) => void;
+  isOtpModalOpen: boolean;
+  setIsOtpModalOpen: (open: boolean) => void;
+  latestOtpCode: string | null;
+  sendSignupOTP: (email: string) => Promise<string>;
+  verifySignupOTP: (email: string, otpInput: string) => Promise<boolean>;
 
   // Search & Filtering
   searchQuery: string;
@@ -288,12 +304,6 @@ const INITIAL_USER: UserProfile = {
 
 const INITIAL_ORDERS: Order[] = [];
 
-const ADMIN_EMAILS = [
-  'jamilarabi2000@gmail.com',
-  'admin@yallalb.com',
-  'admin@yalla-lebanon.com'
-];
-
 export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTabState] = useState<NavTab>(getInitialNavTab);
   const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(getInitialProductDetail);
@@ -302,15 +312,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (firebaseUser) {
-      const userEmail = (firebaseUser.email || '').toLowerCase().trim();
-      const isConfiguredAdmin = ADMIN_EMAILS.some(adminEmail => adminEmail.toLowerCase() === userEmail);
-
+      const isUserAdminEmail = firebaseUser.email === 'jamilarabi2000@gmail.com';
       firebaseUser.getIdTokenResult(true) // force refresh
         .then(result => {
-          setIsAdminUser(result.claims.admin === true || isConfiguredAdmin);
+          setIsAdminUser(result.claims.admin === true || isUserAdminEmail);
         })
         .catch(() => {
-          setIsAdminUser(isConfiguredAdmin);
+          setIsAdminUser(isUserAdminEmail);
         });
     } else {
       setIsAdminUser(false);
@@ -358,6 +366,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>(getInitialCategory);
   const [toast, setToast] = useState<Toast | null>(null);
+
+  // Pagination states for products catalog
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const lastVisibleDocRef = useRef<any>(null);
 
   // Core Data States with local storage fallback
   const [products, setProducts] = useState<Product[]>(() => {
@@ -407,6 +420,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return INITIAL_USER;
     }
   });
+
+  // OTP Email Verification State
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
+  const [latestOtpCode, setLatestOtpCode] = useState<string | null>(null);
 
   // Site Content CMS state
   const [siteContent, setSiteContent] = useState<SiteContent>(() => {
@@ -531,40 +549,42 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (snapshot) => {
         if (snapshot.empty && !hasSeededDiscountsRef.current) {
           hasSeededDiscountsRef.current = true;
-          console.log("[ShopContext] Database discounts collection is empty. Seeding initial discount rules to Firestore...");
-          try {
-            const batch = writeBatch(db);
-            const initialRules = [
-              {
-                id: 'rule-1',
-                name: 'Koura Olive Oil Special (15% Off)',
-                type: 'percentage',
-                value: 15,
-                target: 'brand',
-                targetValue: 'Koura, North Lebanon',
-                couponCode: 'KOURA15',
-                isActive: true
-              },
-              {
-                id: 'rule-2',
-                name: 'Checkout Extra $5 Off',
-                type: 'fixed',
-                value: 5,
-                target: 'checkout',
-                couponCode: 'WELCOME5',
-                isActive: true,
-                minPurchaseUSD: 30
-              }
-            ];
-            initialRules.forEach(rule => {
-              const docRef = doc(db, 'discounts', rule.id);
-              batch.set(docRef, sanitizeDocumentData(rule));
-            });
-            await monitoredBatchCommit(batch, initialRules.length, 'discounts', 'ShopContext:AutoSeedDiscounts');
-            setDiscountRules(initialRules as DiscountRule[]);
-          } catch (seedErr) {
-            console.error("[ShopContext] Error seeding discount rules:", seedErr);
+          const initialRules = [
+            {
+              id: 'rule-1',
+              name: 'Koura Olive Oil Special (15% Off)',
+              type: 'percentage',
+              value: 15,
+              target: 'brand',
+              targetValue: 'Koura, North Lebanon',
+              couponCode: 'KOURA15',
+              isActive: true
+            },
+            {
+              id: 'rule-2',
+              name: 'Checkout Extra $5 Off',
+              type: 'fixed',
+              value: 5,
+              target: 'checkout',
+              couponCode: 'WELCOME5',
+              isActive: true,
+              minPurchaseUSD: 30
+            }
+          ];
+          if (isAdminUser || isAdminUnlocked) {
+            console.log("[ShopContext] Database discounts collection is empty. Seeding initial discount rules to Firestore...");
+            try {
+              const batch = writeBatch(db);
+              initialRules.forEach(rule => {
+                const docRef = doc(db, 'discounts', rule.id);
+                batch.set(docRef, sanitizeDocumentData(rule));
+              });
+              await monitoredBatchCommit(batch, initialRules.length, 'discounts', 'ShopContext:AutoSeedDiscounts');
+            } catch (seedErr) {
+              console.error("[ShopContext] Error seeding discount rules:", seedErr);
+            }
           }
+          setDiscountRules(initialRules as DiscountRule[]);
         } else if (!snapshot.empty) {
           const rules: DiscountRule[] = [];
           snapshot.forEach(docSnap => {
@@ -673,11 +693,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCategories(data.list);
           }
         } else {
-          try {
-            await monitoredSetDoc(catDocRef, { list: sanitizeDocumentData(DEFAULT_CATEGORIES) }, undefined, 'ShopContext:seedCategories');
-          } catch (seedErr) {
-            console.warn('[ShopContext] Error seeding default categories to Firestore:', seedErr);
+          if (isAdminUser || isAdminUnlocked) {
+            try {
+              await monitoredSetDoc(catDocRef, { list: sanitizeDocumentData(DEFAULT_CATEGORIES) }, undefined, 'ShopContext:seedCategories');
+            } catch (seedErr) {
+              console.warn('[ShopContext] Error seeding default categories to Firestore:', seedErr);
+            }
           }
+          setCategories(DEFAULT_CATEGORIES);
         }
       },
       (err) => {
@@ -700,11 +723,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setRegions(data.list);
           }
         } else {
-          try {
-            await monitoredSetDoc(regDocRef, { list: sanitizeDocumentData(LEBANON_REGIONS) }, undefined, 'ShopContext:seedRegions');
-          } catch (seedErr) {
-            console.warn('[ShopContext] Error seeding default regions to Firestore:', seedErr);
+          if (isAdminUser || isAdminUnlocked) {
+            try {
+              await monitoredSetDoc(regDocRef, { list: sanitizeDocumentData(LEBANON_REGIONS) }, undefined, 'ShopContext:seedRegions');
+            } catch (seedErr) {
+              console.warn('[ShopContext] Error seeding default regions to Firestore:', seedErr);
+            }
           }
+          setRegions(LEBANON_REGIONS);
         }
       },
       (err) => {
@@ -875,18 +901,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cmsDocRef,
       async (snapshot) => {
         if (!snapshot.exists()) {
-          console.log("[ShopContext] CMS main document does not exist. Seeding DEFAULT_SITE_CONTENT to Firestore...");
-          try {
-            const sanitizedDefault = sanitizeDocumentData(DEFAULT_SITE_CONTENT);
-            await monitoredSetDoc(cmsDocRef, sanitizedDefault, undefined, 'ShopContext:AutoSeedCMS');
-            console.log("[ShopContext] Successfully seeded CMS default site content to Firestore.");
-            dbLogger.logSnapshotSync({
-              targetPath: 'cms/main',
-              sourceComponent: 'ShopContext (AutoSeed)',
-              summary: 'Seeded initial DEFAULT_SITE_CONTENT to Firestore (cms/main).'
-            });
-          } catch (seedErr) {
-            console.error("[ShopContext] Error seeding CMS content to Firestore:", seedErr);
+          console.log("[ShopContext] CMS main document does not exist.");
+          if (isAdminUser || isAdminUnlocked) {
+            console.log("[ShopContext] Seeding DEFAULT_SITE_CONTENT to Firestore...");
+            try {
+              const sanitizedDefault = sanitizeDocumentData(DEFAULT_SITE_CONTENT);
+              await monitoredSetDoc(cmsDocRef, sanitizedDefault, undefined, 'ShopContext:AutoSeedCMS');
+              console.log("[ShopContext] Successfully seeded CMS default site content to Firestore.");
+              dbLogger.logSnapshotSync({
+                targetPath: 'cms/main',
+                sourceComponent: 'ShopContext (AutoSeed)',
+                summary: 'Seeded initial DEFAULT_SITE_CONTENT to Firestore (cms/main).'
+              });
+            } catch (seedErr) {
+              console.error("[ShopContext] Error seeding CMS content to Firestore:", seedErr);
+            }
           }
         } else {
           const data = snapshot.data() as Partial<SiteContent>;
@@ -1200,25 +1229,33 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const fetchProducts = async () => {
       try {
         const productsColRef = collection(db, 'products');
-        const snapshot = await getDocs(productsColRef);
+        // M-9: Paginate using limit(24) and order by 'id'
+        const q = query(productsColRef, orderBy('id'), limit(24));
+        const snapshot = await getDocs(q);
 
         if (snapshot.empty && !hasSeededProductsRef.current) {
           hasSeededProductsRef.current = true;
-          console.log("[ShopContext] Database products collection is empty. Seeding initial catalog to Firestore...");
-          try {
-            const batch = writeBatch(db);
-            INITIAL_PRODUCTS.forEach((prod) => {
-              const prodDocRef = doc(db, 'products', prod.id);
-              batch.set(prodDocRef, sanitizeDocumentData(prod));
-            });
-            await monitoredBatchCommit(batch, INITIAL_PRODUCTS.length, 'products', 'ShopContext:AutoSeedProducts');
-            console.log(`[ShopContext] Successfully seeded ${INITIAL_PRODUCTS.length} artisan products to Firestore database.`);
-            setProducts(INITIAL_PRODUCTS);
-          } catch (seedErr) {
-            console.error("[ShopContext] Error seeding products to Firestore:", seedErr);
-            setProducts(INITIAL_PRODUCTS);
+          if (isAdminUser || isAdminUnlocked) {
+            console.log("[ShopContext] Database products collection is empty. Seeding initial catalog to Firestore...");
+            try {
+              const batch = writeBatch(db);
+              INITIAL_PRODUCTS.forEach((prod) => {
+                const prodDocRef = doc(db, 'products', prod.id);
+                batch.set(prodDocRef, sanitizeDocumentData(prod));
+              });
+              await monitoredBatchCommit(batch, INITIAL_PRODUCTS.length, 'products', 'ShopContext:AutoSeedProducts');
+              console.log(`[ShopContext] Successfully seeded ${INITIAL_PRODUCTS.length} artisan products to Firestore database.`);
+            } catch (seedErr) {
+              console.error("[ShopContext] Error seeding products to Firestore:", seedErr);
+            }
           }
+          setProducts(INITIAL_PRODUCTS);
+          setHasMoreProducts(false);
         } else if (!snapshot.empty) {
+          // Track last doc for startAfter pagination
+          lastVisibleDocRef.current = snapshot.docs[snapshot.docs.length - 1];
+          setHasMoreProducts(snapshot.docs.length === 24);
+
           const dbProductsMap = new Map<string, Product>();
           snapshot.forEach((docSnap) => {
             dbProductsMap.set(docSnap.id, docSnap.data() as Product);
@@ -1226,29 +1263,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           dbMonitor.logSnapshotSync({
             path: 'products/*',
-            caller: 'ShopContext:getDocs(products)',
+            caller: 'ShopContext:getDocs(products, limit 24)',
             itemCount: snapshot.docs.length,
             metadata: { totalItems: dbProductsMap.size }
           });
-
-          // If database has fewer items than INITIAL_PRODUCTS, check for missing items and auto-sync them to Firestore
-          const missing = INITIAL_PRODUCTS.filter(p => !dbProductsMap.has(p.id));
-          if (missing.length > 0 && !hasSeededProductsRef.current) {
-            hasSeededProductsRef.current = true;
-            console.log(`[ShopContext] Auto-syncing ${missing.length} missing initial catalog products to Firestore...`);
-            try {
-              const batch = writeBatch(db);
-              missing.forEach((prod) => {
-                const prodDocRef = doc(db, 'products', prod.id);
-                batch.set(prodDocRef, sanitizeDocumentData(prod));
-                dbProductsMap.set(prod.id, prod);
-              });
-              await monitoredBatchCommit(batch, missing.length, 'products', 'ShopContext:AutoSyncMissingProducts');
-              console.log(`[ShopContext] Successfully synced ${missing.length} missing products to Firestore database.`);
-            } catch (syncErr) {
-              console.error("[ShopContext] Error auto-syncing missing products:", syncErr);
-            }
-          }
 
           const allProducts = Array.from(dbProductsMap.values());
           setProducts(allProducts);
@@ -1265,6 +1283,58 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     fetchProducts();
   }, []);
+
+  const loadMoreProducts = useCallback(async () => {
+    if (!IS_FIREBASE_ENABLED || isFetchingMore || !hasMoreProducts || !lastVisibleDocRef.current) {
+      return;
+    }
+
+    setIsFetchingMore(true);
+    try {
+      const productsColRef = collection(db, 'products');
+      const q = query(
+        productsColRef,
+        orderBy('id'),
+        startAfter(lastVisibleDocRef.current),
+        limit(24)
+      );
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        lastVisibleDocRef.current = snapshot.docs[snapshot.docs.length - 1];
+        setHasMoreProducts(snapshot.docs.length === 24);
+
+        const newProducts: Product[] = [];
+        snapshot.forEach((docSnap) => {
+          newProducts.push(docSnap.data() as Product);
+        });
+
+        setProducts((prev) => {
+          // Filter duplicates just in case
+          const prevIds = new Set(prev.map(p => p.id));
+          const filteredNew = newProducts.filter(p => !prevIds.has(p.id));
+          const updated = [...prev, ...filteredNew];
+          try {
+            localStorage.setItem('yallalb_products', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+
+        dbMonitor.logSnapshotSync({
+          path: 'products/*',
+          caller: 'ShopContext:loadMoreProducts',
+          itemCount: snapshot.docs.length,
+          metadata: { totalItems: snapshot.docs.length }
+        });
+      } else {
+        setHasMoreProducts(false);
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error fetching paginated products:", err);
+    } finally {
+      setIsFetchingMore(false);
+    }
+  }, [isFetchingMore, hasMoreProducts]);
 
   // Real-time Orders Sync from Firestore Database (scoped for security)
   useEffect(() => {
@@ -1354,17 +1424,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!userObj) {
         setFirebaseUser(null);
         setUser(INITIAL_USER);
-        setWishlist([]);
-        setCart([]);
-        setOrders([]);
         setIsAdminUser(false);
         setIsAdminUnlockedState(false);
-        localStorage.removeItem('yallalb_user');
-        localStorage.removeItem('yallalb_wishlist');
-        localStorage.removeItem('yallalb_cart');
-        localStorage.removeItem('yallalb_orders');
-        localStorage.removeItem('yallalb_saved_checkout_data');
-        localStorage.removeItem('yallalb_admin_unlocked');
+        // Preserve local guest cart and wishlist if available
+        try {
+          const storedCart = localStorage.getItem('yallalb_cart');
+          if (storedCart) {
+            const parsed = JSON.parse(storedCart);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCart(parsed);
+            }
+          }
+          const storedWishlist = localStorage.getItem('yallalb_wishlist');
+          if (storedWishlist) {
+            const parsed = JSON.parse(storedWishlist);
+            if (Array.isArray(parsed)) {
+              setWishlist(parsed);
+            }
+          }
+        } catch {}
         return;
       }
       setFirebaseUser(userObj);
@@ -1567,46 +1645,272 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!auth) {
         throw new Error("Firebase Authentication is not fully initialized in this environment.");
       }
-      if (!googleProvider) {
-        throw new Error("Google Authentication Provider is not fully initialized in this environment.");
-      }
-      await signInWithPopup(auth, googleProvider);
+      const provider = googleProvider || new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
       showToast('Successfully signed in with Google!', 'success');
     } catch (error: any) {
-      console.error("Google Sign In Error:", error);
-      let msg = 'Failed to sign in with Google: ' + error.message;
-      if (error.code === 'auth/network-request-failed') {
-        msg = 'Network connection error. Please check your internet connection and try again.';
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        msg = 'Google Sign-In popup was closed. Please try again.';
-      } else if (error.code === 'auth/cancelled-popup-request') {
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
         return;
+      }
+      let msg = '';
+      if (error.code === 'auth/operation-not-allowed') {
+        console.warn("Google Sign-In is not enabled in Firebase Authentication console.");
+        msg = 'Google Sign-In is not enabled in Firebase Console. Please enable Google provider in Firebase Auth or use Email Sign-In.';
+      } else if (error.code === 'auth/network-request-failed') {
+        msg = 'Network connection error. Please check your internet connection and try again.';
+      } else if (error.code === 'auth/popup-blocked') {
+        msg = 'Sign-In popup was blocked by your browser settings. Please allow popups or open the app in a new browser tab.';
       } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
-        msg = 'Configuration issue detected. Please check your browser third-party cookie settings or try signing in with email/password.';
+        msg = 'Google Sign-In requires third-party cookies or opening in a new tab. Alternatively, use email/password sign-in.';
+      } else {
+        console.error("Google Sign In Error:", error);
+        msg = 'Failed to sign in with Google: ' + (error.message || 'Unknown error');
+      }
+      showToast(msg, 'warning');
+    }
+  };
+
+  const signInWithApple = async () => {
+    try {
+      if (!auth) {
+        throw new Error("Firebase Authentication is not fully initialized in this environment.");
+      }
+      const provider = appleProvider || new OAuthProvider('apple.com');
+      await signInWithPopup(auth, provider);
+      showToast('Successfully signed in with Apple!', 'success');
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        return;
+      }
+      let msg = '';
+      if (error.code === 'auth/operation-not-allowed') {
+        console.warn("Apple Sign-In is not enabled in Firebase Authentication console.");
+        msg = 'Apple Sign-In is not enabled in Firebase Console. Please enable Apple provider in Firebase Auth or use Email Sign-In.';
+      } else if (error.code === 'auth/network-request-failed') {
+        msg = 'Network connection error. Please check your internet connection and try again.';
+      } else if (error.code === 'auth/popup-blocked') {
+        msg = 'Sign-In popup was blocked by your browser settings. Please allow popups or open the app in a new browser tab.';
+      } else if (error.code === 'auth/argument-error' || error.message?.includes('argument-error')) {
+        msg = 'Apple Sign-In requires third-party cookies or opening in a new tab. Alternatively, use email/password sign-in.';
+      } else {
+        console.error("Apple Sign In Error:", error);
+        msg = 'Failed to sign in with Apple: ' + (error.message || 'Unknown error');
       }
       showToast(msg, 'warning');
     }
   };
   
   const resetPassword = async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      const msg = language === 'ar' ? 'الرجاء إدخال البريد الإلكتروني' : 'Please enter an email address.';
+      showToast(msg, 'warning');
+      throw new Error(msg);
+    }
+
     try {
-      await sendPasswordResetEmail(auth, email);
-      showToast('Password reset email sent. Please check your inbox.', 'success');
+      let isUserInDb = false;
+
+      // 1. Check Firestore 'users' collection for saved account
+      if (IS_FIREBASE_ENABLED) {
+        try {
+          const usersRef = collection(db, 'users');
+          const allUsersSnap = await getDocs(usersRef);
+          allUsersSnap.forEach((docSnap) => {
+            const uData = docSnap.data();
+            if (uData && uData.email && typeof uData.email === 'string' && uData.email.trim().toLowerCase() === cleanEmail) {
+              isUserInDb = true;
+            }
+          });
+        } catch (dbErr) {
+          console.warn("[resetPassword] Firestore user search error:", dbErr);
+        }
+      }
+
+      // 2. Fallback check via Firebase Auth sign in methods
+      if (!isUserInDb && IS_FIREBASE_ENABLED) {
+        try {
+          const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
+          if (methods && methods.length > 0) {
+            isUserInDb = true;
+          }
+        } catch (authErr: any) {
+          console.warn("[resetPassword] Auth methods check error:", authErr);
+        }
+      }
+
+      // If email is NOT found in database, block password reset and show warning notification
+      if (!isUserInDb) {
+        const notFoundMsg = language === 'ar'
+          ? 'عذراً، لم يتم العثور على حساب مسجل بهذا البريد الإلكتروني في قاعدة البيانات'
+          : 'No registered account found with this email address in our database. Please sign up or check your email.';
+        showToast(notFoundMsg, 'warning');
+        throw new Error(notFoundMsg);
+      }
+
+      // Email exists in database - proceed to send reset link
+      await sendPasswordResetEmail(auth, cleanEmail);
+      const successMsg = language === 'ar'
+        ? 'تم إرسال رابط إعادة تعيين كلمة المرور. يرجى التحقق من صندوق الوارد الخاص بك.'
+        : 'Password reset email sent. Please check your inbox.';
+      showToast(successMsg, 'success');
     } catch (error: any) {
-      let msg = 'Failed to send reset email: ' + error.message;
+      if (error.message && (error.message.includes('No registered account') || error.message.includes('لم يتم العثور'))) {
+        throw error;
+      }
+      let msg = language === 'ar' ? 'فشل إرسال رابط إعادة التعيين: ' : 'Failed to send reset email: ';
       if (error.code === 'auth/network-request-failed') {
-        msg = 'Network connection error. Please check your internet connection and try again.';
+        msg = language === 'ar' ? 'خطأ في الاتصال بالشبكة. يرجى التحقق والتجربة مجدداً.' : 'Network connection error. Please check your connection and try again.';
       } else if (error.code === 'auth/user-not-found') {
-        msg = 'No account found with this email address.';
+        msg = language === 'ar' ? 'لم يتم العثور على حساب بهذا البريد الإلكتروني.' : 'No account found with this email address in our database.';
+      } else {
+        msg += error.message || '';
       }
       showToast(msg, 'warning');
+      throw error;
+    }
+  };
+
+  const sendSignupOTP = async (targetEmail: string): Promise<string> => {
+    const cleanEmail = targetEmail.trim().toLowerCase();
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    setLatestOtpCode(generatedOtp);
+    setPendingVerificationEmail(cleanEmail);
+    setIsOtpModalOpen(true);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        const otpDocRef = doc(collection(db, 'otp_verifications'));
+        await setDoc(otpDocRef, {
+          email: cleanEmail,
+          otp: generatedOtp,
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          verified: false
+        });
+      } catch (err) {
+        console.warn("[sendSignupOTP] Firestore error:", err);
+      }
+    }
+
+    if (auth && auth.currentUser) {
+      try {
+        await sendEmailVerification(auth.currentUser);
+      } catch (e) {
+        console.warn("sendEmailVerification notice:", e);
+      }
+    }
+
+    showToast(
+      language === 'ar'
+        ? `تم إرسال رمز التحقق OTP إلى ${cleanEmail}`
+        : `Verification OTP sent to ${cleanEmail}. Please enter the 6-digit code.`,
+      'info'
+    );
+    return generatedOtp;
+  };
+
+  const verifySignupOTP = async (targetEmail: string, inputOtp: string): Promise<boolean> => {
+    const cleanEmail = targetEmail.trim().toLowerCase();
+    const cleanOtp = inputOtp.trim();
+
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      const msg = language === 'ar' ? 'يرجى إدخال رمز مكون من 6 أرقام' : 'Please enter a valid 6-digit OTP code.';
+      showToast(msg, 'warning');
+      return false;
+    }
+
+    let isMatch = false;
+
+    if (latestOtpCode && cleanOtp === latestOtpCode) {
+      isMatch = true;
+    }
+
+    if (!isMatch && IS_FIREBASE_ENABLED) {
+      try {
+        const otpsRef = collection(db, 'otp_verifications');
+        const q = query(otpsRef, where('email', '==', cleanEmail), where('otp', '==', cleanOtp));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          isMatch = true;
+          snap.forEach(async (d) => {
+            await setDoc(d.ref, { verified: true }, { merge: true }).catch(() => {});
+          });
+        }
+      } catch (err) {
+        console.warn("[verifySignupOTP] Firestore verification notice:", err);
+      }
+    }
+
+    if (isMatch) {
+      setUser((prev) => {
+        const updated = { ...prev, emailVerified: true, isOtpVerified: true };
+        try {
+          localStorage.setItem('yallalb_user', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+
+      if (IS_FIREBASE_ENABLED && firebaseUser) {
+        try {
+          const userDocRef = doc(db, 'users', firebaseUser.uid);
+          await setDoc(userDocRef, { emailVerified: true, isOtpVerified: true, emailVerifiedAt: new Date().toISOString() }, { merge: true });
+        } catch (e) {
+          console.warn("Error updating user profile verification in Firestore:", e);
+        }
+      }
+
+      setIsOtpModalOpen(false);
+      setPendingVerificationEmail(null);
+
+      showToast(
+        language === 'ar'
+          ? 'تم تأكيد ملكية البريد الإلكتروني بنجاح! أهلاً بك في يلا لبنان.'
+          : 'Email verified successfully! Welcome to Yalla Lebanon.',
+        'success'
+      );
+      return true;
+    } else {
+      showToast(
+        language === 'ar'
+          ? 'رمز التحقق غير صحيح. يرجى إعادة المحاولة.'
+          : 'Invalid OTP code. Please check your email and enter the correct 6-digit code.',
+        'warning'
+      );
+      return false;
     }
   };
 
   const signUpWithEmail = async (email: string, pass: string) => {
+    // L-5: Validate password complexity
+    if (pass.length < 8) {
+      const msg = 'Password must be at least 8 characters long.';
+      showToast(msg, 'warning');
+      throw new Error(msg);
+    }
+    const hasUppercase = /[A-Z]/.test(pass);
+    const hasLowercase = /[a-z]/.test(pass);
+    const hasNumber = /[0-9]/.test(pass);
+    const hasSpecial = /[^A-Za-z0-9]/.test(pass);
+    if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+      const msg = 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character.';
+      showToast(msg, 'warning');
+      throw new Error(msg);
+    }
+
     try {
-      await createUserWithEmailAndPassword(auth, email, pass);
-      showToast('Account created successfully!', 'success');
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      if (userCredential.user) {
+        await sendSignupOTP(email);
+        showToast(
+          language === 'ar'
+            ? 'تم إنشاء الحساب! يرجى إدخال رمز OTP لتأكيد ملكية بريدك الإلكتروني.'
+            : 'Account created! Please enter the OTP to confirm email ownership.',
+          'success'
+        );
+      } else {
+        showToast('Account created successfully!', 'success');
+      }
     } catch (err: any) {
       console.error("Sign up error:", err);
       let msg = 'Sign up failed: ' + err.message;
@@ -1751,16 +2055,56 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addToCart = (product: Product, quantity = 1, option?: string) => {
+    // Determine the product from our master products list to get the most up-to-date stock
+    const currentProduct = products.find(p => p.id === product.id) || product;
+    const availableStock = typeof currentProduct.stock === 'number' ? currentProduct.stock : 999;
+    
+    if (availableStock <= 0) {
+      showToast(
+        language === 'ar'
+          ? 'عذراً، هذا المنتج غير متوفر حالياً'
+          : 'Sorry, this product is currently out of stock!',
+        'warning'
+      );
+      return;
+    }
+
     setCart(prev => {
       const existingIndex = prev.findIndex(item => item.product.id === product.id && item.selectedOption === option);
       if (existingIndex > -1) {
+        const existingQty = prev[existingIndex].quantity;
+        const targetQty = existingQty + quantity;
+        if (targetQty > availableStock) {
+          const clampedQty = availableStock;
+          showToast(
+            language === 'ar'
+              ? `تم تحديد الكمية بـ ${clampedQty} (الحد الأقصى للمخزون)`
+              : `Quantity limited to ${clampedQty} (maximum stock available)`,
+            'warning'
+          );
+          return prev.map((item, idx) =>
+            idx === existingIndex
+              ? { ...item, quantity: clampedQty }
+              : item
+          );
+        }
         return prev.map((item, idx) =>
           idx === existingIndex
-            ? { ...item, quantity: item.quantity + quantity }
+            ? { ...item, quantity: targetQty }
             : item
         );
       }
-      return [...prev, { product, quantity, selectedOption: option }];
+      
+      const initialQty = quantity > availableStock ? availableStock : quantity;
+      if (initialQty < quantity) {
+        showToast(
+          language === 'ar'
+            ? `تمت إضافة ${initialQty} قطع فقط (الحد الأقصى للمخزون)`
+            : `Added only ${initialQty} items due to stock limit`,
+          'warning'
+        );
+      }
+      return [...prev, { product: currentProduct, quantity: initialQty, selectedOption: option }];
     });
     showToast(`Added ${quantity}x "${product.name.split('(')[0].trim()}" to cart!`);
   };
@@ -1769,17 +2113,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCart(prev => {
       const nextCart = [...prev];
       for (const item of itemsToAdd) {
+        const currentProd = products.find(p => p.id === item.product.id) || item.product;
+        const availableStock = typeof currentProd.stock === 'number' ? currentProd.stock : 999;
+        if (availableStock <= 0) continue;
+
         const qty = item.quantity || 1;
         const existingIndex = nextCart.findIndex(c => c.product.id === item.product.id && c.selectedOption === item.option);
         if (existingIndex > -1) {
+          const targetQty = Math.min(nextCart[existingIndex].quantity + qty, availableStock);
           nextCart[existingIndex] = {
             ...nextCart[existingIndex],
-            quantity: nextCart[existingIndex].quantity + qty
+            quantity: targetQty
           };
         } else {
           nextCart.push({
-            product: item.product,
-            quantity: qty,
+            product: currentProd,
+            quantity: Math.min(qty, availableStock),
             selectedOption: item.option
           });
         }
@@ -1798,9 +2147,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       removeFromCart(productId);
       return;
     }
+    const currentProduct = products.find(p => p.id === productId);
+    const availableStock = currentProduct && typeof currentProduct.stock === 'number' ? currentProduct.stock : 999;
+
+    let finalQty = quantity;
+    if (finalQty > availableStock) {
+      finalQty = availableStock;
+      showToast(
+        language === 'ar'
+          ? `عذراً، المخزون المتاح هو ${availableStock} قطع فقط`
+          : `Sorry, only ${availableStock} items are available in stock`,
+        'warning'
+      );
+    }
+
     setCart(prev =>
       prev.map(item =>
-        item.product.id === productId ? { ...item, quantity } : item
+        item.product.id === productId ? { ...item, quantity: finalQty } : item
       )
     );
   };
@@ -1894,45 +2257,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(language === 'ar' ? 'تمت إزالة الكوبون' : 'Coupon code removed', 'info');
   }, [language]);
 
-  // Place Order - Authenticated customer order creation
+  // Place Order - Order creation with graceful fallback for empty profiles
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
-    if (!firebaseUser) {
-      throw new Error('Please sign in or create an account to place your order.');
-    }
+    const activeUserId = firebaseUser?.uid || auth?.currentUser?.uid || 'guest-user';
 
     const orderDocRef = doc(collection(db, 'orders'));
     const orderId = orderDocRef.id;
-    const trackingSuffix = Math.floor(100000 + Math.random() * 900000);
-    const newOrder: Order = {
-      ...orderData,
-      id: orderId,
-      date: new Date().toISOString(),
-      trackingNumber: `LB-EXP-${trackingSuffix}`,
-      status: 'pending',
-      userId: firebaseUser.uid
-    };
 
-    const sanitizedOrder = sanitizeFirestorePayload(newOrder);
+    // L-3: Secure random tracker numbers using Web Crypto API
+    let trackingSuffix: number;
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+      const array = new Uint32Array(1);
+      window.crypto.getRandomValues(array);
+      trackingSuffix = 100000 + (array[0] % 900000);
+    } else {
+      trackingSuffix = Math.floor(100000 + Math.random() * 900000);
+    }
+    const dateStr = new Date().toISOString();
+    const trackingNumberStr = `LB-EXP-${trackingSuffix}`;
 
-    dbLogger.logFormInput({
-      sourceComponent: 'ShopContext',
-      actionName: 'placeOrder',
-      targetPath: `orders/${newOrder.id}`,
-      summary: `Placing new order #${newOrder.id} (${newOrder.items.length} items, total: $${newOrder.totalUSD})`,
-      payload: sanitizedOrder
-    });
-
-    const { startTime } = dbLogger.logFirestoreWriteStart({
-      operation: 'setDoc',
-      targetPath: `orders/${newOrder.id}`,
-      sourceComponent: 'ShopContext',
-      actionName: 'setDoc(orders)',
-      summary: `Writing customer order document #${newOrder.id} to Firestore...`,
-      payload: sanitizedOrder
-    });
-
-    // Persist to Firestore database FIRST before mutating cart state
+    // If Firebase is disabled, we do standard local-only fallback
     if (!IS_FIREBASE_ENABLED) {
+      const newOrder: Order = {
+        ...orderData,
+        id: orderId,
+        date: dateStr,
+        trackingNumber: trackingNumberStr,
+        status: 'pending',
+        userId: activeUserId
+      };
       setOrders(prev => {
         const next = [newOrder, ...prev];
         try {
@@ -1945,35 +2298,119 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return newOrder;
     }
 
+    // Process order placement atomically inside a Firestore transaction!
+    // H-2 & H-3: Atomic transactional stock decrement and authoritative pricing
+    const { startTime } = dbLogger.logFirestoreWriteStart({
+      operation: 'setDoc',
+      targetPath: `orders/${orderId}`,
+      sourceComponent: 'ShopContext',
+      actionName: 'placeOrderTransaction',
+      summary: `Placing order #${orderId} and decrementing stock atomically...`,
+    });
+
     try {
-      await monitoredSetDoc(orderDocRef, sanitizedOrder, undefined, 'ShopContext:placeOrder');
-      
-      dbLogger.logFirestoreWriteSuccess({
-        operation: 'setDoc',
-        targetPath: `orders/${newOrder.id}`,
-        sourceComponent: 'ShopContext',
-        actionName: 'setDoc(orders)',
-        summary: `Order #${newOrder.id} committed to Firestore database successfully.`,
-        startTime,
-        payload: sanitizedOrder
+      const resultOrder = await runTransaction(db, async (transaction) => {
+        // 1. Fetch products from DB to get fresh stock and pricing (authoritative checks!)
+        const dbProducts = [];
+        for (const item of cart) {
+          const productRef = doc(db, 'products', item.product.id);
+          const productSnap = await transaction.get(productRef);
+          if (!productSnap.exists()) {
+            throw new Error(`Product "${item.product.name}" is no longer available.`);
+          }
+          const productData = productSnap.data() as Product;
+          dbProducts.push({
+            ref: productRef,
+            data: productData,
+            cartItem: item
+          });
+        }
+
+        // 2. Validate stock and build authoritative order items list
+        const validatedItems = [];
+        for (const dbProd of dbProducts) {
+          const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 999;
+          const reqQty = dbProd.cartItem.quantity;
+          if (currentStock < reqQty) {
+            throw new Error(`Sorry, "${dbProd.data.name}" only has ${currentStock} units remaining in stock.`);
+          }
+          // Build product object with authoritative pricing and data from DB
+          const validatedProduct: Product = {
+            ...dbProd.data,
+            // Force authoritative fields from DB to prevent client-side price tampering
+            priceUSD: dbProd.data.priceUSD,
+            name: dbProd.data.name,
+            id: dbProd.data.id
+          };
+          validatedItems.push({
+            product: validatedProduct,
+            quantity: reqQty,
+            selectedOption: dbProd.cartItem.selectedOption
+          });
+        }
+
+        // 3. Recalculate subtotal, discounts, and total using authoritative values
+        const authDiscountCalc = applyDiscounts(validatedItems, discountRules, appliedCouponCode);
+        const subtotalUSD = Math.round(validatedItems.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
+        const totalUSD = authDiscountCalc.finalSubtotalUSD;
+        const discountUSDVal = authDiscountCalc.discountUSD;
+
+        // Construct the authoritative order structure! No client-side price injection allowed.
+        const newOrder: Order = {
+          ...orderData,
+          id: orderId,
+          date: dateStr,
+          trackingNumber: trackingNumberStr,
+          status: 'pending',
+          userId: activeUserId,
+          items: validatedItems,
+          subtotalUSD,
+          discountUSD: discountUSDVal,
+          totalUSD,
+          appliedCoupon: appliedCouponCode || undefined
+        };
+
+        const sanitizedOrder = sanitizeFirestorePayload(newOrder);
+
+        // 4. Update product stocks (decrement atomically)
+        for (const dbProd of dbProducts) {
+          const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 999;
+          const nextStock = Math.max(0, currentStock - dbProd.cartItem.quantity);
+          transaction.update(dbProd.ref, { stock: nextStock });
+        }
+
+        // 5. Create the order
+        transaction.set(orderDocRef, sanitizedOrder);
+
+        return newOrder;
       });
 
-      setOrders(prev => [newOrder, ...prev]);
+      dbLogger.logFirestoreWriteSuccess({
+        operation: 'setDoc',
+        targetPath: `orders/${orderId}`,
+        sourceComponent: 'ShopContext',
+        actionName: 'placeOrderTransaction',
+        summary: `Order #${orderId} completed atomically: stock decremented, authoritative total $${resultOrder.totalUSD} verified.`,
+        startTime,
+        payload: resultOrder
+      });
+
+      setOrders(prev => [resultOrder, ...prev]);
       clearCart();
-      showToast(`Mabrouk! Order #${newOrder.id} placed and saved to database.`, 'success');
-      return newOrder;
-    } catch (error) {
+      showToast(`Mabrouk! Order #${resultOrder.id} placed and saved to database.`, 'success');
+      return resultOrder;
+    } catch (error: any) {
       dbLogger.logFirestoreWriteError({
         operation: 'setDoc',
-        targetPath: `orders/${newOrder.id}`,
+        targetPath: `orders/${orderId}`,
         sourceComponent: 'ShopContext',
-        actionName: 'setDoc(orders)',
-        summary: `Failed to save order #${newOrder.id} to Firestore`,
+        actionName: 'placeOrderTransaction',
+        summary: `Failed to place order transaction: ${error.message}`,
         startTime,
         error
       });
-      console.error('[ShopContext] Failed to save order to Firestore:', error);
-      showToast('Could not save order. Your cart is preserved. Please try again.', 'warning');
+      console.error('[ShopContext] Transaction failed:', error);
+      showToast(error.message || 'Could not place order. Please try again.', 'warning');
       throw error;
     }
   };
@@ -2390,6 +2827,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     selectedProductForModal,
     setSelectedProductForModal,
     isDbSyncing,
+    hasMoreProducts,
+    isFetchingMore,
+    loadMoreProducts,
     currency,
     setCurrency,
     formatPrice,
@@ -2422,7 +2862,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUpWithEmail,
     resetPassword,
     signInWithGoogle,
+    signInWithApple,
     signOutUser,
+    pendingVerificationEmail,
+    setPendingVerificationEmail,
+    isOtpModalOpen,
+    setIsOtpModalOpen,
+    latestOtpCode,
+    sendSignupOTP,
+    verifySignupOTP,
     searchQuery,
     setSearchQuery,
     selectedCategory,
@@ -2468,6 +2916,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     products,
     selectedProductForModal,
     isDbSyncing,
+    hasMoreProducts,
+    isFetchingMore,
+    loadMoreProducts,
     currency,
     cart,
     cartTotalUSD,

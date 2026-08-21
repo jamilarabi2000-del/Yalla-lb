@@ -93,14 +93,6 @@ export const HeroBanner: React.FC = () => {
         {/* Content Card */}
         <div className="max-w-2xl mx-auto text-center space-y-5 bg-transparent backdrop-blur-none p-6 sm:p-8">
           
-          {heroData.badgeText && (
-            <div className="flex justify-center">
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 backdrop-blur-xs">
-                {heroData.badgeText}
-              </span>
-            </div>
-          )}
-
           <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">
             {heroData.title ?? t('heroTitle')}
           </h1>
