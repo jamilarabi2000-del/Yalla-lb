@@ -11,9 +11,15 @@ export interface DiscountCalculationResult {
   appliedRuleIds: string[];
 }
 
+export interface DiscountOptions {
+  couponCode?: string;
+  isNewUser?: boolean;
+  currentDate?: Date;
+}
+
 function matchesTarget(product: Product, rule: DiscountRule): boolean {
-  if (rule.target === 'checkout') return true;
-  if (!rule.targetValue) return true;
+  if (rule.target === 'checkout' || rule.target === 'all') return true;
+  if (!rule.targetValue || rule.targetValue.trim() === '') return true;
 
   const targetVal = rule.targetValue.toLowerCase().trim();
 
@@ -40,12 +46,12 @@ function matchesTarget(product: Product, rule: DiscountRule): boolean {
 }
 
 /**
- * Calculates cart discounts accurately based on active rules and optional entered coupon code.
+ * Calculates cart discounts accurately based on active rules, promotion periods, audience filters, and optional entered coupon code.
  */
 export function applyDiscounts(
   items: CartItem[],
   rules: DiscountRule[],
-  couponCode?: string
+  couponCodeOrOptions?: string | DiscountOptions
 ): DiscountCalculationResult {
   const subtotal = items.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0);
   if (subtotal <= 0 || items.length === 0) {
@@ -58,12 +64,37 @@ export function applyDiscounts(
     };
   }
 
+  const options: DiscountOptions = typeof couponCodeOrOptions === 'string'
+    ? { couponCode: couponCodeOrOptions }
+    : (couponCodeOrOptions || {});
+
   let totalDiscount = 0;
   const appliedRules: { rule: DiscountRule; savedUSD: number }[] = [];
-  const normalizedCoupon = couponCode ? couponCode.trim().toUpperCase() : '';
+  const normalizedCoupon = options.couponCode ? options.couponCode.trim().toUpperCase() : '';
+  const now = options.currentDate || new Date();
+  const isNewUser = options.isNewUser ?? true;
 
   for (const rule of rules) {
     if (!rule.isActive) continue;
+
+    // Promotion period validation
+    if (rule.startDate) {
+      const start = new Date(rule.startDate);
+      if (!isNaN(start.getTime()) && now < start) {
+        continue; // Promotion hasn't started yet
+      }
+    }
+    if (rule.endDate) {
+      const end = new Date(rule.endDate);
+      if (!isNaN(end.getTime()) && now > end) {
+        continue; // Promotion has expired
+      }
+    }
+
+    // New user exclusivity validation
+    if (rule.isNewUserOnly && !isNewUser) {
+      continue; // Exclude if rule is for new users only and customer is existing
+    }
 
     // If rule has a coupon code, it must match the entered coupon
     if (rule.couponCode && rule.couponCode.trim() !== '') {
@@ -79,7 +110,7 @@ export function applyDiscounts(
 
     // Target calculation
     let baseApplicableAmount = 0;
-    if (rule.target === 'checkout') {
+    if (rule.target === 'checkout' || rule.target === 'all') {
       baseApplicableAmount = subtotal;
     } else {
       const eligibleItems = items.filter(item => matchesTarget(item.product, rule));

@@ -2217,9 +2217,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
   }, [appliedCouponCode]);
 
+  const isNewUser = useMemo(() => {
+    if (!firebaseUser) return true;
+    const userOrdersCount = orders.filter(o => o.userId === firebaseUser.uid).length;
+    return userOrdersCount === 0;
+  }, [firebaseUser, orders]);
+
   const discountCalculation = useMemo(() => {
-    return applyDiscounts(cart, discountRules, appliedCouponCode);
-  }, [cart, discountRules, appliedCouponCode]);
+    return applyDiscounts(cart, discountRules, {
+      couponCode: appliedCouponCode,
+      isNewUser
+    });
+  }, [cart, discountRules, appliedCouponCode, isNewUser]);
 
   const discountUSD = discountCalculation.discountUSD;
   const finalCartTotalUSD = discountCalculation.finalSubtotalUSD;
@@ -2231,7 +2240,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const applyCoupon = useCallback((code: string): boolean => {
     const normalized = code.trim().toUpperCase();
     if (!normalized) return false;
-    const testResult = applyDiscounts(cart, discountRules, normalized);
+    const testResult = applyDiscounts(cart, discountRules, { couponCode: normalized, isNewUser });
     if (testResult.discountUSD > 0) {
       setAppliedCouponCode(normalized);
       showToast(

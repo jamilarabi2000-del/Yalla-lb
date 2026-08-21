@@ -385,11 +385,14 @@ export interface DiscountRule {
   name: string;
   type: 'percentage' | 'fixed';
   value: number; // e.g. 15 for 15% or 5 for $5
-  target: 'checkout' | 'product' | 'category' | 'seller' | 'brand';
+  target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
   targetValue?: string; // specific product id, category id/name, artisan/seller name, or origin/brand name
   couponCode?: string; // optional coupon code e.g. SUMMER20
   isActive: boolean;
   minPurchaseUSD?: number;
+  startDate?: string; // ISO date-time string e.g. "2026-08-20T00:00"
+  endDate?: string;   // ISO date-time string e.g. "2026-08-31T23:59"
+  isNewUserOnly?: boolean; // True if rule applies only to new users
 }
 
 
