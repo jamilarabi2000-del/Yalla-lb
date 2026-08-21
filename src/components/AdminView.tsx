@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
 import { Product, OrderStatus, Order } from '../types';
 import { AdminSidebar, AdminMenuTab } from './admin/AdminSidebar';
 import { EcommerceOverview } from './admin/EcommerceOverview';
+import { SalesAnalyticsView } from './admin/SalesAnalyticsView';
 import { CategoriesDetailsView } from './admin/CategoriesDetailsView';
 import { SellersView } from './admin/SellersView';
 import { CustomersView } from './admin/CustomersView';
@@ -11,6 +12,11 @@ import { ActiveCartsView } from './admin/ActiveCartsView';
 import { DiscountsManager } from './admin/DiscountsManager';
 import { DatabaseActivityLogs } from './admin/DatabaseActivityLogs';
 import { PageCMSManager } from './PageCMSManager';
+import { 
+  downloadFullMasterReport,
+  downloadSellerPerformanceReport,
+  downloadStockInventoryReport
+} from '../utils/exportMasterReport';
 import { 
   Lock, 
   Plus, 
@@ -44,11 +50,14 @@ import {
   Radio,
   UploadCloud,
   ChevronRight,
+  ChevronDown,
   Compass,
   Layers,
   Download,
   XCircle,
-  Phone
+  Phone,
+  BarChart3,
+  FileSpreadsheet
 } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -61,6 +70,13 @@ export const ADMIN_TAB_METAS: Record<AdminMenuTab, { path: string; title: string
     section: 'Store Dashboard',
     desc: 'Real-time sales velocity, revenue breakdown, and store performance overview',
     icon: '📊'
+  },
+  sales: {
+    path: 'sales',
+    title: 'Sales Analytics & Commercial Reports',
+    section: 'Store Dashboard',
+    desc: 'Deep-dive sales by time period, product, seller, customer, and Lebanese regional logistics',
+    icon: '📈'
   },
   orders: {
     path: 'Orders',
@@ -228,6 +244,7 @@ const getInitialAdminTab = (): AdminMenuTab => {
 export const AdminView: React.FC = () => {
   const { 
     categories = [],
+    sellers = [],
     products = [], 
     orders = [], 
     cart = [],
@@ -257,6 +274,21 @@ export const AdminView: React.FC = () => {
   const [isVerifyingAuth, setIsVerifyingAuth] = useState(false);
   const [firestoreStatus, setFirestoreStatus] = useState<'checking' | 'connected' | 'error'>('connected');
   const [firestoreErrorDetails, setFirestoreErrorDetails] = useState<string | null>(null);
+  const [isMasterExportMenuOpen, setIsMasterExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setIsMasterExportMenuOpen(false);
+      }
+    };
+    if (isMasterExportMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMasterExportMenuOpen]);
 
   useEffect(() => {
     let isMounted = true;
@@ -827,6 +859,21 @@ export const AdminView: React.FC = () => {
     });
   };
 
+  const handleDownloadFullMasterReport = () => {
+    downloadFullMasterReport(products, sellers, orders);
+    showToast('Full Master Report downloaded successfully (Products, Sellers, Stock & Sales)', 'success');
+  };
+
+  const handleDownloadSellerSalesReport = () => {
+    downloadSellerPerformanceReport(products, sellers, orders);
+    showToast('Seller & Artisan Sales Performance Report downloaded successfully', 'success');
+  };
+
+  const handleDownloadStockInventoryReport = () => {
+    downloadStockInventoryReport(products, sellers, orders);
+    showToast('Stock & Replenishment Inventory Report downloaded successfully', 'success');
+  };
+
   const handleDownloadProductsReport = () => {
     import('papaparse').then((Papa) => {
       const dataToExport = filteredCatalogProducts.map(p => ({
@@ -897,6 +944,98 @@ export const AdminView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* FULL MASTER EXPORT BUTTON & DROPDOWN */}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                id="admin-master-export-btn"
+                onClick={() => setIsMasterExportMenuOpen(!isMasterExportMenuOpen)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer border border-indigo-200/80 shadow-2xs active:scale-95"
+                title="Download Master Business & Store Reports (CSV)"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">Export Reports</span>
+                <ChevronDown className="w-3 h-3 text-indigo-500" />
+              </button>
+
+              {isMasterExportMenuOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-3.5 py-2 border-b border-slate-100">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Download Data Reports</span>
+                    <p className="text-xs text-slate-600 font-semibold mt-0.5">Live store telemetry & CSV datasets</p>
+                  </div>
+
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        handleDownloadFullMasterReport();
+                        setIsMasterExportMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left hover:bg-indigo-50/80 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <FileSpreadsheet className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-700 flex items-center gap-1.5">
+                          <span>Full Master Report</span>
+                          <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[9px] font-black">ALL DETAILS</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Products, sellers, stock valuation, and sales metrics per SKU</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleDownloadSellerSalesReport();
+                        setIsMasterExportMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left hover:bg-slate-50 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                        <Store className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-emerald-700">Sellers & Sales Performance</div>
+                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Artisan gross sales ($), stock units, and estimated payouts</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleDownloadStockInventoryReport();
+                        setIsMasterExportMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left hover:bg-slate-50 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-amber-600 group-hover:text-white transition-colors">
+                        <Package className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-amber-700">Stock & Replenishment Alert</div>
+                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Low inventory alerts, valuation, and supplier reorder contacts</p>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        handleDownloadOrdersReport();
+                        setIsMasterExportMenuOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left hover:bg-slate-50 flex items-start gap-2.5 transition-colors cursor-pointer group"
+                    >
+                      <div className="w-7 h-7 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-sky-600 group-hover:text-white transition-colors">
+                        <Truck className="w-3.5 h-3.5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-sky-700">Orders & Courier Dispatch</div>
+                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">Lebanese delivery addresses, phones, and order line items</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* SAVE BUTTON (Admin Snapshot & Drafts) */}
             <button
               id="admin-global-save-btn"
@@ -951,6 +1090,11 @@ export const AdminView: React.FC = () => {
           {/* 1. eCommerce */}
           {currentTab === 'ecommerce' && (
             <EcommerceOverview onNavigateToTab={setCurrentTab} />
+          )}
+
+          {/* Sales Analytics */}
+          {currentTab === 'sales' && (
+            <SalesAnalyticsView />
           )}
 
           {/* 2. Orders */}
@@ -1184,12 +1328,21 @@ export const AdminView: React.FC = () => {
 
                 <div className="flex flex-wrap items-center gap-2.5">
                   <button
+                    onClick={handleDownloadFullMasterReport}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all border border-indigo-200/80 shadow-2xs cursor-pointer active:scale-95"
+                    title="Download Full Master CSV with Products, Sellers, Stock & Sales performance"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Download Full Master Report</span>
+                  </button>
+
+                  <button
                     onClick={handleDownloadProductsReport}
                     className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200 shadow-2xs cursor-pointer active:scale-95"
                     title="Download Products Catalog CSV Report"
                   >
                     <Download className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Download Report</span>
+                    <span>Catalog CSV</span>
                   </button>
 
                   <button

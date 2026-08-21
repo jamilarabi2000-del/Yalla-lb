@@ -22,10 +22,20 @@ import {
   User,
   Newspaper,
   Megaphone,
-  Sliders
+  Sliders,
+  Download,
+  FileSpreadsheet,
+  Store,
+  BarChart3,
+  ShieldCheck
 } from 'lucide-react';
 import { AdminMenuTab } from './AdminSidebar';
 import { RecentActivityWidget } from './RecentActivityWidget';
+import { 
+  downloadFullMasterReport,
+  downloadSellerPerformanceReport,
+  downloadStockInventoryReport
+} from '../../utils/exportMasterReport';
 
 interface EcommerceOverviewProps {
   onNavigateToTab: (tab: AdminMenuTab) => void;
@@ -34,13 +44,15 @@ interface EcommerceOverviewProps {
 export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigateToTab }) => {
   const { 
     products, 
+    sellers = [],
     orders, 
     cart, 
     cartTotalUSD, 
     formatPrice, 
     syncAllProductsToDatabase, 
     isVisualEditMode, 
-    setIsVisualEditMode 
+    setIsVisualEditMode,
+    showToast = () => {}
   } = useShop();
 
   const [isSyncingDb, setIsSyncingDb] = useState(false);
@@ -57,6 +69,57 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
     setIsSyncingDb(true);
     await syncAllProductsToDatabase();
     setIsSyncingDb(false);
+  };
+
+  const handleExportMaster = () => {
+    downloadFullMasterReport(products, sellers, orders);
+    showToast('Master Report downloaded! Includes full Product, Seller, Stock, and Sales telemetry.', 'success');
+  };
+
+  const handleExportSellers = () => {
+    downloadSellerPerformanceReport(products, sellers, orders);
+    showToast('Seller Performance & Sales report downloaded successfully.', 'success');
+  };
+
+  const handleExportStock = () => {
+    downloadStockInventoryReport(products, sellers, orders);
+    showToast('Stock & Inventory Valuation report downloaded successfully.', 'success');
+  };
+
+  const handleExportOrders = () => {
+    import('papaparse').then((Papa) => {
+      const dataToExport = orders.map(ord => ({
+        order_id: ord.id,
+        date: ord.date,
+        customer_name: ord.shipping?.fullName || 'Customer',
+        phone: ord.shipping?.phone || '',
+        email: ord.shipping?.email || '',
+        governorate: ord.shipping?.governorate || '',
+        city: ord.shipping?.city || '',
+        street_address: ord.shipping?.street || '',
+        building: ord.shipping?.building || '',
+        delivery_notes: ord.shipping?.deliveryNotes || '',
+        items_count: ord.items.reduce((s, i) => s + i.quantity, 0),
+        items_summary: ord.items.map(i => `${i.quantity}x ${i.product.name}`).join('; '),
+        subtotal_usd: (ord.subtotalUSD || 0).toFixed(2),
+        delivery_fee_usd: (ord.deliveryFeeUSD || 0).toFixed(2),
+        discount_usd: (ord.discountUSD || 0).toFixed(2),
+        total_usd: (ord.totalUSD || 0).toFixed(2),
+        payment_method: ord.paymentMethod,
+        status: ord.status
+      }));
+
+      const csv = Papa.unparse(dataToExport);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `yalla_orders_ledger_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Orders & Courier ledger downloaded successfully.', 'success');
+    });
   };
 
   return (
@@ -79,6 +142,25 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+          <button
+            onClick={() => onNavigateToTab('sales')}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black tracking-wide transition-all shadow-sm hover:shadow-md cursor-pointer active:scale-95"
+            title="Open dedicated Sales Analytics dashboard with period & entity filters"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-white" />
+            <span>Sales Analytics</span>
+          </button>
+
+          <button
+            id="overview-master-download-btn"
+            onClick={handleExportMaster}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black tracking-wide transition-all shadow-xs border border-indigo-200 cursor-pointer active:scale-95"
+            title="Download full 360° master dataset covering Products, Sellers, Stock, and Sales"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Download Master Report</span>
+          </button>
+
           <button
             onClick={handleSyncDatabase}
             disabled={isSyncingDb}
@@ -107,17 +189,23 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Revenue */}
-        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 hover:shadow-md transition-all">
+        <div 
+          onClick={() => onNavigateToTab('sales')}
+          className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-3 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+        >
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Gross Revenue</span>
-            <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100/60">
+            <div className="w-9 h-9 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100/60 group-hover:scale-105 transition-transform">
               <DollarSign className="w-4.5 h-4.5" />
             </div>
           </div>
           <p className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">{formatPrice(totalRevenueUSD)}</p>
-          <div className="flex items-center gap-1 text-[11px] text-emerald-600 font-bold pt-1 border-t border-slate-100">
-            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Direct to Lebanese Artisans</span>
+          <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+            <div className="flex items-center gap-1 text-emerald-600 font-bold truncate">
+              <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">View Sales Analytics</span>
+            </div>
+            <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" />
           </div>
         </div>
 
@@ -270,6 +358,136 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
           <RecentActivityWidget />
         </div>
 
+      </div>
+
+      {/* Data Intelligence & Master Business CSV Exports Hub */}
+      <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2 text-indigo-600 text-xs font-black uppercase tracking-wider mb-1">
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Data Intelligence & Master Business Reports</span>
+            </div>
+            <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              Export Complete Store Data & Telemetry
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              1-click download comprehensive CSV reports covering all product catalog details, registered suppliers, live stock valuations, and order sales.
+            </p>
+          </div>
+
+          <button
+            onClick={handleExportMaster}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-700 hover:from-indigo-700 hover:to-violet-800 text-white rounded-xl text-xs font-black transition-all cursor-pointer shadow-sm hover:shadow-md active:scale-95"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download Full Master CSV</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          {/* Card 1: Full Master Report */}
+          <div 
+            onClick={handleExportMaster}
+            className="p-5 rounded-2xl border border-indigo-100 bg-indigo-50/40 hover:bg-indigo-50/80 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-black uppercase tracking-wide">
+                  Master 360°
+                </span>
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-indigo-700">Full Master Dataset</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">
+                Aggregates all products, registered sellers, real-time stock, inventory valuation ($), and lifetime sales (units, revenue, order frequency).
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-indigo-100/80 flex items-center justify-between text-[11px] font-bold text-indigo-600">
+              <span>{products.length} Products • {sellers.length} Sellers</span>
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Card 2: Seller & Artisan Ledger */}
+          <div 
+            onClick={handleExportSellers}
+            className="p-5 rounded-2xl border border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50/70 hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                  <Store className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-wide">
+                  Artisans
+                </span>
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-emerald-700">Seller & Artisan Performance</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">
+                Artisan directory with phone numbers, linked products, total inventory units, gross sales revenue ($), and estimated payouts.
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-emerald-100/80 flex items-center justify-between text-[11px] font-bold text-emerald-700">
+              <span>{sellers.length} Registered Artisans</span>
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Card 3: Stock Inventory & Replenishment */}
+          <div 
+            onClick={handleExportStock}
+            className="p-5 rounded-2xl border border-amber-100 bg-amber-50/30 hover:bg-amber-50/70 hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                  <Package className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-wide">
+                  Stock Alert
+                </span>
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-amber-700">Inventory & Replenishment</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">
+                Stock health status (Out of Stock, Low Stock, Healthy), inventory USD valuation, stock threshold warnings, and reordering phone numbers.
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-amber-100/80 flex items-center justify-between text-[11px] font-bold text-amber-700">
+              <span>{products.filter(p => (p.stock || 0) < 5).length} Low Stock SKUs</span>
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
+
+          {/* Card 4: Orders & Courier Dispatch */}
+          <div 
+            onClick={handleExportOrders}
+            className="p-5 rounded-2xl border border-sky-100 bg-sky-50/30 hover:bg-sky-50/70 hover:border-sky-300 hover:shadow-md transition-all cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 rounded-2xl bg-sky-600 text-white flex items-center justify-center font-bold shadow-xs group-hover:scale-105 transition-transform">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 text-[10px] font-black uppercase tracking-wide">
+                  Logistics
+                </span>
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-sm group-hover:text-sky-700">Courier Orders Ledger</h4>
+              <p className="text-xs text-slate-500 mt-1 line-clamp-3 leading-relaxed">
+                Fulfillment ledger with Lebanese delivery addresses, customer phone numbers, item line breakdowns, delivery fees, and order status.
+              </p>
+            </div>
+            <div className="pt-3 mt-3 border-t border-sky-100/80 flex items-center justify-between text-[11px] font-bold text-sky-700">
+              <span>{orders.length} Total Orders Recorded</span>
+              <Download className="w-3.5 h-3.5 group-hover:translate-y-0.5 transition-transform" />
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* Page Content & CMS Quick Management Grid */}

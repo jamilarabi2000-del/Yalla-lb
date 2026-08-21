@@ -10,6 +10,7 @@ import {
 
 export type AdminMenuTab = 
   | 'ecommerce' 
+  | 'sales'
   | 'orders' 
   | 'products' 
   | 'categories' 
@@ -66,6 +67,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       id: 'ecommerce',
       label: 'eCommerce',
       icon: '📊',
+    },
+    {
+      id: 'sales',
+      label: 'Sales Analytics',
+      icon: '📈',
     },
     {
       id: 'orders',

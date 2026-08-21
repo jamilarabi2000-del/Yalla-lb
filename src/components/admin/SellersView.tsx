@@ -14,11 +14,16 @@ import {
   Power, 
   FileText,
   Search,
-  Check
+  Check,
+  FileSpreadsheet
 } from 'lucide-react';
+import { 
+  downloadFullMasterReport, 
+  downloadSellerPerformanceReport 
+} from '../../utils/exportMasterReport';
 
 export const SellersView: React.FC = () => {
-  const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, categories, showToast } = useShop();
+  const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
 
   const [activeSubTab, setActiveSubTab] = useState<'sellers' | 'import'>('sellers');
   const [searchQuery, setSearchQuery] = useState('');
@@ -374,11 +379,22 @@ export const SellersView: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <button
+                onClick={() => {
+                  downloadSellerPerformanceReport(products, sellers, orders);
+                  showToast('Seller Performance & Sales report downloaded successfully.', 'success');
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs shrink-0"
+                title="Download Artisan Sales, Revenue & Payout Ledger"
+              >
+                <Download className="w-4 h-4 text-emerald-600" />
+                <span>Sales & Performance</span>
+              </button>
+              <button
                 onClick={handleDownloadSellersReport}
                 className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs shrink-0"
               >
                 <Download className="w-4 h-4 text-indigo-600" />
-                <span>Download Report</span>
+                <span>Download Directory</span>
               </button>
               <button
                 onClick={handleOpenAdd}
@@ -478,13 +494,25 @@ export const SellersView: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+          <div className="flex flex-wrap items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+            <button
+              onClick={() => {
+                downloadFullMasterReport(products, sellers, orders);
+                showToast('Full Master Report downloaded successfully (Products, Sellers, Stock & Sales)', 'success');
+              }}
+              className="px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black transition-all cursor-pointer inline-flex items-center gap-2 shadow-2xs"
+              title="Download 360° master dataset"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+              <span>Full Master Export</span>
+            </button>
+
             <button
               onClick={handleDownloadTemplate}
               className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 shadow-2xs"
             >
-              <Download className="w-4 h-4 text-indigo-600" />
-              <span>Download CSV Catalog Template</span>
+              <Download className="w-4 h-4 text-slate-600" />
+              <span>CSV Catalog Template</span>
             </button>
 
             <button
@@ -492,7 +520,7 @@ export const SellersView: React.FC = () => {
               className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-2 shadow-2xs"
             >
               <Download className="w-4 h-4 text-emerald-600" />
-              <span>Download Sellers Report</span>
+              <span>Sellers Directory CSV</span>
             </button>
 
             <div className="flex-1"></div>
