@@ -9,7 +9,6 @@ import { AdminErrorBoundary } from './components/AdminErrorBoundary';
 import { ProductDetailView } from './components/ProductDetailView';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
-import { OTPVerificationModal } from './components/OTPVerificationModal';
 import { Footer } from './components/Footer';
 import { CheckCircle2, AlertCircle, Info, Sparkles, Loader2 } from 'lucide-react';
 
@@ -196,7 +195,6 @@ const MainAppContent: React.FC = () => {
       {/* Modals & Overlays */}
       <ProductModal />
       <CartDrawer />
-      <OTPVerificationModal />
 
       {/* Global Interactive Toast Notification */}
       {toast && (

@@ -13,40 +13,28 @@ import {
   ExternalLink,
   ChevronRight,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Download
 } from 'lucide-react';
 import { Order, UserProfile } from '../../types';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
-
-interface CustomerSummary {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  governorate: string;
-  city: string;
-  street: string;
-  ordersCount: number;
-  totalSpentUSD: number;
-  lastOrderDate: string;
-  recentOrders: Order[];
-}
+import { buildCustomerIndex, CustomerRecord } from '../../lib/customerIndex';
 
 export const CustomersView: React.FC = () => {
   const { orders, formatPrice, convertUSDToLBP, showToast, user } = useShop();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<CustomerSummary | null>(null);
-  const [dbUsers, setDbUsers] = useState<UserProfile[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
+  const [dbUsers, setDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
 
   useEffect(() => {
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, 'users');
         const snapshot = await getDocs(usersRef);
-        const usersData: UserProfile[] = [];
+        const usersData: (UserProfile & { uid?: string })[] = [];
         snapshot.forEach(doc => {
-          usersData.push(doc.data() as UserProfile);
+          usersData.push({ uid: doc.id, ...doc.data() } as UserProfile & { uid: string });
         });
         setDbUsers(usersData);
       } catch (err) {
@@ -56,70 +44,53 @@ export const CustomersView: React.FC = () => {
     fetchUsers();
   }, []);
 
-  // Group orders by customer (phone or email or name)
-  const customersMap = new Map<string, CustomerSummary>();
-
-  // Include users from DB
-  dbUsers.forEach((dbUser) => {
-    const key = dbUser.phone || dbUser.email || dbUser.uid || 'anonymous';
-    customersMap.set(key, {
-      id: dbUser.uid || key,
-      name: dbUser.name || 'Shopper in Lebanon',
-      email: dbUser.email || 'shopper@yalla.lb',
-      phone: dbUser.phone || '+961 70 882 193',
-      governorate: dbUser.defaultGovernorate || 'Beirut',
-      city: dbUser.defaultCity || 'Achrafieh / Mar Mikhael',
-      street: dbUser.defaultAddress || 'Rue Gouraud, Building 14',
-      ordersCount: 0,
-      totalSpentUSD: 0,
-      lastOrderDate: 'No recent orders',
-      recentOrders: []
-    });
-  });
-
-  // Aggregate from orders
-  orders.forEach((order) => {
-    const key = order.shipping?.phone || order.shipping?.email || order.shipping?.fullName || order.id || 'anonymous';
-    const existing = customersMap.get(key);
-
-    if (existing) {
-      existing.ordersCount += 1;
-      existing.totalSpentUSD += order.totalUSD;
-      existing.recentOrders.push(order);
-      if (!existing.lastOrderDate || existing.lastOrderDate === 'No recent orders' || existing.lastOrderDate === 'Active today') {
-        existing.lastOrderDate = order.date;
-      }
-    } else {
-      customersMap.set(key, {
-        id: key,
-        name: order.shipping?.fullName || 'Shopper in Lebanon',
-        email: order.shipping?.email || 'shopper@yalla.lb',
-        phone: order.shipping?.phone || '+961 3 123 456',
-        governorate: order.shipping?.governorate || 'Beirut',
-        city: order.shipping?.city || 'Beirut',
-        street: order.shipping?.street || 'Main Street',
-        ordersCount: 1,
-        totalSpentUSD: order.totalUSD,
-        lastOrderDate: order.date,
-        recentOrders: [order]
-      });
-    }
-  });
-
+  const customersMap = buildCustomerIndex(dbUsers, orders);
   const customersList = Array.from(customersMap.values());
 
   const filteredCustomers = customersList.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.phone.includes(searchQuery) ||
-    c.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    c.city.toLowerCase().includes(searchQuery.toLowerCase())
+    (c.phone && c.phone.includes(searchQuery)) ||
+    (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (c.city && c.city.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const handleWhatsAppContact = (phone: string, name: string) => {
+  const handleWhatsAppContact = (phone: string | null, name: string) => {
+    if (!phone) {
+      showToast('No phone number on file', 'warning');
+      return;
+    }
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const message = encodeURIComponent(`Marhaba ${name}! This is Yalla.lb Merchant Support regarding your Lebanese artisanal orders. How can we assist you today?`);
-    window.open(`https://wa.me/${cleanPhone || '96170123456'}?text=${message}`, '_blank');
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
     showToast(`Opening WhatsApp chat for ${name}`, 'info');
+  };
+
+  const handleDownloadCustomersReport = () => {
+    import('papaparse').then((Papa) => {
+      const dataToExport = filteredCustomers.map(c => ({
+        customer_id: c.id,
+        name: c.name,
+        email: c.email || '',
+        phone: c.phone || '',
+        governorate: c.governorate || '',
+        city: c.city || '',
+        street_address: c.street || '',
+        orders_count: c.ordersCount,
+        total_spent_usd: c.totalSpentUSD.toFixed(2),
+        last_order_date: c.lastOrderDate || 'No orders yet'
+      }));
+
+      const csv = Papa.unparse(dataToExport);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `yalla_customers_report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Customers report downloaded successfully', 'success');
+    });
   };
 
   return (
@@ -143,6 +114,14 @@ export const CustomersView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleDownloadCustomersReport}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200 shadow-2xs active:scale-95"
+            title="Download Customers CSV Report"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-600" />
+            <span>Download Report</span>
+          </button>
           <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-[#4f46e5] border border-indigo-100">
             {customersList.length} Registered Buyers
           </span>
@@ -188,21 +167,27 @@ export const CustomersView: React.FC = () => {
                       </div>
                       <div>
                         <div className="font-bold text-slate-900">{customer.name}</div>
-                        <div className="text-[11px] text-slate-400">{customer.email}</div>
+                        <div className="text-[11px] text-slate-400">{customer.email || '—'}</div>
                       </div>
                     </div>
                   </td>
 
                   <td className="p-4">
-                    <div className="font-mono text-slate-800 font-semibold">{customer.phone}</div>
-                    <div className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> WhatsApp Enabled
-                    </div>
+                    {customer.phone ? (
+                      <>
+                        <div className="font-mono text-slate-800 font-semibold">{customer.phone}</div>
+                        <div className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" /> WhatsApp Enabled
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-xs text-slate-400 italic">No contact on file</div>
+                    )}
                   </td>
 
                   <td className="p-4">
-                    <div className="font-medium text-slate-800">{customer.city}</div>
-                    <div className="text-[11px] text-slate-400">{customer.governorate}</div>
+                    <div className="font-medium text-slate-800">{customer.city || '—'}</div>
+                    <div className="text-[11px] text-slate-400">{customer.governorate || '—'}</div>
                   </td>
 
                   <td className="p-4">

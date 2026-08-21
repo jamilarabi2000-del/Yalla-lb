@@ -20,9 +20,9 @@ import {
 import { initializeFirestore, getFirestore, memoryLocalCache, setLogLevel } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 
-// Suppress transient connection info messages in console but keep warnings in development
+// Suppress transient connection info messages in console
 try {
-  setLogLevel(import.meta.env.DEV ? 'warn' : 'error');
+  setLogLevel('silent');
 } catch {}
 
 // Hardcoded local copy of the config to ensure compilation succeeds even without firebase-applet-config.json

@@ -7,6 +7,8 @@ export interface Product {
   artisan: string;
   seller?: string;
   arabicSeller?: string;
+  sellerId?: string;
+  sellerActive?: boolean;
   origin: string; // e.g. "Beirut Central", "Tripoli", "Koura", "Batroun"
   category: string;
   priceUSD: number;
@@ -30,6 +32,22 @@ export interface Product {
   seoDescription?: string;
   seoArabicDescription?: string;
   weightOrVolume?: string;
+}
+
+export interface Seller {
+  id: string;                  // slug: 'chouf-eco-soap'
+  nameEn: string;
+  nameAr?: string;
+  logoUrl?: string;
+  bioEn?: string;
+  bioAr?: string;
+  region?: string;             // matches LEBANON_REGIONS ids
+  contactPhone?: string;       // WhatsApp coordination
+  contactEmail?: string;
+  commissionPct?: number;      // if you take a cut
+  isActive: boolean;           // master switch — hides ALL their products
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CategoryItem {
@@ -81,7 +99,7 @@ export interface ShippingDetails {
 
 export type PaymentMethod = 'cod_usd' | 'cod_lbp' | 'wish_omt' | 'credit_card';
 
-export type OrderStatus = 'pending' | 'crafting' | 'courier_assigned' | 'in_transit' | 'delivered';
+export type OrderStatus = 'pending' | 'confirmed' | 'crafting' | 'courier_assigned' | 'in_transit' | 'delivered' | 'cancelled' | 'returned';
 
 export interface Order {
   id: string;
@@ -100,6 +118,7 @@ export interface Order {
   trackingNumber: string;
   discountUSD?: number;
   appliedCoupon?: string;
+  adminNotes?: { id: string; text: string; author: string; createdAt: string }[];
 }
 
 export interface UserProfile {

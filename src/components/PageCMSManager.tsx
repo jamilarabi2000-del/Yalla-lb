@@ -39,13 +39,20 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
   const { showToast, siteContent, updateSiteContent, language } = useShop();
 
   // Local state for the form so we can edit before saving
-  const [cmsForm, setCmsForm] = useState<SiteContent>(siteContent);
+  const [cmsForm, _setCmsForm] = useState<SiteContent>(siteContent);
+  const [isDirty, setIsDirty] = useState(false);
   const [isCmsSaving, setIsCmsSaving] = useState(false);
+
+  const setCmsForm: React.Dispatch<React.SetStateAction<SiteContent>> = (value) => {
+    setIsDirty(true);
+    _setCmsForm(value);
+  };
 
   // Sync form when siteContent changes from DB
   React.useEffect(() => {
-    setCmsForm(siteContent);
-  }, [siteContent]);
+    if (isDirty) return;
+    _setCmsForm(siteContent);
+  }, [siteContent, isDirty]);
 
   const [activeTab, setActiveTab] = useState<
     'visibility' | 'customBlocks' | 'navbar' | 'hero' | 'offers' | 'home' | 'productsPage' | 'productDetailPage' | 'checkoutPage' | 'accountPage' | 'newsSection' | 'footer' | 'seo'
@@ -56,16 +63,6 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
       setActiveTab(initialTab);
     }
   }, [initialTab]);
-
-  const handleSaveDraftCMS = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    try {
-      localStorage.setItem('yallalb_cms_draft', JSON.stringify(cmsForm));
-      showToast('CMS content draft saved successfully.', 'success');
-    } catch {
-      showToast('CMS draft saved.', 'success');
-    }
-  };
 
   const handleSaveCMS = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -81,6 +78,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
 
     try {
       await updateSiteContent(cmsForm);
+      setIsDirty(false);
       showToast('CMS changes published successfully to public website!', 'success');
     } catch (err: any) {
       showToast(`Failed to save CMS changes: ${err?.message || 'Database error'}`, 'warning');
@@ -182,21 +180,32 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
   };
 
   // Custom Blocks Handler
-  const handleDeleteCustomBlock = (id: string) => {
-    setCmsForm(prev => ({
-      ...prev,
-      customBlocks: (prev.customBlocks || []).filter(b => b.id !== id)
-    }));
-    showToast('Custom div block removed', 'info');
+  const handleDeleteCustomBlock = async (id: string) => {
+    const next = { ...cmsForm, customBlocks: (cmsForm.customBlocks || []).filter(b => b.id !== id) };
+    try {
+      await updateSiteContent(next);
+      setIsDirty(false);
+      _setCmsForm(next);
+      showToast('Custom div block removed', 'info');
+    } catch {
+      showToast('Could not remove that block', 'warning');
+    }
   };
 
-  const handleToggleBlockPublish = (id: string) => {
-    setCmsForm(prev => ({
-      ...prev,
-      customBlocks: (prev.customBlocks || []).map(b => (
+  const handleToggleBlockPublish = async (id: string) => {
+    const next = {
+      ...cmsForm,
+      customBlocks: (cmsForm.customBlocks || []).map(b => (
         b.id === id ? { ...b, isPublished: !b.isPublished } : b
       ))
-    }));
+    };
+    try {
+      await updateSiteContent(next);
+      setIsDirty(false);
+      _setCmsForm(next);
+    } catch {
+      showToast('Could not toggle block publish state', 'warning');
+    }
   };
 
   return (
@@ -223,16 +232,6 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleSaveDraftCMS}
-            className="flex items-center gap-2 px-5 py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs uppercase tracking-wider rounded-2xl border border-slate-300/80 shadow-2xs transition-all cursor-pointer active:scale-95"
-            title="Save changes to local draft"
-          >
-            <Save className="w-4 h-4 text-slate-600" />
-            <span>Save (Draft)</span>
-          </button>
-
           <button
             type="button"
             onClick={handleSaveCMS}

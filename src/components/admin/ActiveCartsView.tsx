@@ -15,11 +15,12 @@ import {
   Sparkles
 } from 'lucide-react';
 import { CartItem, UserProfile } from '../../types';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
 import { db } from '../../firebase';
+import { buildCustomerIndex } from '../../lib/customerIndex';
 
 export const ActiveCartsView: React.FC = () => {
-  const { cart, cartTotalUSD, clearCart, formatPrice, convertUSDToLBP, showToast, user } = useShop();
+  const { cart, cartTotalUSD, clearCart, formatPrice, convertUSDToLBP, showToast, user, orders } = useShop();
   const [selectedCartDetail, setSelectedCartDetail] = useState<boolean>(false);
   const [activeCartsList, setActiveCartsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,26 +33,26 @@ export const ActiveCartsView: React.FC = () => {
           getDocs(collection(db, 'carts'))
         ]);
         
-        const usersMap = new Map<string, UserProfile>();
-        usersSnap.forEach(doc => {
-          usersMap.set(doc.id, doc.data() as UserProfile);
-        });
+        const usersData = usersSnap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile & { uid: string }));
+        const customerIndex = buildCustomerIndex(usersData, orders);
 
         const fetchedCarts: any[] = [];
-        cartsSnap.forEach(doc => {
-          const data = doc.data();
+        cartsSnap.forEach(cartDoc => {
+          const data = cartDoc.data();
           if (data.items && data.items.length > 0) {
-            const cartUser = usersMap.get(data.userId) || (data.userId === user?.uid ? user : null);
+            const customer = customerIndex.get(data.userId);
             const items = data.items as CartItem[];
             const totalUSD = items.reduce((sum, item) => sum + (item.product.priceUSD * item.quantity), 0);
             const isLive = data.userId === user?.uid;
             
             fetchedCarts.push({
-              id: doc.id,
-              userLabel: cartUser?.name || 'Anonymous Shopper',
-              email: cartUser?.email || 'shopper@yalla.lb',
-              phone: cartUser?.phone || '+961 70 123 456',
-              city: cartUser?.defaultCity || 'Lebanon',
+              id: cartDoc.id,
+              userId: cartDoc.id,
+              isSynthetic: false,
+              userLabel: customer?.name || user?.name || 'Anonymous Shopper',
+              email: customer?.email || user?.email || null,
+              phone: customer?.phone || user?.phone || null,
+              city: customer?.city || user?.defaultCity || null,
               items: items,
               totalUSD: totalUSD,
               itemCount: items.reduce((s, i) => s + i.quantity, 0),
@@ -66,10 +67,12 @@ export const ActiveCartsView: React.FC = () => {
         if (cart.length > 0 && !fetchedCarts.find(c => c.isLive)) {
           fetchedCarts.push({
             id: 'cart-session-active',
-            userLabel: user.name || 'Current Active Shopper (You)',
-            email: user.email || 'shopper@yalla.lb',
-            phone: user.phone || '+961 70 123 456',
-            city: user.defaultCity || 'Achrafieh, Beirut',
+            userId: null,
+            isSynthetic: true,
+            userLabel: user?.name || 'Current Active Shopper (You)',
+            email: user?.email || null,
+            phone: user?.phone || null,
+            city: user?.defaultCity || null,
             items: cart,
             totalUSD: cartTotalUSD,
             itemCount: cart.reduce((s, i) => s + i.quantity, 0),
@@ -204,26 +207,34 @@ export const ActiveCartsView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleSendReminder(cartSession.phone, cartSession.totalUSD)}
-                      className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      <span>WhatsApp Recovery</span>
-                    </button>
+                    {cartSession.phone && (
+                      <button
+                        onClick={() => handleSendReminder(cartSession.phone, cartSession.totalUSD)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        <span>WhatsApp Recovery</span>
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => {
-                        if (confirm('Clear current shopper cart?')) {
-                          clearCart();
-                          showToast('Cart cleared', 'info');
-                        }
-                      }}
-                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
-                      title="Clear this cart"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {!cartSession.isSynthetic && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm(`Clear cart for ${cartSession.userLabel}?`)) return;
+                          try {
+                            await deleteDoc(doc(db, 'carts', cartSession.userId));
+                            showToast('Shopper cart cleared', 'info');
+                            setActiveCartsList(prev => prev.filter(c => c.id !== cartSession.id));
+                          } catch {
+                            showToast('Could not clear that cart', 'warning');
+                          }
+                        }}
+                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                        title="Clear this cart"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 

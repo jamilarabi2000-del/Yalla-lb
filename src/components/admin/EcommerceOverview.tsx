@@ -45,9 +45,12 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
 
   const [isSyncingDb, setIsSyncingDb] = useState(false);
 
-  const totalRevenueUSD = orders.reduce((sum, o) => sum + o.totalUSD, 0);
-  const totalItemsSold = orders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
-  const activeOrdersCount = orders.filter(o => o.status !== 'delivered').length;
+  // One definition of a completed sale, shared by every tile.
+  const deliveredOrders = orders.filter(o => o.status === 'delivered');
+
+  const totalRevenueUSD = deliveredOrders.reduce((sum, o) => sum + o.totalUSD, 0);
+  const totalItemsSold  = deliveredOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
+  const activeOrdersCount = orders.length - deliveredOrders.length;
   const publishedProductsCount = products.filter(p => p.isPublished !== false).length;
 
   const handleSyncDatabase = async () => {

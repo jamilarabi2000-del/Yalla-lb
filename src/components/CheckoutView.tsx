@@ -49,8 +49,10 @@ export const CheckoutView: React.FC = () => {
     t,
     language,
     firebaseUser,
+    isEmailVerified,
     user,
     updateUser,
+    checkPhoneUniqueness,
     signInWithEmail,
     signUpWithEmail,
     resetPassword,
@@ -330,10 +332,18 @@ export const CheckoutView: React.FC = () => {
       return;
     }
 
+    setIsAuthLoading(true);
+    // Strict uniqueness check before registering user from checkout
+    const phoneAvailability = await checkPhoneUniqueness(cleanPhone);
+    if (!phoneAvailability.available) {
+      showToast(phoneAvailability.reason || (isArabic ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر.' : 'This phone number is already registered to another account.'), 'warning');
+      setIsAuthLoading(false);
+      return;
+    }
+
     const fullName = `${signupFirstName.trim()} ${signupLastName.trim()}`;
     const formattedPhone = `+961 ${cleanPhone}`;
 
-    setIsAuthLoading(true);
     try {
       try {
         localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
@@ -346,7 +356,7 @@ export const CheckoutView: React.FC = () => {
           defaultNotes: formData.notes || ''
         }));
       } catch {}
-      await signUpWithEmail(authEmail, authPassword);
+      await signUpWithEmail(authEmail, authPassword, cleanPhone);
       await updateUser({
         name: fullName,
         firstName: signupFirstName.trim(),
@@ -403,6 +413,21 @@ export const CheckoutView: React.FC = () => {
   // Submit Final Order
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!firebaseUser) {
+      showToast(isArabic ? 'يرجى تسجيل الدخول أولاً' : 'Please sign in to place an order.', 'warning');
+      return;
+    }
+
+    if (!isEmailVerified) {
+      showToast(
+        isArabic
+          ? 'يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل إليك قبل إتمام الطلب.'
+          : 'Please verify your email — check your inbox for the link — before placing an order.',
+        'warning'
+      );
+      return;
+    }
 
     if (cart.length === 0) {
       showToast(isArabic ? 'حقيبة التسوق فارغة' : 'Your cart is empty. Add products before placing an order.', 'warning');

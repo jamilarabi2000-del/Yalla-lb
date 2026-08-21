@@ -174,12 +174,28 @@
         "minPurchaseUSD": { "type": "number" }
       },
       "required": ["id", "name", "type", "value", "target", "isActive"]
+    },
+    "PhoneRegistry": {
+      "title": "PhoneRegistry",
+      "description": "Unique index of registered Lebanese phone numbers",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "phone": { "type": "string" },
+        "cleanDigits": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "phone", "cleanDigits"]
     }
   },
   "firestore": {
     "/products/{productId}": {
       "schema": { "$ref": "#/entities/Product" },
       "description": "Public catalog of artisanal products"
+    },
+    "/phone_registry/{phoneKey}": {
+      "schema": { "$ref": "#/entities/PhoneRegistry" },
+      "description": "Unique mapping index of user phone numbers"
     },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },

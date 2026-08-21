@@ -5,6 +5,7 @@ import { Product, OrderStatus, Order } from '../types';
 import { AdminSidebar, AdminMenuTab } from './admin/AdminSidebar';
 import { EcommerceOverview } from './admin/EcommerceOverview';
 import { CategoriesDetailsView } from './admin/CategoriesDetailsView';
+import { SellersView } from './admin/SellersView';
 import { CustomersView } from './admin/CustomersView';
 import { ActiveCartsView } from './admin/ActiveCartsView';
 import { DiscountsManager } from './admin/DiscountsManager';
@@ -44,7 +45,10 @@ import {
   UploadCloud,
   ChevronRight,
   Compass,
-  Layers
+  Layers,
+  Download,
+  XCircle,
+  Phone
 } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -78,6 +82,13 @@ export const ADMIN_TAB_METAS: Record<AdminMenuTab, { path: string; title: string
     section: 'Store Operations',
     desc: 'Manage department classifications, Arabic naming, and regional terroir origins',
     icon: '📁'
+  },
+  sellers: {
+    path: 'sellers',
+    title: 'Sellers & CSV Bulk Import',
+    section: 'Store Operations',
+    desc: 'Manage verified suppliers and bulk CSV inventory operations',
+    icon: '🏪'
   },
   discounts: {
     path: 'discounts',
@@ -324,11 +335,13 @@ export const AdminView: React.FC = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // Clear credentials on mount / session start to prevent unwanted autofill/saving
   useEffect(() => {
     setAdminEmail('');
     setAdminPassword('');
+    setLoginError(null);
   }, []);
 
   // Orders State
@@ -450,7 +463,7 @@ export const AdminView: React.FC = () => {
     orders.map(o => o.shipping?.phone || o.shipping?.email || o.shipping?.fullName || o.id || 'anonymous')
   );
   if (user?.email) uniqueCustomerKeys.add(user.email);
-  const customersCount = Math.max(uniqueCustomerKeys.size, 2);
+  const customersCount = uniqueCustomerKeys.size;
 
   // Active Carts count
   const activeCartsCount = cart.length > 0 ? 1 : 0;
@@ -498,14 +511,30 @@ export const AdminView: React.FC = () => {
           <form autoComplete="off" onSubmit={async (e) => {
             e.preventDefault();
             setIsLoggingIn(true);
+            setLoginError(null);
             try {
               await signInWithEmail(adminEmail, adminPassword);
-            } catch {
-              setAdminPassword(''); // clear password on failure
+            } catch (err: any) {
+              setAdminPassword('');
+              const msg =
+                err?.code === 'auth/network-request-failed'
+                  ? 'Network error — check your connection and try again.'
+                  : err?.code === 'auth/too-many-requests'
+                  ? 'Too many attempts. Wait a few minutes before retrying.'
+                  : 'Incorrect email or password.';
+              setLoginError(msg);
             }
             setIsLoggingIn(false);
           }} className="space-y-4">
             <input type="hidden" name="remember" value="false" />
+            
+            {loginError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-600 text-xs font-medium flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
             <div className="space-y-3">
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">Email</label>
@@ -748,6 +777,86 @@ export const AdminView: React.FC = () => {
     setFullEditProduct(null);
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    const confirmed = window.confirm(`Are you sure you want to cancel order #${orderId}?`);
+    if (!confirmed) return;
+    try {
+      await updateOrderStatus(orderId, 'cancelled');
+      if (selectedInvoiceOrder && selectedInvoiceOrder.id === orderId) {
+        setSelectedInvoiceOrder({ ...selectedInvoiceOrder, status: 'cancelled' });
+      }
+      showToast(`Order #${orderId} was cancelled successfully.`, 'info');
+    } catch (err: any) {
+      showToast(`Failed to cancel order: ${err.message || err}`, 'warning');
+    }
+  };
+
+  const handleDownloadOrdersReport = () => {
+    import('papaparse').then((Papa) => {
+      const dataToExport = filteredOrders.map(ord => ({
+        order_id: ord.id,
+        date: ord.date,
+        customer_name: ord.shipping?.fullName || 'Anonymous Shopper',
+        phone: ord.shipping?.phone || '',
+        email: ord.shipping?.email || '',
+        governorate: ord.shipping?.governorate || '',
+        city: ord.shipping?.city || '',
+        street_address: ord.shipping?.street || '',
+        building: ord.shipping?.building || '',
+        delivery_notes: ord.shipping?.deliveryNotes || '',
+        items_count: ord.items.reduce((s, i) => s + i.quantity, 0),
+        items_summary: ord.items.map(i => `${i.quantity}x ${i.product.name}`).join('; '),
+        subtotal_usd: (ord.subtotalUSD || 0).toFixed(2),
+        delivery_fee_usd: (ord.deliveryFeeUSD || 0).toFixed(2),
+        discount_usd: (ord.discountUSD || 0).toFixed(2),
+        total_usd: (ord.totalUSD || 0).toFixed(2),
+        payment_method: ord.paymentMethod,
+        status: ord.status
+      }));
+
+      const csv = Papa.unparse(dataToExport);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `yalla_orders_report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Orders report downloaded successfully', 'success');
+    });
+  };
+
+  const handleDownloadProductsReport = () => {
+    import('papaparse').then((Papa) => {
+      const dataToExport = filteredCatalogProducts.map(p => ({
+        product_id: p.id,
+        name_en: p.name,
+        name_ar: p.arabicName || '',
+        seller_artisan: p.seller || p.artisan || '',
+        arabic_seller: p.arabicSeller || '',
+        category: p.category,
+        price_usd: p.priceUSD,
+        stock: p.stock,
+        origin_terroir: p.origin || '',
+        weight_or_volume: p.weightOrVolume || '',
+        status: p.isPublished === false ? 'Hidden' : 'Published',
+        is_featured: p.isFeatured ? 'Yes' : 'No'
+      }));
+
+      const csv = Papa.unparse(dataToExport);
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `yalla_products_report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Products catalog report downloaded successfully', 'success');
+    });
+  };
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex text-slate-900 font-sans antialiased">
       
@@ -866,7 +975,15 @@ export const AdminView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                  <button
+                    onClick={handleDownloadOrdersReport}
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200 shadow-2xs active:scale-95"
+                    title="Download Orders CSV Report"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Download Report</span>
+                  </button>
                   <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-2xs">
                     {orders.length} Total Orders
                   </span>
@@ -921,13 +1038,24 @@ export const AdminView: React.FC = () => {
                     <tbody className="divide-y divide-slate-100">
                       {filteredOrders.map((ord) => (
                         <tr key={ord.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-4 px-5 font-mono font-black text-indigo-600">
-                            #{ord.id}
+                          <td className="py-4 px-5">
+                            <button
+                              onClick={() => setSelectedInvoiceOrder(ord)}
+                              className="font-mono font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer text-left"
+                              title="Click to view full order details"
+                            >
+                              #{ord.id}
+                            </button>
                             <div className="text-[10px] text-slate-400 font-sans font-medium mt-0.5">{ord.date}</div>
                           </td>
 
                           <td className="py-4 px-5">
-                            <div className="font-bold text-slate-900">{ord.shipping?.fullName || 'Anonymous Shopper'}</div>
+                            <button
+                              onClick={() => setSelectedInvoiceOrder(ord)}
+                              className="font-bold text-slate-900 hover:text-indigo-600 text-left cursor-pointer block"
+                            >
+                              {ord.shipping?.fullName || 'Anonymous Shopper'}
+                            </button>
                             <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
                               <span>{ord.shipping?.phone || 'No phone'}</span>
                             </div>
@@ -960,6 +1088,8 @@ export const AdminView: React.FC = () => {
                             <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               ord.status === 'delivered'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : ord.status === 'cancelled'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                 : ord.status === 'in_transit' || ord.status === 'courier_assigned'
                                 ? 'bg-sky-50 text-sky-700 border border-sky-200'
                                 : 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -969,19 +1099,31 @@ export const AdminView: React.FC = () => {
                           </td>
 
                           <td className="py-4 px-5 text-right">
-                            <div className="flex items-center justify-end gap-2">
+                            <div className="flex items-center justify-end gap-1.5">
                               <select
                                 value={ord.status}
                                 onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
-                                className="bg-slate-50 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
+                                className="bg-slate-50 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
                               >
                                 <option value="pending">Pending</option>
+                                <option value="confirmed">Confirmed</option>
                                 <option value="crafting">Crafting / Preparing</option>
                                 <option value="courier_assigned">Courier Assigned</option>
                                 <option value="in_transit">In Transit</option>
                                 <option value="delivered">Delivered</option>
+                                <option value="cancelled">Cancelled</option>
                               </select>
 
+                              {/* View Order Details */}
+                              <button
+                                onClick={() => setSelectedInvoiceOrder(ord)}
+                                className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors cursor-pointer active:scale-95 flex items-center gap-1"
+                                title="See Full Order Details"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+
+                              {/* Print Invoice */}
                               <button
                                 onClick={() => setSelectedInvoiceOrder(ord)}
                                 className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer active:scale-95"
@@ -989,6 +1131,17 @@ export const AdminView: React.FC = () => {
                               >
                                 <FileText className="w-4 h-4" />
                               </button>
+
+                              {/* Cancel Order Button */}
+                              {ord.status !== 'cancelled' && (
+                                <button
+                                  onClick={() => handleCancelOrder(ord.id)}
+                                  className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition-colors cursor-pointer active:scale-95"
+                                  title="Cancel Order"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1030,6 +1183,15 @@ export const AdminView: React.FC = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    onClick={handleDownloadProductsReport}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all border border-slate-200 shadow-2xs cursor-pointer active:scale-95"
+                    title="Download Products Catalog CSV Report"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Download Report</span>
+                  </button>
+
                   <button
                     onClick={handleGlobalSaveDraft}
                     className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-300/80 shadow-2xs cursor-pointer active:scale-95"
@@ -1095,7 +1257,7 @@ export const AdminView: React.FC = () => {
                         onChange={(e) => setAdminProductSeller(e.target.value)}
                         className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer max-w-[200px]"
                       >
-                        <option value="all">All Sellers ({sellerStats.length} artisans)</option>
+                        <option value="all">All Sellers ({sellerStats.length} sellers)</option>
                         {sellerStats.map(({ seller, count }) => (
                           <option key={seller} value={seller}>
                             {seller} ({count})
@@ -1427,6 +1589,11 @@ export const AdminView: React.FC = () => {
           {/* 4. Categories & Details */}
           {currentTab === 'categories' && (
             <CategoriesDetailsView />
+          )}
+
+          {/* Sellers & Bulk Import */}
+          {currentTab === 'sellers' && (
+            <SellersView />
           )}
 
           {/* Discounts & Promos */}
@@ -2143,7 +2310,7 @@ export const AdminView: React.FC = () => {
         </div>
       )}
 
-      {/* Invoice Modal */}
+      {/* Invoice & Order Details Modal */}
       {selectedInvoiceOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div 
@@ -2151,68 +2318,187 @@ export const AdminView: React.FC = () => {
             role="dialog"
             aria-modal="true"
             tabIndex={-1}
-            className="bg-white max-w-xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
+            className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
           >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Courier Dispatch Invoice</h3>
-                <p className="text-xs text-[#4f46e5] font-mono font-bold">#{selectedInvoiceOrder.id}</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-black text-slate-900">Order Details & Invoice Inspector</h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                    selectedInvoiceOrder.status === 'delivered'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : selectedInvoiceOrder.status === 'cancelled'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                  }`}>
+                    {selectedInvoiceOrder.status.replace(/_/g, ' ')}
+                  </span>
+                </div>
+                <p className="text-xs text-[#4f46e5] font-mono font-bold mt-1">Order ID: #{selectedInvoiceOrder.id} • Placed on {selectedInvoiceOrder.date}</p>
               </div>
               <button 
                 onClick={() => setSelectedInvoiceOrder(null)}
-                className="text-slate-400 hover:text-slate-700 text-lg font-bold cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 font-bold cursor-pointer transition-all"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Recipient:</span>
-                <span className="font-bold text-slate-900">{selectedInvoiceOrder.shipping?.fullName || 'Anonymous Shopper'}</span>
+            {/* Quick Status Control */}
+            <div className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-xs">
+              <span className="font-bold text-indigo-950">Update Fulfillment Status:</span>
+              <select
+                value={selectedInvoiceOrder.status}
+                onChange={async (e) => {
+                  const newStatus = e.target.value as OrderStatus;
+                  await updateOrderStatus(selectedInvoiceOrder.id, newStatus);
+                  setSelectedInvoiceOrder({ ...selectedInvoiceOrder, status: newStatus });
+                }}
+                className="bg-white text-xs font-bold text-slate-800 border border-indigo-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
+              >
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="crafting">Crafting / Preparing</option>
+                <option value="courier_assigned">Courier Assigned</option>
+                <option value="in_transit">In Transit</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <h4 className="font-bold uppercase text-[10px] tracking-wider text-slate-400 mb-1">Customer & Recipient</h4>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Name:</span>
+                  <span className="font-bold text-slate-900">{selectedInvoiceOrder.shipping?.fullName || 'Anonymous Shopper'}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Phone:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-slate-900">{selectedInvoiceOrder.shipping?.phone || 'No phone'}</span>
+                    {selectedInvoiceOrder.shipping?.phone && (
+                      <a
+                        href={`https://wa.me/${selectedInvoiceOrder.shipping.phone.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors inline-flex items-center gap-1"
+                        title="Chat on WhatsApp"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        <span>WhatsApp</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Payment:</span>
+                  <span className="font-bold uppercase text-indigo-600">{selectedInvoiceOrder.paymentMethod.replace(/_/g, ' ')}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Phone / WhatsApp:</span>
-                <span className="font-mono font-bold text-slate-900">{selectedInvoiceOrder.shipping?.phone || 'No phone'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Destination:</span>
-                <span className="font-medium text-slate-900">{selectedInvoiceOrder.shipping?.city || 'No city'}, {selectedInvoiceOrder.shipping?.governorate || 'No governorate'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Street Address:</span>
-                <span className="font-medium text-slate-900">{selectedInvoiceOrder.shipping?.street || 'No address'}</span>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                <h4 className="font-bold uppercase text-[10px] tracking-wider text-slate-400 mb-1">Delivery Address</h4>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Governorate:</span>
+                  <span className="font-bold text-slate-900 uppercase">{selectedInvoiceOrder.shipping?.governorate || 'Lebanon'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">City / Town:</span>
+                  <span className="font-bold text-slate-900">{selectedInvoiceOrder.shipping?.city || 'Beirut'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Street / Bldg:</span>
+                  <span className="font-medium text-slate-900 truncate max-w-[150px]">{selectedInvoiceOrder.shipping?.street}, {selectedInvoiceOrder.shipping?.building || ''}</span>
+                </div>
+                {selectedInvoiceOrder.shipping?.deliveryNotes && (
+                  <div className="pt-1 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                    <span className="font-bold">Notes:</span> {selectedInvoiceOrder.shipping.deliveryNotes}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Items</h4>
-              <div className="divide-y divide-slate-100 text-xs">
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Ordered Items ({selectedInvoiceOrder.items.reduce((s, i) => s + i.quantity, 0)})</h4>
+              <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto pr-1">
                 {selectedInvoiceOrder.items.map((item) => (
-                  <div key={item.product.id} className="py-2 flex justify-between">
-                    <div>
-                      <span className="font-bold text-slate-900">{item.product.name}</span>
-                      <span className="text-slate-400 ml-2">× {item.quantity}</span>
+                  <div key={item.product.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={item.product.image} 
+                        alt={item.product.name} 
+                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" 
+                        referrerPolicy="no-referrer"
+                      />
+                      <div>
+                        <div className="font-bold text-slate-900">{item.product.name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          Seller: <span className="font-semibold text-indigo-700">{item.product.seller || item.product.artisan || 'Local Producer'}</span> • Qty: {item.quantity} × {formatPrice(item.product.priceUSD)}
+                        </div>
+                      </div>
                     </div>
-                    <span className="font-bold text-slate-900">{formatPrice(item.product.priceUSD * item.quantity)}</span>
+                    <span className="font-black text-slate-900">{formatPrice(item.product.priceUSD * item.quantity)}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-sm font-black">
-              <span>Total Due on Delivery (COD):</span>
-              <span className="text-[#4f46e5]">{formatPrice(selectedInvoiceOrder.totalUSD)}</span>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal</span>
+                <span className="font-bold">{formatPrice(selectedInvoiceOrder.subtotalUSD)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600">
+                <span>Delivery Fee</span>
+                <span className="font-bold">{formatPrice(selectedInvoiceOrder.deliveryFeeUSD)}</span>
+              </div>
+              {selectedInvoiceOrder.discountUSD && selectedInvoiceOrder.discountUSD > 0 && (
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Discount ({selectedInvoiceOrder.appliedCoupon || 'Promo'})</span>
+                  <span>-{formatPrice(selectedInvoiceOrder.discountUSD)}</span>
+                </div>
+              )}
+              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-sm font-black text-slate-900">
+                <span>Total Due on Delivery (COD):</span>
+                <span className="text-[#4f46e5] text-base">{formatPrice(selectedInvoiceOrder.totalUSD)}</span>
+              </div>
             </div>
 
-            <div className="pt-3 flex justify-end gap-2.5">
-              <button
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print Invoice</span>
-              </button>
+            <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
+              <div>
+                {selectedInvoiceOrder.status !== 'cancelled' ? (
+                  <button
+                    onClick={() => handleCancelOrder(selectedInvoiceOrder.id)}
+                    className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                    title="Cancel this order"
+                  >
+                    <XCircle className="w-4 h-4 text-rose-600" />
+                    <span>Cancel Order</span>
+                  </button>
+                ) : (
+                  <span className="text-xs text-rose-600 font-bold flex items-center gap-1">
+                    <XCircle className="w-4 h-4" />
+                    <span>This order has been cancelled</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSelectedInvoiceOrder(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Invoice</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

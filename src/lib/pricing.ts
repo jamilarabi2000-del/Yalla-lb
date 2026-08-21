@@ -51,7 +51,7 @@ function matchesTarget(product: Product, rule: DiscountRule): boolean {
 export function applyDiscounts(
   items: CartItem[],
   rules: DiscountRule[],
-  couponCodeOrOptions?: string | DiscountOptions
+  options: DiscountOptions = {}
 ): DiscountCalculationResult {
   const subtotal = items.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0);
   if (subtotal <= 0 || items.length === 0) {
@@ -64,15 +64,11 @@ export function applyDiscounts(
     };
   }
 
-  const options: DiscountOptions = typeof couponCodeOrOptions === 'string'
-    ? { couponCode: couponCodeOrOptions }
-    : (couponCodeOrOptions || {});
-
   let totalDiscount = 0;
   const appliedRules: { rule: DiscountRule; savedUSD: number }[] = [];
   const normalizedCoupon = options.couponCode ? options.couponCode.trim().toUpperCase() : '';
   const now = options.currentDate || new Date();
-  const isNewUser = options.isNewUser ?? true;
+  const isNewUser = options.isNewUser ?? false;
 
   for (const rule of rules) {
     if (!rule.isActive) continue;

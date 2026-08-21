@@ -35,6 +35,7 @@ export const AccountView: React.FC = () => {
     t,
     language,
     updateUser,
+    checkPhoneUniqueness,
     showToast,
     removeFromWishlist,
     firebaseUser,
@@ -43,9 +44,7 @@ export const AccountView: React.FC = () => {
     signOutUser,
     signInWithEmail,
     signUpWithEmail,
-    resetPassword,
-    sendSignupOTP,
-    setPendingVerificationEmail
+    resetPassword
   } = useShop();
 
   const [activeAccountTab, setActiveAccountTab] = useState<'orders' | 'wishlist' | 'profile'>('orders');
@@ -215,11 +214,20 @@ export const AccountView: React.FC = () => {
       return;
     }
     if (!/^\d{8}$/.test(profilePhone)) {
-      showToast('Lebanese phone number must be strictly 8 digits', 'warning');
+      showToast(language === 'ar' ? 'يجب أن يتألف رقم الهاتف اللبناني من 8 أرقام' : 'Lebanese phone number must be strictly 8 digits', 'warning');
       return;
     }
-    const fullName = `${profileFirstName.trim()} ${profileLastName.trim()}`;
+
     setIsAuthLoading(true);
+    // Strict uniqueness check before registering user
+    const phoneAvailability = await checkPhoneUniqueness(profilePhone);
+    if (!phoneAvailability.available) {
+      showToast(phoneAvailability.reason || (language === 'ar' ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر.' : 'This phone number is already registered to another account.'), 'warning');
+      setIsAuthLoading(false);
+      return;
+    }
+
+    const fullName = `${profileFirstName.trim()} ${profileLastName.trim()}`;
     try {
       try {
         localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
@@ -232,7 +240,7 @@ export const AccountView: React.FC = () => {
           defaultNotes: profileNotes
         }));
       } catch {}
-      await signUpWithEmail(authEmail, authPassword);
+      await signUpWithEmail(authEmail, authPassword, profilePhone);
       await updateUser({
         name: fullName,
         firstName: profileFirstName.trim(),
@@ -261,8 +269,22 @@ export const AccountView: React.FC = () => {
     const cleanPhone = profilePhone.replace(/\D/g, '');
     const formattedPhone = cleanPhone ? `+961 ${cleanPhone}` : '';
     
+    if (cleanPhone && cleanPhone.length !== 8) {
+      showToast(language === 'ar' ? 'يجب أن يتألف رقم الهاتف اللبناني من 8 أرقام' : 'Lebanese phone number must be strictly 8 digits', 'warning');
+      return;
+    }
+
     setIsSaving(true);
     try {
+      if (cleanPhone) {
+        const phoneCheck = await checkPhoneUniqueness(cleanPhone, firebaseUser?.uid || user.uid);
+        if (!phoneCheck.available) {
+          showToast(phoneCheck.reason || (language === 'ar' ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر.' : 'This phone number is already registered to another account.'), 'warning');
+          setIsSaving(false);
+          return;
+        }
+      }
+
       await updateUser({
         name: fullName,
         firstName: profileFirstName.trim(),
@@ -274,9 +296,9 @@ export const AccountView: React.FC = () => {
         defaultBuilding: profileBuilding,
         defaultNotes: profileNotes
       });
-      showToast('Profile details saved successfully!', 'success');
-    } catch {
-      showToast('Error saving profile changes', 'warning');
+      showToast(language === 'ar' ? 'تم حفظ بيانات الملف الشخصي بنجاح!' : 'Profile details saved successfully!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Error saving profile changes', 'warning');
     } finally {
       setIsSaving(false);
     }
@@ -433,9 +455,18 @@ export const AccountView: React.FC = () => {
                   type="button"
                   onClick={async () => {
                     const targetEmail = firebaseUser?.email || user?.email;
-                    if (targetEmail) {
-                      setPendingVerificationEmail(targetEmail);
-                      await sendSignupOTP(targetEmail);
+                    if (targetEmail && firebaseUser) {
+                      try {
+                        await sendEmailVerification(firebaseUser);
+                        showToast(
+                          language === 'ar'
+                            ? 'تم إرسال رابط التفعيل! يرجى التحقق من بريدك الإلكتروني.'
+                            : 'Verification link sent! Please check your inbox.',
+                          'success'
+                        );
+                      } catch (err: any) {
+                        showToast(`Failed to send verification: ${err.message}`, 'warning');
+                      }
                     }
                   }}
                   className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"

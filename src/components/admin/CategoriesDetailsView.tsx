@@ -230,26 +230,29 @@ export const CategoriesDetailsView: React.FC = () => {
       isPublished: targetPublish
     };
 
-    if (editingCategory) {
-      await updateCategory(editingCategory.id, payload);
-      showToast(
-        targetPublish 
-          ? `Category "${catForm.nameEn}" updated & published to Public Store!`
-          : `Category "${catForm.nameEn}" saved as Draft (Hidden).`,
-        'success'
-      );
-    } else {
-      payload.id = catForm.id.trim() || catForm.nameEn.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      await addCategory(payload);
-      showToast(
-        targetPublish 
-          ? `Category "${catForm.nameEn}" created & published to Public Store!`
-          : `Category "${catForm.nameEn}" saved as Draft (Unpublished).`,
-        'success'
-      );
+    try {
+      if (editingCategory) {
+        await updateCategory(editingCategory.id, payload);
+        showToast(
+          targetPublish 
+            ? `Category "${catForm.nameEn}" updated & published to Public Store!`
+            : `Category "${catForm.nameEn}" saved as Draft (Hidden).`,
+          'success'
+        );
+      } else {
+        payload.id = catForm.id.trim() || catForm.nameEn.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        await addCategory(payload);
+        showToast(
+          targetPublish 
+            ? `Category "${catForm.nameEn}" created & published to Public Store!`
+            : `Category "${catForm.nameEn}" saved as Draft (Unpublished).`,
+          'success'
+        );
+      }
+      setIsCategoryModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Could not save category. Please try again.', 'warning');
     }
-
-    setIsCategoryModalOpen(false);
   };
 
   // Reorder Category Items
@@ -262,15 +265,25 @@ export const CategoriesDetailsView: React.FC = () => {
     newCategories[index] = newCategories[targetIdx];
     newCategories[targetIdx] = temp;
 
-    await reorderCategories(newCategories);
+    try {
+      await reorderCategories(newCategories);
+      showToast('Categories order saved!', 'success');
+    } catch (err: any) {
+      showToast('Could not save category order. Please try again.', 'warning');
+    }
   };
 
   // Confirm Delete Category
   const handleConfirmDeleteCategory = async () => {
     if (!categoryToDelete) return;
-    await deleteCategory(categoryToDelete.id, reassignTargetCatId || undefined);
-    setCategoryToDelete(null);
-    setReassignTargetCatId('');
+    try {
+      await deleteCategory(categoryToDelete.id, reassignTargetCatId || undefined);
+      showToast(`Category "${categoryToDelete.nameEn}" deleted`, 'success');
+      setCategoryToDelete(null);
+      setReassignTargetCatId('');
+    } catch (err: any) {
+      showToast(err.message || 'Could not delete category.', 'warning');
+    }
   };
 
   // Open Add Region Modal
@@ -323,13 +336,18 @@ export const CategoriesDetailsView: React.FC = () => {
       estimatedTimeAr: regionForm.estimatedTimeAr.trim()
     };
 
-    if (editingRegion) {
-      await updateRegion(editingRegion.id, payload);
-    } else {
-      await addRegion(payload);
+    try {
+      if (editingRegion) {
+        await updateRegion(editingRegion.id, payload);
+        showToast(`Logistics for "${payload.nameEn}" updated!`, 'success');
+      } else {
+        await addRegion(payload);
+        showToast(`Region zone "${payload.nameEn}" added!`, 'success');
+      }
+      setIsRegionModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Could not save region. Please try again.', 'warning');
     }
-
-    setIsRegionModalOpen(false);
   };
 
   return (

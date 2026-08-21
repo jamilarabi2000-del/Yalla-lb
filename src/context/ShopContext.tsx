@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion } from '../types';
+import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion, Seller } from '../types';
 import { applyDiscounts } from '../lib/pricing';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
 import { DEFAULT_CATEGORIES } from '../data/categories';
+import { DEFAULT_SELLERS } from '../data/sellers';
 import { LEBANON_REGIONS, LBP_USD_RATE } from '../data/regions';
+import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
+import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail } from '../firebase';
 import { 
@@ -214,25 +217,18 @@ interface ShopContextType {
   // User Profile
   user: UserProfile;
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
+  checkPhoneUniqueness: (phone: string, excludeUid?: string) => Promise<{ available: boolean; reason?: string }>;
 
   // Firebase Auth & OTP Verification
   firebaseUser: FirebaseUser | null;
   isAdminUser: boolean;
+  isEmailVerified: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
-  signUpWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string, phone?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOutUser: () => Promise<void>;
-
-  // OTP Email Verification
-  pendingVerificationEmail: string | null;
-  setPendingVerificationEmail: (email: string | null) => void;
-  isOtpModalOpen: boolean;
-  setIsOtpModalOpen: (open: boolean) => void;
-  latestOtpCode: string | null;
-  sendSignupOTP: (email: string) => Promise<string>;
-  verifySignupOTP: (email: string, otpInput: string) => Promise<boolean>;
 
   // Search & Filtering
   searchQuery: string;
@@ -288,6 +284,14 @@ interface ShopContextType {
   updateRegion: (id: string, updates: Partial<TerroirRegion>) => Promise<void>;
   addRegion: (reg: TerroirRegion) => Promise<void>;
   deleteRegion: (id: string) => Promise<void>;
+
+  // Sellers Management
+  sellers: Seller[];
+  addSeller: (seller: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<void>;
+  updateSeller: (id: string, updates: Partial<Seller>) => Promise<void>;
+  toggleSellerActive: (sellerId: string, isActive: boolean) => Promise<void>;
+  deleteSeller: (id: string, reassignSellerId?: string) => Promise<void>;
+  bulkImportProducts: (csvText: string) => Promise<{ created: number; updated: number; errors: string[] }>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -309,6 +313,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(getInitialProductDetail);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
+
+  useEffect(() => {
+    if (!firebaseUser) { setIsEmailVerified(false); return; }
+    // force refresh so a freshly-clicked verification link is picked up
+    firebaseUser.getIdTokenResult(true)
+      .then(r => setIsEmailVerified(r.claims.email_verified === true))
+      .catch(() => setIsEmailVerified(false));
+  }, [firebaseUser]);
 
   useEffect(() => {
     if (firebaseUser) {
@@ -421,11 +434,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  // OTP Email Verification State
-  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<string | null>(null);
-  const [isOtpModalOpen, setIsOtpModalOpen] = useState<boolean>(false);
-  const [latestOtpCode, setLatestOtpCode] = useState<string | null>(null);
-
   // Site Content CMS state
   const [siteContent, setSiteContent] = useState<SiteContent>(() => {
     try {
@@ -456,7 +464,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Real-time Recent Activity Sync from Firestore
   useEffect(() => {
-    if (!IS_FIREBASE_ENABLED) return;
+    if (!IS_FIREBASE_ENABLED || !isAdminUser) return;
     const activityColRef = collection(db, 'recent_activity');
     const q = query(activityColRef, orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(
@@ -742,6 +750,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const addCategory = async (catData: Omit<CategoryItem, 'id'> & { id?: string }) => {
     const slug = catData.id?.trim() || catData.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `cat-${Date.now()}`;
+    if (categories.some(c => c.id === slug)) {
+      throw new Error(`A category with the ID "${slug}" already exists.`);
+    }
+
     const newCategory: CategoryItem = {
       ...catData,
       id: slug,
@@ -751,6 +763,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isPublished: catData.isPublished ?? true,
       displayOrder: catData.displayOrder ?? (categories.length + 1)
     };
+    
+    const previous = [...categories];
     const nextCategories = [...categories, newCategory];
     setCategories(nextCategories);
 
@@ -758,7 +772,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) }, undefined, 'ShopContext:addCategory');
       } catch (err) {
+        setCategories(previous);
         console.error('[ShopContext] Failed to add category to Firestore:', err);
+        throw err;
       }
     }
 
@@ -767,11 +783,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       `Category "${newCategory.nameEn}" created`,
       `Added category "${newCategory.nameEn}" (${newCategory.nameAr}) with ID "${newCategory.id}", ${newCategory.subcategories.length} subcategories, and Arabic SEO tags.`
     );
-    showToast(`Category "${newCategory.nameEn}" created successfully!`, 'success');
   };
 
   const updateCategory = async (id: string, updates: Partial<CategoryItem>) => {
     const existing = categories.find(c => c.id === id);
+    const previous = [...categories];
     const nextCategories = categories.map(c => c.id === id ? { ...c, ...updates } : c);
     setCategories(nextCategories);
 
@@ -779,7 +795,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) }, undefined, 'ShopContext:updateCategory');
       } catch (err) {
+        setCategories(previous);
         console.error('[ShopContext] Failed to update category in Firestore:', err);
+        throw err;
       }
     }
 
@@ -788,27 +806,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       `Category "${existing?.nameEn || id}" updated`,
       `Modified attributes for category: ${Object.keys(updates).join(', ')}.`
     );
-    showToast(`Category "${updates.nameEn || existing?.nameEn || id}" updated!`, 'success');
   };
 
   const deleteCategory = async (id: string, reassignCategoryId?: string) => {
     const target = categories.find(c => c.id === id);
+    const affectedProducts = products.filter(p => p.category === id);
+
+    if (affectedProducts.length > 0 && !reassignCategoryId) {
+      throw new Error(`${affectedProducts.length} product(s) are in this category. Choose a category to move them to.`);
+    }
+
+    const previousCategories = [...categories];
     const nextCategories = categories.filter(c => c.id !== id);
     setCategories(nextCategories);
 
-    // If reassignCategoryId is provided, update matching products
-    if (reassignCategoryId) {
-      const affectedProducts = products.filter(p => p.category === id);
-      for (const prod of affectedProducts) {
-        await updateProduct(prod.id, { category: reassignCategoryId });
-      }
-    }
-
     if (IS_FIREBASE_ENABLED) {
       try {
-        await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) }, undefined, 'ShopContext:deleteCategory');
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) });
+        
+        if (reassignCategoryId) {
+          for (const prod of affectedProducts) {
+            batch.update(doc(db, 'products', prod.id), { category: reassignCategoryId });
+          }
+        }
+        await batch.commit();
       } catch (err) {
+        setCategories(previousCategories);
         console.error('[ShopContext] Failed to delete category in Firestore:', err);
+        throw err;
       }
     }
 
@@ -817,10 +843,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       `Category "${target?.nameEn || id}" deleted`,
       `Removed category "${target?.nameEn || id}". ${reassignCategoryId ? `Reassigned associated products to "${reassignCategoryId}".` : ''}`
     );
-    showToast(`Category "${target?.nameEn || id}" deleted`, 'warning');
   };
 
   const reorderCategories = async (newOrder: CategoryItem[]) => {
+    const previous = [...categories];
     const normalized = newOrder.map((cat, idx) => ({ ...cat, displayOrder: idx + 1 }));
     setCategories(normalized);
 
@@ -828,16 +854,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(normalized) }, undefined, 'ShopContext:reorderCategories');
       } catch (err) {
+        setCategories(previous);
         console.error('[ShopContext] Failed to reorder categories in Firestore:', err);
+        throw err;
       }
     }
 
     await logAdminActivity('category_update', 'Categories reordered', `Admin reordered ${newOrder.length} categories.`);
-    showToast('Categories order saved!', 'success');
   };
 
   const updateRegion = async (id: string, updates: Partial<TerroirRegion>) => {
     const existing = regions.find(r => r.id === id);
+    const previous = [...regions];
     const nextRegions = regions.map(r => r.id === id ? { ...r, ...updates } : r);
     setRegions(nextRegions);
 
@@ -845,15 +873,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'regions'), { list: sanitizeDocumentData(nextRegions) }, undefined, 'ShopContext:updateRegion');
       } catch (err) {
+        setRegions(previous);
         console.error('[ShopContext] Failed to update region in Firestore:', err);
+        throw err;
       }
     }
 
     await logAdminActivity('region_update', `Region "${existing?.nameEn || id}" updated`, `Updated regional logistics and delivery fees.`);
-    showToast(`Logistics for "${updates.nameEn || existing?.nameEn || id}" updated!`, 'success');
   };
 
   const addRegion = async (newReg: TerroirRegion) => {
+    const previous = [...regions];
     const nextRegions = [...regions, newReg];
     setRegions(nextRegions);
 
@@ -861,16 +891,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'regions'), { list: sanitizeDocumentData(nextRegions) }, undefined, 'ShopContext:addRegion');
       } catch (err) {
+        setRegions(previous);
         console.error('[ShopContext] Failed to add region in Firestore:', err);
+        throw err;
       }
     }
 
     await logAdminActivity('region_update', `Region zone "${newReg.nameEn}" added`, `Added delivery zone with base fee $${newReg.baseDeliveryUSD}.`);
-    showToast(`Region zone "${newReg.nameEn}" added!`, 'success');
   };
 
   const deleteRegion = async (id: string) => {
     const target = regions.find(r => r.id === id);
+    const previous = [...regions];
     const nextRegions = regions.filter(r => r.id !== id);
     setRegions(nextRegions);
 
@@ -878,12 +910,278 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'regions'), { list: sanitizeDocumentData(nextRegions) }, undefined, 'ShopContext:deleteRegion');
       } catch (err) {
+        setRegions(previous);
         console.error('[ShopContext] Failed to delete region in Firestore:', err);
+        throw err;
       }
     }
 
     await logAdminActivity('region_update', `Region zone "${target?.nameEn || id}" deleted`, `Removed shipping zone ${id}.`);
-    showToast(`Region zone "${target?.nameEn || id}" removed`, 'warning');
+  };
+
+  // Sellers Management State & Sync
+  const [sellers, setSellers] = useState<Seller[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_sellers');
+      return saved ? JSON.parse(saved) : DEFAULT_SELLERS;
+    } catch {
+      return DEFAULT_SELLERS;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('yallalb_sellers', JSON.stringify(sellers));
+    } catch {}
+  }, [sellers]);
+
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
+    const sellersColRef = collection(db, 'sellers');
+    const unsubscribe = onSnapshot(
+      sellersColRef,
+      async (snapshot) => {
+        if (snapshot.empty) {
+          if (isAdminUser || isAdminUnlocked) {
+            try {
+              const batch = writeBatch(db);
+              DEFAULT_SELLERS.forEach(s => {
+                batch.set(doc(db, 'sellers', s.id), sanitizeDocumentData(s));
+              });
+              await batch.commit();
+            } catch (seedErr) {
+              console.warn('[ShopContext] Error seeding default sellers to Firestore:', seedErr);
+            }
+          }
+          setSellers(DEFAULT_SELLERS);
+        } else {
+          const list: Seller[] = [];
+          snapshot.forEach(docSnap => {
+            list.push({ id: docSnap.id, ...docSnap.data() } as Seller);
+          });
+          setSellers(list);
+        }
+      },
+      (err) => {
+        console.warn('[ShopContext] Sellers subscription error:', err);
+      }
+    );
+    return () => unsubscribe();
+  }, [isAdminUser, isAdminUnlocked]);
+
+  const addSeller = async (sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const slug = sellerData.id?.trim() || sellerData.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `seller-${Date.now()}`;
+    if (sellers.some(s => s.id === slug)) {
+      throw new Error(`A seller with the ID "${slug}" already exists.`);
+    }
+    const newSeller: Seller = {
+      ...sellerData,
+      id: slug,
+      isActive: sellerData.isActive ?? true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const previous = [...sellers];
+    const nextSellers = [...sellers, newSeller];
+    setSellers(nextSellers);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredSetDoc(doc(db, 'sellers', slug), sanitizeDocumentData(newSeller), undefined, 'ShopContext:addSeller');
+      } catch (err) {
+        setSellers(previous);
+        throw err;
+      }
+    }
+    await logAdminActivity('meta_change', `Seller "${newSeller.nameEn}" added`, `Created seller ID: ${slug}`);
+  };
+
+  const updateSeller = async (id: string, updates: Partial<Seller>) => {
+    const previous = [...sellers];
+    const nextSellers = sellers.map(s => s.id === id ? { ...s, ...updates, updatedAt: new Date().toISOString() } : s);
+    setSellers(nextSellers);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        await monitoredUpdateDoc(doc(db, 'sellers', id), sanitizeDocumentData({ ...updates, updatedAt: new Date().toISOString() }), 'ShopContext:updateSeller');
+      } catch (err) {
+        setSellers(previous);
+        throw err;
+      }
+    }
+  };
+
+  const toggleSellerActive = async (sellerId: string, isActive: boolean) => {
+    const previousSellers = [...sellers];
+    const nextSellers = sellers.map(s => s.id === sellerId ? { ...s, isActive, updatedAt: new Date().toISOString() } : s);
+    setSellers(nextSellers);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        const batch = writeBatch(db);
+        batch.update(doc(db, 'sellers', sellerId), { isActive, updatedAt: new Date().toISOString() });
+
+        const affected = await getDocs(query(collection(db, 'products'), where('sellerId', '==', sellerId)));
+        affected.forEach(d => {
+          batch.update(d.ref, { sellerActive: isActive });
+        });
+        await batch.commit();
+      } catch (err) {
+        setSellers(previousSellers);
+        throw err;
+      }
+    }
+    await logAdminActivity('meta_change', `Seller "${sellerId}" active status toggled to ${isActive}`, '');
+  };
+
+  const deleteSeller = async (id: string, reassignSellerId?: string) => {
+    const affectedProducts = products.filter(p => p.sellerId === id);
+    if (affectedProducts.length > 0 && !reassignSellerId) {
+      throw new Error(`${affectedProducts.length} product(s) belong to this seller. Choose a seller to move them to.`);
+    }
+    const previousSellers = [...sellers];
+    const nextSellers = sellers.filter(s => s.id !== id);
+    setSellers(nextSellers);
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        const batch = writeBatch(db);
+        batch.delete(doc(db, 'sellers', id));
+        if (reassignSellerId) {
+          for (const prod of affectedProducts) {
+            batch.update(doc(db, 'products', prod.id), { sellerId: reassignSellerId });
+          }
+        }
+        await batch.commit();
+      } catch (err) {
+        setSellers(previousSellers);
+        throw err;
+      }
+    }
+    await logAdminActivity('meta_change', `Seller "${id}" deleted`, `Reassigned ${affectedProducts.length} products to ${reassignSellerId || 'none'}.`);
+  };
+
+  const bulkImportProducts = async (csvText: string): Promise<{ created: number; updated: number; errors: string[] }> => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: h => h.trim().toLowerCase(),
+        complete: async (results) => {
+          const rows = results.data as any[];
+          let created = 0;
+          let updated = 0;
+          const errors: string[] = [];
+          const validRows: any[] = [];
+
+          const sellerIds = new Set(sellers.map(s => s.id));
+          const categoryIds = new Set(categories.map(c => c.id));
+
+          rows.forEach((row, idx) => {
+            const rowNum = idx + 2;
+            const name = row.name_en || row.name;
+            const sellerId = row.seller_id || row.sellerid;
+            const category = row.category;
+            const priceUSD = Number(row.price_usd || row.price);
+            const stock = Number(row.stock);
+
+            if (!name || name.trim().length === 0) {
+              errors.push(`Row ${rowNum}: name_en is required`);
+              return;
+            }
+            if (!sellerId || !sellerIds.has(sellerId.trim())) {
+              errors.push(`Row ${rowNum}: seller_id "${sellerId}" not found`);
+              return;
+            }
+            if (!category || !categoryIds.has(category.trim())) {
+              errors.push(`Row ${rowNum}: category "${category}" not found`);
+              return;
+            }
+            if (isNaN(priceUSD) || priceUSD <= 0) {
+              errors.push(`Row ${rowNum}: price_usd must be a positive number`);
+              return;
+            }
+            if (isNaN(stock) || stock < 0) {
+              errors.push(`Row ${rowNum}: stock must be a non-negative integer`);
+              return;
+            }
+
+            const sku = row.sku?.trim() || `prod-${Date.now()}-${idx}`;
+            const isPublished = ['true', '1', 'yes'].includes(String(row.is_published ?? '').toLowerCase()) || row.is_published === '';
+
+            validRows.push({
+              sku,
+              product: {
+                id: sku,
+                name: name.trim(),
+                arabicName: row.name_ar || name.trim(),
+                artisan: sellerId.trim(),
+                sellerId: sellerId.trim(),
+                sellerActive: true,
+                category: category.trim(),
+                priceUSD,
+                originalPriceUSD: row.original_price_usd ? Number(row.original_price_usd) : undefined,
+                stock: Math.floor(stock),
+                image: row.image_url || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+                description: row.description_en || 'Imported artisanal product.',
+                craftStory: row.description_ar || 'حرفية أصيلة.',
+                tags: row.tags ? row.tags.split('|').map((t: string) => t.trim()).filter(Boolean) : ['Artisanal'],
+                rating: 5.0,
+                reviewsCount: 1,
+                origin: row.origin || 'Lebanon',
+                isPublished: isPublished !== false
+              },
+              isUpdate: products.some(p => p.id === sku)
+            });
+          });
+
+          if (validRows.length === 0) {
+            resolve({ created, updated, errors });
+            return;
+          }
+
+          if (IS_FIREBASE_ENABLED) {
+            try {
+              const chunks = [];
+              for (let i = 0; i < validRows.length; i += 450) {
+                chunks.push(validRows.slice(i, i + 450));
+              }
+              for (const chunk of chunks) {
+                const batch = writeBatch(db);
+                for (const item of chunk) {
+                  const docRef = doc(db, 'products', item.sku);
+                  batch.set(docRef, sanitizeDocumentData(item.product), { merge: true });
+                  if (item.isUpdate) updated++;
+                  else created++;
+                }
+                await batch.commit();
+              }
+            } catch (err: any) {
+              errors.push(`Database batch commit failed: ${err.message}`);
+            }
+          } else {
+            const nextProducts = [...products];
+            validRows.forEach(item => {
+              const idx = nextProducts.findIndex(p => p.id === item.sku);
+              if (idx >= 0) {
+                nextProducts[idx] = item.product;
+                updated++;
+              } else {
+                nextProducts.unshift(item.product);
+                created++;
+              }
+            });
+            setProducts(nextProducts);
+          }
+
+          await logAdminActivity('meta_change', `Imported ${validRows.length} products`, `Created: ${created}, Updated: ${updated}, Errors: ${errors.length}`);
+          resolve({ created, updated, errors });
+        },
+        error: (err) => {
+          reject(err);
+        }
+      });
+    });
   };
 
   // Local storage persistence for CMS
@@ -1105,7 +1403,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
 
-      showToast('Site CMS content saved and published to live database!', 'success');
     } catch (err: any) {
       dbLogger.logFirestoreWriteError({
         operation: 'setDoc',
@@ -1117,7 +1414,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error: err
       });
       console.error("[ShopContext] Error saving CMS content to Firestore:", err);
-      showToast(`Firestore save error: ${err?.message || 'Check database connectivity'}`, 'warning');
       throw err;
     }
   };
@@ -1544,6 +1840,24 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || ''
             };
             await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
+            
+            // Register phone number in unique phone registry
+            if (newUserData.phone) {
+              const normPhone = normalizeLebanesePhone(newUserData.phone);
+              if (normPhone.isValid && normPhone.registryKey) {
+                try {
+                  await setDoc(doc(db, 'phone_registry', normPhone.registryKey), {
+                    uid: userObj.uid,
+                    phone: normPhone.formatted,
+                    cleanDigits: normPhone.cleanDigits,
+                    updatedAt: new Date().toISOString()
+                  });
+                } catch (regErr) {
+                  console.warn("[ShopContext] Non-blocking phone_registry write:", regErr);
+                }
+              }
+            }
+
             setUser(newUserData);
           }
         } catch (err: any) {
@@ -1771,117 +2085,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const sendSignupOTP = async (targetEmail: string): Promise<string> => {
-    const cleanEmail = targetEmail.trim().toLowerCase();
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    setLatestOtpCode(generatedOtp);
-    setPendingVerificationEmail(cleanEmail);
-    setIsOtpModalOpen(true);
-
-    if (IS_FIREBASE_ENABLED) {
+  const signUpWithEmail = async (email: string, pass: string, phone?: string) => {
+    // Check phone uniqueness before creating the auth record if phone is provided
+    const targetPhone = phone || (() => {
       try {
-        const otpDocRef = doc(collection(db, 'otp_verifications'));
-        await setDoc(otpDocRef, {
-          email: cleanEmail,
-          otp: generatedOtp,
-          createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-          verified: false
-        });
-      } catch (err) {
-        console.warn("[sendSignupOTP] Firestore error:", err);
-      }
-    }
-
-    if (auth && auth.currentUser) {
-      try {
-        await sendEmailVerification(auth.currentUser);
-      } catch (e) {
-        console.warn("sendEmailVerification notice:", e);
-      }
-    }
-
-    showToast(
-      language === 'ar'
-        ? `تم إرسال رمز التحقق OTP إلى ${cleanEmail}`
-        : `Verification OTP sent to ${cleanEmail}. Please enter the 6-digit code.`,
-      'info'
-    );
-    return generatedOtp;
-  };
-
-  const verifySignupOTP = async (targetEmail: string, inputOtp: string): Promise<boolean> => {
-    const cleanEmail = targetEmail.trim().toLowerCase();
-    const cleanOtp = inputOtp.trim();
-
-    if (!cleanOtp || cleanOtp.length !== 6) {
-      const msg = language === 'ar' ? 'يرجى إدخال رمز مكون من 6 أرقام' : 'Please enter a valid 6-digit OTP code.';
-      showToast(msg, 'warning');
-      return false;
-    }
-
-    let isMatch = false;
-
-    if (latestOtpCode && cleanOtp === latestOtpCode) {
-      isMatch = true;
-    }
-
-    if (!isMatch && IS_FIREBASE_ENABLED) {
-      try {
-        const otpsRef = collection(db, 'otp_verifications');
-        const q = query(otpsRef, where('email', '==', cleanEmail), where('otp', '==', cleanOtp));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          isMatch = true;
-          snap.forEach(async (d) => {
-            await setDoc(d.ref, { verified: true }, { merge: true }).catch(() => {});
-          });
+        const rawTemp = localStorage.getItem('yallalb_signup_profile_temp');
+        if (rawTemp) {
+          const parsed = JSON.parse(rawTemp);
+          return parsed.phone || '';
         }
-      } catch (err) {
-        console.warn("[verifySignupOTP] Firestore verification notice:", err);
+      } catch {}
+      return '';
+    })();
+
+    if (targetPhone) {
+      const phoneCheck = await checkPhoneUniqueness(targetPhone);
+      if (!phoneCheck.available) {
+        const msg = phoneCheck.reason || (language === 'ar' ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر.' : 'This phone number is already registered to another account.');
+        showToast(msg, 'warning');
+        throw new Error(msg);
       }
     }
 
-    if (isMatch) {
-      setUser((prev) => {
-        const updated = { ...prev, emailVerified: true, isOtpVerified: true };
-        try {
-          localStorage.setItem('yallalb_user', JSON.stringify(updated));
-        } catch {}
-        return updated;
-      });
-
-      if (IS_FIREBASE_ENABLED && firebaseUser) {
-        try {
-          const userDocRef = doc(db, 'users', firebaseUser.uid);
-          await setDoc(userDocRef, { emailVerified: true, isOtpVerified: true, emailVerifiedAt: new Date().toISOString() }, { merge: true });
-        } catch (e) {
-          console.warn("Error updating user profile verification in Firestore:", e);
-        }
-      }
-
-      setIsOtpModalOpen(false);
-      setPendingVerificationEmail(null);
-
-      showToast(
-        language === 'ar'
-          ? 'تم تأكيد ملكية البريد الإلكتروني بنجاح! أهلاً بك في يلا لبنان.'
-          : 'Email verified successfully! Welcome to Yalla Lebanon.',
-        'success'
-      );
-      return true;
-    } else {
-      showToast(
-        language === 'ar'
-          ? 'رمز التحقق غير صحيح. يرجى إعادة المحاولة.'
-          : 'Invalid OTP code. Please check your email and enter the correct 6-digit code.',
-        'warning'
-      );
-      return false;
-    }
-  };
-
-  const signUpWithEmail = async (email: string, pass: string) => {
     // L-5: Validate password complexity
     if (pass.length < 8) {
       const msg = 'Password must be at least 8 characters long.';
@@ -1901,11 +2126,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       if (userCredential.user) {
-        await sendSignupOTP(email);
+        await sendEmailVerification(userCredential.user);
         showToast(
           language === 'ar'
-            ? 'تم إنشاء الحساب! يرجى إدخال رمز OTP لتأكيد ملكية بريدك الإلكتروني.'
-            : 'Account created! Please enter the OTP to confirm email ownership.',
+            ? 'تم إنشاء الحساب! تحقق من بريدك الإلكتروني واضغط على رابط التفعيل.'
+            : 'Account created. Check your email and click the verification link to start ordering.',
           'success'
         );
       } else {
@@ -2338,7 +2563,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // 2. Validate stock and build authoritative order items list
         const validatedItems = [];
         for (const dbProd of dbProducts) {
-          const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 999;
+          const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 0;
           const reqQty = dbProd.cartItem.quantity;
           if (currentStock < reqQty) {
             throw new Error(`Sorry, "${dbProd.data.name}" only has ${currentStock} units remaining in stock.`);
@@ -2359,7 +2584,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // 3. Recalculate subtotal, discounts, and total using authoritative values
-        const authDiscountCalc = applyDiscounts(validatedItems, discountRules, appliedCouponCode);
+        const authDiscountCalc = applyDiscounts(validatedItems, discountRules, {
+          couponCode: appliedCouponCode,
+          isNewUser: orders.length === 0,
+        });
         const subtotalUSD = Math.round(validatedItems.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
         const totalUSD = authDiscountCalc.finalSubtotalUSD;
         const discountUSDVal = authDiscountCalc.discountUSD;
@@ -2381,12 +2609,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const sanitizedOrder = sanitizeFirestorePayload(newOrder);
 
-        // 4. Update product stocks (decrement atomically)
-        for (const dbProd of dbProducts) {
-          const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 999;
-          const nextStock = Math.max(0, currentStock - dbProd.cartItem.quantity);
-          transaction.update(dbProd.ref, { stock: nextStock });
-        }
+        // 4. Stock is verified on read above; decrement moves to the server.
+        //    Customers cannot write `products` — see firestore.rules.
+        // for (const dbProd of dbProducts) {
+        //   const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 0;
+        //   const nextStock = Math.max(0, currentStock - dbProd.cartItem.quantity);
+        //   transaction.update(dbProd.ref, { stock: nextStock });
+        // }
 
         // 5. Create the order
         transaction.set(orderDocRef, sanitizedOrder);
@@ -2442,6 +2671,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       summary: `Persisting status change for order #${orderId} to Firestore...`
     });
 
+    const previousOrders = [...orders];
+
     // Optimistic local state update
     setOrders(prev => {
       const next = prev.map(ord => (ord.id === orderId ? { ...ord, status } : ord));
@@ -2480,6 +2711,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startTime
       });
     } catch (error) {
+      setOrders(previousOrders);
+      try {
+        localStorage.setItem('yallalb_orders', JSON.stringify(previousOrders));
+      } catch {}
       dbLogger.logFirestoreWriteError({
         operation: 'setDoc',
         targetPath: `orders/${orderId}`,
@@ -2490,6 +2725,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error
       });
       handleFirestoreError(error, OperationType.UPDATE, `orders/${orderId}`);
+      showToast('Could not update order status. Please try again.', 'warning');
+      throw error;
     }
 
     showToast(`Order status updated to ${status.replace('_', ' ')} in database`, 'info');
@@ -2719,8 +2956,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Sync All Initial Products directly to Firestore database
   const syncAllProductsToDatabase = async () => {
+    const count = INITIAL_PRODUCTS.length;
+    const confirmed = window.confirm(
+      `Restore ${count} products from the bundled seed catalog?\n\n` +
+      `This OVERWRITES prices, stock and descriptions for any of these products ` +
+      `that you have edited in the admin portal. Edits will be lost.`
+    );
+    if (!confirmed) return;
+
     try {
-      showToast('Syncing all 55 items to database...', 'info');
+      showToast(`Restoring ${count} seed products...`, 'info');
       
       const { startTime } = dbLogger.logFirestoreWriteStart({
         operation: 'writeBatch',
@@ -2755,8 +3000,123 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Check phone number uniqueness across Firestore registry and users
+  const checkPhoneUniqueness = useCallback(async (phone: string, excludeUid?: string): Promise<{ available: boolean; reason?: string }> => {
+    const norm = normalizeLebanesePhone(phone);
+    if (!norm.isValid) {
+      return {
+        available: false,
+        reason: language === 'ar'
+          ? 'يجب أن يتألف رقم الهاتف اللبناني من 8 أرقام صحيحة (مثال: 70123456 أو 03123456).'
+          : 'Lebanese phone number must be strictly 8 valid digits (e.g. 70123456 or 03123456).'
+      };
+    }
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        // 1. Direct O(1) document check on unique phone registry
+        if (norm.registryKey) {
+          const regDocRef = doc(db, 'phone_registry', norm.registryKey);
+          const regSnap = await safeGetDoc(regDocRef);
+          if (regSnap.exists()) {
+            const regData = regSnap.data();
+            if (regData && regData.uid && (!excludeUid || regData.uid !== excludeUid)) {
+              return {
+                available: false,
+                reason: language === 'ar'
+                  ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر. يرجى استخدام رقم آخر أو تسجيل الدخول.'
+                  : 'This phone number is already registered to another account. Please sign in or use a different phone number.'
+              };
+            }
+          }
+        }
+
+        // 2. Comprehensive check across users collection
+        const usersRef = collection(db, 'users');
+        const usersSnap = await getDocs(usersRef);
+        for (const uDoc of usersSnap.docs) {
+          if (excludeUid && uDoc.id === excludeUid) continue;
+          const uData = uDoc.data();
+          if (uData && uData.phone) {
+            const uNorm = normalizeLebanesePhone(uData.phone);
+            if (uNorm.isValid && uNorm.cleanDigits === norm.cleanDigits) {
+              return {
+                available: false,
+                reason: language === 'ar'
+                  ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر. يرجى استخدام رقم آخر أو تسجيل الدخول.'
+                  : 'This phone number is already registered to another account. Please sign in or use a different phone number.'
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[ShopContext] Phone uniqueness validation warning:', err);
+      }
+    }
+
+    // 3. Fallback check for local storage
+    try {
+      const localUsersRaw = localStorage.getItem('yallalb_registered_users_cache');
+      if (localUsersRaw) {
+        const localList: Array<{ uid?: string; phone?: string }> = JSON.parse(localUsersRaw);
+        if (Array.isArray(localList)) {
+          for (const item of localList) {
+            if (excludeUid && item.uid === excludeUid) continue;
+            if (item.phone) {
+              const itemNorm = normalizeLebanesePhone(item.phone);
+              if (itemNorm.isValid && itemNorm.cleanDigits === norm.cleanDigits) {
+                return {
+                  available: false,
+                  reason: language === 'ar'
+                    ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر.'
+                    : 'This phone number is already registered to another account.'
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+
+    return { available: true };
+  }, [language]);
+
   // Update User Profile - Saves to Firestore database
   const updateUser = async (updates: Partial<UserProfile>) => {
+    // If phone number is updated, check uniqueness and manage registry
+    if (updates.phone !== undefined && updates.phone !== '') {
+      const norm = normalizeLebanesePhone(updates.phone);
+      if (norm.isValid) {
+        const oldNorm = normalizeLebanesePhone(user.phone);
+        const isChanging = !oldNorm.isValid || oldNorm.cleanDigits !== norm.cleanDigits;
+        const userUid = firebaseUser?.uid || user.uid;
+
+        if (isChanging) {
+          const check = await checkPhoneUniqueness(norm.cleanDigits, userUid);
+          if (!check.available) {
+            showToast(check.reason || 'This phone number is already registered.', 'warning');
+            throw new Error(check.reason || 'Phone number already registered.');
+          }
+
+          if (userUid && IS_FIREBASE_ENABLED && norm.registryKey) {
+            try {
+              await setDoc(doc(db, 'phone_registry', norm.registryKey), {
+                uid: userUid,
+                phone: norm.formatted,
+                cleanDigits: norm.cleanDigits,
+                updatedAt: new Date().toISOString()
+              });
+              if (oldNorm.isValid && oldNorm.registryKey && oldNorm.registryKey !== norm.registryKey) {
+                await deleteDoc(doc(db, 'phone_registry', oldNorm.registryKey)).catch(() => {});
+              }
+            } catch (regErr) {
+              console.warn('[ShopContext] Non-blocking phone_registry update:', regErr);
+            }
+          }
+        }
+      }
+    }
+
     const updatedUser = { ...user, ...updates };
     const sanitizedUser = sanitizeDocumentData(updatedUser);
     setUser(updatedUser);
@@ -2865,21 +3225,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateOrderStatus,
     user,
     updateUser,
+    checkPhoneUniqueness,
     firebaseUser,
     isAdminUser,
+    isEmailVerified,
     signInWithEmail,
     signUpWithEmail,
     resetPassword,
     signInWithGoogle,
     signInWithApple,
     signOutUser,
-    pendingVerificationEmail,
-    setPendingVerificationEmail,
-    isOtpModalOpen,
-    setIsOtpModalOpen,
-    latestOtpCode,
-    sendSignupOTP,
-    verifySignupOTP,
     searchQuery,
     setSearchQuery,
     selectedCategory,
@@ -2917,7 +3272,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     regions,
     updateRegion,
     addRegion,
-    deleteRegion
+    deleteRegion,
+    sellers,
+    addSeller,
+    updateSeller,
+    toggleSellerActive,
+    deleteSeller,
+    bulkImportProducts
   }), [
     activeTab,
     selectedProductDetail,
@@ -2936,6 +3297,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     wishlist,
     orders,
     user,
+    checkPhoneUniqueness,
     firebaseUser,
     isAdminUser,
     searchQuery,
@@ -2953,7 +3315,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     finalCartTotalUSD,
     appliedDiscountRules,
     categories,
-    regions
+    regions,
+    sellers
   ]);
 
   return (
