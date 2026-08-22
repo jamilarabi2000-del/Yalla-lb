@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
+import { FREE_DELIVERY_THRESHOLD_USD, DELIVERY_FEES } from '../lib/delivery';
 import { 
    X, 
    Trash2, 
@@ -115,20 +116,20 @@ export const CartDrawer: React.FC = () => {
             <div className="mt-4 pt-3 border-t border-slate-200/80 space-y-1.5">
               <div className="flex justify-between items-center text-[11px] font-medium text-slate-700">
                 <span className="truncate pr-2">
-                  {rawSubtotal >= 50 
+                  {rawSubtotal >= FREE_DELIVERY_THRESHOLD_USD 
                     ? (language === 'ar' ? '🎉 تم فتح التوصيل السريع المجاني!' : '🎉 Free Beirut Express Delivery Unlocked!') 
                     : (language === 'ar' 
-                        ? `أضف ${formatPrice(50 - rawSubtotal)} للحصول على توصيل مجاني`
-                        : `Add ${formatPrice(50 - rawSubtotal)} for Free Delivery`)}
+                        ? `أضف ${formatPrice(FREE_DELIVERY_THRESHOLD_USD - rawSubtotal)} للحصول على توصيل مجاني`
+                        : `Add ${formatPrice(FREE_DELIVERY_THRESHOLD_USD - rawSubtotal)} for Free Delivery`)}
                 </span>
                 <span className="text-[#96783d] font-bold flex-shrink-0">
-                  {Math.min(100, Math.round((rawSubtotal / 50) * 100))}%
+                  {Math.min(100, Math.round((rawSubtotal / FREE_DELIVERY_THRESHOLD_USD) * 100))}%
                 </span>
               </div>
               <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-[#b89753] to-[#d4b572] transition-all duration-300 rounded-full"
-                  style={{ width: `${Math.min(100, (rawSubtotal / 50) * 100)}%` }}
+                  style={{ width: `${Math.min(100, (rawSubtotal / FREE_DELIVERY_THRESHOLD_USD) * 100)}%` }}
                 />
               </div>
             </div>
@@ -287,14 +288,14 @@ export const CartDrawer: React.FC = () => {
                 <div className="flex justify-between items-center text-slate-600">
                   <span className="font-medium">{language === 'ar' ? 'توصيل سريع داخل لبنان' : 'Hyper-Local Beirut Dispatch'}</span>
                   <span className="font-bold text-emerald-600">
-                    {cartTotalUSD >= 50 
+                    {cartTotalUSD >= FREE_DELIVERY_THRESHOLD_USD 
                       ? (language === 'ar' ? 'مجاني' : 'FREE') 
-                      : (language === 'ar' ? '+$3.00 عند الدفع' : '+$3.00 at checkout')}
+                      : (language === 'ar' ? `+$${DELIVERY_FEES.express_beirut}.00 عند الدفع` : `+$${DELIVERY_FEES.express_beirut}.00 at checkout`)}
                   </span>
                 </div>
                 <div className="pt-2.5 border-t border-slate-200 flex justify-between items-center text-slate-900 font-bold">
                   <span className="text-sm">{t('estimatedTotal')}</span>
-                  <span className="text-xl font-black text-slate-950">{formatPrice(cartTotalUSD >= 50 ? cartTotalUSD : cartTotalUSD + 3)}</span>
+                  <span className="text-xl font-black text-slate-950">{formatPrice(cartTotalUSD >= FREE_DELIVERY_THRESHOLD_USD ? cartTotalUSD : cartTotalUSD + DELIVERY_FEES.express_beirut)}</span>
                 </div>
               </div>
 

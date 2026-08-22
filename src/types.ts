@@ -455,10 +455,15 @@ export interface SiteContent {
 export interface RecentActivity {
   id: string;
   timestamp: string; // ISO 8601 string
-  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'order_delete' | 'meta_change' | 'cms_update' | 'category_create' | 'category_update' | 'category_delete' | 'region_update';
+  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'order_delete' | 'meta_change' | 'cms_update' | 'category_create' | 'category_update' | 'category_delete' | 'region_update' | 'product_bulk_update';
   summary: string;
   details: string;
   adminEmail: string;
+  targetId?: string;
+  snapshotBefore?: any;
+  snapshotAfter?: any;
+  isUndone?: boolean;
+  undoneAt?: string;
 }
 
 export interface Review {

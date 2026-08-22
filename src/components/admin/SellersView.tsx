@@ -22,6 +22,7 @@ import {
   downloadSellerPerformanceReport 
 } from '../../utils/exportMasterReport';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../../utils/importerResolvers';
+import { checkDuplicateSellerItemCode } from '../../lib/productValidation';
 
 export const SellersView: React.FC = () => {
   const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
@@ -236,6 +237,14 @@ export const SellersView: React.FC = () => {
 
       const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${idx}`;
       const isUpdate = products.some(p => p.id === sku);
+      const sellerItemCode = (row.seller_item_code || row.seller_code || row.item_code || '').toString().trim();
+
+      if (sellerItemCode) {
+        const dupCheck = checkDuplicateSellerItemCode(sellerItemCode, isUpdate ? sku : null, resolvedSeller?.sellerId, resolvedSeller?.sellerName, products);
+        if (dupCheck.isDuplicate) {
+          rowIssues.push(`Duplicate seller item code "${sellerItemCode}" for seller "${resolvedSeller?.sellerName || ''}"`);
+        }
+      }
 
       parsedPreview.push({
         rowNum,

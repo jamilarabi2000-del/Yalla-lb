@@ -5,10 +5,9 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.admin == true ||
-        request.auth.token.email == 'jamilarabi2000@gmail.com'
-      );
+      return isSignedIn()
+        && request.auth.token.admin == true
+        && request.auth.token.email_verified == true;
     }
 
     // Catalog: public read, admin-only write.
@@ -27,7 +26,7 @@ service cloud.firestore {
 
     // Phone registry: unique index for user registration and deduplication
     match /phone_registry/{phoneKey} {
-      allow get: if true;
+      allow get: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
       allow list: if isAdmin();
       allow create: if (isSignedIn() && request.resource.data.uid == request.auth.uid) || isAdmin();
       allow update: if (isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid) || isAdmin();
@@ -45,13 +44,11 @@ service cloud.firestore {
     // Orders: a customer reads/lists only their own; only admins list all.
     match /orders/{orderId} {
       allow get: if isAdmin()
-        || (isSignedIn() && resource.data.userId == request.auth.uid)
-        || resource.data.trackingNumber != null;
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if (
-        (isSignedIn() && request.resource.data.userId == request.auth.uid) ||
-        (request.resource.data.userId is string && request.resource.data.userId.size() <= 128)
-      )
+      allow create: if isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.totalUSD is number
         && request.resource.data.totalUSD >= 0;
@@ -103,20 +100,12 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // Search analytics: users/visitors can log search queries, admin can view/manage
+    // Search analytics: signed-in users can log search queries, admin can view/manage
     match /search_logs/{logId} {
-      allow create: if request.resource.data.query is string
+      allow create: if isSignedIn()
+        && request.resource.data.query is string
         && request.resource.data.query.size() <= 200;
       allow read, delete: if isAdmin();
-    }
-
-    // Health check / connectivity pings
-    match /test/{docId} {
-      allow read: if true;
-    }
-
-    match /_ping/{docId} {
-      allow read: if true;
     }
   }
 }

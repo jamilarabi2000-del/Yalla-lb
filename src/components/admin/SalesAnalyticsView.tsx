@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { Order, Product, Seller } from '../../types';
-import Papa from 'papaparse';
 import {
   TrendingUp,
   Calendar,
@@ -653,7 +652,8 @@ export const SalesAnalyticsView: React.FC = () => {
     showToast('Sales Report CSV generated and downloaded successfully.', 'success');
   };
 
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = async (data: any[], filename: string) => {
+    const { default: Papa } = await import('papaparse');
     const csv = Papa.unparse(data);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);

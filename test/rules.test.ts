@@ -74,3 +74,34 @@ test('admin can write products and cms', async () => {
 test('non-admin cannot write cms', async () => {
   await assertFails(setDoc(doc(customer(), 'cms', 'main'), { navbar: {} }, { merge: true }));
 });
+
+const unauthenticated = () => env.unauthenticatedContext().firestore();
+
+test('unauthenticated user cannot create order', async () => {
+  await assertFails(setDoc(doc(unauthenticated(), 'orders', 'o-unauth'), {
+    userId: 'cust-1', status: 'pending', totalUSD: 10, items: [], shipping: {},
+  }));
+});
+
+test('unauthenticated user cannot read order with trackingNumber', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'orders', 'order-tracking'), {
+      userId: 'cust-1', trackingNumber: 'TRK12345', totalUSD: 10
+    });
+  });
+  await assertFails(getDoc(doc(unauthenticated(), 'orders', 'order-tracking')));
+});
+
+test('phone_registry is not publicly readable', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'phone_registry', '96170123456'), { uid: 'cust-1' });
+  });
+  await assertFails(getDoc(doc(unauthenticated(), 'phone_registry', '96170123456')));
+  await assertSucceeds(getDoc(doc(customer(), 'phone_registry', '96170123456')));
+});
+
+test('unauthenticated user cannot write search_logs', async () => {
+  await assertFails(setDoc(doc(unauthenticated(), 'search_logs', 's1'), { query: 'olive oil' }));
+  await assertSucceeds(setDoc(doc(customer(), 'search_logs', 's2'), { query: 'soap' }));
+});
+

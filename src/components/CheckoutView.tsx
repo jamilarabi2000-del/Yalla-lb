@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import { PaymentMethod } from '../types';
-import { LEBANON_REGIONS, GovernorateOption } from '../data/regions';
+import { LEBANON_REGIONS, GovernorateOption, LBP_USD_RATE } from '../data/regions';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
 import { 
@@ -466,7 +466,7 @@ export const CheckoutView: React.FC = () => {
         subtotalUSD: Math.round(cart.reduce((s, i) => s + i.product.priceUSD * i.quantity, 0) * 100) / 100,
         deliveryFeeUSD: deliveryFeeUSD,
         totalUSD: finalTotalUSD,
-        totalLBP: finalTotalUSD * 89500,
+        totalLBP: Math.round(finalTotalUSD * LBP_USD_RATE),
         discountUSD: discountUSD,
         appliedCoupon: appliedCouponCode || undefined,
         estimatedDelivery: deliverySpeed === 'express_beirut' 

@@ -63,6 +63,9 @@ import {
   FileSpreadsheet,
   Video,
   Film,
+  FileDiff,
+  RotateCcw,
+  History,
   Image as ImageIcon
 } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
@@ -377,6 +380,7 @@ export const AdminView: React.FC = () => {
   const [isSyncingDb, setIsSyncingDb] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [fullEditProduct, setFullEditProduct] = useState<Product | null>(null);
+  const [isPreviewEditModalOpen, setIsPreviewEditModalOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
   const [editNewImageInput, setEditNewImageInput] = useState('');
   const [editNewVideoInput, setEditNewVideoInput] = useState('');
@@ -836,11 +840,12 @@ export const AdminView: React.FC = () => {
       return;
     }
 
-    // Duplicate Product Number validation
+    // Duplicate Product Number & Seller Item Code validation
     if (newProduct.sellerItemCode) {
-      const dupCode = checkDuplicateProductNumber(newProduct.sellerItemCode, null, products);
+      const targetSellerName = newProduct.artisan || newProduct.seller;
+      const dupCode = checkDuplicateProductNumber(newProduct.sellerItemCode, null, products, undefined, targetSellerName);
       if (dupCode.isDuplicate) {
-        showToast(`Duplicate product number: "${newProduct.sellerItemCode}" is already in use by "${dupCode.conflictingProduct?.name}".`, 'error');
+        showToast(`Duplicate seller item code: "${newProduct.sellerItemCode}" is already in use by "${dupCode.conflictingProduct?.name}" for seller "${targetSellerName || 'this seller'}". Duplicate seller item codes from the same seller are not allowed.`, 'error');
         return;
       }
     }
@@ -942,11 +947,13 @@ export const AdminView: React.FC = () => {
     if (e) e.preventDefault();
     if (!fullEditProduct) return;
 
-    // Duplicate Product Number validation
+    // Duplicate Product Number & Seller Item Code validation
     if (fullEditProduct.sellerItemCode) {
-      const dupCode = checkDuplicateProductNumber(fullEditProduct.sellerItemCode, fullEditProduct.id, products);
+      const targetSellerId = fullEditProduct.sellerId;
+      const targetSellerName = fullEditProduct.artisan || fullEditProduct.seller;
+      const dupCode = checkDuplicateProductNumber(fullEditProduct.sellerItemCode, fullEditProduct.id, products, targetSellerId, targetSellerName);
       if (dupCode.isDuplicate) {
-        showToast(`Duplicate product number: "${fullEditProduct.sellerItemCode}" is already in use by "${dupCode.conflictingProduct?.name}".`, 'error');
+        showToast(`Duplicate seller item code: "${fullEditProduct.sellerItemCode}" is already in use by "${dupCode.conflictingProduct?.name}" for seller "${targetSellerName || 'this seller'}". Duplicate seller item codes from the same seller are not allowed.`, 'error');
         return;
       }
     }
@@ -1164,6 +1171,58 @@ export const AdminView: React.FC = () => {
       link.click();
       document.body.removeChild(link);
       showToast('Products catalog report downloaded successfully', 'success');
+    });
+  };
+
+  const handleDownloadSelectedProductsForUpdate = () => {
+    if (selectedProductIds.size === 0) {
+      showToast('Please select at least one product using checkboxes to download for bulk update.', 'error');
+      return;
+    }
+
+    import('papaparse').then((Papa) => {
+      const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
+      const dataToExport = selectedProducts.map(p => {
+        const matchedSeller = sellers.find(s => s.id === p.sellerId || (s.nameEn && s.nameEn.toLowerCase() === (p.seller || p.artisan || '').toLowerCase()));
+        const effectiveSellerId = p.sellerId || matchedSeller?.id || sellers[0]?.id || 'terroir-du-liban';
+        const effectiveSellerName = matchedSeller?.nameEn || p.seller || p.artisan || '';
+
+        return {
+          sku: p.id,
+          seller_item_code: p.sellerItemCode || '',
+          name_en: p.name,
+          name_ar: p.arabicName || '',
+          seller_id: effectiveSellerId,
+          seller_artisan: effectiveSellerName,
+          arabic_seller: p.arabicSeller || matchedSeller?.nameAr || '',
+          category: p.category,
+          price_usd: p.priceUSD,
+          original_price_usd: p.originalPriceUSD || '',
+          stock: p.stock,
+          image_url: p.image || '',
+          additional_images: (p.additionalImages || []).join('|'),
+          video_url: p.videoUrl || '',
+          additional_videos: (p.videos || []).join('|'),
+          origin_terroir: p.origin || '',
+          weight_or_volume: p.weightOrVolume || '',
+          is_published: p.isPublished === false ? 'false' : 'true',
+          is_featured: p.isFeatured ? 'true' : 'false',
+          tags: (p.tags || []).join('|'),
+          description_en: p.description || '',
+          description_ar: p.craftStory || ''
+        };
+      });
+
+      const csv = Papa.unparse(dataToExport);
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `products_bulk_update_selected_${selectedProducts.length}_items.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast(`Downloaded CSV for ${selectedProducts.length} selected items for bulk update. Edit fields and re-upload in Bulk Upload CSV modal.`, 'success');
     });
   };
 
@@ -1765,6 +1824,17 @@ export const AdminView: React.FC = () => {
                     <span>Catalog CSV</span>
                   </button>
 
+                  {selectedProductIds.size > 0 && (
+                    <button
+                      onClick={handleDownloadSelectedProductsForUpdate}
+                      className="flex items-center gap-1.5 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 animate-pulse"
+                      title="Download CSV containing selected products to edit and bulk update"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+                      <span>Download Selected CSV ({selectedProductIds.size})</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={(e) => { e.stopPropagation();
                       setBulkImportFile(null);
@@ -1775,7 +1845,7 @@ export const AdminView: React.FC = () => {
                     className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-2xs cursor-pointer active:scale-95"
                     title="Mass upload new products or update existing ones via CSV file"
                   >
-                    <UploadCloud className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                    <UploadCloud className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Bulk Upload CSV</span>
                   </button>
 
@@ -1987,6 +2057,32 @@ export const AdminView: React.FC = () => {
                   
                   {selectedInFilteredCount > 0 && (
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleDownloadSelectedProductsForUpdate}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-[11px] transition-colors cursor-pointer shadow-xs active:scale-95"
+                        title="Download CSV containing selected products to edit and bulk update"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+                        <span>Download Selected CSV for Update ({selectedInFilteredCount})</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBulkImportFile(null);
+                          setBulkImportPreviewRows([]);
+                          setBulkImportResult(null);
+                          setIsBulkUploadModalOpen(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] transition-colors cursor-pointer shadow-xs active:scale-95"
+                        title="Upload CSV file to apply updates or create new products"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5 text-white" />
+                        <span>Upload & Apply CSV</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => setSelectedProductIds(new Set())}
@@ -2936,8 +3032,8 @@ export const AdminView: React.FC = () => {
           >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Mass Product Creator (CSV Import)</h3>
-                <p className="text-xs text-slate-500">Create or update hundreds of products instantly using a spreadsheet</p>
+                <h3 className="text-lg font-bold text-slate-900">Bulk Product Management (Creation & Updates)</h3>
+                <p className="text-xs text-slate-500">Create new items or update existing products in bulk using CSV spreadsheets</p>
               </div>
               <button 
                 onClick={() => setIsBulkUploadModalOpen(false)}
@@ -2949,38 +3045,80 @@ export const AdminView: React.FC = () => {
 
             {/* CSV File Selection & Instructions */}
             <div className="space-y-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2">
-                <h4 className="font-bold text-slate-800">CSV Template Headers Requirements:</h4>
-                <p className="text-slate-500 leading-relaxed">
-                  Your CSV must contain a header row. The system supports both new listings and updates (if <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">sku</code> matches an existing product ID).
-                </p>
-                <div className="grid grid-cols-2 gap-2 pt-1.5 font-mono text-[10px]">
-                  <div><strong className="text-indigo-600">sku</strong> (optional, for updates)</div>
-                  <div><strong className="text-indigo-600">name_en</strong> (required)</div>
-                  <div><strong className="text-indigo-600">category</strong> (matching category ID)</div>
-                  <div><strong className="text-indigo-600">seller_id</strong> (matching seller ID)</div>
-                  <div><strong className="text-indigo-600">price_usd</strong> (must be &gt; 0)</div>
-                  <div><strong className="text-indigo-600">stock</strong> (must be &gt;= 0)</div>
-                  <div><strong className="text-indigo-600">image_url</strong> (primary photo URL)</div>
-                  <div><strong className="text-emerald-600">additional_images</strong> (pipe | separated)</div>
-                  <div><strong className="text-indigo-600">video_url</strong> (YouTube/Vimeo/MP4)</div>
-                  <div><strong className="text-emerald-600">additional_videos</strong> (pipe | separated)</div>
+              {/* Selected Items Callout Banner if user has items checked */}
+              {selectedProductIds.size > 0 && (
+                <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
+                  <div>
+                    <div className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+                      <span>{selectedProductIds.size} Products Selected for Bulk Update</span>
+                    </div>
+                    <p className="text-[11px] text-indigo-700 mt-0.5">
+                      Download the pre-populated CSV for these selected items, edit the values in Excel/Sheets, and re-upload below.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadSelectedProductsForUpdate}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-xs shrink-0 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download Selected CSV ({selectedProductIds.size})</span>
+                  </button>
                 </div>
-                <div className="pt-2 flex flex-col sm:flex-row gap-3">
-                  <button
-                    onClick={handleDownloadHeadersOnlyTemplate}
-                    className="inline-flex items-center gap-1.5 text-emerald-600 hover:text-emerald-500 font-bold cursor-pointer bg-emerald-50/55 px-2.5 py-1.5 rounded-lg border border-emerald-100"
-                  >
-                    <Download className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Download Empty CSV Template (Headers Only)</span>
-                  </button>
-                  <button
-                    onClick={handleDownloadProductsReport}
-                    className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-500 font-bold cursor-pointer bg-indigo-50/55 px-2.5 py-1.5 rounded-lg border border-indigo-100"
-                  >
-                    <Download className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Download Existing Products for reference</span>
-                  </button>
+              )}
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pb-2 border-b border-slate-200/80">
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-2">
+                    <h5 className="font-bold text-slate-800 flex items-center gap-1 text-xs">
+                      <span className="text-indigo-600 font-extrabold">1.</span> Bulk Update Existing Items
+                    </h5>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Select products on the catalog grid, click <strong>Download Selected CSV</strong>, modify details (prices, stock, names, item codes) in your spreadsheet, and upload it back. The system matches items using the <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px]">sku</code> column.
+                    </p>
+                    <button
+                      onClick={selectedProductIds.size > 0 ? handleDownloadSelectedProductsForUpdate : handleDownloadProductsReport}
+                      className="w-full inline-flex items-center justify-center gap-1.5 text-indigo-700 font-bold cursor-pointer bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1.5 rounded-lg border border-indigo-200 text-xs transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>{selectedProductIds.size > 0 ? `Download Selected (${selectedProductIds.size}) CSV` : 'Download All Products CSV'}</span>
+                    </button>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-2">
+                    <h5 className="font-bold text-slate-800 flex items-center gap-1 text-xs">
+                      <span className="text-emerald-600 font-extrabold">2.</span> Bulk Create New Products
+                    </h5>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Download the empty header template, fill in your new product rows, and upload. Leave <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px]">sku</code> blank or provide custom unique IDs.
+                    </p>
+                    <button
+                      onClick={handleDownloadHeadersOnlyTemplate}
+                      className="w-full inline-flex items-center justify-center gap-1.5 text-emerald-700 font-bold cursor-pointer bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1.5 rounded-lg border border-emerald-200 text-xs transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Download Empty CSV Template</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-slate-800 text-[11px]">Supported CSV Columns:</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 pt-1 font-mono text-[10px]">
+                    <div><strong className="text-indigo-600">sku</strong> (for updates)</div>
+                    <div><strong className="text-indigo-600">seller_item_code</strong></div>
+                    <div><strong className="text-indigo-600">name_en</strong> (required)</div>
+                    <div><strong className="text-indigo-600">name_ar</strong></div>
+                    <div><strong className="text-indigo-600">category</strong></div>
+                    <div><strong className="text-indigo-600">seller_id</strong></div>
+                    <div><strong className="text-indigo-600">price_usd</strong> (&gt; 0)</div>
+                    <div><strong className="text-indigo-600">stock</strong> (&gt;= 0)</div>
+                    <div><strong className="text-indigo-600">image_url</strong></div>
+                    <div><strong className="text-emerald-600">additional_images</strong></div>
+                    <div><strong className="text-indigo-600">is_published</strong></div>
+                    <div><strong className="text-emerald-600">description_en</strong></div>
+                  </div>
                 </div>
               </div>
 
@@ -3721,6 +3859,15 @@ export const AdminView: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
+                    onClick={() => setIsPreviewEditModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs cursor-pointer transition-all border border-indigo-200"
+                    title="Preview changes and live storefront card before saving or publishing"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Preview Changes</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={(e) => handleSaveFullProductEdit(e, false)}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs cursor-pointer transition-all shadow-xs active:scale-95"
                     title="Save changes as private draft"
@@ -3743,6 +3890,206 @@ export const AdminView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Product Edit Preview Before Publish Modal */}
+      {isPreviewEditModalOpen && fullEditProduct && (() => {
+        const originalProduct = products.find(p => p.id === fullEditProduct.id);
+        const changesList: { field: string; before: string; after: string }[] = [];
+
+        if (originalProduct) {
+          if (originalProduct.name !== fullEditProduct.name) {
+            changesList.push({ field: 'Product Name', before: originalProduct.name, after: fullEditProduct.name });
+          }
+          if ((originalProduct.arabicName || '') !== (fullEditProduct.arabicName || '')) {
+            changesList.push({ field: 'Arabic Name', before: originalProduct.arabicName || '(Empty)', after: fullEditProduct.arabicName || '(Empty)' });
+          }
+          if (Number(originalProduct.priceUSD) !== Number(fullEditProduct.priceUSD)) {
+            changesList.push({ field: 'Price (USD)', before: `$${originalProduct.priceUSD}`, after: `$${fullEditProduct.priceUSD}` });
+          }
+          if (Number(originalProduct.stock) !== Number(fullEditProduct.stock)) {
+            changesList.push({ field: 'Stock Level', before: `${originalProduct.stock} units`, after: `${fullEditProduct.stock} units` });
+          }
+          if (originalProduct.category !== fullEditProduct.category) {
+            changesList.push({ field: 'Category', before: originalProduct.category, after: fullEditProduct.category });
+          }
+          if ((originalProduct.seller || originalProduct.artisan) !== (fullEditProduct.seller || fullEditProduct.artisan)) {
+            changesList.push({ field: 'Seller/Artisan', before: originalProduct.seller || originalProduct.artisan || '', after: fullEditProduct.seller || fullEditProduct.artisan || '' });
+          }
+          if ((originalProduct.sellerItemCode || '') !== (fullEditProduct.sellerItemCode || '')) {
+            changesList.push({ field: 'Seller Item Code', before: originalProduct.sellerItemCode || '(None)', after: fullEditProduct.sellerItemCode || '(None)' });
+          }
+          if (originalProduct.image !== fullEditProduct.image) {
+            changesList.push({ field: 'Main Image URL', before: originalProduct.image, after: fullEditProduct.image });
+          }
+          if ((originalProduct.isPublished !== false) !== (fullEditProduct.isPublished !== false)) {
+            changesList.push({
+              field: 'Publish Status',
+              before: originalProduct.isPublished !== false ? 'Public / Live' : 'Unpublished Draft',
+              after: fullEditProduct.isPublished !== false ? 'Public / Live' : 'Unpublished Draft'
+            });
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs">
+            <div className="bg-white rounded-3xl max-w-3xl w-full p-6 space-y-5 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
+                    <FileDiff className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base">Preview Product Changes Before Publishing</h3>
+                    <p className="text-xs text-slate-500">Review exact attribute diffs and live customer storefront presentation</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsPreviewEditModalOpen(false)}
+                  className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Grid: Left - Diffs / Right - Storefront Card Mockup */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
+                {/* Left Column: Changed Attributes Diff */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-indigo-600" />
+                    <span>Modified Field Attributes ({changesList.length})</span>
+                  </h4>
+
+                  {changesList.length === 0 ? (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-1">
+                      <p className="font-semibold text-slate-600">No field changes detected yet.</p>
+                      <p className="text-[11px] text-slate-400">Values match the currently saved product state in database.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {changesList.map((ch, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
+                          <div className="font-bold text-slate-800 text-[11px]">{ch.field}</div>
+                          <div className="grid grid-cols-2 gap-2 text-[10px]">
+                            <div className="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-800 line-through truncate" title={ch.before}>
+                              <span className="font-mono text-[9px] block text-rose-500 uppercase">Before:</span>
+                              {ch.before}
+                            </div>
+                            <div className="p-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-900 font-bold truncate" title={ch.after}>
+                              <span className="font-mono text-[9px] block text-emerald-600 uppercase">After:</span>
+                              {ch.after}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right Column: Customer Storefront Card Mockup */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <Eye className="w-4 h-4 text-emerald-600" />
+                    <span>Customer Storefront Preview</span>
+                  </h4>
+
+                  <div className="p-4 bg-slate-100/70 border border-slate-200 rounded-3xl flex justify-center">
+                    <div className="w-full max-w-[260px] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm space-y-2.5 pb-3">
+                      {/* Product Image & Badges */}
+                      <div className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden">
+                        <img 
+                          src={fullEditProduct.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80'} 
+                          alt={fullEditProduct.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute top-2 left-2 flex flex-col gap-1">
+                          {fullEditProduct.isPublished === false ? (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white font-extrabold text-[9px] shadow-xs">
+                              DRAFT (HIDDEN)
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white font-extrabold text-[9px] shadow-xs">
+                              LIVE PUBLIC
+                            </span>
+                          )}
+                        </div>
+                        <div className="absolute top-2 right-2 px-1.5 py-0.5 bg-black/60 text-white text-[9px] font-bold rounded-md backdrop-blur-xs">
+                          {fullEditProduct.category}
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="px-3 space-y-1">
+                        <div className="text-[10px] text-indigo-600 font-bold truncate">
+                          {fullEditProduct.seller || fullEditProduct.artisan || 'Lebanese Artisan'}
+                        </div>
+                        <h5 className="font-extrabold text-slate-900 text-xs line-clamp-1">
+                          {fullEditProduct.name}
+                        </h5>
+                        {fullEditProduct.arabicName && (
+                          <div className="text-[11px] font-bold text-slate-500 line-clamp-1 dir-rtl text-right">
+                            {fullEditProduct.arabicName}
+                          </div>
+                        )}
+
+                        <div className="pt-1.5 flex items-center justify-between border-t border-slate-100">
+                          <div>
+                            <span className="text-sm font-black text-slate-900">${fullEditProduct.priceUSD}</span>
+                            <span className="text-[10px] text-slate-400 block font-semibold">
+                              ≈ {(fullEditProduct.priceUSD * 89500).toLocaleString()} LBP
+                            </span>
+                          </div>
+
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${fullEditProduct.stock > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                            {fullEditProduct.stock > 0 ? `${fullEditProduct.stock} in stock` : 'Out of stock'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewEditModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  Back to Editing
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setIsPreviewEditModalOpen(false);
+                      handleSaveFullProductEdit(e, false);
+                    }}
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl cursor-pointer shadow-xs"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Save as Draft (Private)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      setIsPreviewEditModalOpen(false);
+                      handleSaveFullProductEdit(e, true);
+                    }}
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-xs rounded-xl cursor-pointer shadow-md"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Confirm & Publish Live</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Invoice & Order Details Modal */}
       {selectedInvoiceOrder && (

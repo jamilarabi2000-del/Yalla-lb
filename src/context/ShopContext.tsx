@@ -277,7 +277,15 @@ interface ShopContextType {
 
   // Recent Activities (Audit Logs)
   recentActivities: RecentActivity[];
-  logAdminActivity: (actionType: RecentActivity['actionType'], summary: string, details: string) => Promise<void>;
+  logAdminActivity: (
+    actionType: RecentActivity['actionType'],
+    summary: string,
+    details: string,
+    targetId?: string,
+    snapshotBefore?: any,
+    snapshotAfter?: any
+  ) => Promise<void>;
+  undoAdminActivity: (activityId: string) => Promise<void>;
 
   // Discounts & Promos
   discountRules: DiscountRule[];
@@ -503,7 +511,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, [isAdminUser]);
 
-  const logAdminActivity = async (actionType: RecentActivity['actionType'], summary: string, details: string) => {
+  const logAdminActivity = async (
+    actionType: RecentActivity['actionType'],
+    summary: string,
+    details: string,
+    targetId?: string,
+    snapshotBefore?: any,
+    snapshotAfter?: any
+  ) => {
     try {
       const activityId = `act-${Date.now()}`;
       const newActivity: RecentActivity = {
@@ -512,7 +527,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         actionType,
         summary,
         details,
-        adminEmail: firebaseUser?.email || user.email || 'anonymous-admin'
+        adminEmail: firebaseUser?.email || user.email || 'anonymous-admin',
+        ...(targetId ? { targetId } : {}),
+        ...(snapshotBefore !== undefined ? { snapshotBefore } : {}),
+        ...(snapshotAfter !== undefined ? { snapshotAfter } : {})
       };
       
       setRecentActivities(prev => {
@@ -530,6 +548,76 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err) {
       console.warn('[ShopContext] Failed to log admin activity:', err);
+    }
+  };
+
+  const undoAdminActivity = async (activityId: string) => {
+    const act = recentActivities.find(a => a.id === activityId);
+    if (!act) {
+      showToast('Activity log entry not found.', 'error');
+      return;
+    }
+    if (act.isUndone) {
+      showToast('This action has already been undone.', 'error');
+      return;
+    }
+
+    try {
+      if (act.actionType === 'product_update' && act.targetId && act.snapshotBefore) {
+        const restoredProduct = act.snapshotBefore as Product;
+        setProducts(prev => prev.map(p => p.id === act.targetId ? { ...restoredProduct } : p));
+        try {
+          localStorage.setItem('yallalb_products', JSON.stringify(products.map(p => p.id === act.targetId ? { ...restoredProduct } : p)));
+        } catch {}
+        if (IS_FIREBASE_ENABLED) {
+          await monitoredSetDoc(doc(db, 'products', act.targetId), sanitizeDocumentData(restoredProduct), undefined, 'ShopContext:undoAdminActivity');
+        }
+      } else if (act.actionType === 'product_add' && act.targetId) {
+        setProducts(prev => prev.filter(p => p.id !== act.targetId));
+        if (IS_FIREBASE_ENABLED) {
+          await monitoredDeleteDoc(doc(db, 'products', act.targetId), 'ShopContext:undoAdminActivity');
+        }
+      } else if (act.actionType === 'product_delete' && act.targetId && act.snapshotBefore) {
+        const restoredProduct = act.snapshotBefore as Product;
+        setProducts(prev => [...prev.filter(p => p.id !== act.targetId), restoredProduct]);
+        if (IS_FIREBASE_ENABLED) {
+          await monitoredSetDoc(doc(db, 'products', act.targetId), sanitizeDocumentData(restoredProduct), undefined, 'ShopContext:undoAdminActivity');
+        }
+      } else if (act.actionType === 'product_bulk_update' && Array.isArray(act.snapshotBefore)) {
+        const restoredProducts = act.snapshotBefore as Product[];
+        const restoredMap = new Map(restoredProducts.map(p => [p.id, p]));
+        setProducts(prev => prev.map(p => restoredMap.get(p.id) || p));
+        if (IS_FIREBASE_ENABLED) {
+          const batch = writeBatch(db);
+          restoredProducts.forEach(p => {
+            batch.set(doc(db, 'products', p.id), sanitizeDocumentData(p));
+          });
+          await batch.commit();
+        }
+      } else if (act.snapshotBefore) {
+        showToast(`Reverting ${act.summary}...`, 'info');
+      } else {
+        showToast('No saved state snapshot is available to undo this specific action.', 'error');
+        return;
+      }
+
+      const undoneTimestamp = new Date().toISOString();
+      setRecentActivities(prev => prev.map(a => a.id === activityId ? { ...a, isUndone: true, undoneAt: undoneTimestamp } : a));
+
+      if (IS_FIREBASE_ENABLED) {
+        await monitoredSetDoc(doc(db, 'recent_activity', activityId), { isUndone: true, undoneAt: undoneTimestamp }, { merge: true });
+      }
+
+      await logAdminActivity(
+        'product_update',
+        `Undid: ${act.summary}`,
+        `Reverted changes from activity logged at ${new Date(act.timestamp).toLocaleTimeString()}`
+      );
+
+      showToast(`Successfully undone: "${act.summary}"! Changes recovered.`, 'success');
+    } catch (err) {
+      console.error('[ShopContext] Error undoing admin activity:', err);
+      showToast('Failed to undo changes. Please check connection and try again.', 'error');
     }
   };
 
@@ -1151,21 +1239,23 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // 1. Validation: Duplicate Product Number (SKU & sellerItemCode)
             const normSku = sku.toLowerCase();
             const normItemCode = sellerItemCode.toLowerCase();
+            const sellerKey = (resolvedSeller?.sellerId || resolvedSeller?.sellerName || '').toLowerCase().trim();
+            const sellerCodeKey = `${sellerKey}::${normItemCode}`;
 
             if (seenSkusInFile.has(normSku)) {
               errors.push(`Row ${rowNum} ("${name}"): Duplicate SKU / Product ID "${sku}" appears multiple times in CSV import.`);
               return;
             }
-            if (seenItemCodesInFile.has(normItemCode)) {
-              errors.push(`Row ${rowNum} ("${name}"): Duplicate Seller Item Code "${sellerItemCode}" appears multiple times in CSV import.`);
+            if (seenItemCodesInFile.has(sellerCodeKey)) {
+              errors.push(`Row ${rowNum} ("${name}"): Duplicate Seller Item Code "${sellerItemCode}" for seller "${resolvedSeller.sellerName}" appears multiple times in CSV import.`);
               return;
             }
 
             // Check against existing products in database
             const isExistingSku = products.some(p => p.id === sku);
-            const dupCodeCheck = checkDuplicateProductNumber(sellerItemCode, isExistingSku ? sku : null, products);
+            const dupCodeCheck = checkDuplicateProductNumber(sellerItemCode, isExistingSku ? sku : null, products, resolvedSeller.sellerId, resolvedSeller.sellerName);
             if (dupCodeCheck.isDuplicate) {
-              errors.push(`Row ${rowNum} ("${name}"): Product number "${sellerItemCode}" is already used by existing product "${dupCodeCheck.conflictingProduct?.name}".`);
+              errors.push(`Row ${rowNum} ("${name}"): Seller item code "${sellerItemCode}" is already assigned to existing product "${dupCodeCheck.conflictingProduct?.name}" for seller "${resolvedSeller.sellerName}".`);
               return;
             }
 
@@ -1187,7 +1277,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             seenSkusInFile.add(normSku);
-            seenItemCodesInFile.add(normItemCode);
+            seenItemCodesInFile.add(sellerCodeKey);
             if (cleanDesc.length >= 10) {
               seenDescriptionsInFile.set(cleanDesc, name);
             }
@@ -1284,7 +1374,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           }
 
-          await logAdminActivity('meta_change', `Imported ${validRows.length} products`, `Created: ${created}, Updated: ${updated}, Errors: ${errors.length}`);
+          const previousSnapshots = validRows.map(r => products.find(p => p.id === r.sku)).filter(Boolean);
+          const updatedSnapshots = validRows.map(r => r.product);
+
+          await logAdminActivity(
+            'product_bulk_update',
+            `CSV Bulk Import (${validRows.length} products)`,
+            `Created: ${created}, Updated: ${updated}, Errors: ${errors.length}`,
+            'bulk_csv_import',
+            previousSnapshots,
+            updatedSnapshots
+          );
           resolve({ created, updated, errors });
         },
         error: (err) => {
@@ -2755,14 +2855,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const sanitizedOrder = sanitizeFirestorePayload(newOrder);
 
-        // 4. Stock is verified on read above; decrement moves to the server.
-        //    Customers cannot write `products` — see firestore.rules.
-        // for (const dbProd of dbProducts) {
-        //   const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 0;
-        //   const nextStock = Math.max(0, currentStock - dbProd.cartItem.quantity);
-        //   transaction.update(dbProd.ref, { stock: nextStock });
-        // }
-
+        // 4. Stock availability is verified above. Direct client-side product stock writes
+        //    are restricted to admin roles (see firestore.rules).
+        
         // 5. Create the order
         transaction.set(orderDocRef, sanitizedOrder);
 
@@ -2968,9 +3063,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addProduct = async (newProdData: Omit<Product, 'id'> & { id?: string }) => {
     // 1. Validation: Duplicate Product Number (sellerItemCode or custom ID)
     if (newProdData.sellerItemCode) {
-      const dupCodeCheck = checkDuplicateProductNumber(newProdData.sellerItemCode, null, products);
+      const targetSellerId = newProdData.sellerId;
+      const targetSellerName = newProdData.artisan || newProdData.seller;
+      const dupCodeCheck = checkDuplicateProductNumber(newProdData.sellerItemCode, null, products, targetSellerId, targetSellerName);
       if (dupCodeCheck.isDuplicate) {
-        const errorMsg = `Duplicate product number: "${newProdData.sellerItemCode}" is already in use by "${dupCodeCheck.conflictingProduct?.name}".`;
+        const errorMsg = `Duplicate seller item code: "${newProdData.sellerItemCode}" is already in use by "${dupCodeCheck.conflictingProduct?.name}" for seller "${targetSellerName || 'this seller'}".`;
         showToast(errorMsg, 'error');
         throw new Error(errorMsg);
       }
@@ -3038,7 +3135,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logAdminActivity(
         'product_add',
         `Product "${newProduct.name}" created`,
-        `Added new catalog item with ID: ${newProduct.id}, category: ${newProduct.category}, and price: $${newProduct.priceUSD} locally.`
+        `Added new catalog item with ID: ${newProduct.id}, category: ${newProduct.category}, and price: $${newProduct.priceUSD} locally.`,
+        newProduct.id,
+        null,
+        newProduct
       );
       showToast(`Product "${newProduct.name}" saved locally!`);
       return;
@@ -3051,7 +3151,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logAdminActivity(
         'product_add',
         `Product "${newProduct.name}" created`,
-        `Added new catalog item with ID: ${newProduct.id}, category: ${newProduct.category}, and price: $${newProduct.priceUSD}.`
+        `Added new catalog item with ID: ${newProduct.id}, category: ${newProduct.category}, and price: $${newProduct.priceUSD}.`,
+        newProduct.id,
+        null,
+        newProduct
       );
 
       dbLogger.logFirestoreWriteSuccess({
@@ -3083,9 +3186,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProduct = async (id: string, updates: Partial<Product>) => {
     // 1. Validation: Duplicate Product Number
     if (updates.sellerItemCode) {
-      const dupCodeCheck = checkDuplicateProductNumber(updates.sellerItemCode, id, products);
+      const existing = products.find(p => p.id === id);
+      const targetSellerId = updates.sellerId || existing?.sellerId;
+      const targetSellerName = updates.artisan || updates.seller || existing?.artisan || existing?.seller;
+      const dupCodeCheck = checkDuplicateProductNumber(updates.sellerItemCode, id, products, targetSellerId, targetSellerName);
       if (dupCodeCheck.isDuplicate) {
-        const errorMsg = `Duplicate product number: "${updates.sellerItemCode}" is already assigned to "${dupCodeCheck.conflictingProduct?.name}".`;
+        const errorMsg = `Duplicate seller item code: "${updates.sellerItemCode}" is already assigned to "${dupCodeCheck.conflictingProduct?.name}" for seller "${targetSellerName || 'this seller'}".`;
         showToast(errorMsg, 'error');
         throw new Error(errorMsg);
       }
@@ -3143,7 +3249,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logAdminActivity(
         'product_update',
         `Product "${existing?.name || id}" updated`,
-        `Modified attributes locally: ${Object.keys(updates).join(', ')}.`
+        `Modified attributes locally: ${Object.keys(updates).join(', ')}.`,
+        id,
+        existing,
+        { ...existing, ...updates }
       );
       showToast('Product updated locally!');
       return;
@@ -3155,7 +3264,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logAdminActivity(
         'product_update',
         `Product "${existing?.name || id}" updated`,
-        `Modified attributes: ${Object.keys(updates).join(', ')}.`
+        `Modified attributes: ${Object.keys(updates).join(', ')}.`,
+        id,
+        existing,
+        { ...existing, ...updates }
       );
 
       dbLogger.logFirestoreWriteSuccess({
@@ -3214,7 +3326,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logAdminActivity(
         'product_delete',
         `Product "${target?.name || id}" deleted`,
-        `Permanently removed product #${id} from catalog.`
+        `Permanently removed product #${id} from catalog.`,
+        id,
+        target,
+        null
       );
       showToast('Product deleted locally!');
       return;
@@ -3226,7 +3341,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await logAdminActivity(
         'product_delete',
         `Product "${target?.name || id}" deleted`,
-        `Permanently removed product #${id} from catalog.`
+        `Permanently removed product #${id} from catalog.`,
+        id,
+        target,
+        null
       );
 
       dbLogger.logFirestoreWriteSuccess({
@@ -3629,6 +3747,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAdminUnlocked,
     recentActivities,
     logAdminActivity,
+    undoAdminActivity,
     discountRules,
     appliedCouponCode,
     applyCoupon,
