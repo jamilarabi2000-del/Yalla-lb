@@ -18,6 +18,9 @@ export interface Product {
   reviewsCount: number;
   image: string;
   additionalImages?: string[];
+  videoUrl?: string;
+  additionalVideos?: string[];
+  videos?: string[];
   description: string;
   craftStory: string;
   stock: number;

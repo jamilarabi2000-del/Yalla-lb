@@ -30,10 +30,7 @@ export const ProductsView: React.FC = () => {
     t,
     language,
     siteContent,
-    isVisualEditMode,
-    hasMoreProducts,
-    isFetchingMore,
-    loadMoreProducts
+    isVisualEditMode
   } = useShop();
 
   const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'rating'>('featured');
@@ -84,7 +81,8 @@ export const ProductsView: React.FC = () => {
       }
 
       // Category filter
-      if (selectedCategory !== 'all' && product.category !== selectedCategory) {
+      const isAllCategory = !selectedCategory || selectedCategory.toLowerCase() === 'all';
+      if (!isAllCategory && product.category !== selectedCategory) {
         return false;
       }
 
@@ -485,25 +483,6 @@ export const ProductsView: React.FC = () => {
                       </select>
                     </div>
 
-                  </div>
-                )}
-
-                {hasMoreProducts && (
-                  <div className="flex justify-center pt-2">
-                    <button
-                      onClick={loadMoreProducts}
-                      disabled={isFetchingMore}
-                      className="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white font-bold uppercase text-xs tracking-widest cursor-pointer rounded-xl transition-all shadow-xs active:scale-95 flex items-center gap-2"
-                    >
-                      {isFetchingMore ? (
-                        <>
-                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>{language === 'ar' ? 'جاري التحميل...' : 'Loading...'}</span>
-                        </>
-                      ) : (
-                        <span>{language === 'ar' ? 'تحميل المزيد من خادم البيانات' : 'Fetch More From Server'}</span>
-                      )}
-                    </button>
                   </div>
                 )}
               </div>

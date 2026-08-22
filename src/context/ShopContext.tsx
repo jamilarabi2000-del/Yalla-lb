@@ -9,6 +9,8 @@ import { LEBANON_REGIONS, LBP_USD_RATE } from '../data/regions';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
 import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
+import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
+import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
 import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail } from '../firebase';
 import { 
   dbLogger, 
@@ -117,7 +119,7 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
 interface Toast {
   id: string;
   message: string;
-  type: 'success' | 'info' | 'warning';
+  type: 'success' | 'info' | 'warning' | 'error';
 }
 
 export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'account' | 'admin' | 'favorites';
@@ -187,6 +189,7 @@ interface ShopContextType {
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
+  deleteMultipleProducts: (ids: string[]) => Promise<void>;
   toggleProductPublish: (productId: string) => Promise<void>;
   syncAllProductsToDatabase: () => Promise<void>;
   selectedProductForModal: Product | null;
@@ -254,7 +257,7 @@ interface ShopContextType {
 
   // Feedback Toast
   toast: Toast | null;
-  showToast: (message: string, type?: 'success' | 'info' | 'warning') => void;
+  showToast: (message: string, type?: 'success' | 'info' | 'warning' | 'error') => void;
 
   // Site Content CMS (Admin Managed)
   siteContent: SiteContent;
@@ -307,7 +310,7 @@ interface ShopContextType {
   updateSeller: (id: string, updates: Partial<Seller>) => Promise<void>;
   toggleSellerActive: (sellerId: string, isActive: boolean) => Promise<void>;
   deleteSeller: (id: string, reassignSellerId?: string) => Promise<void>;
-  bulkImportProducts: (csvText: string) => Promise<{ created: number; updated: number; errors: string[] }>;
+  bulkImportProducts: (csvText: string, options?: { targetSellerId?: string; fallbackCategoryId?: string }) => Promise<{ created: number; updated: number; errors: string[] }>;
 }
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
@@ -498,7 +501,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [isAdminUser]);
 
   const logAdminActivity = async (actionType: RecentActivity['actionType'], summary: string, details: string) => {
     try {
@@ -520,11 +523,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return next;
       });
 
-      if (IS_FIREBASE_ENABLED) {
-        await monitoredSetDoc(doc(db, 'recent_activity', activityId), sanitizeDocumentData(newActivity), undefined, 'ShopContext:logAdminActivity');
+      if (IS_FIREBASE_ENABLED && (isAdminUser || isAdminUnlocked)) {
+        await monitoredSetDoc(doc(db, 'recent_activity', activityId), sanitizeDocumentData(newActivity), undefined, 'ShopContext:logAdminActivity').catch((err) => {
+          console.warn("[ShopContext] Non-blocking admin activity log notice:", err);
+        });
       }
     } catch (err) {
-      console.error('[ShopContext] Failed to log admin activity:', err);
+      console.warn('[ShopContext] Failed to log admin activity:', err);
     }
   };
 
@@ -1092,7 +1097,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await logAdminActivity('meta_change', `Seller "${id}" deleted`, `Reassigned ${affectedProducts.length} products to ${reassignSellerId || 'none'}.`);
   };
 
-  const bulkImportProducts = async (csvText: string): Promise<{ created: number; updated: number; errors: string[] }> => {
+  const bulkImportProducts = async (
+    csvText: string,
+    options?: { targetSellerId?: string; fallbackCategoryId?: string }
+  ): Promise<{ created: number; updated: number; errors: string[] }> => {
     return new Promise((resolve, reject) => {
       Papa.parse(csvText, {
         header: true,
@@ -1104,65 +1112,127 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           let updated = 0;
           const errors: string[] = [];
           const validRows: any[] = [];
-
-          const sellerIds = new Set(sellers.map(s => s.id));
-          const categoryIds = new Set(categories.map(c => c.id));
+          const seenSkusInFile = new Set<string>();
+          const seenItemCodesInFile = new Set<string>();
+          const seenDescriptionsInFile = new Map<string, string>(); // cleaned desc -> product name
 
           rows.forEach((row, idx) => {
+            if (isCsvRowEmpty(row)) return;
             const rowNum = idx + 2;
-            const name = row.name_en || row.name;
-            const sellerId = row.seller_id || row.sellerid;
-            const category = row.category;
-            const priceUSD = Number(row.price_usd || row.price);
-            const stock = Number(row.stock);
+            const name = (row.name_en || row.name || row.title || '').toString().trim();
+            const resolvedSeller = resolveSeller(row, sellers, options?.targetSellerId);
+            const resolvedCategory = resolveCategory(row, categories, options?.fallbackCategoryId);
+            const priceUSD = parsePrice(row.price_usd || row.price || row.unit_price);
+            const stock = parseStock(row.stock !== undefined ? row.stock : row.qty);
 
-            if (!name || name.trim().length === 0) {
+            if (!name) {
               errors.push(`Row ${rowNum}: name_en is required`);
               return;
             }
-            if (!sellerId || !sellerIds.has(sellerId.trim())) {
-              errors.push(`Row ${rowNum}: seller_id "${sellerId}" not found`);
+            if (!resolvedSeller) {
+              const rawSeller = row.seller_id || row.seller || row.seller_artisan || 'empty';
+              errors.push(`Row ${rowNum}: seller "${rawSeller}" could not be matched to an active seller. Please select a Target Seller dropdown.`);
               return;
             }
-            if (!category || !categoryIds.has(category.trim())) {
-              errors.push(`Row ${rowNum}: category "${category}" not found`);
+            if (!resolvedCategory) {
+              const rawCat = row.category || row.category_id || 'empty';
+              errors.push(`Row ${rowNum}: category "${rawCat}" not found`);
               return;
             }
-            if (isNaN(priceUSD) || priceUSD <= 0) {
-              errors.push(`Row ${rowNum}: price_usd must be a positive number`);
-              return;
-            }
-            if (isNaN(stock) || stock < 0) {
-              errors.push(`Row ${rowNum}: stock must be a non-negative integer`);
+            if (priceUSD <= 0) {
+              errors.push(`Row ${rowNum}: price_usd must be a positive number (found ${row.price_usd || row.price})`);
               return;
             }
 
-            const sku = row.sku?.trim() || `prod-${Date.now()}-${idx}`;
-            const isPublished = ['true', '1', 'yes'].includes(String(row.is_published ?? '').toLowerCase()) || row.is_published === '';
-            const sellerItemCode = row.seller_item_code || row.seller_code || `SIC-${Math.floor(10000 + Math.random() * 90000)}`;
+            const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${Date.now()}-${idx}`;
+            const isPublished = !['false', '0', 'no', 'hidden'].includes(String(row.is_published ?? row.status ?? '').toLowerCase());
+            const sellerItemCode = (row.seller_item_code || row.seller_code || row.item_code || '').toString().trim() || `SIC-${Math.floor(10000 + Math.random() * 90000)}`;
+
+            // 1. Validation: Duplicate Product Number (SKU & sellerItemCode)
+            const normSku = sku.toLowerCase();
+            const normItemCode = sellerItemCode.toLowerCase();
+
+            if (seenSkusInFile.has(normSku)) {
+              errors.push(`Row ${rowNum} ("${name}"): Duplicate SKU / Product ID "${sku}" appears multiple times in CSV import.`);
+              return;
+            }
+            if (seenItemCodesInFile.has(normItemCode)) {
+              errors.push(`Row ${rowNum} ("${name}"): Duplicate Seller Item Code "${sellerItemCode}" appears multiple times in CSV import.`);
+              return;
+            }
+
+            // Check against existing products in database
+            const isExistingSku = products.some(p => p.id === sku);
+            const dupCodeCheck = checkDuplicateProductNumber(sellerItemCode, isExistingSku ? sku : null, products);
+            if (dupCodeCheck.isDuplicate) {
+              errors.push(`Row ${rowNum} ("${name}"): Product number "${sellerItemCode}" is already used by existing product "${dupCodeCheck.conflictingProduct?.name}".`);
+              return;
+            }
+
+            // 2. Validation: Duplicate Description
+            const description = (row.description_en || row.description || 'Imported artisanal product.').toString().trim();
+            const craftStory = (row.description_ar || row.craftstory || row.arabic_description || 'حرفية أصيلة.').toString().trim();
+
+            const cleanDesc = description.toLowerCase().replace(/\s+/g, ' ');
+            if (cleanDesc.length >= 10) {
+              if (seenDescriptionsInFile.has(cleanDesc)) {
+                errors.push(`Row ${rowNum} ("${name}"): Duplicate description detected (matches "${seenDescriptionsInFile.get(cleanDesc)}" in this file).`);
+                return;
+              }
+              const dupDescCheck = checkDuplicateDescription(description, isExistingSku ? sku : null, products);
+              if (dupDescCheck.isDuplicate) {
+                errors.push(`Row ${rowNum} ("${name}"): Duplicate description detected (already used by existing product "${dupDescCheck.conflictingProduct?.name}").`);
+                return;
+              }
+            }
+
+            seenSkusInFile.add(normSku);
+            seenItemCodesInFile.add(normItemCode);
+            if (cleanDesc.length >= 10) {
+              seenDescriptionsInFile.set(cleanDesc, name);
+            }
+
+            const mainImage = (row.image_url || row.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80').toString().trim();
+            const addlImagesRaw = row.additional_images || row.images || row.gallery;
+            const additionalImages = addlImagesRaw
+              ? String(addlImagesRaw).split(/[|,]/).map((u: string) => u.trim()).filter(Boolean)
+              : undefined;
+
+            const videoUrl = (row.video_url || row.video || '').toString().trim() || undefined;
+            const addlVideosRaw = row.additional_videos || row.videos;
+            const additionalVideos = addlVideosRaw
+              ? String(addlVideosRaw).split(/[|,]/).map((v: string) => v.trim()).filter(Boolean)
+              : undefined;
 
             validRows.push({
               sku,
               product: {
                 id: sku,
-                sellerItemCode: sellerItemCode.trim(),
-                name: name.trim(),
-                arabicName: row.name_ar || name.trim(),
-                artisan: sellerId.trim(),
-                sellerId: sellerId.trim(),
+                sellerItemCode,
+                name,
+                arabicName: (row.name_ar || row.arabic_name || name).toString().trim(),
+                artisan: resolvedSeller.sellerName,
+                seller: resolvedSeller.sellerName,
+                arabicSeller: resolvedSeller.arabicSeller || row.arabic_seller || '',
+                sellerId: resolvedSeller.sellerId,
                 sellerActive: true,
-                category: category.trim(),
+                category: resolvedCategory.categoryId,
                 priceUSD,
-                originalPriceUSD: row.original_price_usd ? Number(row.original_price_usd) : undefined,
+                originalPriceUSD: row.original_price_usd ? parsePrice(row.original_price_usd) : undefined,
                 stock: Math.floor(stock),
-                image: row.image_url || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
-                description: row.description_en || 'Imported artisanal product.',
-                craftStory: row.description_ar || 'حرفية أصيلة.',
-                tags: row.tags ? row.tags.split('|').map((t: string) => t.trim()).filter(Boolean) : ['Artisanal'],
+                image: mainImage,
+                additionalImages: additionalImages && additionalImages.length > 0 ? additionalImages : undefined,
+                videoUrl,
+                additionalVideos: additionalVideos && additionalVideos.length > 0 ? additionalVideos : undefined,
+                videos: additionalVideos && additionalVideos.length > 0 ? additionalVideos : (videoUrl ? [videoUrl] : undefined),
+                description,
+                craftStory,
+                tags: row.tags ? String(row.tags).split(/[|,]/).map((t: string) => t.trim()).filter(Boolean) : ['Artisanal'],
                 rating: 5.0,
                 reviewsCount: 1,
-                origin: row.origin || 'Lebanon',
-                isPublished: isPublished !== false
+                origin: (row.origin || row.origin_terroir || 'Lebanon').toString().trim(),
+                weightOrVolume: (row.weight_or_volume || row.weight || row.volume || '').toString().trim() || undefined,
+                isPublished
               },
               isUpdate: products.some(p => p.id === sku)
             });
@@ -1172,6 +1242,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             resolve({ created, updated, errors });
             return;
           }
+
+          // 1. Immediately update in-memory products and localStorage so UI updates instantly
+          setProducts(prevProducts => {
+            const nextMap = new Map<string, Product>();
+            prevProducts.forEach(p => nextMap.set(p.id, p));
+            validRows.forEach(item => {
+              nextMap.set(item.sku, item.product);
+            });
+            const merged = Array.from(nextMap.values());
+            try {
+              localStorage.setItem('yallalb_products', JSON.stringify(merged));
+            } catch {}
+            return merged;
+          });
 
           if (IS_FIREBASE_ENABLED) {
             try {
@@ -1190,21 +1274,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 await batch.commit();
               }
             } catch (err: any) {
+              console.error('[ShopContext] Database batch commit failed:', err);
               errors.push(`Database batch commit failed: ${err.message}`);
             }
           } else {
-            const nextProducts = [...products];
             validRows.forEach(item => {
-              const idx = nextProducts.findIndex(p => p.id === item.sku);
-              if (idx >= 0) {
-                nextProducts[idx] = item.product;
-                updated++;
-              } else {
-                nextProducts.unshift(item.product);
-                created++;
-              }
+              if (item.isUpdate) updated++;
+              else created++;
             });
-            setProducts(nextProducts);
           }
 
           await logAdminActivity('meta_change', `Imported ${validRows.length} products`, `Created: ${created}, Updated: ${updated}, Errors: ${errors.length}`);
@@ -1557,13 +1634,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
-    const fetchProducts = async () => {
-      try {
-        const productsColRef = collection(db, 'products');
-        // M-9: Paginate using limit(24) and order by 'id'
-        const q = query(productsColRef, orderBy('id'), limit(24));
-        const snapshot = await getDocs(q);
-
+    const productsColRef = collection(db, 'products');
+    const unsubscribe = onSnapshot(
+      productsColRef,
+      async (snapshot) => {
         if (snapshot.empty && !hasSeededProductsRef.current) {
           hasSeededProductsRef.current = true;
           if (isAdminUser || isAdminUnlocked) {
@@ -1583,38 +1657,41 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProducts(INITIAL_PRODUCTS.map(ensureSellerItemCode));
           setHasMoreProducts(false);
         } else if (!snapshot.empty) {
-          // Track last doc for startAfter pagination
-          lastVisibleDocRef.current = snapshot.docs[snapshot.docs.length - 1];
-          setHasMoreProducts(snapshot.docs.length === 24);
-
           const dbProductsMap = new Map<string, Product>();
           snapshot.forEach((docSnap) => {
             const p = ensureSellerItemCode(docSnap.data() as Product);
             dbProductsMap.set(docSnap.id, p);
           });
 
+          const allProducts = Array.from(dbProductsMap.values());
+          setProducts(allProducts);
+          setHasMoreProducts(false);
+
+          try {
+            localStorage.setItem('yallalb_products', JSON.stringify(allProducts));
+          } catch {}
+
           dbMonitor.logSnapshotSync({
             path: 'products/*',
-            caller: 'ShopContext:getDocs(products, limit 24)',
+            caller: 'ShopContext:onSnapshot(products)',
             itemCount: snapshot.docs.length,
             metadata: { totalItems: dbProductsMap.size }
           });
-
-          const allProducts = Array.from(dbProductsMap.values());
-          setProducts(allProducts);
         }
-      } catch (error: any) {
+        setIsDbSyncing(false);
+      },
+      (error: any) => {
         dbMonitor.logOperationFailure('fetch-products-err', error, {
-          metadata: { path: 'products/*', operation: 'GET_DOCS_FETCH' }
+          metadata: { path: 'products/*', operation: 'SNAPSHOT_SYNC' }
         });
+        console.warn("[ShopContext] Products listener warning:", error);
         handleFirestoreError(error, OperationType.GET, 'products');
-      } finally {
         setIsDbSyncing(false);
       }
-    };
+    );
 
-    fetchProducts();
-  }, []);
+    return () => unsubscribe();
+  }, [isAdminUser, isAdminUnlocked]);
 
   const loadMoreProducts = useCallback(async () => {
     if (!IS_FIREBASE_ENABLED || isFetchingMore || !hasMoreProducts || !lastVisibleDocRef.current) {
@@ -2307,7 +2384,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const showToast = (message: string, type: 'success' | 'info' | 'warning' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
     const id = Date.now().toString();
     setToast({ id, message, type });
     setTimeout(() => {
@@ -2546,14 +2623,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!IS_FIREBASE_ENABLED || !query.trim()) return;
     try {
       const logDocRef = doc(collection(db, 'search_logs'));
-      await monitoredSetDoc(logDocRef, {
+      const payload = sanitizeFirestorePayload({
         id: logDocRef.id,
         query: query.trim(),
         timestamp: new Date().toISOString(),
         userId: firebaseUser?.uid || null
-      }, {}, 'Navbar:handleSearchSubmit');
+      });
+      await monitoredSetDoc(logDocRef, payload, {}, 'Navbar:handleSearchSubmit').catch((err) => {
+        console.warn("[ShopContext] Non-blocking search log notice:", err);
+      });
     } catch (error) {
-      console.error("[ShopContext] Failed to log search:", error);
+      console.warn("[ShopContext] Failed to log search:", error);
     }
   }, [firebaseUser]);
 
@@ -2877,14 +2957,54 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error
       });
       handleFirestoreError(error, OperationType.DELETE, `orders/${orderId}`);
+      showToast('Error deleting order from database. You must be signed in as an admin.', 'error');
+      return;
     }
 
     showToast('Order removed from database', 'warning');
   };
 
   // Add Product - Saves new item to Firestore database
-  const addProduct = async (newProdData: Omit<Product, 'id'>) => {
-    const id = `prod-custom-${Date.now()}`;
+  const addProduct = async (newProdData: Omit<Product, 'id'> & { id?: string }) => {
+    // 1. Validation: Duplicate Product Number (sellerItemCode or custom ID)
+    if (newProdData.sellerItemCode) {
+      const dupCodeCheck = checkDuplicateProductNumber(newProdData.sellerItemCode, null, products);
+      if (dupCodeCheck.isDuplicate) {
+        const errorMsg = `Duplicate product number: "${newProdData.sellerItemCode}" is already in use by "${dupCodeCheck.conflictingProduct?.name}".`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
+    if (newProdData.id) {
+      const dupIdCheck = checkDuplicateProductNumber(newProdData.id, null, products);
+      if (dupIdCheck.isDuplicate) {
+        const errorMsg = `Duplicate product ID/SKU: "${newProdData.id}" is already in use by "${dupIdCheck.conflictingProduct?.name}".`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
+    // 2. Validation: Duplicate Description
+    if (newProdData.description) {
+      const dupDescCheck = checkDuplicateDescription(newProdData.description, null, products);
+      if (dupDescCheck.isDuplicate) {
+        const errorMsg = `Duplicate description: A product with this description already exists ("${dupDescCheck.conflictingProduct?.name}").`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
+    if (newProdData.craftStory) {
+      const dupCraftCheck = checkDuplicateDescription(newProdData.craftStory, null, products);
+      if (dupCraftCheck.isDuplicate) {
+        const errorMsg = `Duplicate heritage description: Already in use by "${dupCraftCheck.conflictingProduct?.name}".`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
+    const id = newProdData.id || `prod-custom-${Date.now()}`;
     const newProduct: Product = ensureSellerItemCode({ ...newProdData, id });
     const sanitizedProduct = sanitizeDocumentData(newProduct);
     
@@ -2961,6 +3081,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Update Product - Updates item in Firestore database
   const updateProduct = async (id: string, updates: Partial<Product>) => {
+    // 1. Validation: Duplicate Product Number
+    if (updates.sellerItemCode) {
+      const dupCodeCheck = checkDuplicateProductNumber(updates.sellerItemCode, id, products);
+      if (dupCodeCheck.isDuplicate) {
+        const errorMsg = `Duplicate product number: "${updates.sellerItemCode}" is already assigned to "${dupCodeCheck.conflictingProduct?.name}".`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
+    // 2. Validation: Duplicate Description
+    if (updates.description) {
+      const dupDescCheck = checkDuplicateDescription(updates.description, id, products);
+      if (dupDescCheck.isDuplicate) {
+        const errorMsg = `Duplicate description: Product "${dupDescCheck.conflictingProduct?.name}" already uses this exact description.`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
+    if (updates.craftStory) {
+      const dupCraftCheck = checkDuplicateDescription(updates.craftStory, id, products);
+      if (dupCraftCheck.isDuplicate) {
+        const errorMsg = `Duplicate heritage story: Product "${dupCraftCheck.conflictingProduct?.name}" already uses this exact story.`;
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
     const existing = products.find(p => p.id === id);
     const sanitizedUpdates = sanitizeDocumentData(updates);
     
@@ -3099,9 +3248,82 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error
       });
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
+      showToast('Error deleting product from database. You must be signed in as an admin.', 'error');
+      return;
     }
 
     showToast('Product removed from database', 'warning');
+  };
+
+  // Mass Delete Products - Removes multiple items from Firestore database
+  const deleteMultipleProducts = async (ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+
+    dbLogger.logFormInput({
+      sourceComponent: 'AdminView',
+      actionName: 'deleteMultipleProducts',
+      targetPath: 'products/mass_delete',
+      summary: `Admin bulk deleting ${ids.length} products`
+    });
+
+    const { startTime } = dbLogger.logFirestoreWriteStart({
+      operation: 'deleteDoc', // or mass delete
+      targetPath: `products/mass_delete`,
+      sourceComponent: 'ShopContext',
+      actionName: 'deleteMultipleProducts',
+      summary: `Deleting ${ids.length} documents from Firestore...`
+    });
+
+    setProducts(prev => {
+      const next = prev.filter(p => !ids.includes(p.id));
+      try {
+        localStorage.setItem('yallalb_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (!IS_FIREBASE_ENABLED) {
+      await logAdminActivity(
+        'product_delete',
+        `Bulk deleted ${ids.length} products`,
+        `Permanently removed ${ids.length} products from catalog.`
+      );
+      showToast(`${ids.length} products deleted locally!`);
+      return;
+    }
+
+    try {
+      // Execute deletions in parallel
+      await Promise.all(ids.map(id => monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteMultipleProducts')));
+      
+      await logAdminActivity(
+        'product_delete',
+        `Bulk deleted ${ids.length} products`,
+        `Permanently removed ${ids.length} products from catalog.`
+      );
+
+      dbLogger.logFirestoreWriteSuccess({
+        operation: 'deleteDoc',
+        targetPath: `products/mass_delete`,
+        sourceComponent: 'ShopContext',
+        actionName: 'deleteMultipleProducts',
+        summary: `Successfully bulk deleted ${ids.length} products from Firestore database.`,
+        startTime
+      });
+      
+      showToast(`${ids.length} products removed from database`, 'warning');
+    } catch (error) {
+      dbLogger.logFirestoreWriteError({
+        operation: 'deleteDoc',
+        targetPath: `products/mass_delete`,
+        sourceComponent: 'ShopContext',
+        actionName: 'deleteMultipleProducts',
+        summary: `Failed to mass delete products from Firestore`,
+        startTime,
+        error
+      });
+      showToast(`Error bulk deleting products. Some may remain.`, 'error');
+    }
   };
 
   // Sync All Initial Products directly to Firestore database
@@ -3342,6 +3564,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addProduct,
     updateProduct,
     deleteProduct,
+    deleteMultipleProducts,
     syncAllProductsToDatabase,
     selectedProductForModal,
     setSelectedProductForModal,

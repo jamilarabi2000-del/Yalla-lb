@@ -1,0 +1,41 @@
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setFullEditProduct({ ...prod, keywordsInput: prod.keywords ? prod.keywords.join(', ') : '' } as any)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
+                              title="Full Edit"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => {
+                                setEditingProductId(prod.id);
+                                setEditPriceUSD(prod.priceUSD);
+                                setEditStock(prod.stock);
+                              }}
+                              className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all cursor-pointer"
+                              title="Quick Price & Stock"
+                            >
+                              <DollarSign className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={async () => {
+                                if (confirm(`Delete "${prod.name}"?`)) {
+                                  await deleteProduct(prod.id);
+                                }
+                              }}
+                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                    </div>
+                  );
+                })}
+              </div>

@@ -12,8 +12,6 @@ service cloud.firestore {
     }
 
     // Catalog: public read, admin-only write.
-    // Stock decrements move to a Cloud Function — a rule cannot distinguish
-    // our transaction from a hand-crafted write by the same signed-in user.
     match /products/{productId} {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
@@ -23,36 +21,37 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create, update: if isOwner(userId);
-      allow delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // Phone registry: unique index for user registration and deduplication
     match /phone_registry/{phoneKey} {
       allow get: if true;
       allow list: if isAdmin();
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid;
-      allow delete: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if (isSignedIn() && request.resource.data.uid == request.auth.uid) || isAdmin();
+      allow update: if (isSignedIn() && resource.data.uid == request.auth.uid && request.resource.data.uid == request.auth.uid) || isAdmin();
+      allow delete: if (isSignedIn() && resource.data.uid == request.auth.uid) || isAdmin();
     }
 
     match /carts/{userId} {
-      allow read, write: if isOwner(userId);
-      allow read, delete: if isAdmin();
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
     match /wishlists/{userId} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isOwner(userId) || isAdmin();
     }
 
     // Orders: a customer reads/lists only their own; only admins list all.
     match /orders/{orderId} {
       allow get: if isAdmin()
-        || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow list: if isAdmin() || isSignedIn();
-      allow create: if isSignedIn()
-        && request.auth.token.email_verified == true
-        && request.resource.data.userId == request.auth.uid
+        || (isSignedIn() && resource.data.userId == request.auth.uid)
+        || resource.data.trackingNumber != null;
+      allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if (
+        (isSignedIn() && request.resource.data.userId == request.auth.uid) ||
+        (request.resource.data.userId is string && request.resource.data.userId.size() <= 128)
+      )
         && request.resource.data.status == 'pending'
         && request.resource.data.totalUSD is number
         && request.resource.data.totalUSD >= 0;
@@ -66,10 +65,7 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.rating is number
         && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
-        && request.resource.data.comment.size() <= 1000
-        && exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
-        && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
-             .data.userId == request.auth.uid;
+        && request.resource.data.comment.size() <= 1000;
       allow update, delete: if isOwner(resource.data.userId) || isAdmin();
     }
 
@@ -106,6 +102,23 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isAdmin();
     }
+
+    // Search analytics: users/visitors can log search queries, admin can view/manage
+    match /search_logs/{logId} {
+      allow create: if request.resource.data.query is string
+        && request.resource.data.query.size() <= 200;
+      allow read, delete: if isAdmin();
+    }
+
+    // Health check / connectivity pings
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    match /_ping/{docId} {
+      allow read: if true;
+    }
   }
 }
+
 

@@ -19,7 +19,9 @@ import {
   Plus,
   Share2,
   MessageCircle,
-  EyeOff
+  EyeOff,
+  Play,
+  Video
 } from 'lucide-react';
 
 enum OperationType {
@@ -74,6 +76,8 @@ export const ProductDetailView: React.FC = () => {
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [activeMediaType, setActiveMediaType] = useState<'image' | 'video'>('image');
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
@@ -290,7 +294,27 @@ export const ProductDetailView: React.FC = () => {
   const currentImage = selectedImage || product.image;
 
   // All image options
-  const allImages = [product.image, ...(product.additionalImages || [])];
+  const allImages = [product.image, ...(product.additionalImages || [])].filter(Boolean);
+  const allVideos = (product.videos && product.videos.length > 0)
+    ? product.videos.filter(Boolean)
+    : (product.videoUrl ? [product.videoUrl] : []).filter(Boolean);
+
+  const getVideoEmbedInfo = (url?: string) => {
+    if (!url) return null;
+    const trimmed = url.trim();
+    const ytMatch = trimmed.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    if (ytMatch && ytMatch[1]) {
+      return { type: 'youtube' as const, embedUrl: `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0` };
+    }
+    const vimeoMatch = trimmed.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)/i);
+    if (vimeoMatch && vimeoMatch[3]) {
+      return { type: 'vimeo' as const, embedUrl: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1` };
+    }
+    return { type: 'direct' as const, embedUrl: trimmed };
+  };
+
+  const currentVideoUrl = activeVideoUrl || allVideos[0] || null;
+  const currentVideoEmbed = getVideoEmbedInfo(currentVideoUrl || undefined);
 
   // Related products from same category or random
   const relatedProducts = products
@@ -366,16 +390,35 @@ export const ProductDetailView: React.FC = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           
-          {/* Left Column: Image Gallery */}
+          {/* Left Column: Image & Video Media Gallery */}
           {(visibility.detailGallery || isVisualEditMode) && (
             <div className="lg:col-span-6 space-y-4">
-              <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-slate-100 border border-slate-200 shadow-md">
-                <img
-                  src={currentImage}
-                  alt={displayTitle}
-                  className="w-full h-full object-cover object-center transition-all duration-300"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-slate-900 border border-slate-200 shadow-md">
+                {activeMediaType === 'video' && currentVideoEmbed ? (
+                  currentVideoEmbed.type === 'youtube' || currentVideoEmbed.type === 'vimeo' ? (
+                    <iframe
+                      src={currentVideoEmbed.embedUrl}
+                      title={`${displayTitle} Video`}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <video
+                      src={currentVideoEmbed.embedUrl}
+                      controls
+                      autoPlay
+                      className="w-full h-full object-contain bg-black"
+                    />
+                  )
+                ) : (
+                  <img
+                    src={currentImage}
+                    alt={displayTitle}
+                    className="w-full h-full object-cover object-center transition-all duration-300"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
 
                 {/* Wishlist Floating Button */}
                 <button
@@ -401,23 +444,53 @@ export const ProductDetailView: React.FC = () => {
                       Bestseller
                     </span>
                   )}
+                  {allVideos.length > 0 && activeMediaType === 'image' && (
+                    <span className="px-3 py-1 text-xs font-black uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm flex items-center gap-1">
+                      <Video className="w-3 h-3" />
+                      Video Available
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Thumbnail selector */}
-              {allImages.length > 1 && (
+              {/* Multimedia Thumbnail Selector (Images + Videos) */}
+              {(allImages.length > 1 || allVideos.length > 0) && (
                 <div className="flex items-center gap-3 overflow-x-auto pb-2">
                   {allImages.map((img, index) => (
                     <button
-                      key={index}
-                      onClick={() => setSelectedImage(img)}
+                      key={`img-${index}`}
+                      onClick={() => {
+                        setSelectedImage(img);
+                        setActiveMediaType('image');
+                      }}
                       className={`relative w-20 h-20 rounded-2xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all ${
-                        currentImage === img 
-                          ? 'border-[#a37f35] shadow-md scale-102' 
+                        activeMediaType === 'image' && currentImage === img 
+                          ? 'border-[#a37f35] shadow-md scale-102 ring-2 ring-[#a37f35]/20' 
                           : 'border-slate-200 opacity-70 hover:opacity-100'
                       }`}
                     >
                       <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </button>
+                  ))}
+
+                  {allVideos.map((vid, index) => (
+                    <button
+                      key={`vid-${index}`}
+                      onClick={() => {
+                        setActiveVideoUrl(vid);
+                        setActiveMediaType('video');
+                      }}
+                      className={`relative w-20 h-20 rounded-2xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all bg-slate-900 flex flex-col items-center justify-center text-white ${
+                        activeMediaType === 'video' && currentVideoUrl === vid 
+                          ? 'border-indigo-600 shadow-md scale-102 ring-2 ring-indigo-500/30' 
+                          : 'border-slate-300 opacity-80 hover:opacity-100'
+                      }`}
+                      title={`Play Video ${index + 1}`}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-indigo-600/90 flex items-center justify-center shadow-md">
+                        <Play className="w-4 h-4 text-white fill-current ml-0.5" />
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-wider mt-1 text-slate-200">Video</span>
                     </button>
                   ))}
                 </div>

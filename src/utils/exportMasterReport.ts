@@ -18,6 +18,10 @@ export interface MasterReportRow {
   is_featured: string;
   rating: string;
   reviews_count: number;
+  image_url: string;
+  additional_images: string;
+  video_url: string;
+  additional_videos: string;
   tags: string;
   description_en: string;
   description_ar: string;
@@ -210,6 +214,10 @@ export function downloadFullMasterReport(
       is_featured: product.isFeatured ? 'Yes' : 'No',
       rating: (product.rating || 5).toFixed(1),
       reviews_count: product.reviewsCount || 0,
+      image_url: product.image || '',
+      additional_images: (product.additionalImages || []).join('|'),
+      video_url: product.videoUrl || '',
+      additional_videos: (product.videos || []).join('|'),
       tags: (product.tags || []).join(', '),
       description_en: (product.description || '').replace(/[\r\n]+/g, ' '),
       description_ar: (product.craftStory || '').replace(/[\r\n]+/g, ' '),
@@ -460,7 +468,7 @@ export function downloadStockInventoryReport(
 }
 
 function triggerDownload(content: string, filename: string) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);

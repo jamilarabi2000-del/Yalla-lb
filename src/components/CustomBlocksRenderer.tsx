@@ -29,6 +29,7 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
   const handleAction = (url?: string) => {
     if (!url) return;
     if (url === '/products' || url === 'products') {
+      setSelectedCategory('all');
       setActiveTab('products');
     } else if (url === '/checkout' || url === 'checkout') {
       setActiveTab('checkout');
@@ -39,6 +40,7 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
     } else if (url.startsWith('http')) {
       window.open(url, '_blank', 'noopener,noreferrer');
     } else {
+      setSelectedCategory('all');
       setActiveTab('products');
     }
   };

@@ -18,6 +18,8 @@ import {
   downloadSellerPerformanceReport,
   downloadStockInventoryReport
 } from '../utils/exportMasterReport';
+import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
+import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
 import { 
   Lock, 
   Plus, 
@@ -58,7 +60,10 @@ import {
   XCircle,
   Phone,
   BarChart3,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Video,
+  Film,
+  Image as ImageIcon
 } from 'lucide-react';
 import { doc, getDocFromServer } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -262,8 +267,10 @@ export const AdminView: React.FC = () => {
     addProduct = async () => {},
     updateProduct = async () => {},
     deleteProduct = async () => {},
+    deleteMultipleProducts = async () => {},
     toggleProductPublish = async () => {},
     syncAllProductsToDatabase = async () => {},
+    bulkImportProducts = async (csvText: string) => ({ created: 0, updated: 0, errors: [] }),
     showToast = () => {},
     goBack = () => {},
     t = (k: string) => k,
@@ -370,6 +377,19 @@ export const AdminView: React.FC = () => {
   const [isSyncingDb, setIsSyncingDb] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [fullEditProduct, setFullEditProduct] = useState<Product | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(new Set());
+  const [editNewImageInput, setEditNewImageInput] = useState('');
+  const [editNewVideoInput, setEditNewVideoInput] = useState('');
+
+  // Bulk Upload States
+  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
+  const [bulkImportFile, setBulkImportFile] = useState<File | null>(null);
+  const [bulkImportRawRows, setBulkImportRawRows] = useState<any[]>([]);
+  const [bulkImportTargetSellerId, setBulkImportTargetSellerId] = useState<string>('auto');
+  const [bulkImportFallbackCategoryId, setBulkImportFallbackCategoryId] = useState<string>('auto');
+  const [bulkImportPreviewRows, setBulkImportPreviewRows] = useState<any[]>([]);
+  const [isBulkImporting, setIsBulkImporting] = useState(false);
+  const [bulkImportResult, setBulkImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
 
   // Login Form States
   const [adminEmail, setAdminEmail] = useState('');
@@ -404,6 +424,11 @@ export const AdminView: React.FC = () => {
     priceUSD: number;
     stock: number;
     image: string;
+    additionalImages: string[];
+    newAdditionalImageInput: string;
+    videoUrl: string;
+    videos: string[];
+    newVideoInput: string;
     weightOrVolume: string;
     tags: string[];
     keywordsInput: string;
@@ -423,6 +448,11 @@ export const AdminView: React.FC = () => {
     priceUSD: 15,
     stock: 25,
     image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+    additionalImages: [],
+    newAdditionalImageInput: '',
+    videoUrl: '',
+    videos: [],
+    newVideoInput: '',
     weightOrVolume: '500ml',
     tags: ['Artisanal', 'Lebanese Terroir'],
     keywordsInput: 'lebanese, artisanal, authentic, gourmet',
@@ -446,19 +476,55 @@ export const AdminView: React.FC = () => {
     onClose: () => setSelectedInvoiceOrder(null)
   });
 
-  // Dynamic list of unique sellers/artisans across all products with product counts
+  // Unified dynamic list of unique sellers (combining all registered sellers from Sellers collection & any artisan names on products)
   const sellerStats = useMemo(() => {
-    const map = new Map<string, number>();
-    products.forEach(p => {
-      const s = (p.artisan || p.seller || '').trim();
-      if (s) {
-        map.set(s, (map.get(s) || 0) + 1);
+    const map = new Map<string, { id?: string; seller: string; arabicName?: string; count: number }>();
+
+    // 1. Seed with all registered sellers from database
+    sellers.forEach(s => {
+      const name = (s.nameEn || (s as any).name || s.id || '').trim();
+      if (name) {
+        map.set(name.toLowerCase(), {
+          id: s.id,
+          seller: name,
+          arabicName: s.nameAr || (s as any).arabicName,
+          count: 0
+        });
       }
     });
-    return Array.from(map.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([seller, count]) => ({ seller, count }));
-  }, [products]);
+
+    // 2. Aggregate product counts & incorporate any unlinked artisans
+    products.forEach(p => {
+      const sName = (p.seller || p.artisan || '').trim();
+      const sId = (p.sellerId || '').trim();
+
+      let matchedKey: string | null = null;
+      if (sName && map.has(sName.toLowerCase())) {
+        matchedKey = sName.toLowerCase();
+      } else if (sId) {
+        for (const [key, val] of map.entries()) {
+          if (val.id === sId) {
+            matchedKey = key;
+            break;
+          }
+        }
+      }
+
+      if (matchedKey) {
+        const item = map.get(matchedKey)!;
+        item.count += 1;
+      } else if (sName) {
+        map.set(sName.toLowerCase(), {
+          id: p.sellerId || sName.toLowerCase().replace(/\s+/g, '-'),
+          seller: sName,
+          arabicName: p.arabicSeller,
+          count: 1
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.seller.localeCompare(b.seller));
+  }, [sellers, products]);
 
   const filteredCatalogProducts = useMemo(() => {
     const searchLower = adminProductSearch.toLowerCase().trim();
@@ -486,7 +552,14 @@ export const AdminView: React.FC = () => {
       
       const matchesSeller = adminProductSeller === 'all' || 
         ((p.artisan && p.artisan.toLowerCase() === adminProductSeller.toLowerCase()) ||
-         (p.seller && p.seller.toLowerCase() === adminProductSeller.toLowerCase()));
+         (p.seller && p.seller.toLowerCase() === adminProductSeller.toLowerCase()) ||
+         (p.sellerId && p.sellerId.toLowerCase() === adminProductSeller.toLowerCase()) ||
+         sellers.some(s => 
+           (s.nameEn?.toLowerCase() === adminProductSeller.toLowerCase() || s.id?.toLowerCase() === adminProductSeller.toLowerCase()) &&
+           (p.sellerId === s.id || 
+            (p.seller && p.seller.toLowerCase() === s.nameEn.toLowerCase()) || 
+            (p.artisan && p.artisan.toLowerCase() === s.nameEn.toLowerCase()))
+         ));
 
       const matchesCategory = adminProductCategory === 'all' || p.category === adminProductCategory;
       
@@ -499,6 +572,34 @@ export const AdminView: React.FC = () => {
       return matchesSearch && matchesSeller && matchesCategory && matchesPublish;
     });
   }, [products, adminProductSearch, adminProductSeller, adminProductCategory, adminPublishFilter]);
+
+  // Count selected products within current filtered view
+  const selectedInFilteredCount = useMemo(() => {
+    let count = 0;
+    filteredCatalogProducts.forEach(p => {
+      if (selectedProductIds.has(p.id)) count++;
+    });
+    return count;
+  }, [filteredCatalogProducts, selectedProductIds]);
+
+  const isAllFilteredSelected = filteredCatalogProducts.length > 0 && selectedInFilteredCount === filteredCatalogProducts.length;
+
+  // Cleanup selectedProductIds if products are removed or deleted
+  useEffect(() => {
+    const existingIds = new Set(products.map(p => p.id));
+    setSelectedProductIds(prev => {
+      let changed = false;
+      const next = new Set<string>();
+      prev.forEach(id => {
+        if (existingIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [products]);
 
   // Calculate distinct counts for sidebar badges
   const categoriesCount = categories.length || 14; // Comprehensive catalog taxonomy
@@ -629,7 +730,7 @@ export const AdminView: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => { e.stopPropagation();
                   if (!adminEmail) {
                     alert('Please enter your email address first.');
                     return;
@@ -674,7 +775,7 @@ export const AdminView: React.FC = () => {
           <div className="space-y-3 pt-2">
             <button
               type="button"
-              onClick={async () => {
+              onClick={async (e) => { e.stopPropagation();
                 await signOutUser();
               }}
               className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
@@ -735,17 +836,42 @@ export const AdminView: React.FC = () => {
       return;
     }
 
+    // Duplicate Product Number validation
+    if (newProduct.sellerItemCode) {
+      const dupCode = checkDuplicateProductNumber(newProduct.sellerItemCode, null, products);
+      if (dupCode.isDuplicate) {
+        showToast(`Duplicate product number: "${newProduct.sellerItemCode}" is already in use by "${dupCode.conflictingProduct?.name}".`, 'error');
+        return;
+      }
+    }
+
+    // Duplicate Description validation
+    if (newProduct.description) {
+      const dupDesc = checkDuplicateDescription(newProduct.description, null, products);
+      if (dupDesc.isDuplicate) {
+        showToast(`Duplicate description: A product with this description already exists ("${dupDesc.conflictingProduct?.name}"). Each product must have a unique description.`, 'error');
+        return;
+      }
+    }
+
     const keywordsArray = newProduct.keywordsInput 
       ? newProduct.keywordsInput.split(',').map(s => s.trim()).filter(Boolean) 
       : ['lebanese', 'artisanal', 'authentic'];
+
+    const matchedSeller = sellers.find(s => 
+      (newProduct.seller && s.nameEn.toLowerCase() === newProduct.seller.toLowerCase()) ||
+      (newProduct.artisan && s.nameEn.toLowerCase() === newProduct.artisan.toLowerCase()) ||
+      s.id === (newProduct as any).sellerId
+    );
 
     const created: Omit<Product, 'id'> = {
       name: newProduct.name,
       arabicName: newProduct.arabicName,
       category: newProduct.category,
       artisan: newProduct.artisan,
-      seller: newProduct.seller,
-      arabicSeller: newProduct.arabicSeller,
+      seller: newProduct.seller || newProduct.artisan,
+      sellerId: matchedSeller?.id || (newProduct as any).sellerId || undefined,
+      arabicSeller: newProduct.arabicSeller || (matchedSeller?.nameAr || ''),
       origin: newProduct.origin,
       description: newProduct.description || 'Authentic Lebanese artisanal product.',
       craftStory: newProduct.craftStory || 'Generational handcrafted masterpiece created in Lebanon.',
@@ -754,6 +880,11 @@ export const AdminView: React.FC = () => {
       reviewsCount: 1,
       stock: Number(newProduct.stock) || 10,
       image: newProduct.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+      additionalImages: (newProduct.additionalImages || []).filter(Boolean),
+      videoUrl: newProduct.videoUrl?.trim() || undefined,
+      videos: (newProduct.videos || []).filter(Boolean).length > 0
+        ? (newProduct.videos || []).filter(Boolean)
+        : (newProduct.videoUrl?.trim() ? [newProduct.videoUrl.trim()] : undefined),
       isFeatured: false,
       isBestseller: false,
       isPublished: isPublic,
@@ -767,40 +898,67 @@ export const AdminView: React.FC = () => {
       sellerItemCode: newProduct.sellerItemCode || ('SIC-' + Math.floor(100000 + Math.random() * 900000))
     };
 
-    await addProduct(created);
-    showToast(
-      isPublic 
-        ? `Product "${newProduct.name}" published live to Public Catalog!` 
-        : `Product "${newProduct.name}" saved as Draft (Unpublished).`,
-      'success'
-    );
-    // Reset Add Product form to clean values with a brand new auto-generated code
-    setNewProduct({
-      name: '',
-      arabicName: '',
-      category: 'grocery',
-      artisan: '',
-      seller: '',
-      arabicSeller: '',
-      origin: 'Koura, North Lebanon',
-      description: '',
-      craftStory: '',
-      priceUSD: 15,
-      stock: 25,
-      image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
-      weightOrVolume: '500ml',
-      tags: ['Artisanal', 'Lebanese Terroir'],
-      keywordsInput: 'lebanese, artisanal, authentic, gourmet',
-      arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
-      newArabicKeywordInput: '',
-      sellerItemCode: 'SIC-' + Math.floor(100000 + Math.random() * 900000)
-    });
-    setIsAddModalOpen(false);
+    try {
+      await addProduct(created);
+      showToast(
+        isPublic 
+          ? `Product "${newProduct.name}" published live to Public Catalog!` 
+          : `Product "${newProduct.name}" saved as Draft (Unpublished).`,
+        'success'
+      );
+      // Reset Add Product form to clean values with a brand new auto-generated code
+      setNewProduct({
+        name: '',
+        arabicName: '',
+        category: 'grocery',
+        artisan: '',
+        seller: '',
+        arabicSeller: '',
+        origin: 'Koura, North Lebanon',
+        description: '',
+        craftStory: '',
+        priceUSD: 15,
+        stock: 25,
+        image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+        additionalImages: [],
+        newAdditionalImageInput: '',
+        videoUrl: '',
+        videos: [],
+        newVideoInput: '',
+        weightOrVolume: '500ml',
+        tags: ['Artisanal', 'Lebanese Terroir'],
+        keywordsInput: 'lebanese, artisanal, authentic, gourmet',
+        arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
+        newArabicKeywordInput: '',
+        sellerItemCode: 'SIC-' + Math.floor(100000 + Math.random() * 900000)
+      });
+      setIsAddModalOpen(false);
+    } catch {
+      // Error handled by toast in addProduct or above
+    }
   };
 
   const handleSaveFullProductEdit = async (e?: React.FormEvent, isPublic?: boolean) => {
     if (e) e.preventDefault();
     if (!fullEditProduct) return;
+
+    // Duplicate Product Number validation
+    if (fullEditProduct.sellerItemCode) {
+      const dupCode = checkDuplicateProductNumber(fullEditProduct.sellerItemCode, fullEditProduct.id, products);
+      if (dupCode.isDuplicate) {
+        showToast(`Duplicate product number: "${fullEditProduct.sellerItemCode}" is already in use by "${dupCode.conflictingProduct?.name}".`, 'error');
+        return;
+      }
+    }
+
+    // Duplicate Description validation
+    if (fullEditProduct.description) {
+      const dupDesc = checkDuplicateDescription(fullEditProduct.description, fullEditProduct.id, products);
+      if (dupDesc.isDuplicate) {
+        showToast(`Duplicate description: Product "${dupDesc.conflictingProduct?.name}" already uses this exact description. Each product must have a unique description.`, 'error');
+        return;
+      }
+    }
 
     const keywordsArray = (fullEditProduct as any).keywordsInput !== undefined
       ? (fullEditProduct as any).keywordsInput.split(',').map((s: string) => s.trim()).filter(Boolean)
@@ -812,37 +970,88 @@ export const AdminView: React.FC = () => {
 
     const targetPublish = isPublic !== undefined ? isPublic : (fullEditProduct.isPublished !== false);
 
-    await updateProduct(fullEditProduct.id, {
-      name: fullEditProduct.name,
-      arabicName: fullEditProduct.arabicName,
-      category: fullEditProduct.category,
-      artisan: fullEditProduct.artisan,
-      seller: fullEditProduct.seller,
-      arabicSeller: fullEditProduct.arabicSeller,
-      origin: fullEditProduct.origin,
-      priceUSD: Number(fullEditProduct.priceUSD),
-      stock: Number(fullEditProduct.stock),
-      image: fullEditProduct.image,
-      description: fullEditProduct.description,
-      craftStory: fullEditProduct.craftStory,
-      isPublished: targetPublish,
-      isFeatured: !!fullEditProduct.isFeatured,
-      isBestseller: !!fullEditProduct.isBestseller,
-      keywords: keywordsArray,
-      arabicKeywords: arabicKeywordsArray,
-      seoTitle: fullEditProduct.seoTitle || `${fullEditProduct.name} | Lebanese Artisan`,
-      seoArabicTitle: fullEditProduct.seoArabicTitle || `${fullEditProduct.arabicName || fullEditProduct.name} | مونة وحرف لبنانية`,
-      seoDescription: fullEditProduct.seoDescription || fullEditProduct.description,
-      sellerItemCode: fullEditProduct.sellerItemCode
-    });
-
-    showToast(
-      targetPublish 
-        ? `Product "${fullEditProduct.name}" updated & published to Public Store!`
-        : `Product "${fullEditProduct.name}" saved as Draft (Hidden from Public).`,
-      'success'
+    const matchedSeller = sellers.find(s => 
+      (fullEditProduct.seller && s.nameEn.toLowerCase() === fullEditProduct.seller.toLowerCase()) ||
+      (fullEditProduct.artisan && s.nameEn.toLowerCase() === fullEditProduct.artisan.toLowerCase()) ||
+      s.id === fullEditProduct.sellerId
     );
-    setFullEditProduct(null);
+
+    try {
+      await updateProduct(fullEditProduct.id, {
+        name: fullEditProduct.name,
+        arabicName: fullEditProduct.arabicName,
+        category: fullEditProduct.category,
+        artisan: fullEditProduct.artisan,
+        seller: fullEditProduct.seller || fullEditProduct.artisan,
+        sellerId: matchedSeller?.id || fullEditProduct.sellerId || undefined,
+        arabicSeller: fullEditProduct.arabicSeller || (matchedSeller?.nameAr || ''),
+        origin: fullEditProduct.origin,
+        priceUSD: Number(fullEditProduct.priceUSD),
+        stock: Number(fullEditProduct.stock),
+        image: fullEditProduct.image,
+        additionalImages: (fullEditProduct.additionalImages || []).filter(Boolean),
+        videoUrl: fullEditProduct.videoUrl?.trim() || undefined,
+        videos: (fullEditProduct.videos || []).filter(Boolean).length > 0
+          ? (fullEditProduct.videos || []).filter(Boolean)
+          : (fullEditProduct.videoUrl?.trim() ? [fullEditProduct.videoUrl.trim()] : undefined),
+        description: fullEditProduct.description,
+        craftStory: fullEditProduct.craftStory,
+        isPublished: targetPublish,
+        isFeatured: !!fullEditProduct.isFeatured,
+        isBestseller: !!fullEditProduct.isBestseller,
+        keywords: keywordsArray,
+        arabicKeywords: arabicKeywordsArray,
+        seoTitle: fullEditProduct.seoTitle || `${fullEditProduct.name} | Lebanese Artisan`,
+        seoArabicTitle: fullEditProduct.seoArabicTitle || `${fullEditProduct.arabicName || fullEditProduct.name} | مونة وحرف لبنانية`,
+        seoDescription: fullEditProduct.seoDescription || fullEditProduct.description,
+        sellerItemCode: fullEditProduct.sellerItemCode
+      });
+
+      showToast(
+        targetPublish 
+          ? `Product "${fullEditProduct.name}" updated & published to Public Store!` 
+          : `Product "${fullEditProduct.name}" updated & saved as Draft.`,
+        'success'
+      );
+      setFullEditProduct(null);
+    } catch {
+      // Error handled by toast in updateProduct or above
+    }
+  };
+
+
+  const handleMassDelete = async () => {
+    const idsToDelete = filteredCatalogProducts.map(p => p.id).filter(id => selectedProductIds.has(id));
+    if (idsToDelete.length === 0) return;
+    const confirmed = window.confirm(`Are you sure you want to delete ${idsToDelete.length} selected products? This cannot be undone.`);
+    if (!confirmed) return;
+
+    await deleteMultipleProducts(idsToDelete);
+    const next = new Set(selectedProductIds);
+    idsToDelete.forEach(id => next.delete(id));
+    setSelectedProductIds(next);
+  };
+
+  const handleBulkPublish = async (targetState: boolean) => {
+    const idsToUpdate = filteredCatalogProducts.map(p => p.id).filter(id => selectedProductIds.has(id));
+    if (idsToUpdate.length === 0) return;
+
+    const actionLabel = targetState ? 'unhide (publish)' : 'hide';
+    const confirmed = window.confirm(`Are you sure you want to ${actionLabel} ${idsToUpdate.length} selected product(s)?`);
+    if (!confirmed) return;
+
+    await Promise.all(idsToUpdate.map(id => updateProduct(id, { isPublished: targetState })));
+    showToast(`${idsToUpdate.length} product(s) are now ${targetState ? 'Published' : 'Hidden'}`, 'success');
+  };
+
+  const toggleSelectAll = () => {
+    const next = new Set(selectedProductIds);
+    if (isAllFilteredSelected) {
+      filteredCatalogProducts.forEach(p => next.delete(p.id));
+    } else {
+      filteredCatalogProducts.forEach(p => next.add(p.id));
+    }
+    setSelectedProductIds(next);
   };
 
   const handleCancelOrder = async (orderId: string) => {
@@ -883,7 +1092,7 @@ export const AdminView: React.FC = () => {
       }));
 
       const csv = Papa.unparse(dataToExport);
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
@@ -912,24 +1121,41 @@ export const AdminView: React.FC = () => {
 
   const handleDownloadProductsReport = () => {
     import('papaparse').then((Papa) => {
-      const dataToExport = filteredCatalogProducts.map(p => ({
-        product_id: p.id,
-        seller_item_code: p.sellerItemCode || '',
-        name_en: p.name,
-        name_ar: p.arabicName || '',
-        seller_artisan: p.seller || p.artisan || '',
-        arabic_seller: p.arabicSeller || '',
-        category: p.category,
-        price_usd: p.priceUSD,
-        stock: p.stock,
-        origin_terroir: p.origin || '',
-        weight_or_volume: p.weightOrVolume || '',
-        status: p.isPublished === false ? 'Hidden' : 'Published',
-        is_featured: p.isFeatured ? 'Yes' : 'No'
-      }));
+      const dataToExport = filteredCatalogProducts.map(p => {
+        const matchedSeller = sellers.find(s => s.id === p.sellerId || (s.nameEn && s.nameEn.toLowerCase() === (p.seller || p.artisan || '').toLowerCase()));
+        const effectiveSellerId = p.sellerId || matchedSeller?.id || sellers[0]?.id || 'terroir-du-liban';
+        const effectiveSellerName = matchedSeller?.nameEn || p.seller || p.artisan || '';
+
+        return {
+          sku: p.id,
+          product_id: p.id,
+          seller_item_code: p.sellerItemCode || '',
+          name_en: p.name,
+          name_ar: p.arabicName || '',
+          seller_id: effectiveSellerId,
+          seller_artisan: effectiveSellerName,
+          seller_name: effectiveSellerName,
+          arabic_seller: p.arabicSeller || matchedSeller?.nameAr || '',
+          category: p.category,
+          price_usd: p.priceUSD,
+          original_price_usd: p.originalPriceUSD || '',
+          stock: p.stock,
+          image_url: p.image || '',
+          additional_images: (p.additionalImages || []).join('|'),
+          video_url: p.videoUrl || '',
+          additional_videos: (p.videos || []).join('|'),
+          origin_terroir: p.origin || '',
+          weight_or_volume: p.weightOrVolume || '',
+          status: p.isPublished === false ? 'Hidden' : 'Published',
+          is_featured: p.isFeatured ? 'Yes' : 'No',
+          tags: (p.tags || []).join('|'),
+          description_en: p.description || '',
+          description_ar: p.craftStory || ''
+        };
+      });
 
       const csv = Papa.unparse(dataToExport);
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.setAttribute('href', url);
@@ -939,6 +1165,158 @@ export const AdminView: React.FC = () => {
       document.body.removeChild(link);
       showToast('Products catalog report downloaded successfully', 'success');
     });
+  };
+
+  const handleDownloadHeadersOnlyTemplate = () => {
+    const headers = [
+      'sku',
+      'name_en',
+      'name_ar',
+      'seller_id',
+      'seller_item_code',
+      'category',
+      'price_usd',
+      'original_price_usd',
+      'stock',
+      'image_url',
+      'additional_images',
+      'video_url',
+      'additional_videos',
+      'description_en',
+      'description_ar',
+      'tags',
+      'is_published',
+      'origin_terroir',
+      'weight_or_volume'
+    ];
+    const csvContent = headers.join(',');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `yalla_bulk_upload_template_headers_only.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Headers-only CSV template downloaded successfully', 'success');
+  };
+
+  const recomputeBulkPreview = (rows: any[], targetSellerId: string, fallbackCategoryId: string) => {
+    const parsedPreview: any[] = [];
+
+    rows.forEach((row, idx) => {
+      if (isCsvRowEmpty(row)) return;
+      const rowNum = idx + 2;
+      const name = (row.name_en || row.name || row.title || '').toString().trim();
+      const resolvedSeller = resolveSeller(row, sellers, targetSellerId);
+      const resolvedCategory = resolveCategory(row, categories, fallbackCategoryId);
+      const priceUSD = parsePrice(row.price_usd || row.price || row.unit_price);
+      const stock = parseStock(row.stock !== undefined ? row.stock : row.qty);
+
+      const rowIssues: string[] = [];
+      if (!name) rowIssues.push('name_en is required');
+      if (!resolvedSeller) {
+        const rawSeller = row.seller_id || row.seller || row.seller_artisan || 'empty';
+        rowIssues.push(`seller "${rawSeller}" unknown (Select a Target Seller above)`);
+      }
+      if (!resolvedCategory) {
+        const rawCat = row.category || row.category_id || 'empty';
+        rowIssues.push(`category "${rawCat}" unknown`);
+      }
+      if (priceUSD <= 0) rowIssues.push('price_usd must be > 0');
+      if (isNaN(stock) || stock < 0) rowIssues.push('stock must be >= 0');
+
+      const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${idx}`;
+      const isUpdate = products.some(p => p.id === sku);
+
+      parsedPreview.push({
+        rowNum,
+        sku,
+        name: name || 'Unnamed',
+        sellerName: resolvedSeller?.sellerName || 'Unassigned',
+        categoryName: resolvedCategory?.categoryName || 'Unassigned',
+        action: isUpdate ? 'Update' : 'Create',
+        issues: rowIssues
+      });
+    });
+
+    setBulkImportPreviewRows(parsedPreview);
+  };
+
+  const handleBulkUploadFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBulkImportFile(file);
+    setBulkImportResult(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      import('papaparse').then((Papa) => {
+        Papa.parse(text, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: (h) => h.trim().toLowerCase(),
+          complete: (results) => {
+            const rows = (results.data as any[]).filter(r => !isCsvRowEmpty(r));
+            setBulkImportRawRows(rows);
+            recomputeBulkPreview(rows, bulkImportTargetSellerId, bulkImportFallbackCategoryId);
+          }
+        });
+      });
+    };
+    reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleTargetSellerChange = (newSellerId: string) => {
+    setBulkImportTargetSellerId(newSellerId);
+    if (bulkImportRawRows.length > 0) {
+      recomputeBulkPreview(bulkImportRawRows, newSellerId, bulkImportFallbackCategoryId);
+    }
+  };
+
+  const handleFallbackCategoryChange = (newCatId: string) => {
+    setBulkImportFallbackCategoryId(newCatId);
+    if (bulkImportRawRows.length > 0) {
+      recomputeBulkPreview(bulkImportRawRows, bulkImportTargetSellerId, newCatId);
+    }
+  };
+
+  const handleCommitBulkUpload = async () => {
+    if (!bulkImportFile) return;
+    setIsBulkImporting(true);
+    setBulkImportResult(null);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const text = event.target?.result as string;
+        if (!text) {
+          setIsBulkImporting(false);
+          return;
+        }
+
+        const res = await bulkImportProducts(text, {
+          targetSellerId: bulkImportTargetSellerId,
+          fallbackCategoryId: bulkImportFallbackCategoryId
+        });
+        setBulkImportResult(res);
+        setIsBulkImporting(false);
+        if (res.created > 0 || res.updated > 0) {
+          showToast(`Successfully uploaded: ${res.created} created and ${res.updated} updated!`, 'success');
+        } else if (res.errors.length > 0) {
+          showToast(`Upload encountered errors: ${res.errors[0]}`, 'warning');
+        }
+      };
+      reader.readAsText(bulkImportFile, 'UTF-8');
+    } catch (err: any) {
+      console.error(err);
+      setBulkImportResult({ created: 0, updated: 0, errors: [err?.message || 'Upload failed'] });
+      setIsBulkImporting(false);
+      showToast('Error committing product catalog', 'warning');
+    }
   };
 
   return (
@@ -1004,7 +1382,7 @@ export const AdminView: React.FC = () => {
 
                   <div className="py-1">
                     <button
-                      onClick={() => {
+                      onClick={(e) => { e.stopPropagation();
                         handleDownloadFullMasterReport();
                         setIsMasterExportMenuOpen(false);
                       }}
@@ -1023,7 +1401,7 @@ export const AdminView: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={(e) => { e.stopPropagation();
                         handleDownloadSellerSalesReport();
                         setIsMasterExportMenuOpen(false);
                       }}
@@ -1039,7 +1417,7 @@ export const AdminView: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={(e) => { e.stopPropagation();
                         handleDownloadStockInventoryReport();
                         setIsMasterExportMenuOpen(false);
                       }}
@@ -1055,7 +1433,7 @@ export const AdminView: React.FC = () => {
                     </button>
 
                     <button
-                      onClick={() => {
+                      onClick={(e) => { e.stopPropagation();
                         handleDownloadOrdersReport();
                         setIsMasterExportMenuOpen(false);
                       }}
@@ -1123,7 +1501,7 @@ export const AdminView: React.FC = () => {
         </header>
 
         {/* Tab Views */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto space-y-6">
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
           
           {/* 1. eCommerce */}
           {currentTab === 'ecommerce' && (
@@ -1140,10 +1518,10 @@ export const AdminView: React.FC = () => {
             <div className="space-y-6">
               
               {/* Header */}
-              <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4">
+              <div className="bg-white p-5 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-indigo-600">
+                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-indigo-600 shrink-0">
                       <Truck className="w-5 h-5" />
                     </div>
                     <div>
@@ -1157,24 +1535,24 @@ export const AdminView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end shrink-0">
                   <button
                     onClick={handleDownloadOrdersReport}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200 shadow-2xs active:scale-95"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200 shadow-2xs active:scale-95"
                     title="Download Orders CSV Report"
                   >
                     <Download className="w-3.5 h-3.5 text-slate-600" />
                     <span>Download Report</span>
                   </button>
-                  <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-2xs">
+                  <span className="px-3.5 py-2 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-2xs whitespace-nowrap">
                     {orders.length} Total Orders
                   </span>
                 </div>
               </div>
 
               {/* Filters */}
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="relative flex-1 min-w-[260px]">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
+                <div className="relative flex-1 min-w-0 sm:min-w-[280px]">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -1185,8 +1563,8 @@ export const AdminView: React.FC = () => {
                   />
                 </div>
 
-                <div className="flex items-center gap-2.5">
-                  <span className="text-xs text-slate-500 font-bold">Status:</span>
+                <div className="flex items-center gap-2.5 shrink-0 justify-between sm:justify-start">
+                  <span className="text-xs text-slate-500 font-bold whitespace-nowrap">Status:</span>
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
@@ -1198,32 +1576,33 @@ export const AdminView: React.FC = () => {
                     <option value="courier_assigned">Courier Assigned</option>
                     <option value="in_transit">In Transit</option>
                     <option value="delivered">Delivered</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
               </div>
 
               {/* Orders Table */}
               <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-slate-700">
+                <div className="overflow-x-auto scrollbar-thin">
+                  <table className="w-full text-left text-xs text-slate-700 min-w-[850px]">
                     <thead className="bg-slate-50/90 text-[11px] uppercase font-black text-slate-500 tracking-wider border-b border-slate-100">
                       <tr>
-                        <th className="py-4 px-5">Order ID</th>
-                        <th className="py-4 px-5">Customer</th>
-                        <th className="py-4 px-5">Delivery Location</th>
-                        <th className="py-4 px-5">Items Ordered</th>
-                        <th className="py-4 px-5">Total Amount</th>
-                        <th className="py-4 px-5">Status</th>
-                        <th className="py-4 px-5 text-right">Dispatch Control</th>
+                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Order ID</th>
+                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Customer</th>
+                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Delivery Location</th>
+                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Items Ordered</th>
+                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Total Amount</th>
+                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Status</th>
+                        <th className="py-4 px-4 sm:px-5 text-right whitespace-nowrap">Dispatch Control</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {filteredOrders.map((ord) => (
                         <tr key={ord.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-4 px-5">
+                          <td className="py-4 px-4 sm:px-5 whitespace-nowrap">
                             <button
                               onClick={() => setSelectedInvoiceOrder(ord)}
-                              className="font-mono font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer text-left"
+                              className="font-mono font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer text-left block"
                               title="Click to view full order details"
                             >
                               #{ord.id}
@@ -1231,33 +1610,36 @@ export const AdminView: React.FC = () => {
                             <div className="text-[10px] text-slate-400 font-sans font-medium mt-0.5">{ord.date}</div>
                           </td>
 
-                          <td className="py-4 px-5">
+                          <td className="py-4 px-4 sm:px-5">
                             <button
                               onClick={() => setSelectedInvoiceOrder(ord)}
-                              className="font-bold text-slate-900 hover:text-indigo-600 text-left cursor-pointer block"
+                              className="font-bold text-slate-900 hover:text-indigo-600 text-left cursor-pointer block truncate max-w-[180px]"
+                              title={ord.shipping?.fullName || 'Anonymous Shopper'}
                             >
                               {ord.shipping?.fullName || 'Anonymous Shopper'}
                             </button>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium whitespace-nowrap">
                               <span>{ord.shipping?.phone || 'No phone'}</span>
                             </div>
                           </td>
 
-                          <td className="py-4 px-5">
-                            <div className="font-bold text-slate-800">{ord.shipping?.city || 'No city'}</div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[170px] mt-0.5">{ord.shipping?.street || 'No address'}</div>
+                          <td className="py-4 px-4 sm:px-5">
+                            <div className="font-bold text-slate-800 whitespace-nowrap">{ord.shipping?.city || 'No city'}</div>
+                            <div className="text-[11px] text-slate-500 truncate max-w-[180px] mt-0.5" title={ord.shipping?.street || 'No address'}>
+                              {ord.shipping?.street || 'No address'}
+                            </div>
                           </td>
 
-                          <td className="py-4 px-5">
-                            <div className="font-bold text-slate-900">
+                          <td className="py-4 px-4 sm:px-5">
+                            <div className="font-bold text-slate-900 whitespace-nowrap">
                               {ord.items.reduce((s, i) => s + i.quantity, 0)} Units
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[180px] mt-0.5">
+                            <div className="text-[11px] text-slate-500 truncate max-w-[200px] mt-0.5" title={ord.items.map(i => `${i.quantity}x ${i.product.name}`).join(', ')}>
                               {ord.items.map(i => `${i.quantity}x ${i.product.name}`).join(', ')}
                             </div>
                           </td>
 
-                          <td className="py-4 px-5">
+                          <td className="py-4 px-4 sm:px-5 whitespace-nowrap">
                             <div className="font-black text-slate-900 text-sm">
                               {formatPrice(ord.totalUSD)}
                             </div>
@@ -1266,7 +1648,7 @@ export const AdminView: React.FC = () => {
                             </div>
                           </td>
 
-                          <td className="py-4 px-5">
+                          <td className="py-4 px-4 sm:px-5 whitespace-nowrap">
                             <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                               ord.status === 'delivered'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
@@ -1280,8 +1662,8 @@ export const AdminView: React.FC = () => {
                             </span>
                           </td>
 
-                          <td className="py-4 px-5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="py-4 px-4 sm:px-5 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5 shrink-0">
                               <select
                                 value={ord.status}
                                 onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
@@ -1299,7 +1681,7 @@ export const AdminView: React.FC = () => {
                               {/* View Order Details */}
                               <button
                                 onClick={() => setSelectedInvoiceOrder(ord)}
-                                className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors cursor-pointer active:scale-95 flex items-center gap-1"
+                                className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
                                 title="See Full Order Details"
                               >
                                 <Eye className="w-4 h-4" />
@@ -1308,7 +1690,7 @@ export const AdminView: React.FC = () => {
                               {/* Print Invoice */}
                               <button
                                 onClick={() => setSelectedInvoiceOrder(ord)}
-                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer active:scale-95"
+                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer active:scale-95 shrink-0"
                                 title="View / Print Order Invoice"
                               >
                                 <FileText className="w-4 h-4" />
@@ -1318,7 +1700,7 @@ export const AdminView: React.FC = () => {
                               {ord.status !== 'cancelled' && ord.status !== 'delivered' && (
                                 <button
                                   onClick={() => handleCancelOrder(ord.id)}
-                                  className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition-colors cursor-pointer active:scale-95"
+                                  className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition-colors cursor-pointer active:scale-95 shrink-0"
                                   title="Cancel Order"
                                 >
                                   <XCircle className="w-4 h-4" />
@@ -1384,6 +1766,20 @@ export const AdminView: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={(e) => { e.stopPropagation();
+                      setBulkImportFile(null);
+                      setBulkImportPreviewRows([]);
+                      setBulkImportResult(null);
+                      setIsBulkUploadModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-all border border-emerald-200 shadow-2xs cursor-pointer active:scale-95"
+                    title="Mass upload new products or update existing ones via CSV file"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                    <span>Bulk Upload CSV</span>
+                  </button>
+
+                  <button
                     onClick={handleGlobalSaveDraft}
                     className="flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition-all border border-slate-300/80 shadow-2xs cursor-pointer active:scale-95"
                     title="Save current catalog state"
@@ -1446,12 +1842,12 @@ export const AdminView: React.FC = () => {
                       <select
                         value={adminProductSeller}
                         onChange={(e) => setAdminProductSeller(e.target.value)}
-                        className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer max-w-[200px]"
+                        className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer max-w-[240px]"
                       >
                         <option value="all">All Sellers ({sellerStats.length} sellers)</option>
-                        {sellerStats.map(({ seller, count }) => (
-                          <option key={seller} value={seller}>
-                            {seller} ({count})
+                        {sellerStats.map(({ id, seller, arabicName, count }) => (
+                          <option key={id || seller} value={seller}>
+                            {seller} {arabicName ? `(${arabicName})` : ''} ({count})
                           </option>
                         ))}
                       </select>
@@ -1558,7 +1954,7 @@ export const AdminView: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => {
+                      onClick={(e) => { e.stopPropagation();
                         setAdminProductSearch('');
                         setAdminProductSeller('all');
                         setAdminProductCategory('all');
@@ -1572,6 +1968,66 @@ export const AdminView: React.FC = () => {
                 )}
               </div>
 
+              {/* Selection Toolbar */}
+              {filteredCatalogProducts.length > 0 && (
+                <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-3 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox"
+                      checked={isAllFilteredSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 text-indigo-600 rounded-md border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-slate-700">
+                      {selectedInFilteredCount === 0 
+                        ? `Select All (${filteredCatalogProducts.length})` 
+                        : `${selectedInFilteredCount} of ${filteredCatalogProducts.length} Selected`}
+                    </span>
+                  </div>
+                  
+                  {selectedInFilteredCount > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProductIds(new Set())}
+                        className="px-2.5 py-1 text-slate-500 hover:text-slate-800 text-xs font-semibold cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleBulkPublish(false)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/80 rounded-xl font-bold text-[11px] transition-colors cursor-pointer"
+                        title="Hide selected products from storefront catalog"
+                      >
+                        <EyeOff className="w-3.5 h-3.5" />
+                        Bulk Hide ({selectedInFilteredCount})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleBulkPublish(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/80 rounded-xl font-bold text-[11px] transition-colors cursor-pointer"
+                        title="Publish / Unhide selected products on storefront catalog"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        Bulk Unhide ({selectedInFilteredCount})
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleMassDelete}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200/80 rounded-xl font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Mass Delete ({selectedInFilteredCount})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Product Cards Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
                 {filteredCatalogProducts.map((prod) => {
@@ -1582,10 +2038,32 @@ export const AdminView: React.FC = () => {
                   return (
                     <div 
                       key={prod.id} 
-                      className={`bg-white p-4 rounded-3xl border shadow-xs space-y-3.5 flex flex-col justify-between transition-all hover:shadow-md ${
+                      className={`bg-white p-4 rounded-3xl border shadow-xs space-y-3.5 flex flex-col justify-between transition-all hover:shadow-md relative cursor-pointer ${
                         isPublished ? 'border-slate-200/80' : 'border-rose-200 bg-rose-50/15'
-                      }`}
+                      } ${selectedProductIds.has(prod.id) ? 'ring-2 ring-indigo-500 bg-indigo-50/10' : ''}`}
+                      onClick={(e) => {
+                        // Allow clicking the card itself to toggle selection if not clicking a button/input
+                        if ((e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'A' && (e.target as HTMLElement).tagName !== 'TEXTAREA' && (e.target as HTMLElement).tagName !== 'SELECT') {
+                          const next = new Set(selectedProductIds);
+                          if (next.has(prod.id)) next.delete(prod.id);
+                          else next.add(prod.id);
+                          setSelectedProductIds(next);
+                        }
+                      }}
                     >
+                      <div className="absolute top-6 left-6 z-10">
+                        <input
+                          type="checkbox"
+                          checked={selectedProductIds.has(prod.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedProductIds);
+                            if (e.target.checked) next.add(prod.id);
+                            else next.delete(prod.id);
+                            setSelectedProductIds(next);
+                          }}
+                          className="w-5 h-5 text-indigo-600 bg-white/90 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer shadow-sm backdrop-blur-sm"
+                        />
+                      </div>
                       <div className="space-y-3">
                         <div className="aspect-4/3 rounded-2xl overflow-hidden bg-slate-100 relative group">
                           <img 
@@ -1599,7 +2077,7 @@ export const AdminView: React.FC = () => {
                           </span>
 
                           {!isPublished && (
-                            <span className="absolute top-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-sm">
+                            <span className="absolute bottom-2.5 left-2.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-sm">
                               Hidden
                             </span>
                           )}
@@ -1682,7 +2160,7 @@ export const AdminView: React.FC = () => {
                           </div>
                           <div className="flex gap-2">
                             <button
-                              onClick={async () => {
+                              onClick={async (e) => { e.stopPropagation();
                                 await updateProduct(prod.id, { priceUSD: editPriceUSD, stock: editStock });
                                 setEditingProductId(null);
                               }}
@@ -1706,7 +2184,21 @@ export const AdminView: React.FC = () => {
 
                           <div className="flex items-center gap-1">
                             <button
-                              onClick={() => setFullEditProduct({ ...prod, keywordsInput: prod.keywords ? prod.keywords.join(', ') : '' } as any)}
+                              onClick={async (e) => { e.stopPropagation();
+                                await toggleProductPublish(prod.id);
+                              }}
+                              className={`p-2 rounded-xl transition-all cursor-pointer ${
+                                isPublished 
+                                  ? 'text-slate-400 hover:text-amber-600 hover:bg-amber-50' 
+                                  : 'text-amber-600 bg-amber-50 hover:bg-amber-100'
+                              }`}
+                              title={isPublished ? "Hide from catalog" : "Unhide / Publish to catalog"}
+                            >
+                              {isPublished ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setFullEditProduct({ ...prod, keywordsInput: prod.keywords ? prod.keywords.join(', ') : '' } as any); }}
                               className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
                               title="Full Edit"
                             >
@@ -1714,7 +2206,7 @@ export const AdminView: React.FC = () => {
                             </button>
 
                             <button
-                              onClick={() => {
+                              onClick={(e) => { e.stopPropagation();
                                 setEditingProductId(prod.id);
                                 setEditPriceUSD(prod.priceUSD);
                                 setEditStock(prod.stock);
@@ -1726,7 +2218,7 @@ export const AdminView: React.FC = () => {
                             </button>
 
                             <button
-                              onClick={async () => {
+                              onClick={async (e) => { e.stopPropagation();
                                 if (confirm(`Delete "${prod.name}"?`)) {
                                   await deleteProduct(prod.id);
                                 }
@@ -1759,7 +2251,7 @@ export const AdminView: React.FC = () => {
                   </p>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => { e.stopPropagation();
                       setAdminProductSearch('');
                       setAdminProductSeller('all');
                       setAdminProductCategory('all');
@@ -1941,6 +2433,60 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Datalist for autocomplete */}
+              <datalist id="admin-existing-sellers">
+                {sellerStats.map((s) => (
+                  <option key={s.id || s.seller} value={s.seller}>
+                    {s.arabicName ? `${s.seller} (${s.arabicName})` : s.seller}
+                  </option>
+                ))}
+              </datalist>
+
+              {/* Registered Seller Selector */}
+              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Store className="w-4 h-4 text-indigo-600" />
+                    <span>Select Registered Seller / Artisan:</span>
+                  </label>
+                  <span className="text-[10px] font-semibold text-indigo-600">
+                    {sellers.length} registered in system
+                  </span>
+                </div>
+                <select
+                  value={(newProduct as any).sellerId || (sellers.find(s => s.nameEn.toLowerCase() === (newProduct.seller || newProduct.artisan || '').toLowerCase())?.id || '')}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    if (!sId) {
+                      setNewProduct({
+                        ...newProduct,
+                        sellerId: undefined
+                      } as any);
+                    } else {
+                      const found = sellers.find(s => s.id === sId);
+                      if (found) {
+                        setNewProduct({
+                          ...newProduct,
+                          seller: found.nameEn,
+                          artisan: found.nameEn,
+                          arabicSeller: found.nameAr || '',
+                          origin: found.region || newProduct.origin,
+                          sellerId: found.id
+                        } as any);
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-indigo-200 focus:outline-none focus:border-indigo-600 text-xs font-bold text-slate-800 shadow-2xs cursor-pointer"
+                >
+                  <option value="">-- Choose from Registered Sellers or type manually below --</option>
+                  {sellers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nameEn} {s.nameAr ? `(${s.nameAr})` : ''} — {s.region || 'Lebanon'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Category *</label>
@@ -2039,14 +2585,191 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Image URL</label>
-                <input
-                  type="url"
-                  value={newProduct.image}
-                  onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
-                />
+              {/* Primary & Multiple Media Section */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                {/* Main Primary Image */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Primary Image URL *</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">Displayed on product cards & main gallery view</span>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="url"
+                      required
+                      placeholder="https://images.unsplash.com/..."
+                      value={newProduct.image}
+                      onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-200 focus:outline-none"
+                    />
+                    {newProduct.image && (
+                      <img
+                        src={newProduct.image}
+                        alt="Primary Preview"
+                        className="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Multiple Gallery Images */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Additional Gallery Images (Add Multiple)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      {newProduct.additionalImages.length} images
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="Paste additional image URL and click Add"
+                      value={newProduct.newAdditionalImageInput}
+                      onChange={(e) => setNewProduct({ ...newProduct, newAdditionalImageInput: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newProduct.newAdditionalImageInput.trim()) {
+                            setNewProduct({
+                              ...newProduct,
+                              additionalImages: [...newProduct.additionalImages, newProduct.newAdditionalImageInput.trim()],
+                              newAdditionalImageInput: ''
+                            });
+                          }
+                        }
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation();
+                        if (newProduct.newAdditionalImageInput.trim()) {
+                          setNewProduct({
+                            ...newProduct,
+                            additionalImages: [...newProduct.additionalImages, newProduct.newAdditionalImageInput.trim()],
+                            newAdditionalImageInput: ''
+                          });
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Image</span>
+                    </button>
+                  </div>
+
+                  {newProduct.additionalImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {newProduct.additionalImages.map((imgUrl, iIdx) => (
+                        <div key={iIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300 shadow-2xs bg-white">
+                          <img src={imgUrl} alt={`Gallery ${iIdx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <button
+                            type="button"
+                            onClick={() => setNewProduct({
+                              ...newProduct,
+                              additionalImages: newProduct.additionalImages.filter((_, idx) => idx !== iIdx)
+                            })}
+                            className="absolute top-1 right-1 p-1 bg-rose-600/90 hover:bg-rose-700 text-white rounded-full opacity-90 group-hover:opacity-100 transition-all cursor-pointer shadow-xs"
+                            title="Remove image"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Videos (YouTube, Vimeo, MP4) */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Product Videos (YouTube / Vimeo / MP4)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full">
+                      {(newProduct.videos || []).length + (newProduct.videoUrl && !newProduct.videos.includes(newProduct.videoUrl) ? 1 : 0)} videos
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=... or .mp4 link"
+                      value={newProduct.newVideoInput}
+                      onChange={(e) => setNewProduct({ ...newProduct, newVideoInput: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = newProduct.newVideoInput.trim();
+                          if (val) {
+                            const currentVideos = newProduct.videos || [];
+                            setNewProduct({
+                              ...newProduct,
+                              videoUrl: newProduct.videoUrl || val,
+                              videos: [...currentVideos, val],
+                              newVideoInput: ''
+                            });
+                          }
+                        }
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation();
+                        const val = newProduct.newVideoInput.trim();
+                        if (val) {
+                          const currentVideos = newProduct.videos || [];
+                          setNewProduct({
+                            ...newProduct,
+                            videoUrl: newProduct.videoUrl || val,
+                            videos: [...currentVideos, val],
+                            newVideoInput: ''
+                          });
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Video</span>
+                    </button>
+                  </div>
+
+                  {(newProduct.videos || []).length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      {newProduct.videos.map((vidUrl, vIdx) => (
+                        <div key={vIdx} className="flex items-center justify-between gap-2 p-2 bg-white rounded-xl border border-slate-200 text-slate-700 text-[11px]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Film className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span className="font-mono truncate">{vidUrl}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation();
+                              const remaining = newProduct.videos.filter((_, idx) => idx !== vIdx);
+                              setNewProduct({
+                                ...newProduct,
+                                videos: remaining,
+                                videoUrl: remaining[0] || ''
+                              });
+                            }}
+                            className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
+                            title="Remove video"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* ARABIC SEO KEYWORDS SECTION */}
@@ -2084,7 +2807,7 @@ export const AdminView: React.FC = () => {
                   />
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => { e.stopPropagation();
                       if (newProduct.newArabicKeywordInput.trim()) {
                         setNewProduct({
                           ...newProduct,
@@ -2108,7 +2831,7 @@ export const AdminView: React.FC = () => {
                         key={sIdx}
                         type="button"
                         disabled={exists}
-                        onClick={() => {
+                        onClick={(e) => { e.stopPropagation();
                           if (!exists) {
                             setNewProduct({
                               ...newProduct,
@@ -2203,6 +2926,267 @@ export const AdminView: React.FC = () => {
         </div>
       )}
 
+      {/* Bulk Product CSV Upload Modal */}
+      {isBulkUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div 
+            className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Mass Product Creator (CSV Import)</h3>
+                <p className="text-xs text-slate-500">Create or update hundreds of products instantly using a spreadsheet</p>
+              </div>
+              <button 
+                onClick={() => setIsBulkUploadModalOpen(false)}
+                className="text-slate-400 hover:text-slate-700 text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* CSV File Selection & Instructions */}
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs space-y-2">
+                <h4 className="font-bold text-slate-800">CSV Template Headers Requirements:</h4>
+                <p className="text-slate-500 leading-relaxed">
+                  Your CSV must contain a header row. The system supports both new listings and updates (if <code className="bg-slate-100 px-1 py-0.5 rounded font-mono">sku</code> matches an existing product ID).
+                </p>
+                <div className="grid grid-cols-2 gap-2 pt-1.5 font-mono text-[10px]">
+                  <div><strong className="text-indigo-600">sku</strong> (optional, for updates)</div>
+                  <div><strong className="text-indigo-600">name_en</strong> (required)</div>
+                  <div><strong className="text-indigo-600">category</strong> (matching category ID)</div>
+                  <div><strong className="text-indigo-600">seller_id</strong> (matching seller ID)</div>
+                  <div><strong className="text-indigo-600">price_usd</strong> (must be &gt; 0)</div>
+                  <div><strong className="text-indigo-600">stock</strong> (must be &gt;= 0)</div>
+                  <div><strong className="text-indigo-600">image_url</strong> (primary photo URL)</div>
+                  <div><strong className="text-emerald-600">additional_images</strong> (pipe | separated)</div>
+                  <div><strong className="text-indigo-600">video_url</strong> (YouTube/Vimeo/MP4)</div>
+                  <div><strong className="text-emerald-600">additional_videos</strong> (pipe | separated)</div>
+                </div>
+                <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                  <button
+                    onClick={handleDownloadHeadersOnlyTemplate}
+                    className="inline-flex items-center gap-1.5 text-emerald-600 hover:text-emerald-500 font-bold cursor-pointer bg-emerald-50/55 px-2.5 py-1.5 rounded-lg border border-emerald-100"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Download Empty CSV Template (Headers Only)</span>
+                  </button>
+                  <button
+                    onClick={handleDownloadProductsReport}
+                    className="inline-flex items-center gap-1.5 text-indigo-600 hover:text-indigo-500 font-bold cursor-pointer bg-indigo-50/55 px-2.5 py-1.5 rounded-lg border border-indigo-100"
+                  >
+                    <Download className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Download Existing Products for reference</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Target Seller & Category Overrides / Fallbacks */}
+              <div className="p-4 bg-indigo-50/60 border border-indigo-100 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Quick Supplier Assignment & Fallbacks</span>
+                  </span>
+                  <span className="text-[10px] text-indigo-600 font-medium">Auto-resolves missing or unmapped columns</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Target Seller / Supplier:
+                    </label>
+                    <select
+                      value={bulkImportTargetSellerId}
+                      onChange={(e) => handleTargetSellerChange(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs cursor-pointer"
+                    >
+                      <option value="auto">⚡ Auto-Detect from CSV (by ID, Name, or Slug)</option>
+                      {sellers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nameEn} ({s.id})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Choose a seller to assign all imported rows to that supplier.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Default Fallback Category:
+                    </label>
+                    <select
+                      value={bulkImportFallbackCategoryId}
+                      onChange={(e) => handleFallbackCategoryChange(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs cursor-pointer"
+                    >
+                      <option value="auto">⚡ Auto-Detect from CSV</option>
+                      {categories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nameEn} ({c.id})
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Used if the category column is missing or unmapped in the CSV.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Upload Dropzone */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-700 text-xs">Choose or Drop CSV File:</label>
+                <div className="relative border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-2xl p-6 text-center transition-all bg-slate-50">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={handleBulkUploadFileChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <UploadCloud className="w-8 h-8 text-slate-400" />
+                    <div>
+                      <p className="text-xs font-bold text-slate-700">
+                        {bulkImportFile ? bulkImportFile.name : 'Click to upload or drag & drop CSV'}
+                      </p>
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Only .csv files up to 10MB are supported
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Validation Result / Errors */}
+              {bulkImportResult && (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1.5">
+                  <h4 className="font-bold text-emerald-950 text-xs">Import Completed Successfully!</h4>
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">New Created</div>
+                      <div className="text-lg font-black text-emerald-700">{bulkImportResult.created}</div>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Existing Updated</div>
+                      <div className="text-lg font-black text-indigo-700">{bulkImportResult.updated}</div>
+                    </div>
+                  </div>
+                  {bulkImportResult.errors.length > 0 && (
+                    <div className="pt-2 text-[10px] text-rose-600 font-mono space-y-1 max-h-32 overflow-y-auto">
+                      {bulkImportResult.errors.map((err, eIdx) => (
+                        <div key={eIdx}>⚠️ {err}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Dry-Run Parser Preview */}
+              {bulkImportFile && !bulkImportResult && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-xs text-slate-800">Dry-Run Preview:</h4>
+                      <p className="text-[10px] text-slate-400">
+                        {bulkImportPreviewRows.length} rows detected ({bulkImportPreviewRows.filter(r => r.issues.length === 0).length} valid, {bulkImportPreviewRows.filter(r => r.issues.length > 0).length} with issues)
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCommitBulkUpload}
+                      disabled={isBulkImporting || bulkImportPreviewRows.filter(r => r.issues.length === 0).length === 0}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all inline-flex items-center gap-1.5 ${
+                        bulkImportPreviewRows.filter(r => r.issues.length === 0).length === 0
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-sm active:scale-95'
+                      }`}
+                    >
+                      {isBulkImporting ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Importing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>
+                            {bulkImportPreviewRows.filter(r => r.issues.length === 0).length > 0
+                              ? `Commit ${bulkImportPreviewRows.filter(r => r.issues.length === 0).length} Valid ${bulkImportPreviewRows.filter(r => r.issues.length === 0).length === 1 ? 'Row' : 'Rows'}`
+                              : 'No Valid Rows'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Preview Table */}
+                  <div className="border border-slate-100 rounded-xl overflow-hidden text-xs max-h-48 overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 text-[10px] uppercase font-bold">
+                          <th className="p-2 pl-3">Row</th>
+                          <th className="p-2">SKU/ID</th>
+                          <th className="p-2">Title</th>
+                          <th className="p-2">Assigned Seller</th>
+                          <th className="p-2">Category</th>
+                          <th className="p-2">Action</th>
+                          <th className="p-2 pr-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50 text-[11px]">
+                        {bulkImportPreviewRows.map((pRow, pIdx) => (
+                          <tr key={pIdx} className="hover:bg-slate-50">
+                            <td className="p-2 pl-3 text-slate-400 font-mono">#{pRow.rowNum}</td>
+                            <td className="p-2 font-mono text-slate-600 truncate max-w-[90px]" title={pRow.sku}>{pRow.sku}</td>
+                            <td className="p-2 font-bold text-slate-800 truncate max-w-[130px]" title={pRow.name}>{pRow.name}</td>
+                            <td className="p-2 text-indigo-700 font-medium truncate max-w-[110px]" title={pRow.sellerName}>
+                              {pRow.sellerName}
+                            </td>
+                            <td className="p-2 text-slate-600 truncate max-w-[90px]" title={pRow.categoryName}>
+                              {pRow.categoryName}
+                            </td>
+                            <td className="p-2">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
+                                pRow.action === 'Update' 
+                                  ? 'bg-indigo-50 text-indigo-700' 
+                                  : 'bg-emerald-50 text-emerald-700'
+                              }`}>
+                                {pRow.action}
+                              </span>
+                            </td>
+                            <td className="p-2 pr-3">
+                              {pRow.issues.length > 0 ? (
+                                <span className="text-rose-600 font-mono text-[10px]" title={pRow.issues.join(', ')}>
+                                  ❌ {pRow.issues[0]}
+                                </span>
+                              ) : (
+                                <span className="text-emerald-600 font-bold">✅ Ready</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 flex items-center justify-end border-t border-slate-100">
+              <button
+                onClick={() => setIsBulkUploadModalOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-all"
+              >
+                Close Importer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Full Edit Product Modal */}
       {fullEditProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
@@ -2219,7 +3203,7 @@ export const AdminView: React.FC = () => {
                 <p className="text-xs text-slate-500 font-mono">ID: {fullEditProduct.id}</p>
               </div>
               <button 
-                onClick={() => setFullEditProduct(null)}
+                onClick={(e) => { e.stopPropagation(); setFullEditProduct(null); }}
                 className="text-slate-400 hover:text-slate-700 text-lg font-bold cursor-pointer"
               >
                 ✕
@@ -2247,6 +3231,51 @@ export const AdminView: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none text-right font-serif"
                   />
                 </div>
+              </div>
+
+              {/* Registered Seller Selector */}
+              <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Store className="w-4 h-4 text-indigo-600" />
+                    <span>Select Registered Seller / Artisan:</span>
+                  </label>
+                  <span className="text-[10px] font-semibold text-indigo-600">
+                    {sellers.length} registered in system
+                  </span>
+                </div>
+                <select
+                  value={fullEditProduct.sellerId || (sellers.find(s => s.nameEn.toLowerCase() === (fullEditProduct.seller || fullEditProduct.artisan || '').toLowerCase())?.id || '')}
+                  onChange={(e) => {
+                    const sId = e.target.value;
+                    if (!sId) {
+                      setFullEditProduct({
+                        ...fullEditProduct,
+                        sellerId: undefined
+                      });
+                    } else {
+                      const found = sellers.find(s => s.id === sId);
+                      if (found) {
+                        setFullEditProduct({
+                          ...fullEditProduct,
+                          seller: found.nameEn,
+                          artisan: found.nameEn,
+                          arabicSeller: found.nameAr || '',
+                          origin: found.region || fullEditProduct.origin,
+                          sellerId: found.id
+                        });
+                      }
+                    }
+                  }}
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-indigo-200 focus:outline-none focus:border-indigo-600 text-xs font-bold text-slate-800 shadow-2xs cursor-pointer"
+                >
+                  <option value="">-- Choose from Registered Sellers or edit details manually below --</option>
+                  {sellers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nameEn} {s.nameAr ? `(${s.nameAr})` : ''} — {s.region || 'Lebanon'}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2349,7 +3378,7 @@ export const AdminView: React.FC = () => {
                 <label className="block font-bold text-slate-700 mb-1">Publish / Live Status</label>
                 <button
                   type="button"
-                  onClick={() => setFullEditProduct({ ...fullEditProduct, isPublished: fullEditProduct.isPublished === false ? true : false })}
+                  onClick={(e) => { e.stopPropagation(); setFullEditProduct({ ...fullEditProduct, isPublished: fullEditProduct.isPublished === false ? true : false }); }}
                   className={`w-full py-2.5 rounded-xl font-bold uppercase text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
                     fullEditProduct.isPublished !== false 
                       ? 'bg-emerald-600 text-white' 
@@ -2361,14 +3390,196 @@ export const AdminView: React.FC = () => {
                 </button>
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Image URL</label>
-                <input
-                  type="url"
-                  value={fullEditProduct.image}
-                  onChange={(e) => setFullEditProduct({ ...fullEditProduct, image: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
-                />
+              {/* Primary & Multiple Media Section for Edit Modal */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                {/* Main Primary Image */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Primary Image URL *</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">Main product showcase photo</span>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="url"
+                      required
+                      value={fullEditProduct.image}
+                      onChange={(e) => setFullEditProduct({ ...fullEditProduct, image: e.target.value })}
+                      className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-200 focus:outline-none"
+                    />
+                    {fullEditProduct.image && (
+                      <img
+                        src={fullEditProduct.image}
+                        alt="Primary Preview"
+                        className="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Additional Gallery Images */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Additional Gallery Images ({((fullEditProduct.additionalImages || []).length)} images)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      {(fullEditProduct.additionalImages || []).length} images
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="Paste additional image URL and click Add"
+                      value={editNewImageInput}
+                      onChange={(e) => setEditNewImageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (editNewImageInput.trim()) {
+                            const current = fullEditProduct.additionalImages || [];
+                            setFullEditProduct({
+                              ...fullEditProduct,
+                              additionalImages: [...current, editNewImageInput.trim()]
+                            });
+                            setEditNewImageInput('');
+                          }
+                        }
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation();
+                        if (editNewImageInput.trim()) {
+                          const current = fullEditProduct.additionalImages || [];
+                          setFullEditProduct({
+                            ...fullEditProduct,
+                            additionalImages: [...current, editNewImageInput.trim()]
+                          });
+                          setEditNewImageInput('');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Image</span>
+                    </button>
+                  </div>
+
+                  {(fullEditProduct.additionalImages || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {(fullEditProduct.additionalImages || []).map((imgUrl, iIdx) => (
+                        <div key={iIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300 shadow-2xs bg-white">
+                          <img src={imgUrl} alt={`Gallery ${iIdx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation();
+                              const remaining = (fullEditProduct.additionalImages || []).filter((_, idx) => idx !== iIdx);
+                              setFullEditProduct({
+                                ...fullEditProduct,
+                                additionalImages: remaining
+                              });
+                            }}
+                            className="absolute top-1 right-1 p-1 bg-rose-600/90 hover:bg-rose-700 text-white rounded-full opacity-90 group-hover:opacity-100 transition-all cursor-pointer shadow-xs"
+                            title="Remove image"
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Product Videos (YouTube / Vimeo / MP4) */}
+                <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Product Videos (YouTube / Vimeo / MP4)</span>
+                    </label>
+                    <span className="text-[10px] font-bold text-indigo-800 bg-indigo-100 px-2 py-0.5 rounded-full">
+                      {(fullEditProduct.videos || (fullEditProduct.videoUrl ? [fullEditProduct.videoUrl] : [])).length} videos
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://www.youtube.com/watch?v=... or .mp4 link"
+                      value={editNewVideoInput}
+                      onChange={(e) => setEditNewVideoInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          const val = editNewVideoInput.trim();
+                          if (val) {
+                            const currentVideos = fullEditProduct.videos || (fullEditProduct.videoUrl ? [fullEditProduct.videoUrl] : []);
+                            setFullEditProduct({
+                              ...fullEditProduct,
+                              videoUrl: fullEditProduct.videoUrl || val,
+                              videos: [...currentVideos, val]
+                            });
+                            setEditNewVideoInput('');
+                          }
+                        }
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation();
+                        const val = editNewVideoInput.trim();
+                        if (val) {
+                          const currentVideos = fullEditProduct.videos || (fullEditProduct.videoUrl ? [fullEditProduct.videoUrl] : []);
+                          setFullEditProduct({
+                            ...fullEditProduct,
+                            videoUrl: fullEditProduct.videoUrl || val,
+                            videos: [...currentVideos, val]
+                          });
+                          setEditNewVideoInput('');
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl cursor-pointer text-xs flex items-center gap-1 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Video</span>
+                    </button>
+                  </div>
+
+                  {((fullEditProduct.videos && fullEditProduct.videos.length > 0) ? fullEditProduct.videos : (fullEditProduct.videoUrl ? [fullEditProduct.videoUrl] : [])).length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      {((fullEditProduct.videos && fullEditProduct.videos.length > 0) ? fullEditProduct.videos : (fullEditProduct.videoUrl ? [fullEditProduct.videoUrl] : [])).map((vidUrl, vIdx) => (
+                        <div key={vIdx} className="flex items-center justify-between gap-2 p-2 bg-white rounded-xl border border-slate-200 text-slate-700 text-[11px]">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <Film className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span className="font-mono truncate">{vidUrl}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation();
+                              const currentList = fullEditProduct.videos || (fullEditProduct.videoUrl ? [fullEditProduct.videoUrl] : []);
+                              const remaining = currentList.filter((_, idx) => idx !== vIdx);
+                              setFullEditProduct({
+                                ...fullEditProduct,
+                                videos: remaining,
+                                videoUrl: remaining[0] || ''
+                              });
+                            }}
+                            className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer shrink-0"
+                            title="Remove video"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* ARABIC SEO KEYWORDS SECTION FOR EDIT MODAL */}
@@ -2408,7 +3619,7 @@ export const AdminView: React.FC = () => {
                   />
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => { e.stopPropagation();
                       const inputVal = ((fullEditProduct as any).editArabicKeywordInput || '').trim();
                       if (inputVal) {
                         const currentKw = (fullEditProduct as any).arabicKeywords || [];
@@ -2435,7 +3646,7 @@ export const AdminView: React.FC = () => {
                         key={sIdx}
                         type="button"
                         disabled={exists}
-                        onClick={() => {
+                        onClick={(e) => { e.stopPropagation();
                           if (!exists) {
                             setFullEditProduct({
                               ...fullEditProduct,
@@ -2462,7 +3673,7 @@ export const AdminView: React.FC = () => {
                       <span>#{kw}</span>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => { e.stopPropagation();
                           const currentKw: string[] = (fullEditProduct as any).arabicKeywords || [];
                           setFullEditProduct({
                             ...fullEditProduct,
@@ -2502,7 +3713,7 @@ export const AdminView: React.FC = () => {
               <div className="pt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setFullEditProduct(null)}
+                  onClick={(e) => { e.stopPropagation(); setFullEditProduct(null); }}
                   className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-all"
                 >
                   Cancel
@@ -2711,7 +3922,7 @@ export const AdminView: React.FC = () => {
                       <span>Cancel Order</span>
                     </button>
                     <button
-                      onClick={async () => {
+                      onClick={async (e) => { e.stopPropagation();
                         if (confirm(`Are you sure you want to PERMANENTLY delete order #${selectedInvoiceOrder.id}?`)) {
                           await deleteOrder(selectedInvoiceOrder.id);
                           setSelectedInvoiceOrder(null);
@@ -2750,3 +3961,5 @@ export const AdminView: React.FC = () => {
     </div>
   );
 };
+
+export default AdminView;

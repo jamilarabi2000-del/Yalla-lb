@@ -52,10 +52,15 @@ export const HeroBanner: React.FC = () => {
         if (urlCategory) {
           setSelectedCategory(urlCategory);
         } else {
-          setSelectedCategory('All');
+          setSelectedCategory('all');
         }
+      } else {
+        setSelectedCategory('all');
       }
+    } else {
+      setSelectedCategory('all');
     }
+    setSearchQuery('');
     setActiveTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

@@ -172,7 +172,7 @@ export const OffersCarousel: React.FC = () => {
         if (urlCategory) {
           setSelectedCategory(urlCategory);
         } else {
-          setSelectedCategory('All');
+          setSelectedCategory('all');
         }
         setActiveTab('products');
         window.scrollTo({ top: 0, behavior: 'smooth' });

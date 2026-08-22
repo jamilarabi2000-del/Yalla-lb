@@ -21,6 +21,7 @@ import {
   downloadFullMasterReport, 
   downloadSellerPerformanceReport 
 } from '../../utils/exportMasterReport';
+import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../../utils/importerResolvers';
 
 export const SellersView: React.FC = () => {
   const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
@@ -45,6 +46,9 @@ export const SellersView: React.FC = () => {
 
   // CSV Import state
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [rawImportRows, setRawImportRows] = useState<any[]>([]);
+  const [targetSellerId, setTargetSellerId] = useState<string>('auto');
+  const [fallbackCategoryId, setFallbackCategoryId] = useState<string>('auto');
   const [previewRows, setPreviewRows] = useState<any[]>([]);
   const [importErrors, setImportErrors] = useState<string[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -151,36 +155,24 @@ export const SellersView: React.FC = () => {
       'name_en',
       'name_ar',
       'seller_id',
+      'seller_item_code',
       'category',
       'price_usd',
       'original_price_usd',
       'stock',
       'image_url',
+      'additional_images',
+      'video_url',
+      'additional_videos',
       'description_en',
       'description_ar',
       'tags',
       'is_published',
-      'origin'
+      'origin_terroir',
+      'weight_or_volume'
     ];
 
-    const sampleRows = products.slice(0, 10).map(p => [
-      p.id,
-      `"${p.name.replace(/"/g, '""')}"`,
-      `"${(p.arabicName || p.name).replace(/"/g, '""')}"`,
-      p.sellerId || sellers[0]?.id || 'terroir-du-liban',
-      p.category,
-      p.priceUSD,
-      p.originalPriceUSD || '',
-      p.stock,
-      p.image,
-      `"${p.description.replace(/"/g, '""')}"`,
-      `"${p.craftStory.replace(/"/g, '""')}"`,
-      `"${p.tags.join('|')}"`,
-      p.isPublished !== false ? 'true' : 'false',
-      `"${p.origin.replace(/"/g, '""')}"`
-    ]);
-
-    const csvContent = [headers.join(','), ...sampleRows.map(r => r.join(','))].join('\n');
+    const csvContent = headers.join(',');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -217,6 +209,48 @@ export const SellersView: React.FC = () => {
     });
   };
 
+  const recomputePreview = (rows: any[], targetSeller: string, fallbackCat: string) => {
+    const parsedPreview: any[] = [];
+
+    rows.forEach((row, idx) => {
+      if (isCsvRowEmpty(row)) return;
+      const rowNum = idx + 2;
+      const name = (row.name_en || row.name || row.title || '').toString().trim();
+      const resolvedSeller = resolveSeller(row, sellers, targetSeller);
+      const resolvedCategory = resolveCategory(row, categories, fallbackCat);
+      const priceUSD = parsePrice(row.price_usd || row.price || row.unit_price);
+      const stock = parseStock(row.stock !== undefined ? row.stock : row.qty);
+
+      const rowIssues: string[] = [];
+      if (!name) rowIssues.push('name_en required');
+      if (!resolvedSeller) {
+        const rawSeller = row.seller_id || row.seller || row.seller_artisan || 'empty';
+        rowIssues.push(`seller "${rawSeller}" unknown (Select Target Seller above)`);
+      }
+      if (!resolvedCategory) {
+        const rawCat = row.category || row.category_id || 'empty';
+        rowIssues.push(`category "${rawCat}" unknown`);
+      }
+      if (priceUSD <= 0) rowIssues.push('price_usd must be > 0');
+      if (isNaN(stock) || stock < 0) rowIssues.push('stock must be >= 0');
+
+      const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${idx}`;
+      const isUpdate = products.some(p => p.id === sku);
+
+      parsedPreview.push({
+        rowNum,
+        sku,
+        name: name || 'Unnamed',
+        sellerName: resolvedSeller?.sellerName || 'Unassigned',
+        categoryName: resolvedCategory?.categoryName || 'Unassigned',
+        action: isUpdate ? 'Update' : 'Create',
+        issues: rowIssues
+      });
+    });
+
+    setPreviewRows(parsedPreview);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -235,45 +269,28 @@ export const SellersView: React.FC = () => {
           skipEmptyLines: true,
           transformHeader: (h) => h.trim().toLowerCase(),
           complete: (results) => {
-            const rows = results.data as any[];
-            const sellerIds = new Set(sellers.map(s => s.id));
-            const categoryIds = new Set(categories.map(c => c.id));
-            const parsedPreview: any[] = [];
-            const errs: string[] = [];
-
-            rows.forEach((row, idx) => {
-              const rowNum = idx + 2;
-              const name = row.name_en || row.name;
-              const sellerId = row.seller_id || row.sellerid;
-              const category = row.category;
-              const priceUSD = Number(row.price_usd || row.price);
-              const stock = Number(row.stock);
-
-              const rowIssues: string[] = [];
-              if (!name || name.trim().length === 0) rowIssues.push('name_en required');
-              if (!sellerId || !sellerIds.has(sellerId.trim())) rowIssues.push(`seller_id "${sellerId}" unknown`);
-              if (!category || !categoryIds.has(category.trim())) rowIssues.push(`category "${category}" unknown`);
-              if (isNaN(priceUSD) || priceUSD <= 0) rowIssues.push('price_usd must be > 0');
-              if (isNaN(stock) || stock < 0) rowIssues.push('stock must be >= 0');
-
-              const sku = row.sku?.trim() || `prod-${idx}`;
-              const isUpdate = products.some(p => p.id === sku);
-
-              parsedPreview.push({
-                rowNum,
-                sku,
-                name: name || 'Unnamed',
-                action: isUpdate ? 'Update' : 'Create',
-                issues: rowIssues
-              });
-            });
-
-            setPreviewRows(parsedPreview);
+            const rows = (results.data as any[]).filter(r => !isCsvRowEmpty(r));
+            setRawImportRows(rows);
+            recomputePreview(rows, targetSellerId, fallbackCategoryId);
           }
         });
       });
     };
     reader.readAsText(file, 'UTF-8');
+  };
+
+  const handleTargetSellerSelect = (newSellerId: string) => {
+    setTargetSellerId(newSellerId);
+    if (rawImportRows.length > 0) {
+      recomputePreview(rawImportRows, newSellerId, fallbackCategoryId);
+    }
+  };
+
+  const handleFallbackCategorySelect = (newCatId: string) => {
+    setFallbackCategoryId(newCatId);
+    if (rawImportRows.length > 0) {
+      recomputePreview(rawImportRows, targetSellerId, newCatId);
+    }
   };
 
   const handleCommitImport = async () => {
@@ -283,9 +300,16 @@ export const SellersView: React.FC = () => {
     reader.onload = async (event) => {
       const text = event.target?.result as string;
       try {
-        const result = await bulkImportProducts(text);
+        const result = await bulkImportProducts(text, {
+          targetSellerId: targetSellerId,
+          fallbackCategoryId: fallbackCategoryId
+        });
         setImportResult(result);
-        showToast(`Successfully imported products! Created: ${result.created}, Updated: ${result.updated}`);
+        if (result.created > 0 || result.updated > 0) {
+          showToast(`Successfully imported products! Created: ${result.created}, Updated: ${result.updated}`, 'success');
+        } else if (result.errors.length > 0) {
+          showToast(`Import encountered issues: ${result.errors[0]}`, 'warning');
+        }
       } catch (err: any) {
         showToast(err.message || 'Import failed', 'warning');
       } finally {
@@ -338,8 +362,8 @@ export const SellersView: React.FC = () => {
       {activeSubTab === 'sellers' ? (
         <div className="space-y-6">
           {/* Action Bar */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -377,7 +401,7 @@ export const SellersView: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto">
               <button
                 onClick={() => {
                   downloadSellerPerformanceReport(products, sellers, orders);
@@ -407,28 +431,28 @@ export const SellersView: React.FC = () => {
           </div>
 
           {/* Sellers Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
             {filteredSellers.map((seller) => {
               const productCount = products.filter(p => p.sellerId === seller.id).length;
               return (
                 <div 
                   key={seller.id}
-                  className={`bg-white rounded-3xl p-6 border transition-all shadow-xs flex flex-col justify-between ${
+                  className={`bg-white rounded-3xl p-5 sm:p-6 border transition-all shadow-xs flex flex-col justify-between ${
                     seller.isActive ? 'border-slate-200' : 'border-amber-200 bg-amber-50/20 opacity-75'
                   }`}
                 >
                   <div>
                     <div className="flex items-start justify-between gap-3 mb-3">
-                      <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">
+                      <div className="min-w-0 flex-1">
+                        <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 truncate max-w-full">
                           {seller.id}
                         </span>
-                        <h3 className="text-base font-black text-slate-900 mt-2">{seller.nameEn}</h3>
-                        {seller.nameAr && <p className="text-xs font-semibold text-slate-500">{seller.nameAr}</p>}
+                        <h3 className="text-base font-black text-slate-900 mt-2 truncate" title={seller.nameEn}>{seller.nameEn}</h3>
+                        {seller.nameAr && <p className="text-xs font-semibold text-slate-500 truncate" title={seller.nameAr}>{seller.nameAr}</p>}
                       </div>
                       <button
                         onClick={() => toggleSellerActive(seller.id, !seller.isActive)}
-                        className={`p-2 rounded-xl transition-all cursor-pointer ${
+                        className={`p-2 rounded-xl transition-all cursor-pointer shrink-0 ${
                           seller.isActive 
                             ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100' 
                             : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
@@ -440,18 +464,18 @@ export const SellersView: React.FC = () => {
                     </div>
 
                     <div className="space-y-1.5 py-3 border-t border-b border-slate-100 text-xs text-slate-600">
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-slate-400">Region:</span>
-                        <span className="font-bold uppercase">{seller.region || 'Lebanon'}</span>
+                        <span className="font-bold uppercase truncate max-w-[140px] text-right">{seller.region || 'Lebanon'}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex justify-between items-center">
                         <span className="text-slate-400">Linked Products:</span>
                         <span className="font-black text-indigo-600">{productCount} products</span>
                       </div>
                       {seller.contactPhone && (
-                        <div className="flex justify-between">
+                        <div className="flex justify-between items-center">
                           <span className="text-slate-400">WhatsApp:</span>
-                          <span className="font-bold">{seller.contactPhone}</span>
+                          <span className="font-bold truncate max-w-[140px] text-right">{seller.contactPhone}</span>
                         </div>
                       )}
                     </div>
@@ -463,7 +487,7 @@ export const SellersView: React.FC = () => {
                     }`}>
                       {seller.isActive ? 'Active Storefront' : 'Inactive / Hidden'}
                     </span>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => handleOpenEdit(seller)}
                         className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer"
@@ -492,6 +516,59 @@ export const SellersView: React.FC = () => {
             <p className="text-xs text-slate-500 mt-0.5">
               Download your current catalog template, edit prices or stock in Excel, and re-import via CSV with dry-run preview validation.
             </p>
+          </div>
+
+          {/* Quick Target Seller & Fallback Category Mapping */}
+          <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                <Store className="w-4 h-4 text-indigo-600" />
+                <span>Quick Supplier Assignment & Fallbacks</span>
+              </span>
+              <span className="text-[10px] text-indigo-600 font-medium">Auto-resolves missing or unmapped CSV columns</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Target Seller / Supplier:
+                </label>
+                <select
+                  value={targetSellerId}
+                  onChange={(e) => handleTargetSellerSelect(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs cursor-pointer"
+                >
+                  <option value="auto">⚡ Auto-Detect from CSV (by ID, Name, or Slug)</option>
+                  {sellers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nameEn} ({s.id})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Select a seller here to automatically link all imported items to that vendor.
+                </p>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Default Fallback Category:
+                </label>
+                <select
+                  value={fallbackCategoryId}
+                  onChange={(e) => handleFallbackCategorySelect(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-2xs cursor-pointer"
+                >
+                  <option value="auto">⚡ Auto-Detect from CSV</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nameEn} ({c.id})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Used if the CSV row has a blank or unrecognized category.
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
@@ -546,19 +623,27 @@ export const SellersView: React.FC = () => {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 <div>
                   <h4 className="font-black text-sm text-slate-900">Dry-Run Preview: {importFile.name}</h4>
-                  <p className="text-xs text-slate-500">{previewRows.length} rows parsed and validated.</p>
+                  <p className="text-xs text-slate-500">
+                    {previewRows.length} rows detected ({previewRows.filter(r => r.issues.length === 0).length} valid, {previewRows.filter(r => r.issues.length > 0).length} with issues)
+                  </p>
                 </div>
                 <button
                   onClick={handleCommitImport}
-                  disabled={isImporting || previewRows.some(r => r.issues.length > 0)}
+                  disabled={isImporting || previewRows.filter(r => r.issues.length === 0).length === 0}
                   className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all inline-flex items-center justify-center gap-2 ${
-                    previewRows.some(r => r.issues.length > 0)
+                    previewRows.filter(r => r.issues.length === 0).length === 0
                       ? 'bg-slate-200 text-slate-400 cursor-not-allowed w-full sm:w-auto'
                       : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-sm w-full sm:w-auto'
                   }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>{isImporting ? 'Committing...' : 'Commit Valid Rows'}</span>
+                  <span>
+                    {isImporting
+                      ? 'Committing...'
+                      : previewRows.filter(r => r.issues.length === 0).length > 0
+                        ? `Commit ${previewRows.filter(r => r.issues.length === 0).length} Valid ${previewRows.filter(r => r.issues.length === 0).length === 1 ? 'Row' : 'Rows'}`
+                        : 'No Valid Rows'}
+                  </span>
                 </button>
               </div>
 
@@ -578,6 +663,8 @@ export const SellersView: React.FC = () => {
                       <th className="py-3 px-4">Row</th>
                       <th className="py-3 px-4">SKU</th>
                       <th className="py-3 px-4">Product Name</th>
+                      <th className="py-3 px-4">Assigned Seller</th>
+                      <th className="py-3 px-4">Category</th>
                       <th className="py-3 px-4">Action</th>
                       <th className="py-3 px-4">Issues / Status</th>
                     </tr>
@@ -588,6 +675,8 @@ export const SellersView: React.FC = () => {
                         <td className="py-3 px-4 text-slate-500 font-bold">{row.rowNum}</td>
                         <td className="py-3 px-4 font-mono text-slate-700">{row.sku}</td>
                         <td className="py-3 px-4 font-bold text-slate-900">{row.name}</td>
+                        <td className="py-3 px-4 text-indigo-700 font-medium">{row.sellerName}</td>
+                        <td className="py-3 px-4 text-slate-600">{row.categoryName}</td>
                         <td className="py-3 px-4">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             row.action === 'Create' ? 'bg-sky-50 text-sky-700' : 'bg-indigo-50 text-indigo-700'
