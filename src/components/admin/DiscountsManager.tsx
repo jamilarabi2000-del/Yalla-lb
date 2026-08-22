@@ -577,7 +577,9 @@ export const DiscountsManager: React.FC = () => {
                   >
                     <option value="">-- Choose Product --</option>
                     {products.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name} (${p.priceUSD})</option>
+                      <option key={p.id} value={p.id}>
+                        {p.name} [{p.sellerItemCode || 'No Code'}] (${p.priceUSD})
+                      </option>
                     ))}
                   </select>
                 </div>

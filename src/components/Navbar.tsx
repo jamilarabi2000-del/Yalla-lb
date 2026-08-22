@@ -25,6 +25,7 @@ export const Navbar: React.FC = () => {
     wishlist,
     searchQuery,
     setSearchQuery,
+    logSearchQuery,
     setSelectedCategory,
     language,
     setLanguage,
@@ -33,7 +34,8 @@ export const Navbar: React.FC = () => {
     isAdminUser = false,
     firebaseUser,
     user,
-    siteContent
+    siteContent,
+    categories = []
   } = useShop();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -42,26 +44,25 @@ export const Navbar: React.FC = () => {
 
   const showAdminTab = isAdminUser;
 
+  // Filter out any unpublished categories and sort by displayOrder
+  const sortedActiveCategories = [...categories]
+    .filter(cat => cat.isPublished !== false)
+    .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+
   const categoriesList = [
     { id: 'all', name: t('cat_all'), icon: '✨' },
-    { id: 'consumable', name: t('cat_consumable'), icon: '🍯' },
-    { id: 'grocery', name: t('cat_grocery'), icon: '🛒' },
-    { id: 'electronics', name: t('cat_electronics'), icon: '⚡' },
-    { id: 'fashion', name: t('cat_fashion'), icon: '👔' },
-    { id: 'home', name: t('cat_home'), icon: '🛋️' },
-    { id: 'beauty-personal-care', name: t('cat_beauty_personal_care'), icon: '🧴' },
-    { id: 'linen-bath', name: t('cat_linen_bath'), icon: '🛌' },
-    { id: 'sports', name: t('cat_sports'), icon: '⚽' },
-    { id: 'books', name: t('cat_books'), icon: '📚' },
-    { id: 'toys', name: t('cat_toys'), icon: '🧸' },
-    { id: 'indoor-furniture', name: t('cat_indoor_furniture'), icon: '🪑' },
-    { id: 'outdoor-furniture', name: t('cat_outdoor_furniture'), icon: '🪴' },
-    { id: 'lawn-garden', name: t('cat_lawn_garden'), icon: '🌿' },
-    { id: 'yalla-global', name: t('cat_yalla_global'), icon: '🌐' }
+    ...sortedActiveCategories.map(cat => ({
+      id: cat.id,
+      name: language === 'ar' ? cat.nameAr : cat.nameEn,
+      icon: cat.icon || '📦'
+    }))
   ];
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (searchQuery.trim()) {
+      logSearchQuery(searchQuery);
+    }
     if (activeTab !== 'products') {
       setActiveTab('products');
     }

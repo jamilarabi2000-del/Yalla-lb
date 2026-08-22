@@ -294,7 +294,7 @@ export const CartDrawer: React.FC = () => {
                 </div>
                 <div className="pt-2.5 border-t border-slate-200 flex justify-between items-center text-slate-900 font-bold">
                   <span className="text-sm">{t('estimatedTotal')}</span>
-                  <span className="text-xl font-black text-slate-950">{formatPrice(cartTotalUSD)}</span>
+                  <span className="text-xl font-black text-slate-950">{formatPrice(cartTotalUSD >= 50 ? cartTotalUSD : cartTotalUSD + 3)}</span>
                 </div>
               </div>
 

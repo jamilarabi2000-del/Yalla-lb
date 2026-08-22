@@ -470,7 +470,6 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'vi
                   { key: 'homeNewArrivals', label: 'New Village Arrivals' },
                   { key: 'homeHeritage', label: 'Heritage Story & Bio' },
                   { key: 'homeReviews', label: 'Customer Reviews' },
-                  { key: 'homeNewsletter', label: 'Newsletter Signup' },
                   { key: 'homeNews', label: 'Press & Articles' }
                 ].map((item) => {
                   const isVisible = visibility[item.key as keyof SectionVisibilityConfig] ?? true;

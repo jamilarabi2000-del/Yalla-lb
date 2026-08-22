@@ -18,6 +18,7 @@ export type AdminMenuTab =
   | 'discounts'
   | 'customers' 
   | 'active_carts' 
+  | 'search_analytics'
   | 'pages_cms'
   | 'page_home'
   | 'page_products'
@@ -112,6 +113,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       label: 'Active Carts',
       icon: '🛒',
       badge: activeCartsCount
+    },
+    {
+      id: 'search_analytics',
+      label: 'Search Trends',
+      icon: '🔍'
     }
   ];
 

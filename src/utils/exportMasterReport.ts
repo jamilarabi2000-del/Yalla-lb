@@ -4,6 +4,7 @@ import { Product, Seller, Order } from '../types';
 export interface MasterReportRow {
   // Product Details
   product_id: string;
+  seller_item_code: string;
   product_name_en: string;
   product_name_ar: string;
   category: string;
@@ -73,6 +74,7 @@ export interface SellerPerformanceRow {
 
 export interface StockInventoryRow {
   product_id: string;
+  seller_item_code: string;
   product_name: string;
   arabic_name: string;
   seller_name: string;
@@ -194,6 +196,7 @@ export function downloadFullMasterReport(
 
     return {
       product_id: product.id,
+      seller_item_code: product.sellerItemCode || '',
       product_name_en: product.name,
       product_name_ar: product.arabicName || '',
       category: product.category || 'General',
@@ -434,6 +437,7 @@ export function downloadStockInventoryReport(
 
       return {
         product_id: p.id,
+        seller_item_code: p.sellerItemCode || '',
         product_name: p.name,
         arabic_name: p.arabicName || '',
         seller_name: sName,

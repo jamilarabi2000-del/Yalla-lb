@@ -127,20 +127,24 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
           </h3>
         </div>
 
-        {/* Price Row & Quick Add / Remove */}
-        <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
-          <div className="flex items-center gap-1.5 dir-ltr">
-            <span className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
-              {formatPrice(product.priceUSD)}
-            </span>
-            {product.originalPriceUSD && (
-              <span className="text-xs text-slate-400 line-through font-semibold">
-                {formatPrice(product.originalPriceUSD)}
+        {/* Price Row & Quick Add / Remove Action */}
+        <div className="pt-2.5 border-t border-slate-100 mt-auto flex flex-col gap-2">
+          {/* Price */}
+          <div className="flex items-baseline justify-between gap-1.5">
+            <div className="flex items-baseline gap-1.5 flex-wrap dir-ltr">
+              <span className="text-base sm:text-lg font-black text-slate-950 tracking-tight">
+                {formatPrice(product.priceUSD)}
               </span>
-            )}
+              {product.originalPriceUSD && (
+                <span className="text-xs text-slate-400 line-through font-semibold">
+                  {formatPrice(product.originalPriceUSD)}
+                </span>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          {/* Add To Cart Action */}
+          <div className="flex items-center gap-1.5 w-full">
             {showRemoveButton && (
               <button
                 type="button"
@@ -148,7 +152,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
                 onClick={handleRemoveClick}
                 aria-label={language === 'ar' ? 'إزالة' : 'Remove'}
                 title={language === 'ar' ? 'إزالة من المفضلة' : 'Remove from favorites'}
-                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/70"
+                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer border border-slate-200/70 shrink-0"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -158,11 +162,12 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
               type="button"
               id={`quick-add-btn-${product.id}`}
               onClick={handleQuickAdd}
-              aria-label={t('addToCart')}
-              title={t('addToCart')}
-              className="w-8 h-8 rounded-xl bg-slate-900 hover:bg-amber-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs"
+              aria-label={language === 'ar' ? 'أضف للسلة' : 'Add To Cart'}
+              title={language === 'ar' ? 'أضف للسلة' : 'Add To Cart'}
+              className="flex-1 w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-amber-600 text-white flex items-center justify-center gap-1.5 transition-all duration-200 cursor-pointer shadow-xs active:scale-[0.98] text-xs font-bold text-center"
             >
-              <ShoppingBag className="w-3.5 h-3.5" />
+              <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+              <span className="whitespace-nowrap">{language === 'ar' ? 'أضف للسلة' : 'Add To Cart'}</span>
             </button>
           </div>
         </div>

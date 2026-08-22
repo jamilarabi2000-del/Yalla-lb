@@ -32,6 +32,7 @@ export interface Product {
   seoDescription?: string;
   seoArabicDescription?: string;
   weightOrVolume?: string;
+  sellerItemCode?: string;
 }
 
 export interface Seller {
@@ -141,11 +142,16 @@ export interface UserProfile {
 export interface CMSOfferSlide {
   id: string;
   badge: string;
+  badgeArabic?: string;
   title: string;
+  titleArabic?: string;
   subtitle: string;
+  subtitleArabic?: string;
   buttonText: string;
+  buttonTextArabic?: string;
   targetUrl?: string;
   discountBadge?: string;
+  discountBadgeArabic?: string;
   bgGradient: string;
   imageUrl?: string;
   isCustomSchoolLayout?: boolean;
@@ -155,12 +161,18 @@ export interface CMSOfferSlide {
 export interface CMSNewsArticle {
   id: string;
   title: string;
+  titleArabic?: string;
   excerpt: string;
+  excerptArabic?: string;
   source: string;
+  sourceArabic?: string;
   date: string;
+  dateArabic?: string;
   imageUrl: string;
   tag: string;
+  tagArabic?: string;
   readTime: string;
+  readTimeArabic?: string;
   isPublished?: boolean;
 }
 
@@ -173,7 +185,9 @@ export interface CMSNavTab {
 
 export interface CMSHeroStat {
   label: string;
+  labelArabic?: string;
   value: string;
+  valueArabic?: string;
   isPublished?: boolean;
 }
 
@@ -268,66 +282,108 @@ export interface SiteContent {
   customBlocks: CMSCustomBlock[];
   navbar: {
     announcementTicker: string;
+    announcementTickerArabic?: string;
     brandName: string;
+    brandNameArabic?: string;
     brandSubtitle: string;
+    brandSubtitleArabic?: string;
     phoneSupport: string;
     searchPlaceholder: string;
+    searchPlaceholderArabic?: string;
     navTabs: CMSNavTab[];
   };
   hero: {
     badgeText: string;
+    badgeTextArabic?: string;
     title: string;
+    titleArabic?: string;
     subtitle: string;
+    subtitleArabic?: string;
     primaryBtnText: string;
+    primaryBtnTextArabic?: string;
     secondaryBtnText: string;
+    secondaryBtnTextArabic?: string;
     targetUrl?: string;
     bgImageUrl: string;
     stats: CMSHeroStat[];
   };
   offers: {
     sectionTitle: string;
+    sectionTitleArabic?: string;
     sectionSubtitle: string;
+    sectionSubtitleArabic?: string;
     slides: CMSOfferSlide[];
   };
   home: {
     featuredTitle: string;
+    featuredTitleArabic?: string;
     featuredSubtitle: string;
+    featuredSubtitleArabic?: string;
     regionsTitle: string;
+    regionsTitleArabic?: string;
     regionsSubtitle: string;
+    regionsSubtitleArabic?: string;
     artisansTitle: string;
+    artisansTitleArabic?: string;
     artisansSubtitle: string;
+    artisansSubtitleArabic?: string;
     heritageTitle: string;
+    heritageTitleArabic?: string;
     heritageText: string;
+    heritageTextArabic?: string;
     reviewsTitle: string;
+    reviewsTitleArabic?: string;
     reviewsSubtitle: string;
+    reviewsSubtitleArabic?: string;
     newsletterTitle: string;
+    newsletterTitleArabic?: string;
     newsletterSubtitle: string;
+    newsletterSubtitleArabic?: string;
     newsletterButtonText: string;
+    newsletterButtonTextArabic?: string;
   };
   productsPage: {
     title: string;
+    titleArabic?: string;
     subtitle: string;
+    subtitleArabic?: string;
     searchPlaceholder: string;
+    searchPlaceholderArabic?: string;
     filterAllLabel: string;
+    filterAllLabelArabic?: string;
     noProductsText: string;
+    noProductsTextArabic?: string;
   };
   productDetailPage: {
     inquiryWhatsAppNumber: string;
     inquiryText: string;
+    inquiryTextArabic?: string;
     authenticityGuaranteeText: string;
+    authenticityGuaranteeTextArabic?: string;
     freeDeliveryBadgeText: string;
+    freeDeliveryBadgeTextArabic?: string;
     returnsPolicyText: string;
+    returnsPolicyTextArabic?: string;
     craftStoryTitle: string;
+    craftStoryTitleArabic?: string;
     relatedItemsTitle: string;
+    relatedItemsTitleArabic?: string;
   };
   checkoutPage: {
     title: string;
+    titleArabic?: string;
     subtitle: string;
+    subtitleArabic?: string;
     shippingHeading: string;
+    shippingHeadingArabic?: string;
     paymentHeading: string;
+    paymentHeadingArabic?: string;
     summaryHeading: string;
+    summaryHeadingArabic?: string;
     orderButtonText: string;
+    orderButtonTextArabic?: string;
     guaranteeBadgeText: string;
+    guaranteeBadgeTextArabic?: string;
   };
   checkoutSuccessPage?: {
     successBadge: string;
@@ -349,14 +405,21 @@ export interface SiteContent {
   };
   accountPage: {
     title: string;
+    titleArabic?: string;
     subtitle: string;
+    subtitleArabic?: string;
     ordersTabLabel: string;
+    ordersTabLabelArabic?: string;
     profileTabLabel: string;
+    profileTabLabelArabic?: string;
     wishlistTabLabel: string;
+    wishlistTabLabelArabic?: string;
   };
   newsSection: {
     title: string;
+    titleArabic?: string;
     subtitle: string;
+    subtitleArabic?: string;
     articles: CMSNewsArticle[];
   };
   socialLinks: {
@@ -368,21 +431,28 @@ export interface SiteContent {
   };
   footer: {
     aboutTitle: string;
+    aboutTitleArabic?: string;
     aboutText: string;
+    aboutTextArabic?: string;
     quickLinksTitle: string;
+    quickLinksTitleArabic?: string;
     contactTitle: string;
+    contactTitleArabic?: string;
     phone: string;
     email: string;
     address: string;
+    addressArabic?: string;
     hours: string;
+    hoursArabic?: string;
     copyrightText: string;
+    copyrightTextArabic?: string;
   };
 }
 
 export interface RecentActivity {
   id: string;
   timestamp: string; // ISO 8601 string
-  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'meta_change' | 'cms_update' | 'category_create' | 'category_update' | 'category_delete' | 'region_update';
+  actionType: 'product_add' | 'product_update' | 'product_delete' | 'order_status' | 'order_delete' | 'meta_change' | 'cms_update' | 'category_create' | 'category_update' | 'category_delete' | 'region_update';
   summary: string;
   details: string;
   adminEmail: string;

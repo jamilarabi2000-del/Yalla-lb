@@ -24,7 +24,8 @@
         "isFeatured": { "type": "boolean" },
         "isBestseller": { "type": "boolean" },
         "tags": { "type": "array" },
-        "weightOrVolume": { "type": "string", "maxLength": 50 }
+        "weightOrVolume": { "type": "string", "maxLength": 50 },
+        "sellerItemCode": { "type": "string", "maxLength": 100 }
       },
       "required": ["id", "name", "category", "priceUSD", "artisan"]
     },
@@ -186,6 +187,18 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["uid", "phone", "cleanDigits"]
+    },
+    "SearchLog": {
+      "title": "SearchLog",
+      "description": "Logs user search queries for analytics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "query": { "type": "string", "maxLength": 200 },
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "query", "timestamp"]
     }
   },
   "firestore": {
@@ -232,6 +245,10 @@
     "/discounts/{discountId}": {
       "schema": { "$ref": "#/entities/DiscountRule" },
       "description": "Promotional discount rules managed by admin"
+    },
+    "/search_logs/{logId}": {
+      "schema": { "$ref": "#/entities/SearchLog" },
+      "description": "Log of user search queries for trend analysis"
     }
   }
 }

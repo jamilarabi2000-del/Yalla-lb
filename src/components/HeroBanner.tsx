@@ -94,12 +94,14 @@ export const HeroBanner: React.FC = () => {
         <div className="max-w-2xl mx-auto text-center space-y-5 bg-transparent backdrop-blur-none p-6 sm:p-8">
           
           <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">
-            {heroData.title ?? t('heroTitle')}
+            {language === 'ar' 
+              ? ((heroData as any).titleArabic || t('heroTitle')) 
+              : ((heroData as any).title || t('heroTitle'))}
           </h1>
 
-          {heroData.subtitle && (
+          {((language === 'ar' ? ((heroData as any).subtitleArabic || (heroData as any).subtitle) : (heroData as any).subtitle)) && (
             <p className="text-xs sm:text-sm text-slate-100/90 max-w-xl mx-auto leading-relaxed drop-shadow-xs">
-              {heroData.subtitle}
+              {language === 'ar' ? ((heroData as any).subtitleArabic || (heroData as any).subtitle) : (heroData as any).subtitle}
             </p>
           )}
 
@@ -109,7 +111,7 @@ export const HeroBanner: React.FC = () => {
               <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} w-5 h-5 text-slate-400 pointer-events-none z-10`} />
               <input
                 type="text"
-                placeholder={siteContent?.navbar?.searchPlaceholder ?? t('searchPlaceholder')}
+                placeholder={language === 'ar' ? (siteContent?.navbar?.searchPlaceholderArabic || t('searchPlaceholder')) : (siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') setActiveTab('products');
@@ -120,7 +122,7 @@ export const HeroBanner: React.FC = () => {
                 onClick={handleHeroClick}
                 className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center justify-center px-4 sm:px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
               >
-                {heroData.primaryBtnText ?? t('products')}
+                {language === 'ar' ? ((heroData as any).primaryBtnTextArabic || t('products')) : ((heroData as any).primaryBtnText || t('products'))}
               </button>
             </div>
           </div>

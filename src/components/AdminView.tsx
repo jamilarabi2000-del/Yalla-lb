@@ -9,6 +9,7 @@ import { CategoriesDetailsView } from './admin/CategoriesDetailsView';
 import { SellersView } from './admin/SellersView';
 import { CustomersView } from './admin/CustomersView';
 import { ActiveCartsView } from './admin/ActiveCartsView';
+import { SearchAnalyticsView } from './admin/SearchAnalyticsView';
 import { DiscountsManager } from './admin/DiscountsManager';
 import { DatabaseActivityLogs } from './admin/DatabaseActivityLogs';
 import { PageCMSManager } from './PageCMSManager';
@@ -126,6 +127,13 @@ export const ADMIN_TAB_METAS: Record<AdminMenuTab, { path: string; title: string
     section: 'Store Operations',
     desc: 'Live unpurchased carts and shopper checkout engagement tracking',
     icon: '🛒'
+  },
+  search_analytics: {
+    path: 'search-trends',
+    title: 'Search Trends & Analytics',
+    section: 'Store Operations',
+    desc: 'Real-time monitoring of customer search queries and interest trends',
+    icon: '🔍'
   },
   pages_cms: {
     path: 'cms',
@@ -250,6 +258,7 @@ export const AdminView: React.FC = () => {
     cart = [],
     formatPrice = (n: number) => `$${n}`, 
     updateOrderStatus = async () => {}, 
+    deleteOrder = async () => {},
     addProduct = async () => {},
     updateProduct = async () => {},
     deleteProduct = async () => {},
@@ -400,6 +409,7 @@ export const AdminView: React.FC = () => {
     keywordsInput: string;
     arabicKeywords: string[];
     newArabicKeywordInput: string;
+    sellerItemCode: string;
   }>({
     name: '',
     arabicName: '',
@@ -417,7 +427,8 @@ export const AdminView: React.FC = () => {
     tags: ['Artisanal', 'Lebanese Terroir'],
     keywordsInput: 'lebanese, artisanal, authentic, gourmet',
     arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
-    newArabicKeywordInput: ''
+    newArabicKeywordInput: '',
+    sellerItemCode: 'SIC-' + Math.floor(100000 + Math.random() * 900000)
   });
 
   const { containerRef: addProductModalRef } = useDialog({
@@ -458,8 +469,9 @@ export const AdminView: React.FC = () => {
       const productOrigin = (p.origin || '').toLowerCase();
       const productCategory = (p.category || '').toLowerCase();
       const productId = (p.id || '').toLowerCase();
+      const sellerCode = (p.sellerItemCode || '').toLowerCase();
 
-      // Search matches product title, arabic title, seller/artisan, origin terroir, category, ID, tags, english & arabic SEO keywords
+      // Search matches product title, arabic title, seller/artisan, origin terroir, category, ID, seller code, tags, english & arabic SEO keywords
       const matchesSearch = !searchLower || 
         productName.includes(searchLower) ||
         productArabic.includes(adminProductSearch.trim()) ||
@@ -467,6 +479,7 @@ export const AdminView: React.FC = () => {
         productOrigin.includes(searchLower) ||
         productCategory.includes(searchLower) ||
         productId.includes(searchLower) ||
+        sellerCode.includes(searchLower) ||
         (p.tags && p.tags.some(t => t.toLowerCase().includes(searchLower))) ||
         (p.keywords && p.keywords.some(k => k.toLowerCase().includes(searchLower))) ||
         (p.arabicKeywords && p.arabicKeywords.some(k => k.includes(adminProductSearch.trim())));
@@ -750,7 +763,8 @@ export const AdminView: React.FC = () => {
       arabicKeywords: newProduct.arabicKeywords.filter(Boolean),
       seoTitle: `${newProduct.name} | Authentic Lebanese Goods`,
       seoArabicTitle: `${newProduct.arabicName || newProduct.name} | يلا ع لبنان`,
-      seoDescription: newProduct.description || 'Authentic Lebanese craft and mouneh delivered globally.'
+      seoDescription: newProduct.description || 'Authentic Lebanese craft and mouneh delivered globally.',
+      sellerItemCode: newProduct.sellerItemCode || ('SIC-' + Math.floor(100000 + Math.random() * 900000))
     };
 
     await addProduct(created);
@@ -760,6 +774,27 @@ export const AdminView: React.FC = () => {
         : `Product "${newProduct.name}" saved as Draft (Unpublished).`,
       'success'
     );
+    // Reset Add Product form to clean values with a brand new auto-generated code
+    setNewProduct({
+      name: '',
+      arabicName: '',
+      category: 'grocery',
+      artisan: '',
+      seller: '',
+      arabicSeller: '',
+      origin: 'Koura, North Lebanon',
+      description: '',
+      craftStory: '',
+      priceUSD: 15,
+      stock: 25,
+      image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
+      weightOrVolume: '500ml',
+      tags: ['Artisanal', 'Lebanese Terroir'],
+      keywordsInput: 'lebanese, artisanal, authentic, gourmet',
+      arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
+      newArabicKeywordInput: '',
+      sellerItemCode: 'SIC-' + Math.floor(100000 + Math.random() * 900000)
+    });
     setIsAddModalOpen(false);
   };
 
@@ -797,7 +832,8 @@ export const AdminView: React.FC = () => {
       arabicKeywords: arabicKeywordsArray,
       seoTitle: fullEditProduct.seoTitle || `${fullEditProduct.name} | Lebanese Artisan`,
       seoArabicTitle: fullEditProduct.seoArabicTitle || `${fullEditProduct.arabicName || fullEditProduct.name} | مونة وحرف لبنانية`,
-      seoDescription: fullEditProduct.seoDescription || fullEditProduct.description
+      seoDescription: fullEditProduct.seoDescription || fullEditProduct.description,
+      sellerItemCode: fullEditProduct.sellerItemCode
     });
 
     showToast(
@@ -878,6 +914,7 @@ export const AdminView: React.FC = () => {
     import('papaparse').then((Papa) => {
       const dataToExport = filteredCatalogProducts.map(p => ({
         product_id: p.id,
+        seller_item_code: p.sellerItemCode || '',
         name_en: p.name,
         name_ar: p.arabicName || '',
         seller_artisan: p.seller || p.artisan || '',
@@ -924,37 +961,38 @@ export const AdminView: React.FC = () => {
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         
         {/* Top Navbar */}
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-6 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3.5 sm:px-6 py-3 sm:py-3.5 flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             {/* Mobile Menu Button */}
             <button
               onClick={() => setIsMobileSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
+              className="lg:hidden p-1.5 sm:p-2 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer shrink-0"
+              aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
 
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 capitalize flex items-center gap-2">
-                <span>{currentTab.replace('_', ' ')}</span>
-                <span className="text-slate-300 font-light">/</span>
-                <span className="text-xs font-normal text-slate-500">Yalla.lb Merchant Admin</span>
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 capitalize flex items-center gap-1.5 sm:gap-2 truncate">
+                <span className="truncate">{currentTab.replace('_', ' ')}</span>
+                <span className="hidden md:inline text-slate-300 font-light">/</span>
+                <span className="hidden md:inline text-xs font-normal text-slate-500 truncate">Yalla.lb Admin</span>
               </h2>
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             {/* FULL MASTER EXPORT BUTTON & DROPDOWN */}
             <div className="relative" ref={exportMenuRef}>
               <button
                 id="admin-master-export-btn"
                 onClick={() => setIsMasterExportMenuOpen(!isMasterExportMenuOpen)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer border border-indigo-200/80 shadow-2xs active:scale-95"
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer border border-indigo-200/80 shadow-2xs active:scale-95"
                 title="Download Master Business & Store Reports (CSV)"
               >
-                <Download className="w-3.5 h-3.5 text-indigo-600" />
-                <span className="hidden sm:inline">Export Reports</span>
-                <ChevronDown className="w-3 h-3 text-indigo-500" />
+                <Download className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span className="hidden sm:inline">Export</span>
+                <ChevronDown className="w-3 h-3 text-indigo-500 shrink-0" />
               </button>
 
               {isMasterExportMenuOpen && (
@@ -1277,7 +1315,7 @@ export const AdminView: React.FC = () => {
                               </button>
 
                               {/* Cancel Order Button */}
-                              {ord.status !== 'cancelled' && (
+                              {ord.status !== 'cancelled' && ord.status !== 'delivered' && (
                                 <button
                                   onClick={() => handleCancelOrder(ord.id)}
                                   className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition-colors cursor-pointer active:scale-95"
@@ -1608,6 +1646,12 @@ export const AdminView: React.FC = () => {
                               )}
                             </div>
                           )}
+
+                          {/* System ID & Seller Code Info */}
+                          <div className="flex justify-between items-center bg-slate-50 border border-slate-100 p-1.5 rounded-xl text-[9.5px] font-mono text-slate-500 mt-2">
+                            <span title={`Unique System ID: ${prod.id}`}>ID: <span className="text-slate-700 font-bold">{prod.id}</span></span>
+                            <span title={`Seller Item Code: ${prod.sellerItemCode}`}>Code: <span className="text-indigo-600 font-bold">{prod.sellerItemCode || 'N/A'}</span></span>
+                          </div>
                         </div>
                       </div>
 
@@ -1762,6 +1806,10 @@ export const AdminView: React.FC = () => {
           {/* 6. Active Carts */}
           {currentTab === 'active_carts' && (
             <ActiveCartsView />
+          )}
+
+          {currentTab === 'search_analytics' && (
+            <SearchAnalyticsView />
           )}
 
           {/* 7. Pages CMS & Individual Page Sections */}
@@ -1946,7 +1994,7 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Origin / Terroir</label>
                   <input
@@ -1976,6 +2024,17 @@ export const AdminView: React.FC = () => {
                     value={newProduct.stock}
                     onChange={(e) => setNewProduct({ ...newProduct, stock: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Item Code *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. SIC-12930"
+                    value={newProduct.sellerItemCode}
+                    onChange={(e) => setNewProduct({ ...newProduct, sellerItemCode: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
               </div>
@@ -2238,7 +2297,7 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Category</label>
                   <select
@@ -2271,6 +2330,17 @@ export const AdminView: React.FC = () => {
                     value={fullEditProduct.stock}
                     onChange={(e) => setFullEditProduct({ ...fullEditProduct, stock: Number(e.target.value) })}
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Item Code *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. SIC-12930"
+                    value={fullEditProduct.sellerItemCode || ''}
+                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, sellerItemCode: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
               </div>
@@ -2620,20 +2690,40 @@ export const AdminView: React.FC = () => {
 
             <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
               <div>
-                {selectedInvoiceOrder.status !== 'cancelled' ? (
-                  <button
-                    onClick={() => handleCancelOrder(selectedInvoiceOrder.id)}
-                    className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
-                    title="Cancel this order"
-                  >
+                {selectedInvoiceOrder.status === 'delivered' ? (
+                  <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span>This order has been delivered (cannot be cancelled or deleted)</span>
+                  </span>
+                ) : selectedInvoiceOrder.status === 'cancelled' ? (
+                  <span className="text-xs text-rose-600 font-bold flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
                     <XCircle className="w-4 h-4 text-rose-600" />
-                    <span>Cancel Order</span>
-                  </button>
-                ) : (
-                  <span className="text-xs text-rose-600 font-bold flex items-center gap-1">
-                    <XCircle className="w-4 h-4" />
                     <span>This order has been cancelled</span>
                   </span>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleCancelOrder(selectedInvoiceOrder.id)}
+                      className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                      title="Cancel this order"
+                    >
+                      <XCircle className="w-4 h-4 text-rose-600" />
+                      <span>Cancel Order</span>
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (confirm(`Are you sure you want to PERMANENTLY delete order #${selectedInvoiceOrder.id}?`)) {
+                          await deleteOrder(selectedInvoiceOrder.id);
+                          setSelectedInvoiceOrder(null);
+                        }
+                      }}
+                      className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
+                      title="Delete this order permanently"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete Order</span>
+                    </button>
+                  </div>
                 )}
               </div>
 

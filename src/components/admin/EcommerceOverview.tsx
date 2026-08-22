@@ -126,61 +126,60 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
     <div className="space-y-6">
       
       {/* Top Banner */}
-      <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-4 relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 text-indigo-600 text-xs font-extrabold uppercase tracking-wider mb-1.5">
-            <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
-            <span>Executive eCommerce Dashboard</span>
+      <div className="bg-white p-5 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+        <div className="relative z-10 space-y-1">
+          <div className="flex items-center gap-2 text-indigo-600 text-xs font-extrabold uppercase tracking-wider">
+            <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+            <span>Operations Central</span>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <span>PlainAdmin</span>
-            <span className="text-indigo-600">Yalla.lb</span>
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-slate-900 tracking-tight">
+            <span>Yalla.lb</span> <span className="text-indigo-600">Merchant Hub</span>
           </h2>
-          <p className="text-xs text-slate-500 mt-1 max-w-xl">
+          <p className="text-xs text-slate-500 max-w-xl">
             Real-time telemetry, courier dispatch operations, artisan catalog synchronization, and live storefront CMS management.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-2.5 relative z-10 w-full md:w-auto">
           <button
             onClick={() => onNavigateToTab('sales')}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-black tracking-wide transition-all shadow-sm hover:shadow-md cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white rounded-xl text-xs font-bold tracking-wide transition-all shadow-xs hover:shadow-md cursor-pointer active:scale-95 text-center"
             title="Open dedicated Sales Analytics dashboard with period & entity filters"
           >
-            <TrendingUp className="w-3.5 h-3.5 text-white" />
-            <span>Sales Analytics</span>
+            <TrendingUp className="w-3.5 h-3.5 text-white shrink-0" />
+            <span className="whitespace-nowrap">Sales Analytics</span>
           </button>
 
           <button
             id="overview-master-download-btn"
             onClick={handleExportMaster}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-black tracking-wide transition-all shadow-xs border border-indigo-200 cursor-pointer active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold tracking-wide transition-all shadow-2xs border border-indigo-200 cursor-pointer active:scale-95 text-center"
             title="Download full 360° master dataset covering Products, Sellers, Stock, and Sales"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Download Master Report</span>
+            <FileSpreadsheet className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span className="whitespace-nowrap">Master CSV</span>
           </button>
 
           <button
             onClick={handleSyncDatabase}
             disabled={isSyncingDb}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-sm hover:shadow-md cursor-pointer disabled:opacity-50 active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow-md cursor-pointer disabled:opacity-50 active:scale-95 text-center"
             title="Save and synchronize all products & custom sections to Firestore database"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingDb ? 'animate-spin' : ''}`} />
-            <span>{isSyncingDb ? 'Syncing...' : 'Sync to Firestore'}</span>
+            <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${isSyncingDb ? 'animate-spin' : ''}`} />
+            <span className="whitespace-nowrap">{isSyncingDb ? 'Syncing...' : 'Sync Firestore'}</span>
           </button>
 
           <button
             onClick={() => setIsVisualEditMode(!isVisualEditMode)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer shadow-xs active:scale-95 ${
+            className={`flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95 text-center ${
               isVisualEditMode 
                 ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400 font-black' 
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
             }`}
           >
-            <Eye className="w-3.5 h-3.5" />
-            <span>{isVisualEditMode ? 'Visual Mode: ON' : 'Visual Edit Mode'}</span>
+            <Eye className="w-3.5 h-3.5 shrink-0" />
+            <span className="whitespace-nowrap">{isVisualEditMode ? 'Visual: ON' : 'Visual Mode'}</span>
           </button>
         </div>
       </div>

@@ -574,6 +574,7 @@ export const SalesAnalyticsView: React.FC = () => {
     if (activeTab === 'products') {
       const data = productSales.map(p => ({
         product_id: p.product.id,
+        seller_item_code: p.product.sellerItemCode || '',
         product_name: p.product.name,
         arabic_name: p.product.arabicName || '',
         category: p.product.category,
@@ -1164,7 +1165,15 @@ export const SalesAnalyticsView: React.FC = () => {
                       <tr key={item.product.id} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-3 px-3">
                           <div className="font-bold text-slate-900">{item.product.name}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">SKU: {item.product.id}</div>
+                          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2">
+                            <span>ID: {item.product.id}</span>
+                            {item.product.sellerItemCode && (
+                              <>
+                                <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                                <span className="text-indigo-600 font-semibold">Code: {item.product.sellerItemCode}</span>
+                              </>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3">
                           <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-[10px] font-semibold">

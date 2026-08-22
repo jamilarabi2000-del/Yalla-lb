@@ -311,10 +311,10 @@ export const SellersView: React.FC = () => {
             Manage authenticated suppliers, normalize product linkages, and bulk import/export inventory via CSV.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 scrollbar-none">
           <button
             onClick={() => setActiveSubTab('sellers')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'sellers'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -324,7 +324,7 @@ export const SellersView: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveSubTab('import')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'import'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -338,8 +338,8 @@ export const SellersView: React.FC = () => {
       {activeSubTab === 'sellers' ? (
         <div className="space-y-6">
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-100">
-            <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
               <div className="relative w-full sm:w-72">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
@@ -347,13 +347,13 @@ export const SellersView: React.FC = () => {
                   placeholder="Search sellers by name or ID..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                 />
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto scrollbar-none">
                 <button
                   onClick={() => setSellerStatusFilter('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
                     sellerStatusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -361,7 +361,7 @@ export const SellersView: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setSellerStatusFilter('active')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
                     sellerStatusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -369,7 +369,7 @@ export const SellersView: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setSellerStatusFilter('inactive')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
                     sellerStatusFilter === 'inactive' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -377,7 +377,7 @@ export const SellersView: React.FC = () => {
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
               <button
                 onClick={() => {
                   downloadSellerPerformanceReport(products, sellers, orders);
@@ -543,7 +543,7 @@ export const SellersView: React.FC = () => {
 
           {importFile && (
             <div className="space-y-4 pt-4 border-t border-slate-100">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 <div>
                   <h4 className="font-black text-sm text-slate-900">Dry-Run Preview: {importFile.name}</h4>
                   <p className="text-xs text-slate-500">{previewRows.length} rows parsed and validated.</p>
@@ -551,10 +551,10 @@ export const SellersView: React.FC = () => {
                 <button
                   onClick={handleCommitImport}
                   disabled={isImporting || previewRows.some(r => r.issues.length > 0)}
-                  className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all inline-flex items-center gap-2 ${
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all inline-flex items-center justify-center gap-2 ${
                     previewRows.some(r => r.issues.length > 0)
-                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                      : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-sm'
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed w-full sm:w-auto'
+                      : 'bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer shadow-sm w-full sm:w-auto'
                   }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />

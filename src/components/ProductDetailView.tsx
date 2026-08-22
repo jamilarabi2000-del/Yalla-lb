@@ -524,6 +524,11 @@ export const ProductDetailView: React.FC = () => {
                     {t('quantity')}: {product.weightOrVolume}
                   </p>
                 )}
+                {product.sellerItemCode && (
+                  <p className="text-xs text-slate-500 font-medium mt-1 font-mono">
+                    {language === 'ar' ? 'رمز البائع: ' : 'Seller Code: '} {product.sellerItemCode}
+                  </p>
+                )}
               </div>
             )}
 

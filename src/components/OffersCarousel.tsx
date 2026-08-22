@@ -219,16 +219,24 @@ export const OffersCarousel: React.FC = () => {
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-            {siteContent?.offers?.sectionTitle ?? (
-              language === 'ar' ? (
+            {language === 'ar' ? (
+              siteContent?.offers?.sectionTitleArabic ? (
+                <span>{siteContent.offers.sectionTitleArabic}</span>
+              ) : (
                 <>العروض والحملات <span className="gold-gradient font-serif italic">الإعلانية</span></>
+              )
+            ) : (
+              siteContent?.offers?.sectionTitle ? (
+                <span>{siteContent.offers.sectionTitle}</span>
               ) : (
                 <>Featured Promotions & <span className="gold-gradient font-serif italic">Ads</span></>
               )
             )}
           </h2>
           <p className="text-xs text-slate-500 mt-1 max-w-xl">
-            {siteContent?.offers?.sectionSubtitle ?? t('promotionsSubtitle')}
+            {language === 'ar' 
+              ? (siteContent?.offers?.sectionSubtitleArabic || t('promotionsSubtitle')) 
+              : (siteContent?.offers?.sectionSubtitle || t('promotionsSubtitle'))}
           </p>
         </div>
       </div>
@@ -241,41 +249,26 @@ export const OffersCarousel: React.FC = () => {
         {currentOffer.isCustomSchoolLayout && (
         <div 
           onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}
-          style={{ 
-            backgroundImage: `url(${schoolBannerImg})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center left'
-          }}
-          className="relative overflow-hidden rounded-3xl border border-slate-300 shadow-xl text-white h-[460px] sm:h-[420px] md:h-[380px] flex flex-col md:flex-row items-center justify-between transition-all duration-500 cursor-pointer group"
+          className="relative overflow-hidden rounded-3xl border border-slate-300 shadow-xl bg-slate-950 h-[460px] sm:h-[420px] md:h-[380px] flex items-center justify-center transition-all duration-500 cursor-pointer group"
         >
-          {/* Subtle semi-transparent gradient on mobile for text reading */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent md:bg-none pointer-events-none" />
+          {/* Blurred Background to fill wide slides gracefully without any cropping on the main graphic */}
+          <img
+            src={schoolBannerImg}
+            alt="School Essentials Background Blur"
+            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-105 pointer-events-none select-none transition-transform duration-500"
+            referrerPolicy="no-referrer"
+          />
 
-          {/* Left Spacer to let the pencil artwork show perfectly */}
-          <div className="hidden md:block md:w-[45%] lg:w-[50%]" />
+          {/* Subdued dark vignette layer for luxury contrast */}
+          <div className="absolute inset-0 bg-black/10 pointer-events-none" />
 
-          {/* Right Column: Promotional Text Offer valid till 9 September */}
-          <div className="w-full md:w-[55%] lg:w-[50%] h-full space-y-4 sm:space-y-5 text-center md:text-left p-6 sm:p-8 md:p-10 md:pl-0 z-10 flex flex-col items-center md:items-start justify-center group-hover:scale-[1.01] transition-transform duration-300">
-            
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight leading-tight uppercase font-sans text-white drop-shadow-md max-w-sm">
-              {language === 'ar' ? currentOffer.titleAr : currentOffer.titleEn}
-            </h2>
-
-            {/* Heavy Red Bold 50% discount label */}
-            <div className="flex items-center gap-4">
-              <span className="text-7xl sm:text-8xl font-black tracking-tight text-red-600 drop-shadow-[0_4px_0_#ffffff] filter select-none">
-                50%
-              </span>
-              <div className="flex flex-col text-left font-sans">
-                <span className="text-[10px] sm:text-xs uppercase font-extrabold text-white drop-shadow-sm tracking-widest leading-none">
-                  {language === 'ar' ? 'خصم مذهل من ١٠٪ إلى' : 'DISCOUNT FROM 10% TO'}
-                </span>
-                <span className="text-sm font-black text-slate-900 mt-1 uppercase">
-                  {language === 'ar' ? 'وفر على المنتجات' : 'ON SELECT ITEMS'}
-                </span>
-              </div>
-            </div>
-          </div>
+          {/* Full Banner Artwork shown in its complete aspect ratio with absolutely zero cropping */}
+          <img
+            src={schoolBannerImg}
+            alt={language === 'ar' ? currentOffer.titleAr : currentOffer.titleEn}
+            className="h-full w-full object-contain mx-auto relative z-10 transition-all duration-500 group-hover:scale-[1.01] select-none rounded-3xl"
+            referrerPolicy="no-referrer"
+          />
         </div>
       )}
 
@@ -402,7 +395,7 @@ export const OffersCarousel: React.FC = () => {
                 Crayola
               </span>
               <span className="text-xs font-black uppercase text-emerald-800 bg-yellow-300 px-2 py-0.5 rounded-full border border-yellow-500 shadow-sm">
-                CREATIVE
+                {language === 'ar' ? 'إبداع' : 'CREATIVE'}
               </span>
             </div>
 

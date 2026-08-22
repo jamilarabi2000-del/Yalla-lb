@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export const HomeView: React.FC = () => {
-  const { products, setActiveTab, setSelectedCategory, t, language, siteContent, isVisualEditMode, showToast } = useShop();
+  const { products, setActiveTab, setSelectedCategory, t, language, siteContent, isVisualEditMode, showToast, categories = [] } = useShop();
 
   const [email, setEmail] = React.useState('');
   const [subscribed, setSubscribed] = React.useState(false);
@@ -38,152 +38,17 @@ export const HomeView: React.FC = () => {
     homeNews: true
   };
 
-  const categoriesGrid = [
-    {
-      id: 'electronics',
-      name: t('cat_electronics'),
-      subtitle: language === 'ar' ? 'أحدث الأجهزة والتكنولوجيا' : 'Latest gadgets & tech',
-      image: 'https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'fashion',
-      name: t('cat_fashion'),
-      subtitle: language === 'ar' ? 'أزياء تناسب ذوقك' : 'Style that moves',
-      image: 'https://images.unsplash.com/photo-1445205170230-053b83016050?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'home',
-      name: t('cat_home'),
-      subtitle: language === 'ar' ? 'أثاث وديكور لمنزلك' : 'Elevate your space',
-      image: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'beauty',
-      name: t('cat_beauty'),
-      subtitle: language === 'ar' ? 'منتجات العناية بالبشرة' : 'Glow naturally',
-      image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'sports',
-      name: t('cat_sports'),
-      subtitle: language === 'ar' ? 'معدات رياضية متميزة' : 'Push your limits',
-      image: 'https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'books',
-      name: t('cat_books'),
-      subtitle: language === 'ar' ? 'كتب وروايات عربية وعالمية' : 'Feed your mind',
-      image: 'https://images.unsplash.com/photo-1495640388908-05fa85288e61?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'toys',
-      name: t('cat_toys'),
-      subtitle: language === 'ar' ? 'ألعاب لكل الأعمار' : 'Fun for all ages',
-      image: 'https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'grocery',
-      name: t('cat_grocery'),
-      subtitle: language === 'ar' ? 'منتجات طازجة وحرفية' : 'Fresh from Lebanon',
-      image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'yalla-global',
-      name: t('cat_yalla_global'),
-      subtitle: language === 'ar' ? 'منتجات مميزة من حول العالم' : 'Handpicked worldwide selections',
-      image: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'stationery',
-      name: t('cat_stationery'),
-      subtitle: language === 'ar' ? 'دفاتر وأدوات مكتبية' : 'Desk & office essentials',
-      image: 'https://images.unsplash.com/photo-1513542789411-b6a5d4f31634?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'tools-hardware',
-      name: t('cat_tools_hardware'),
-      subtitle: language === 'ar' ? 'أدوات ومعدات صلبة' : 'Reliable tools & hardware',
-      image: 'https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'plumbing',
-      name: t('cat_plumbing'),
-      subtitle: language === 'ar' ? 'مستلزمات وأدوات السباكة' : 'Premium pipes & fixtures',
-      image: 'https://images.unsplash.com/photo-1585338107529-13afc5f02586?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'beauty-personal-care',
-      name: t('cat_beauty_personal_care'),
-      subtitle: language === 'ar' ? 'عناية بالبشرة، صابون طبيعي ومستلزمات العناية الشخصية' : 'Luxe skincare, soaps & personal care',
-      image: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'linen-bath',
-      name: t('cat_linen_bath'),
-      subtitle: language === 'ar' ? 'ملاءات مريحة، أغطية ومناشف حمام' : 'Comfort sheets, blankets & towels',
-      image: 'https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'houseware',
-      name: t('cat_houseware'),
-      subtitle: language === 'ar' ? 'أواني وأدوات المطبخ' : 'Daily kitchen utilities',
-      image: 'https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'digital',
-      name: t('cat_digital'),
-      subtitle: language === 'ar' ? 'ملحقات وإكسسوارات ذكية' : 'Smart accessories',
-      image: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'indoor-furniture',
-      name: t('cat_indoor_furniture'),
-      subtitle: language === 'ar' ? 'طاولات، كراسي وأثاث منازل مصمم يدوياً' : 'Handcrafted indoor tables & chairs',
-      image: 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'outdoor-furniture',
-      name: t('cat_outdoor_furniture'),
-      subtitle: language === 'ar' ? 'جلسات حدائق، طاولات ومقاعد خارجية' : 'Patio sets & garden seating',
-      image: 'https://images.unsplash.com/photo-1519974719765-e6559eac2575?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'lawn-garden',
-      name: t('cat_lawn_garden'),
-      subtitle: language === 'ar' ? 'أدوات الحديقة، النباتات ومستلزمات الهواء الطلق' : 'Gardening tools & plants',
-      image: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'decor',
-      name: t('cat_decor'),
-      subtitle: language === 'ar' ? 'لمسات وتحف فنية' : 'Artistic home accents',
-      image: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'lighting',
-      name: t('cat_lighting'),
-      subtitle: language === 'ar' ? 'مصابيح ووحدات إنارة' : 'Warm ambient light fixtures',
-      image: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'electrical',
-      name: t('cat_electrical'),
-      subtitle: language === 'ar' ? 'توصيلات ومعدات كهربائية' : 'Sockets & electrical gear',
-      image: 'https://images.unsplash.com/photo-1558346490-a72e53ae2d4f?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'cleaning',
-      name: t('cat_cleaning'),
-      subtitle: language === 'ar' ? 'أدوات ومواد تنظيف' : 'Eco-friendly cleaning supplies',
-      image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&w=600&q=80'
-    },
-    {
-      id: 'consumable',
-      name: t('cat_consumable'),
-      subtitle: language === 'ar' ? 'مؤونة، قهوة، عسل ومربيات' : 'Artisanal coffee, honey & jams',
-      image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=600&q=80'
-    }
-  ];
+  // Filter and sort categories based on database/active state
+  const sortedCategories = [...categories]
+    .filter(cat => cat.isPublished !== false)
+    .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+
+  const categoriesGrid = sortedCategories.map(cat => ({
+    id: cat.id,
+    name: language === 'ar' ? cat.nameAr : cat.nameEn,
+    subtitle: language === 'ar' ? (cat.descriptionAr || '') : (cat.description || ''),
+    image: cat.bannerUrl || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'
+  }));
 
   // Filter products: Published check + featured / deals
   const publishedProducts = products.filter(p => p.isPublished !== false);
@@ -247,21 +112,25 @@ export const HomeView: React.FC = () => {
                 {language === 'ar' ? 'تصفح الأقسام' : 'Browse Departments'}
               </div>
               <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {siteContent.home?.regionsTitle ? (
-                  <span>{siteContent.home.regionsTitle}</span>
-                ) : language === 'ar' ? (
-                  <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
+                {language === 'ar' ? (
+                  siteContent.home?.regionsTitleArabic ? (
+                    <span>{siteContent.home.regionsTitleArabic}</span>
+                  ) : (
+                    <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
+                  )
                 ) : (
-                  <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
+                  siteContent.home?.regionsTitle ? (
+                    <span>{siteContent.home.regionsTitle}</span>
+                  ) : (
+                    <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
+                  )
                 )}
               </h2>
               <p className="text-xs text-slate-500 mt-1">
-                {siteContent.home?.regionsSubtitle ? (
-                  <span>{siteContent.home.regionsSubtitle}</span>
-                ) : language === 'ar' ? (
-                  'اكتشف الحرف اللبنانية، المؤونة، والأجهزة المنزلية بكل سهولة'
+                {language === 'ar' ? (
+                  siteContent.home?.regionsSubtitleArabic || 'اكتشف الحرف اللبنانية، المؤونة، والأجهزة المنزلية بكل سهولة'
                 ) : (
-                  'Discover authentic Lebanese crafts, pantry delicacies, electronics, and home essentials'
+                  siteContent.home?.regionsSubtitle || 'Discover authentic Lebanese crafts, pantry delicacies, electronics, and home essentials'
                 )}
               </p>
             </div>
@@ -337,16 +206,30 @@ export const HomeView: React.FC = () => {
                 {t('topPicks')}
               </div>
               <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {siteContent.home?.featuredTitle ? (
-                  <span>{siteContent.home.featuredTitle}</span>
-                ) : language === 'ar' ? (
-                  <>المنتجات <span className="gold-gradient font-serif italic">المميزة</span></>
+                {language === 'ar' ? (
+                  siteContent.home?.featuredTitleArabic ? (
+                    <span>{siteContent.home.featuredTitleArabic}</span>
+                  ) : (
+                    <>المنتجات <span className="gold-gradient font-serif italic">المميزة</span></>
+                  )
                 ) : (
-                  <>Featured <span className="gold-gradient font-serif italic">Products</span></>
+                  siteContent.home?.featuredTitle ? (
+                    <span>{siteContent.home.featuredTitle}</span>
+                  ) : (
+                    <>Featured <span className="gold-gradient font-serif italic">Products</span></>
+                  )
                 )}
               </h2>
-              {siteContent.home?.featuredSubtitle && (
-                <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredSubtitle}</p>
+              {language === 'ar' ? (
+                siteContent.home?.featuredSubtitleArabic ? (
+                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredSubtitleArabic}</p>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-1">مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة</p>
+                )
+              ) : (
+                siteContent.home?.featuredSubtitle && (
+                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredSubtitle}</p>
+                )
               )}
             </div>
           </div>

@@ -59,6 +59,20 @@ const safeGetDoc = async (docRef: any): Promise<any> => {
   }
 };
 
+export const ensureSellerItemCode = (p: Product): Product => {
+  if (!p) return p;
+  if (!p.sellerItemCode) {
+    let hash = 0;
+    const str = p.id || p.name || '';
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const numeric = Math.abs(hash % 900000) + 100000;
+    return { ...p, sellerItemCode: `SIC-${numeric}` };
+  }
+  return p;
+};
+
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -213,6 +227,7 @@ interface ShopContextType {
   orders: Order[];
   placeOrder: (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
+  deleteOrder: (orderId: string) => Promise<void>;
 
   // User Profile
   user: UserProfile;
@@ -233,6 +248,7 @@ interface ShopContextType {
   // Search & Filtering
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  logSearchQuery: (query: string) => Promise<void>;
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
 
@@ -389,9 +405,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [products, setProducts] = useState<Product[]>(() => {
     try {
       const saved = localStorage.getItem('yallalb_products');
-      return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+      const list = saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+      return (list as Product[]).map(ensureSellerItemCode);
     } catch {
-      return INITIAL_PRODUCTS;
+      return INITIAL_PRODUCTS.map(ensureSellerItemCode);
     }
   });
 
@@ -698,7 +715,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (snap.exists()) {
           const data = snap.data();
           if (Array.isArray(data?.list) && data.list.length > 0) {
-            setCategories(data.list);
+            // Check if any default categories are missing in Firestore list
+            const firestoreIds = new Set(data.list.map((c: any) => c.id));
+            const missingFromDefault = DEFAULT_CATEGORIES.filter(c => !firestoreIds.has(c.id));
+            if (missingFromDefault.length > 0 && (isAdminUser || isAdminUnlocked)) {
+              console.log('[ShopContext] Supplementing missing categories to Firestore:', missingFromDefault.map(c => c.id));
+              const merged = [...data.list, ...missingFromDefault];
+              setCategories(merged);
+              try {
+                await monitoredSetDoc(catDocRef, { list: sanitizeDocumentData(merged) }, undefined, 'ShopContext:supplementCategories');
+              } catch (suppErr) {
+                console.warn('[ShopContext] Error supplementing missing categories:', suppErr);
+              }
+            } else {
+              setCategories(data.list);
+            }
           }
         } else {
           if (isAdminUser || isAdminUnlocked) {
@@ -1108,11 +1139,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             const sku = row.sku?.trim() || `prod-${Date.now()}-${idx}`;
             const isPublished = ['true', '1', 'yes'].includes(String(row.is_published ?? '').toLowerCase()) || row.is_published === '';
+            const sellerItemCode = row.seller_item_code || row.seller_code || `SIC-${Math.floor(10000 + Math.random() * 90000)}`;
 
             validRows.push({
               sku,
               product: {
                 id: sku,
+                sellerItemCode: sellerItemCode.trim(),
                 name: name.trim(),
                 arabicName: row.name_ar || name.trim(),
                 artisan: sellerId.trim(),
@@ -1510,13 +1543,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const stored = localStorage.getItem('yallalb_products');
         if (stored) {
-          setProducts(JSON.parse(stored));
+          const list = JSON.parse(stored) as Product[];
+          setProducts(list.map(ensureSellerItemCode));
         } else {
-          setProducts(INITIAL_PRODUCTS);
-          localStorage.setItem('yallalb_products', JSON.stringify(INITIAL_PRODUCTS));
+          const seeded = INITIAL_PRODUCTS.map(ensureSellerItemCode);
+          setProducts(seeded);
+          localStorage.setItem('yallalb_products', JSON.stringify(seeded));
         }
       } catch {
-        setProducts(INITIAL_PRODUCTS);
+        setProducts(INITIAL_PRODUCTS.map(ensureSellerItemCode));
       }
       setIsDbSyncing(false);
       return;
@@ -1537,7 +1572,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const batch = writeBatch(db);
               INITIAL_PRODUCTS.forEach((prod) => {
                 const prodDocRef = doc(db, 'products', prod.id);
-                batch.set(prodDocRef, sanitizeDocumentData(prod));
+                batch.set(prodDocRef, sanitizeDocumentData(ensureSellerItemCode(prod)));
               });
               await monitoredBatchCommit(batch, INITIAL_PRODUCTS.length, 'products', 'ShopContext:AutoSeedProducts');
               console.log(`[ShopContext] Successfully seeded ${INITIAL_PRODUCTS.length} artisan products to Firestore database.`);
@@ -1545,7 +1580,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               console.error("[ShopContext] Error seeding products to Firestore:", seedErr);
             }
           }
-          setProducts(INITIAL_PRODUCTS);
+          setProducts(INITIAL_PRODUCTS.map(ensureSellerItemCode));
           setHasMoreProducts(false);
         } else if (!snapshot.empty) {
           // Track last doc for startAfter pagination
@@ -1554,7 +1589,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           const dbProductsMap = new Map<string, Product>();
           snapshot.forEach((docSnap) => {
-            dbProductsMap.set(docSnap.id, docSnap.data() as Product);
+            const p = ensureSellerItemCode(docSnap.data() as Product);
+            dbProductsMap.set(docSnap.id, p);
           });
 
           dbMonitor.logSnapshotSync({
@@ -1809,11 +1845,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultNotes
             };
 
+          console.log("[ShopContext] Merged profile:", mergedProfile);
             setUser(prev => ({ 
               ...prev, 
               ...mergedProfile
             }));
           } else {
+            console.log("[ShopContext] User document does not exist, creating new user data.");
             let tempSignup: any = {};
             try {
               const rawTemp = localStorage.getItem('yallalb_signup_profile_temp');
@@ -1954,13 +1992,26 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => clearTimeout(handler);
   }, [wishlist, firebaseUser]);
 
+  async function executeWithRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> {
+    try {
+      return await fn();
+    } catch (error: any) {
+      if (error.code === 'auth/network-request-failed' && retries > 0) {
+        console.warn(`[ShopContext] Auth network error, retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return executeWithRetry(fn, retries - 1, delay * 2);
+      }
+      throw error;
+    }
+  }
+
   const signInWithGoogle = async () => {
     try {
       if (!auth) {
         throw new Error("Firebase Authentication is not fully initialized in this environment.");
       }
       const provider = googleProvider || new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await executeWithRetry(() => signInWithPopup(auth, provider));
       showToast('Successfully signed in with Google!', 'success');
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -1990,7 +2041,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Firebase Authentication is not fully initialized in this environment.");
       }
       const provider = appleProvider || new OAuthProvider('apple.com');
-      await signInWithPopup(auth, provider);
+      await executeWithRetry(() => signInWithPopup(auth, provider));
       showToast('Successfully signed in with Apple!', 'success');
     } catch (error: any) {
       if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
@@ -2155,9 +2206,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithEmail = async (email: string, pass: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      await executeWithRetry(() => signInWithEmailAndPassword(auth, email, pass));
       showToast('Successfully signed in!', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Auth error:", error);
       let msg = 'Authentication failed: ' + error.message;
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
@@ -2491,6 +2542,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(language === 'ar' ? 'تمت إزالة الكوبون' : 'Coupon code removed', 'info');
   }, [language]);
 
+  const logSearchQuery = useCallback(async (query: string) => {
+    if (!IS_FIREBASE_ENABLED || !query.trim()) return;
+    try {
+      const logDocRef = doc(collection(db, 'search_logs'));
+      await monitoredSetDoc(logDocRef, {
+        id: logDocRef.id,
+        query: query.trim(),
+        timestamp: new Date().toISOString(),
+        userId: firebaseUser?.uid || null
+      }, {}, 'Navbar:handleSearchSubmit');
+    } catch (error) {
+      console.error("[ShopContext] Failed to log search:", error);
+    }
+  }, [firebaseUser]);
+
   // Place Order - Order creation with graceful fallback for empty profiles
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
     const activeUserId = firebaseUser?.uid || auth?.currentUser?.uid || 'guest-user';
@@ -2655,6 +2721,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Update Order Status - Saves update in Firestore database
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
+    const targetOrder = orders.find(o => o.id === orderId);
+    if (targetOrder && targetOrder.status === 'delivered' && status === 'cancelled') {
+      showToast('Cannot cancel an order that has already been delivered.', 'warning');
+      throw new Error('Cannot cancel a delivered order.');
+    }
+
     dbLogger.logFormInput({
       sourceComponent: 'AdminView',
       actionName: 'updateOrderStatus',
@@ -2732,10 +2804,88 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(`Order status updated to ${status.replace('_', ' ')} in database`, 'info');
   };
 
+  // Delete Order - Removes order from Firestore database
+  const deleteOrder = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      showToast('Order not found.', 'warning');
+      return;
+    }
+    if (order.status === 'delivered') {
+      showToast('Cannot delete a delivered order.', 'warning');
+      return;
+    }
+
+    dbLogger.logFormInput({
+      sourceComponent: 'AdminView',
+      actionName: 'deleteOrder',
+      targetPath: `orders/${orderId}`,
+      summary: `Admin deleting order #${orderId}`
+    });
+
+    const { startTime } = dbLogger.logFirestoreWriteStart({
+      operation: 'deleteDoc',
+      targetPath: `orders/${orderId}`,
+      sourceComponent: 'ShopContext',
+      actionName: 'deleteOrder',
+      summary: `Deleting order document from Firestore (orders/${orderId})...`
+    });
+
+    setOrders(prev => {
+      const next = prev.filter(o => o.id !== orderId);
+      try {
+        localStorage.setItem('yallalb_orders', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+
+    if (!IS_FIREBASE_ENABLED) {
+      await logAdminActivity(
+        'order_delete',
+        `Order #${orderId} deleted`,
+        `Permanently removed order #${orderId} from system.`
+      );
+      showToast('Order deleted locally!');
+      return;
+    }
+
+    try {
+      await monitoredDeleteDoc(doc(db, 'orders', orderId), 'AdminView:deleteOrder');
+      
+      await logAdminActivity(
+        'order_delete',
+        `Order #${orderId} deleted`,
+        `Permanently removed order #${orderId} from system.`
+      );
+
+      dbLogger.logFirestoreWriteSuccess({
+        operation: 'deleteDoc',
+        targetPath: `orders/${orderId}`,
+        sourceComponent: 'ShopContext',
+        actionName: 'deleteOrder',
+        summary: `Order #${orderId} permanently deleted from Firestore database.`,
+        startTime
+      });
+    } catch (error) {
+      dbLogger.logFirestoreWriteError({
+        operation: 'deleteDoc',
+        targetPath: `orders/${orderId}`,
+        sourceComponent: 'ShopContext',
+        actionName: 'deleteOrder',
+        summary: `Failed to delete order #${orderId} from Firestore`,
+        startTime,
+        error
+      });
+      handleFirestoreError(error, OperationType.DELETE, `orders/${orderId}`);
+    }
+
+    showToast('Order removed from database', 'warning');
+  };
+
   // Add Product - Saves new item to Firestore database
   const addProduct = async (newProdData: Omit<Product, 'id'>) => {
     const id = `prod-custom-${Date.now()}`;
-    const newProduct: Product = { ...newProdData, id };
+    const newProduct: Product = ensureSellerItemCode({ ...newProdData, id });
     const sanitizedProduct = sanitizeDocumentData(newProduct);
     
     dbLogger.logFormInput({
@@ -2978,7 +3128,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const batch = writeBatch(db);
       INITIAL_PRODUCTS.forEach((prod) => {
         const prodDocRef = doc(db, 'products', prod.id);
-        const sanitizedProd = sanitizeDocumentData(prod);
+        const sanitizedProd = sanitizeDocumentData(ensureSellerItemCode(prod));
         batch.set(prodDocRef, sanitizedProd, { merge: true });
       });
       await monitoredBatchCommit(batch, INITIAL_PRODUCTS.length, 'products', 'AdminView:syncAllProductsToDatabase');
@@ -3223,6 +3373,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     orders,
     placeOrder,
     updateOrderStatus,
+    deleteOrder,
     user,
     updateUser,
     checkPhoneUniqueness,
@@ -3237,6 +3388,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOutUser,
     searchQuery,
     setSearchQuery,
+    logSearchQuery,
     selectedCategory,
     setSelectedCategory,
     toast,
@@ -3301,6 +3453,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     firebaseUser,
     isAdminUser,
     searchQuery,
+    logSearchQuery,
     selectedCategory,
     toast,
     siteContent,

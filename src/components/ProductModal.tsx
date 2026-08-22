@@ -173,6 +173,11 @@ export const ProductModal: React.FC = () => {
                       Size: {product.weightOrVolume}
                     </span>
                   )}
+                  {product.sellerItemCode && (
+                    <span className="block text-[11px] text-[#f1d592]/80 font-mono mt-0.5">
+                      Code: {product.sellerItemCode}
+                    </span>
+                  )}
                 </div>
 
                 {/* Quantity Controls */}
