@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import { Product, Seller, Order } from '../types';
+import { LBP_USD_RATE } from '../data/regions';
 
 export interface MasterReportRow {
   // Product Details
@@ -196,7 +197,7 @@ export function downloadFullMasterReport(
     else if (product.stock <= 5) stockStatus = 'Low Stock (<5 units)';
 
     const stockAssetValue = (product.stock * (product.priceUSD || 0)).toFixed(2);
-    const unitPriceLBP = ((product.priceUSD || 0) * 89500).toLocaleString('en-US');
+    const unitPriceLBP = ((product.priceUSD || 0) * LBP_USD_RATE).toLocaleString('en-US');
 
     return {
       product_id: product.id,

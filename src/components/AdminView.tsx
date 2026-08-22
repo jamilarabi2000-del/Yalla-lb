@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
 import { Product, OrderStatus, Order } from '../types';
+import { LBP_USD_RATE } from '../data/regions';
 import { AdminSidebar, AdminMenuTab } from './admin/AdminSidebar';
 import { EcommerceOverview } from './admin/EcommerceOverview';
 import { SalesAnalyticsView } from './admin/SalesAnalyticsView';
@@ -4036,7 +4037,7 @@ export const AdminView: React.FC = () => {
                           <div>
                             <span className="text-sm font-black text-slate-900">${fullEditProduct.priceUSD}</span>
                             <span className="text-[10px] text-slate-400 block font-semibold">
-                              ≈ {(fullEditProduct.priceUSD * 89500).toLocaleString()} LBP
+                              ≈ {(fullEditProduct.priceUSD * LBP_USD_RATE).toLocaleString()} LBP
                             </span>
                           </div>
 

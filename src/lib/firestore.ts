@@ -6,8 +6,8 @@ export async function pingFirestore(): Promise<boolean> {
     throw new Error('Firestore database instance is not initialized.');
   }
   try {
-    // Attempt a lightweight server ping
-    await getDocFromServer(doc(db, '_ping', 'connectivity'));
+    // Attempt a lightweight server ping against public cms document
+    await getDocFromServer(doc(db, 'cms', 'main'));
     return true;
   } catch (err: any) {
     // Check if it's a true offline / network failure

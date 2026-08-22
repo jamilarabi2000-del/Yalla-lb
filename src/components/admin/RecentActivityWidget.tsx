@@ -140,7 +140,12 @@ export const RecentActivityWidget: React.FC = () => {
           displayedActivities.map((act) => {
             const styling = getActivityIcon(act.actionType);
             const hasSnapshots = !!act.snapshotBefore || !!act.snapshotAfter;
-            const canUndo = !act.isUndone && (!!act.snapshotBefore || act.actionType === 'product_add');
+            const canUndo = !act.isUndone && (
+              (act.actionType === 'product_update' && !!act.targetId && !!act.snapshotBefore) ||
+              (act.actionType === 'product_add' && !!act.targetId) ||
+              (act.actionType === 'product_delete' && !!act.targetId && !!act.snapshotBefore) ||
+              (act.actionType === 'product_bulk_update' && Array.isArray(act.snapshotBefore))
+            );
 
             return (
               <div key={act.id} className="flex gap-3 text-xs p-2.5 rounded-2xl hover:bg-slate-50/90 transition-all border border-slate-100 hover:border-slate-200 group">
@@ -329,7 +334,12 @@ export const RecentActivityWidget: React.FC = () => {
               {recentActivities.map((act) => {
                 const styling = getActivityIcon(act.actionType);
                 const hasSnapshots = !!act.snapshotBefore || !!act.snapshotAfter;
-                const canUndo = !act.isUndone && (!!act.snapshotBefore || act.actionType === 'product_add');
+                const canUndo = !act.isUndone && (
+                  (act.actionType === 'product_update' && !!act.targetId && !!act.snapshotBefore) ||
+                  (act.actionType === 'product_add' && !!act.targetId) ||
+                  (act.actionType === 'product_delete' && !!act.targetId && !!act.snapshotBefore) ||
+                  (act.actionType === 'product_bulk_update' && Array.isArray(act.snapshotBefore))
+                );
 
                 return (
                   <div key={act.id} className="p-3.5 bg-slate-50/70 border border-slate-200/80 rounded-2xl space-y-2 hover:bg-white transition-all">

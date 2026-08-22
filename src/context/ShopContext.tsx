@@ -594,10 +594,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           await batch.commit();
         }
-      } else if (act.snapshotBefore) {
-        showToast(`Reverting ${act.summary}...`, 'info');
       } else {
-        showToast('No saved state snapshot is available to undo this specific action.', 'error');
+        showToast('Undo is only supported for product additions, updates, and deletions.', 'warning');
         return;
       }
 

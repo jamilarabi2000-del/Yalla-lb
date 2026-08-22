@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
-import { FREE_DELIVERY_THRESHOLD_USD, DELIVERY_FEES } from '../lib/delivery';
+import { FREE_DELIVERY_THRESHOLD_USD } from '../lib/delivery';
 import { 
    X, 
    Trash2, 
@@ -290,12 +290,12 @@ export const CartDrawer: React.FC = () => {
                   <span className="font-bold text-emerald-600">
                     {cartTotalUSD >= FREE_DELIVERY_THRESHOLD_USD 
                       ? (language === 'ar' ? 'مجاني' : 'FREE') 
-                      : (language === 'ar' ? `+$${DELIVERY_FEES.express_beirut}.00 عند الدفع` : `+$${DELIVERY_FEES.express_beirut}.00 at checkout`)}
+                      : (language === 'ar' ? 'يُحتسب عند الدفع' : 'Calculated at checkout')}
                   </span>
                 </div>
                 <div className="pt-2.5 border-t border-slate-200 flex justify-between items-center text-slate-900 font-bold">
                   <span className="text-sm">{t('estimatedTotal')}</span>
-                  <span className="text-xl font-black text-slate-950">{formatPrice(cartTotalUSD >= FREE_DELIVERY_THRESHOLD_USD ? cartTotalUSD : cartTotalUSD + DELIVERY_FEES.express_beirut)}</span>
+                  <span className="text-xl font-black text-slate-950">{formatPrice(cartTotalUSD)}</span>
                 </div>
               </div>
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import { PaymentMethod } from '../types';
 import { LEBANON_REGIONS, GovernorateOption, LBP_USD_RATE } from '../data/regions';
+import { calcDeliveryFeeUSD } from '../lib/delivery';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
 import { 
@@ -280,11 +281,12 @@ export const CheckoutView: React.FC = () => {
     r.majorCities.some(c => (formData.city || '').toLowerCase().includes(c.toLowerCase().split(' ')[0]))
   ) || LEBANON_REGIONS[0];
 
-  const deliveryFeeUSD = deliverySpeed === 'express_beirut' 
-    ? (matchedRegion.expressAvailable ? matchedRegion.baseDeliveryUSD : matchedRegion.baseDeliveryUSD + 1.5)
-    : deliverySpeed === 'standard' 
-    ? matchedRegion.baseDeliveryUSD 
-    : 28.0;
+  const deliveryFeeUSD = calcDeliveryFeeUSD({
+    speed: deliverySpeed,
+    regionId: matchedRegion?.id,
+    matchedRegion,
+    subtotalUSD: cartTotalUSD
+  });
 
   const finalTotalUSD = cartTotalUSD + (cart.length > 0 ? deliveryFeeUSD : 0);
 
@@ -1317,7 +1319,7 @@ export const CheckoutView: React.FC = () => {
                         {formatPrice(finalTotalUSD)}
                       </span>
                       <div className="text-[10px] text-slate-500 font-mono">
-                        ≈ {(finalTotalUSD * 89500).toLocaleString()} LBP
+                        ≈ {(finalTotalUSD * LBP_USD_RATE).toLocaleString()} LBP
                       </div>
                     </div>
                   </div>
