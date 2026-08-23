@@ -40,6 +40,7 @@ export interface Product {
 
 export interface Seller {
   id: string;                  // slug: 'chouf-eco-soap'
+  sellerCode?: string;         // unique code e.g. 'SLR-001'
   nameEn: string;
   nameAr?: string;
   logoUrl?: string;

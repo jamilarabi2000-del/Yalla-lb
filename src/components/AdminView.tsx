@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
-import { Product, OrderStatus, Order } from '../types';
+import { Product, OrderStatus, Order, UserProfile } from '../types';
 import { LBP_USD_RATE } from '../data/regions';
+import { buildCustomerIndex } from '../lib/customerIndex';
 import { AdminSidebar, AdminMenuTab } from './admin/AdminSidebar';
 import { EcommerceOverview } from './admin/EcommerceOverview';
 import { SalesAnalyticsView } from './admin/SalesAnalyticsView';
@@ -69,7 +70,7 @@ import {
   History,
   Image as ImageIcon
 } from 'lucide-react';
-import { doc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDocFromServer, collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { pingFirestore } from '../lib/firestore';
 
@@ -606,15 +607,37 @@ export const AdminView: React.FC = () => {
     });
   }, [products]);
 
+  // Registered users from Firestore to keep counts synchronized
+  const [dbUsers, setDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUsers = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+        if (!isMounted) return;
+        const usersData: (UserProfile & { uid?: string })[] = [];
+        snapshot.forEach(doc => {
+          usersData.push({ uid: doc.id, ...doc.data() } as UserProfile & { uid: string });
+        });
+        setDbUsers(usersData);
+      } catch (err) {
+        console.warn("[AdminView] Users fetch notice:", err);
+      }
+    };
+    fetchUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Calculate distinct counts for sidebar badges
   const categoriesCount = categories.length || 14; // Comprehensive catalog taxonomy
   
-  // Calculate distinct customers
-  const uniqueCustomerKeys = new Set(
-    orders.map(o => o.shipping?.phone || o.shipping?.email || o.shipping?.fullName || o.id || 'anonymous')
-  );
-  if (user?.email) uniqueCustomerKeys.add(user.email);
-  const customersCount = uniqueCustomerKeys.size;
+  // Calculate distinct customers using unified Customer Index
+  const customerIndex = useMemo(() => buildCustomerIndex(dbUsers, orders), [dbUsers, orders]);
+  const customersCount = customerIndex.size;
 
   // Active Carts count
   const activeCartsCount = cart.length > 0 ? 1 : 0;
@@ -2389,7 +2412,7 @@ export const AdminView: React.FC = () => {
 
           {/* 5. Customers */}
           {currentTab === 'customers' && (
-            <CustomersView />
+            <CustomersView dbUsers={dbUsers} />
           )}
 
           {/* 6. Active Carts */}

@@ -81,6 +81,7 @@ export const SellersView: React.FC = () => {
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
 
   // Form state
+  const [formSellerCode, setFormSellerCode] = useState('');
   const [formNameEn, setFormNameEn] = useState('');
   const [formNameAr, setFormNameAr] = useState('');
   const [formGovernorate, setFormGovernorate] = useState('mount_lebanon');
@@ -115,10 +116,21 @@ export const SellersView: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredSellers = sellers.filter(s => {
-    const matchesSearch = s.nameEn.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.nameAr && s.nameAr.includes(searchQuery)) ||
-      s.id.toLowerCase().includes(searchQuery.toLowerCase());
-    
+    const q = searchQuery.toLowerCase().trim();
+    const linkedProducts = products.filter(p => isProductLinkedToSeller(p, s));
+    const matchesInfo = s.nameEn.toLowerCase().includes(q) ||
+      (s.nameAr && s.nameAr.includes(q)) ||
+      s.id.toLowerCase().includes(q) ||
+      (s.sellerCode && s.sellerCode.toLowerCase().includes(q));
+
+    const matchesProduct = linkedProducts.some(p =>
+      (p.sellerItemCode && p.sellerItemCode.toLowerCase().includes(q)) ||
+      p.id.toLowerCase().includes(q) ||
+      (p.name && p.name.toLowerCase().includes(q))
+    );
+
+    const matchesSearch = !q || matchesInfo || matchesProduct;
+
     if (sellerStatusFilter === 'active') return matchesSearch && s.isActive;
     if (sellerStatusFilter === 'inactive') return matchesSearch && !s.isActive;
     return matchesSearch;
@@ -126,6 +138,8 @@ export const SellersView: React.FC = () => {
 
   const handleOpenAdd = () => {
     setEditingSeller(null);
+    const nextCodeNum = sellers.length + 101;
+    setFormSellerCode(`SLR-${nextCodeNum}`);
     setFormNameEn('');
     setFormNameAr('');
     setFormGovernorate('mount_lebanon');
@@ -177,6 +191,7 @@ export const SellersView: React.FC = () => {
 
   const handleOpenEdit = (s: Seller) => {
     setEditingSeller(s);
+    setFormSellerCode(s.sellerCode || 'SLR-101');
     setFormNameEn(s.nameEn);
     setFormNameAr(s.nameAr || '');
     const resolved = resolveGovernorateAndDistrict(s);
@@ -200,6 +215,7 @@ export const SellersView: React.FC = () => {
     try {
       if (editingSeller) {
         await updateSeller(editingSeller.id, {
+          sellerCode: formSellerCode.trim() || undefined,
           nameEn: formNameEn.trim(),
           nameAr: formNameAr.trim(),
           governorate: formGovernorate,
@@ -214,6 +230,7 @@ export const SellersView: React.FC = () => {
         showToast('Seller updated successfully!');
       } else {
         await addSeller({
+          sellerCode: formSellerCode.trim() || undefined,
           nameEn: formNameEn.trim(),
           nameAr: formNameAr.trim(),
           governorate: formGovernorate,
@@ -489,7 +506,7 @@ export const SellersView: React.FC = () => {
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search sellers by name or ID..."
+                  placeholder="Search by name, seller code, or product code..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
@@ -565,9 +582,14 @@ export const SellersView: React.FC = () => {
                   <div>
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="min-w-0 flex-1">
-                        <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 truncate max-w-full">
-                          {seller.id}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="inline-block text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700">
+                            {seller.sellerCode || 'SLR-101'}
+                          </span>
+                          <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-lg bg-slate-100 text-slate-500 truncate max-w-[120px]">
+                            {seller.id}
+                          </span>
+                        </div>
                         <h3 className="text-base font-black text-slate-900 mt-2 truncate" title={seller.nameEn}>{seller.nameEn}</h3>
                         {seller.nameAr && <p className="text-xs font-semibold text-slate-500 truncate" title={seller.nameAr}>{seller.nameAr}</p>}
                       </div>
@@ -860,6 +882,18 @@ export const SellersView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSaveSeller} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Unique Seller Code *</label>
+                <input
+                  type="text"
+                  required
+                  value={formSellerCode}
+                  onChange={(e) => setFormSellerCode(e.target.value)}
+                  placeholder="e.g. SLR-101"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono uppercase"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">English Name *</label>
                 <input

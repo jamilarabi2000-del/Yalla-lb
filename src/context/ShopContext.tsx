@@ -75,6 +75,14 @@ export const ensureSellerItemCode = (p: Product): Product => {
   return p;
 };
 
+export const ensureSellerCode = (s: Seller, index = 0): Seller => {
+  if (!s.sellerCode || !s.sellerCode.trim()) {
+    const codeNum = index + 101;
+    return { ...s, sellerCode: `SLR-${codeNum}` };
+  }
+  return s;
+};
+
 enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -1041,13 +1049,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await logAdminActivity('region_update', `Region zone "${target?.nameEn || id}" deleted`, `Removed shipping zone ${id}.`);
   };
 
-  // Sellers Management State & Sync
+// Sellers Management State & Sync
   const [sellers, setSellers] = useState<Seller[]>(() => {
     try {
       const saved = localStorage.getItem('yallalb_sellers');
-      return saved ? JSON.parse(saved) : DEFAULT_SELLERS;
+      const list = saved ? JSON.parse(saved) : DEFAULT_SELLERS;
+      return (list as Seller[]).map((s, idx) => ensureSellerCode(s, idx));
     } catch {
-      return DEFAULT_SELLERS;
+      return DEFAULT_SELLERS.map((s, idx) => ensureSellerCode(s, idx));
     }
   });
 
@@ -1078,8 +1087,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSellers(DEFAULT_SELLERS);
         } else {
           const list: Seller[] = [];
+          let idx = 0;
           snapshot.forEach(docSnap => {
-            list.push({ id: docSnap.id, ...docSnap.data() } as Seller);
+            const raw = { id: docSnap.id, ...docSnap.data() } as Seller;
+            list.push(ensureSellerCode(raw, idx++));
           });
           setSellers(list);
         }
@@ -1091,14 +1102,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, [isAdminUser, isAdminUnlocked]);
 
-  const addSeller = async (sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+  const addSeller = async (sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; sellerCode?: string }) => {
     const slug = sellerData.id?.trim() || sellerData.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `seller-${Date.now()}`;
     if (sellers.some(s => s.id === slug)) {
       throw new Error(`A seller with the ID "${slug}" already exists.`);
     }
+    const sellerCode = sellerData.sellerCode?.trim() || `SLR-${Math.floor(100 + Math.random() * 900)}`;
     const newSeller: Seller = {
       ...sellerData,
       id: slug,
+      sellerCode,
       isActive: sellerData.isActive ?? true,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

@@ -2,6 +2,14 @@ import Papa from 'papaparse';
 import { Product, Seller, Order } from '../types';
 import { LBP_USD_RATE } from '../data/regions';
 
+const isProductLinkedToSeller = (p: Product, seller: Seller) => {
+  if (p.sellerId && seller.id && p.sellerId.toLowerCase() === seller.id.toLowerCase()) return true;
+  const pSeller = (p.seller || p.artisan || '').trim().toLowerCase();
+  const sName = seller.nameEn.trim().toLowerCase();
+  if (pSeller && sName && pSeller === sName) return true;
+  return false;
+};
+
 export interface MasterReportRow {
   // Product Details
   product_id: string;
@@ -29,6 +37,7 @@ export interface MasterReportRow {
   craft_story: string;
 
   // Seller Details
+  seller_code: string;
   seller_id: string;
   seller_name_en: string;
   seller_name_ar: string;
@@ -56,6 +65,7 @@ export interface MasterReportRow {
 }
 
 export interface SellerPerformanceRow {
+  seller_code: string;
   seller_id: string;
   seller_name_en: string;
   seller_name_ar: string;
@@ -82,6 +92,7 @@ export interface StockInventoryRow {
   seller_item_code: string;
   product_name: string;
   arabic_name: string;
+  seller_code: string;
   seller_name: string;
   seller_contact: string;
   category: string;
@@ -225,6 +236,7 @@ export function downloadFullMasterReport(
       craft_story: (product.craftStory || '').replace(/[\r\n]+/g, ' '),
 
       // Seller
+      seller_code: matchedSeller?.sellerCode || 'SLR-101',
       seller_id: matchedSeller?.id || sId,
       seller_name_en: matchedSeller?.nameEn || sName,
       seller_name_ar: matchedSeller?.nameAr || product.arabicSeller || '',
@@ -365,6 +377,7 @@ export function downloadSellerPerformanceReport(
     const lastActive = sortedDates.length > 0 ? sortedDates[sortedDates.length - 1] : 'No orders recorded';
 
     return {
+      seller_code: item.seller.sellerCode || 'SLR-101',
       seller_id: item.seller.id,
       seller_name_en: item.seller.nameEn,
       seller_name_ar: item.seller.nameAr || '',
@@ -421,8 +434,10 @@ export function downloadStockInventoryReport(
   });
 
   const sellerPhoneMap = new Map<string, string>();
+  const sellerCodeMap = new Map<string, string>();
   sellers.forEach(s => {
     sellerPhoneMap.set(s.nameEn.toLowerCase(), s.contactPhone || '');
+    if (s.sellerCode) sellerCodeMap.set(s.nameEn.toLowerCase(), s.sellerCode);
   });
 
   const rows: StockInventoryRow[] = products
@@ -441,14 +456,17 @@ export function downloadStockInventoryReport(
         recommendation = 'Prepare reorder with producer';
       }
 
-      const sName = p.seller || p.artisan || 'Local Producer';
-      const sContact = sellerPhoneMap.get(sName.toLowerCase()) || '';
+      const matchedSeller = sellers.find(s => isProductLinkedToSeller(p, s));
+      const sName = matchedSeller?.nameEn || p.seller || p.artisan || 'Local Producer';
+      const sContact = matchedSeller?.contactPhone || sellerPhoneMap.get(sName.toLowerCase()) || '';
+      const sCode = matchedSeller?.sellerCode || sellerCodeMap.get(sName.toLowerCase()) || 'SLR-101';
 
       return {
         product_id: p.id,
         seller_item_code: p.sellerItemCode || '',
         product_name: p.name,
         arabic_name: p.arabicName || '',
+        seller_code: sCode,
         seller_name: sName,
         seller_contact: sContact,
         category: p.category,

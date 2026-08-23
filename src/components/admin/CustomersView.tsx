@@ -21,38 +21,61 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { buildCustomerIndex, CustomerRecord } from '../../lib/customerIndex';
 
-export const CustomersView: React.FC = () => {
-  const { orders, formatPrice, convertUSDToLBP, showToast, user } = useShop();
+interface CustomersViewProps {
+  dbUsers?: (UserProfile & { uid?: string })[];
+}
+
+export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUsers }) => {
+  const { orders, formatPrice, convertUSDToLBP, showToast } = useShop();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
-  const [dbUsers, setDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
+  const [localDbUsers, setLocalDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
+  const [isLoading, setIsLoading] = useState(!propDbUsers);
 
   useEffect(() => {
+    if (propDbUsers !== undefined) {
+      setLocalDbUsers(propDbUsers);
+      setIsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
     const fetchUsers = async () => {
       try {
         const usersRef = collection(db, 'users');
         const snapshot = await getDocs(usersRef);
+        if (!isMounted) return;
         const usersData: (UserProfile & { uid?: string })[] = [];
         snapshot.forEach(doc => {
           usersData.push({ uid: doc.id, ...doc.data() } as UserProfile & { uid: string });
         });
-        setDbUsers(usersData);
+        setLocalDbUsers(usersData);
       } catch (err) {
         console.error("Failed to fetch users:", err);
+      } finally {
+        if (isMounted) setIsLoading(false);
       }
     };
     fetchUsers();
-  }, []);
+    return () => {
+      isMounted = false;
+    };
+  }, [propDbUsers]);
 
-  const customersMap = buildCustomerIndex(dbUsers, orders);
-  const customersList = Array.from(customersMap.values());
+  const activeUsers = propDbUsers ?? localDbUsers;
+  const customersMap = React.useMemo(() => buildCustomerIndex(activeUsers, orders), [activeUsers, orders]);
+  const customersList = React.useMemo(() => Array.from(customersMap.values()), [customersMap]);
 
-  const filteredCustomers = customersList.filter(c => 
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (c.phone && c.phone.includes(searchQuery)) ||
-    (c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (c.city && c.city.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filteredCustomers = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return customersList;
+    return customersList.filter(c => 
+      c.name.toLowerCase().includes(q) ||
+      (c.phone && c.phone.includes(q)) ||
+      (c.email && c.email.toLowerCase().includes(q)) ||
+      (c.city && c.city.toLowerCase().includes(q))
+    );
+  }, [customersList, searchQuery]);
 
   const handleWhatsAppContact = (phone: string | null, name: string) => {
     if (!phone) {
@@ -122,8 +145,8 @@ export const CustomersView: React.FC = () => {
             <Download className="w-3.5 h-3.5 text-slate-600" />
             <span>Download Report</span>
           </button>
-          <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-[#4f46e5] border border-indigo-100">
-            {customersList.length} Registered Buyers
+          <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100">
+            {customersList.length} Customer{customersList.length === 1 ? '' : 's'}
           </span>
         </div>
       </div>
@@ -137,7 +160,7 @@ export const CustomersView: React.FC = () => {
             placeholder="Search by customer name, phone number, email, or city..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-2xl border border-slate-200 focus:outline-none focus:border-[#4f46e5]"
+            className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-2xl border border-slate-200 focus:outline-none focus:border-indigo-600"
           />
         </div>
       </div>
@@ -162,7 +185,7 @@ export const CustomersView: React.FC = () => {
                 <tr key={customer.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-indigo-100 text-[#4f46e5] font-black flex items-center justify-center text-xs">
+                      <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-black flex items-center justify-center text-xs">
                         {customer.name.slice(0, 2).toUpperCase()}
                       </div>
                       <div>
@@ -203,7 +226,7 @@ export const CustomersView: React.FC = () => {
                   </td>
 
                   <td className="p-4 text-slate-500 text-[11px]">
-                    {customer.lastOrderDate}
+                    {customer.lastOrderDate || '—'}
                   </td>
 
                   <td className="p-4 text-right">
@@ -231,8 +254,19 @@ export const CustomersView: React.FC = () => {
         </div>
 
         {filteredCustomers.length === 0 && (
-          <div className="text-center py-12 text-slate-400 text-xs">
-            No customers found matching "{searchQuery}".
+          <div className="text-center py-16 px-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-6 h-6" />
+            </div>
+            <h4 className="text-sm font-bold text-slate-800 mb-1">
+              {searchQuery ? 'No matching customers found' : 'No customers recorded yet'}
+            </h4>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              {searchQuery 
+                ? `No buyers or registered profiles matched "${searchQuery}". Try a different name, phone, or email.`
+                : 'Customer profiles and buyer history will automatically appear here as accounts register and orders are placed.'
+              }
+            </p>
           </div>
         )}
       </div>

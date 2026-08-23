@@ -67,6 +67,8 @@ export function resolveSeller(
 
   // Extract raw value from various common column header permutations
   const rawValue = (
+    row.seller_code ??
+    row.sellercode ??
     row.seller_id ??
     row.sellerid ??
     row.seller ??
@@ -76,6 +78,7 @@ export function resolveSeller(
     row.sellername ??
     row['seller / artisan'] ??
     row['seller id'] ??
+    row['seller code'] ??
     row['artisan / seller'] ??
     row.vendor ??
     row.merchant ??
@@ -108,6 +111,16 @@ export function resolveSeller(
       };
     }
     return null;
+  }
+
+  // 0. Direct sellerCode match
+  const byCode = sellers.find(s => s.sellerCode && s.sellerCode.toLowerCase() === rawValue.toLowerCase());
+  if (byCode) {
+    return {
+      sellerId: byCode.id,
+      sellerName: byCode.nameEn || byCode.id,
+      arabicSeller: byCode.nameAr
+    };
   }
 
   // 1. Direct ID match
