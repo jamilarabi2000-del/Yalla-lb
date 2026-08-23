@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useShop } from '../../context/ShopContext';
-import { Seller } from '../../types';
+import { Seller, Product } from '../../types';
 import { 
   Store, 
   Plus, 
@@ -24,6 +24,53 @@ import {
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../../utils/importerResolvers';
 import { checkDuplicateSellerItemCode } from '../../lib/productValidation';
 
+const LEBANON_GOVERNORATES_DATA: Record<string, { nameEn: string; districts: string[] }> = {
+  akkar: {
+    nameEn: 'Akkar Governorate',
+    districts: ['Akkar']
+  },
+  baalbek_hermel: {
+    nameEn: 'Baalbek-Hermel Governorate',
+    districts: ['Baalbek', 'Hermel']
+  },
+  beirut: {
+    nameEn: 'Beirut Governorate',
+    districts: ['Beirut City']
+  },
+  bekaa: {
+    nameEn: 'Beqaa Governorate',
+    districts: ['Zahlé', 'Western Beqaa', 'Rashaya']
+  },
+  keserwan_jbeil: {
+    nameEn: 'Keserwan-Jbeil Governorate',
+    districts: ['Keserwan', 'Byblos (Jbeil)']
+  },
+  mount_lebanon: {
+    nameEn: 'Mount Lebanon Governorate',
+    districts: ['Baabda', 'Aley', 'Chouf', 'Matn (Metn)']
+  },
+  nabatieh: {
+    nameEn: 'Nabatieh Governorate',
+    districts: ['Nabatieh', 'Bint Jbeil', 'Marjeyoun', 'Hasbaya']
+  },
+  north: {
+    nameEn: 'North Governorate',
+    districts: ['Tripoli', 'Batroun', 'Bsharri', 'Koura', 'Miniyeh-Danniyeh', 'Zgharta', 'Akkar']
+  },
+  south: {
+    nameEn: 'South Governorate',
+    districts: ['Sidon (Saida)', 'Tyre', 'Jezzine']
+  }
+};
+
+const isProductLinkedToSeller = (p: Product, seller: Seller) => {
+  if (p.sellerId && seller.id && p.sellerId.toLowerCase() === seller.id.toLowerCase()) return true;
+  const pSeller = (p.seller || p.artisan || '').trim().toLowerCase();
+  const sName = seller.nameEn.trim().toLowerCase();
+  if (pSeller && sName && pSeller === sName) return true;
+  return false;
+};
+
 export const SellersView: React.FC = () => {
   const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
 
@@ -36,10 +83,21 @@ export const SellersView: React.FC = () => {
   // Form state
   const [formNameEn, setFormNameEn] = useState('');
   const [formNameAr, setFormNameAr] = useState('');
-  const [formRegion, setFormRegion] = useState('beirut');
+  const [formGovernorate, setFormGovernorate] = useState('mount_lebanon');
+  const [formDistrict, setFormDistrict] = useState('Chouf');
+  const [formVillage, setFormVillage] = useState('');
+  const [formExactAddress, setFormExactAddress] = useState('');
+  const [formRegion, setFormRegion] = useState('mount_lebanon');
   const [formPhone, setFormPhone] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
+
+  const handleGovernorateChange = (gov: string) => {
+    setFormGovernorate(gov);
+    setFormRegion(gov);
+    const districts = LEBANON_GOVERNORATES_DATA[gov]?.districts || [];
+    setFormDistrict(districts[0] || '');
+  };
 
   // Delete reassign state
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
@@ -70,18 +128,63 @@ export const SellersView: React.FC = () => {
     setEditingSeller(null);
     setFormNameEn('');
     setFormNameAr('');
-    setFormRegion('beirut');
+    setFormGovernorate('mount_lebanon');
+    setFormDistrict('Chouf');
+    setFormVillage('');
+    setFormExactAddress('');
+    setFormRegion('mount_lebanon');
     setFormPhone('');
     setFormEmail('');
     setFormIsActive(true);
     setIsModalOpen(true);
   };
 
+  const resolveGovernorateAndDistrict = (seller: Seller) => {
+    if (seller.governorate && LEBANON_GOVERNORATES_DATA[seller.governorate]) {
+      return {
+        governorate: seller.governorate,
+        district: seller.district || LEBANON_GOVERNORATES_DATA[seller.governorate].districts[0]
+      };
+    }
+    const reg = (seller.region || '').toLowerCase();
+    if (reg.includes('beirut')) return { governorate: 'beirut', district: 'Beirut City' };
+    if (reg.includes('koura') || reg.includes('batroun') || reg.includes('tripoli') || reg.includes('bsharre') || reg.includes('zgharta')) {
+      return { governorate: 'north', district: seller.district || 'Tripoli' };
+    }
+    if (reg.includes('akkar')) {
+      return { governorate: 'akkar', district: 'Akkar' };
+    }
+    if (reg.includes('chouf') || reg.includes('mount') || reg.includes('baskinta') || reg.includes('baabda') || reg.includes('aley') || reg.includes('matn') || reg.includes('metn')) {
+      return { governorate: 'mount_lebanon', district: reg.includes('chouf') ? 'Chouf' : reg.includes('aley') ? 'Aley' : reg.includes('baabda') ? 'Baabda' : 'Matn (Metn)' };
+    }
+    if (reg.includes('kesrouan') || reg.includes('byblos') || reg.includes('jbeil')) {
+      return { governorate: 'keserwan_jbeil', district: reg.includes('byblos') || reg.includes('jbeil') ? 'Byblos (Jbeil)' : 'Keserwan' };
+    }
+    if (reg.includes('zahle') || reg.includes('bekaa') || reg.includes('rashaya')) {
+      return { governorate: 'bekaa', district: reg.includes('zahle') ? 'Zahlé' : 'Rashaya' };
+    }
+    if (reg.includes('sidon') || reg.includes('tyre') || reg.includes('sarafand') || reg.includes('jezzine') || reg.includes('south')) {
+      return { governorate: 'south', district: reg.includes('tyre') ? 'Tyre' : reg.includes('jezzine') ? 'Jezzine' : 'Sidon (Saida)' };
+    }
+    if (reg.includes('nabatieh') || reg.includes('bint') || reg.includes('marjeyoun') || reg.includes('hasbaya')) {
+      return { governorate: 'nabatieh', district: 'Nabatieh' };
+    }
+    if (reg.includes('baalbek') || reg.includes('hermel')) {
+      return { governorate: 'baalbek_hermel', district: reg.includes('hermel') ? 'Hermel' : 'Baalbek' };
+    }
+    return { governorate: 'mount_lebanon', district: 'Chouf' };
+  };
+
   const handleOpenEdit = (s: Seller) => {
     setEditingSeller(s);
     setFormNameEn(s.nameEn);
     setFormNameAr(s.nameAr || '');
-    setFormRegion(s.region || 'beirut');
+    const resolved = resolveGovernorateAndDistrict(s);
+    setFormGovernorate(resolved.governorate);
+    setFormDistrict(resolved.district);
+    setFormVillage(s.village || (s.region && !['beirut', 'mount_lebanon', 'north', 'south', 'bekaa', 'nabatieh', 'baalbek_hermel', 'keserwan_jbeil', 'akkar'].includes(s.region.toLowerCase()) ? s.region : ''));
+    setFormExactAddress(s.exactAddress || '');
+    setFormRegion(resolved.governorate);
     setFormPhone(s.contactPhone || '');
     setFormEmail(s.contactEmail || '');
     setFormIsActive(s.isActive);
@@ -99,7 +202,11 @@ export const SellersView: React.FC = () => {
         await updateSeller(editingSeller.id, {
           nameEn: formNameEn.trim(),
           nameAr: formNameAr.trim(),
-          region: formRegion,
+          governorate: formGovernorate,
+          district: formDistrict,
+          village: formVillage.trim(),
+          exactAddress: formExactAddress.trim(),
+          region: formGovernorate,
           contactPhone: formPhone.trim(),
           contactEmail: formEmail.trim(),
           isActive: formIsActive
@@ -109,7 +216,11 @@ export const SellersView: React.FC = () => {
         await addSeller({
           nameEn: formNameEn.trim(),
           nameAr: formNameAr.trim(),
-          region: formRegion,
+          governorate: formGovernorate,
+          district: formDistrict,
+          village: formVillage.trim(),
+          exactAddress: formExactAddress.trim(),
+          region: formGovernorate,
           contactPhone: formPhone.trim(),
           contactEmail: formEmail.trim(),
           isActive: formIsActive
@@ -123,7 +234,8 @@ export const SellersView: React.FC = () => {
   };
 
   const handleDeleteClick = async (sellerId: string) => {
-    const affected = products.filter(p => p.sellerId === sellerId);
+    const targetSeller = sellers.find(s => s.id === sellerId);
+    const affected = targetSeller ? products.filter(p => isProductLinkedToSeller(p, targetSeller)) : [];
     if (affected.length > 0) {
       setDeleteTargetId(sellerId);
       setReassignTargetId(sellers.find(s => s.id !== sellerId)?.id || '');
@@ -193,7 +305,7 @@ export const SellersView: React.FC = () => {
         status: seller.isActive ? 'Active' : 'Inactive',
         region: seller.region || 'Lebanon',
         contact_phone: seller.contactPhone || '',
-        linked_products_count: products.filter(p => p.sellerId === seller.id).length,
+        linked_products_count: products.filter(p => isProductLinkedToSeller(p, seller)).length,
         created_at: seller.createdAt || '',
       }));
 
@@ -442,7 +554,7 @@ export const SellersView: React.FC = () => {
           {/* Sellers Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
             {filteredSellers.map((seller) => {
-              const productCount = products.filter(p => p.sellerId === seller.id).length;
+              const productCount = products.filter(p => isProductLinkedToSeller(p, seller)).length;
               return (
                 <div 
                   key={seller.id}
@@ -474,9 +586,17 @@ export const SellersView: React.FC = () => {
 
                     <div className="space-y-1.5 py-3 border-t border-b border-slate-100 text-xs text-slate-600">
                       <div className="flex justify-between items-center">
-                        <span className="text-slate-400">Region:</span>
-                        <span className="font-bold uppercase truncate max-w-[140px] text-right">{seller.region || 'Lebanon'}</span>
+                        <span className="text-slate-400">Location:</span>
+                        <span className="font-bold truncate max-w-[150px] text-right" title={`${seller.village ? seller.village + ', ' : ''}${seller.district ? seller.district + ' • ' : ''}${LEBANON_GOVERNORATES_DATA[seller.governorate || seller.region || '']?.nameEn || seller.governorate || seller.region || 'Lebanon'}`}>
+                          {seller.village ? `${seller.village}, ` : ''}{seller.district ? `${seller.district}` : (LEBANON_GOVERNORATES_DATA[seller.governorate || seller.region || '']?.nameEn || seller.governorate || seller.region || 'Lebanon')}
+                        </span>
                       </div>
+                      {seller.exactAddress && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">Address:</span>
+                          <span className="font-medium truncate max-w-[150px] text-right" title={seller.exactAddress}>{seller.exactAddress}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between items-center">
                         <span className="text-slate-400">Linked Products:</span>
                         <span className="font-black text-indigo-600">{productCount} products</span>
@@ -763,24 +883,44 @@ export const SellersView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Region</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Governorate *</label>
                   <select
-                    value={formRegion}
-                    onChange={(e) => setFormRegion(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                    value={formGovernorate}
+                    onChange={(e) => handleGovernorateChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
                   >
-                    <option value="beirut">Beirut</option>
-                    <option value="mount_lebanon">Mount Lebanon</option>
-                    <option value="north">North Lebanon</option>
-                    <option value="south">South Lebanon</option>
-                    <option value="bekaa">Bekaa</option>
-                    <option value="chouf">Chouf</option>
-                    <option value="byblos">Byblos</option>
-                    <option value="tripoli">Tripoli</option>
-                    <option value="zahle">Zahle</option>
+                    {Object.entries(LEBANON_GOVERNORATES_DATA).map(([key, g]) => (
+                      <option key={key} value={key}>{g.nameEn}</option>
+                    ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">District (Qada) *</label>
+                  <select
+                    value={formDistrict}
+                    onChange={(e) => setFormDistrict(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {(LEBANON_GOVERNORATES_DATA[formGovernorate]?.districts || []).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Village / Town *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formVillage}
+                    onChange={(e) => setFormVillage(e.target.value)}
+                    placeholder="e.g. Deir El Qamar"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">WhatsApp Phone</label>
@@ -792,6 +932,17 @@ export const SellersView: React.FC = () => {
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                   />
                 </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Exact Address / Street / Building</label>
+                <input
+                  type="text"
+                  value={formExactAddress}
+                  onChange={(e) => setFormExactAddress(e.target.value)}
+                  placeholder="e.g. Main Street, Cooperatives Building 2nd Floor"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                />
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -833,7 +984,10 @@ export const SellersView: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-md w-full p-6 space-y-4 shadow-xl">
             <h3 className="text-base font-black text-slate-900">Reassign Products Before Deleting</h3>
             <p className="text-xs text-slate-600">
-              There are <strong className="text-indigo-600">{products.filter(p => p.sellerId === deleteTargetId).length}</strong> products linked to this seller. Choose a new seller to reassign them to:
+              There are <strong className="text-indigo-600">{products.filter(p => {
+                const target = sellers.find(s => s.id === deleteTargetId);
+                return target ? isProductLinkedToSeller(p, target) : false;
+              }).length}</strong> products linked to this seller. Choose a new seller to reassign them to:
             </p>
             <select
               value={reassignTargetId}

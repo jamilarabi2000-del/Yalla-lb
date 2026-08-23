@@ -10,5 +10,4 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm install -g firebase-tools
       - run: npm run verify

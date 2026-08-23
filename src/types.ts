@@ -45,6 +45,10 @@ export interface Seller {
   logoUrl?: string;
   bioEn?: string;
   bioAr?: string;
+  governorate?: string;        // e.g. 'mount_lebanon'
+  district?: string;           // e.g. 'Chouf'
+  village?: string;            // e.g. 'Deir El Qamar'
+  exactAddress?: string;       // e.g. 'Main Street, Cooperatives Bldg 2nd Floor'
   region?: string;             // matches LEBANON_REGIONS ids
   contactPhone?: string;       // WhatsApp coordination
   contactEmail?: string;

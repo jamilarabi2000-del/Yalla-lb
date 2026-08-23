@@ -10,7 +10,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:delivery": "vitest run test/delivery.test.ts",
-    "test:rules": "firebase emulators:exec --only firestore 'vitest run test/rules.test.ts'",
+    "test:rules": "npx firebase emulators:exec --only firestore 'vitest run test/rules.test.ts'",
     "verify": "npm run lint && npm run test:delivery && npm run test:rules",
     "grant-admin": "node scripts/grant-admin.mjs"
   },
@@ -30,6 +30,7 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^5.0.4",
     "firebase-admin": "^14.2.0",
+    "firebase-tools": "^13.29.1",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.3",

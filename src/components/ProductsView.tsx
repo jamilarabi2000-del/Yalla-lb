@@ -30,7 +30,8 @@ export const ProductsView: React.FC = () => {
     t,
     language,
     siteContent,
-    isVisualEditMode
+    isVisualEditMode,
+    categories: contextCategories
   } = useShop();
 
   const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'rating'>('featured');
@@ -43,6 +44,30 @@ export const ProductsView: React.FC = () => {
     productsSort: true,
     productsGrid: true
   };
+
+  const activeCategoryObj = contextCategories?.find(c => c.id === selectedCategory);
+  
+  const currentTitle = selectedCategory === 'all' || !selectedCategory
+    ? (siteContent?.productsPage?.title ?? (
+        language === 'ar' ? (
+          <>كتالوج المنتجات الحرفية <span className="text-amber-400 font-serif italic">اللبنانية</span></>
+        ) : (
+          <>Lebanese Artisan <span className="text-amber-400 font-serif italic">Catalog</span></>
+        )
+      ))
+    : (activeCategoryObj 
+        ? (language === 'ar' ? activeCategoryObj.nameAr : activeCategoryObj.nameEn)
+        : ((t as any)('cat_' + selectedCategory) !== `cat_${selectedCategory}` ? (t as any)('cat_' + selectedCategory) : selectedCategory));
+
+  const currentSubtitle = selectedCategory === 'all' || !selectedCategory
+    ? (siteContent?.productsPage?.subtitle ?? (
+        language === 'ar' 
+          ? 'اكتشف المؤونة الغذائية، والحرف اليدوية التراثية، وزيت الزيتون العضوي، والمنتجات المحلية المباشرة من جميع المناطق اللبنانية.'
+          : 'Discover culinary treasures, heirloom handcrafts, organic olive oils, and artisanal creations directly sourced across Lebanon.'
+      ))
+    : (activeCategoryObj?.descriptionAr && language === 'ar' 
+        ? activeCategoryObj.descriptionAr 
+        : (activeCategoryObj?.description || (language === 'ar' ? `تصفح تشكيلة ${currentTitle} الفاخرة والمختارة بعناية.` : `Browse our curated collection of items.`)));
 
   const categories = [
     { id: 'all', name: t('cat_all'), icon: '✨' },
@@ -211,20 +236,10 @@ export const ProductsView: React.FC = () => {
                   <span>{t('verifiedProvenance')}</span>
                 </div>
                 <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-                  {siteContent?.productsPage?.title ?? (
-                    language === 'ar' ? (
-                      <>كتالوج المنتجات الحرفية <span className="text-amber-400 font-serif italic">اللبنانية</span></>
-                    ) : (
-                      <>Lebanese Artisan <span className="text-amber-400 font-serif italic">Catalog</span></>
-                    )
-                  )}
+                  {currentTitle}
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1">
-                  {siteContent?.productsPage?.subtitle ?? (
-                    language === 'ar' 
-                      ? 'اكتشف المؤونة الغذائية، والحرف اليدوية التراثية، وزيت الزيتون العضوي، والمنتجات المحلية المباشرة من جميع المناطق اللبنانية.'
-                      : 'Discover culinary treasures, heirloom handcrafts, organic olive oils, and artisanal creations directly sourced across Lebanon.'
-                  )}
+                  {currentSubtitle}
                 </p>
               </div>
 

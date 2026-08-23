@@ -836,8 +836,8 @@ export const AdminView: React.FC = () => {
 
   const handleCreateProduct = async (e?: React.FormEvent, isPublic: boolean = true) => {
     if (e) e.preventDefault();
-    if (!newProduct.name || !newProduct.artisan || !newProduct.priceUSD) {
-      showToast('Please provide a name, artisan, and price.', 'warning');
+    if (!newProduct.name || !newProduct.seller || !newProduct.priceUSD) {
+      showToast('Please provide a name, seller name, and price.', 'warning');
       return;
     }
 
@@ -874,11 +874,11 @@ export const AdminView: React.FC = () => {
       name: newProduct.name,
       arabicName: newProduct.arabicName,
       category: newProduct.category,
-      artisan: newProduct.artisan,
-      seller: newProduct.seller || newProduct.artisan,
+      artisan: newProduct.seller || 'Independent Artisan',
+      seller: newProduct.seller || 'Independent Artisan',
       sellerId: matchedSeller?.id || (newProduct as any).sellerId || undefined,
       arabicSeller: newProduct.arabicSeller || (matchedSeller?.nameAr || ''),
-      origin: newProduct.origin,
+      origin: matchedSeller?.region || 'Lebanon',
       description: newProduct.description || 'Authentic Lebanese artisanal product.',
       craftStory: newProduct.craftStory || 'Generational handcrafted masterpiece created in Lebanon.',
       priceUSD: Number(newProduct.priceUSD),
@@ -989,11 +989,11 @@ export const AdminView: React.FC = () => {
         name: fullEditProduct.name,
         arabicName: fullEditProduct.arabicName,
         category: fullEditProduct.category,
-        artisan: fullEditProduct.artisan,
-        seller: fullEditProduct.seller || fullEditProduct.artisan,
+        artisan: fullEditProduct.seller || 'Independent Artisan',
+        seller: fullEditProduct.seller || 'Independent Artisan',
         sellerId: matchedSeller?.id || fullEditProduct.sellerId || undefined,
         arabicSeller: fullEditProduct.arabicSeller || (matchedSeller?.nameAr || ''),
-        origin: fullEditProduct.origin,
+        origin: matchedSeller?.region || fullEditProduct.origin || 'Lebanon',
         priceUSD: Number(fullEditProduct.priceUSD),
         stock: Number(fullEditProduct.stock),
         image: fullEditProduct.image,
@@ -2584,7 +2584,7 @@ export const AdminView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Category *</label>
                   <select
@@ -2600,24 +2600,11 @@ export const AdminView: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Artisan / Guild / Seller *</label>
+                  <label className="block font-bold text-slate-700 mb-1">Seller Name (English) *</label>
                   <input
                     type="text"
                     required
                     list="admin-existing-sellers"
-                    placeholder="e.g. Chouf Artisan Cooperative"
-                    value={newProduct.artisan}
-                    onChange={(e) => setNewProduct({ ...newProduct, artisan: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Seller Name (English)</label>
-                  <input
-                    type="text"
                     placeholder="e.g. Cedar Farms"
                     value={newProduct.seller}
                     onChange={(e) => setNewProduct({ ...newProduct, seller: e.target.value })}
@@ -2636,18 +2623,7 @@ export const AdminView: React.FC = () => {
                   />
                 </div>
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mt-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Origin / Terroir</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Koura, North Lebanon"
-                    value={newProduct.origin}
-                    onChange={(e) => setNewProduct({ ...newProduct, origin: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
-                  />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Price ($) *</label>
                   <input
@@ -3417,29 +3393,7 @@ export const AdminView: React.FC = () => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Artisan / Guild / Seller</label>
-                  <input
-                    type="text"
-                    list="admin-existing-sellers"
-                    placeholder="e.g. Chouf Artisan Cooperative"
-                    value={fullEditProduct.artisan || ''}
-                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, artisan: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 mb-1">Origin / Terroir</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Koura, North Lebanon"
-                    value={fullEditProduct.origin || ''}
-                    onChange={(e) => setFullEditProduct({ ...fullEditProduct, origin: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none"
-                  />
-                </div>
-              </div>
+
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <div>

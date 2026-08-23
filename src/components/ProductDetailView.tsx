@@ -129,14 +129,14 @@ export const ProductDetailView: React.FC = () => {
       setSubmitError(null);
       setSubmitSuccess(false);
       
-      // Get initial localized mock reviews
+      const baseRating = product.rating || 5;
       const initialMockReviews: Review[] = [
         {
           id: `mock-1-${product.id}`,
           productId: product.id,
           userId: 'mock-user-1',
           userName: language === 'ar' ? 'كريم سليمان' : 'Karim S.',
-          rating: 5,
+          rating: Math.round(baseRating),
           comment: language === 'ar' 
             ? 'جودة استثنائية وعمل يدوي متقن للغاية! يمثل التراث اللبناني الأصيل بأبهى صورة.' 
             : 'Outstanding craftsmanship and beautiful authentic design. Truly represents Lebanese artisanal heritage!',
@@ -147,7 +147,7 @@ export const ProductDetailView: React.FC = () => {
           productId: product.id,
           userId: 'mock-user-2',
           userName: language === 'ar' ? 'ليلى مراد' : 'Layla M.',
-          rating: 4,
+          rating: Math.min(5, Math.max(4, Math.round(baseRating))),
           comment: language === 'ar' 
             ? 'منتج رائع ورائحة أصيلة. التوصيل كان سريعاً والتعامل قمة في الرقي.' 
             : 'Wonderful product, excellent quality and fast shipping. Highly recommend to everyone support our local artisans.',
@@ -286,8 +286,9 @@ export const ProductDetailView: React.FC = () => {
   };
 
   const totalReviewsCount = reviews.length;
-  const averageRating = totalReviewsCount > 0 
-    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviewsCount).toFixed(1)
+  const userReviews = reviews.filter(r => !r.id.startsWith('mock-'));
+  const averageRating = userReviews.length > 0 
+    ? (userReviews.reduce((sum, r) => sum + r.rating, 0) / userReviews.length).toFixed(1)
     : product.rating.toFixed(1);
 
   const isLiked = isInWishlist(product.id);
