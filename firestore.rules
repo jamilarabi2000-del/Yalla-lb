@@ -9,7 +9,6 @@ service cloud.firestore {
         && (
           request.auth.token.admin == true
           || request.auth.token.email == 'jamilarabi2000@gmail.com'
-          || (request.auth.token.email != null && request.auth.token.email.matches('(?i).*admin.*'))
         );
     }
 

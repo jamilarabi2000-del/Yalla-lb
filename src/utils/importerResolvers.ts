@@ -285,12 +285,23 @@ export function parsePrice(val: any): number {
 }
 
 /**
- * Sanitizes numeric stock quantity (defaults to 10 if omitted or unparseable).
+ * Sanitizes numeric stock quantity strictly.
+ * Accepts only plain integers (with optional commas as thousands separators).
+ * Returns NaN for unit suffixes (e.g. "500ml", "750g", "245 Pcs") or missing values,
+ * so the importer/form can reject invalid rows and not invent defaults.
  */
 export function parseStock(val: any): number {
-  if (typeof val === 'number') return isNaN(val) ? 10 : Math.max(0, Math.floor(val));
-  if (val === undefined || val === null || val === '') return 10;
-  const str = String(val).replace(/[^0-9]/g, '');
-  const num = parseInt(str, 10);
-  return isNaN(num) ? 10 : Math.max(0, num);
+  if (typeof val === 'number') return isNaN(val) ? NaN : Math.max(0, Math.floor(val));
+  if (val === undefined || val === null || String(val).trim() === '') return NaN;
+  const raw = String(val).trim();
+  // Reject if it contains unit letters or characters other than digits and commas/spaces
+  if (/[a-zA-Z]/.test(raw)) {
+    return NaN;
+  }
+  const clean = raw.replace(/,/g, '').trim();
+  if (!/^\d+$/.test(clean)) {
+    return NaN;
+  }
+  const num = parseInt(clean, 10);
+  return isNaN(num) ? NaN : Math.max(0, num);
 }

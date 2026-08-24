@@ -467,6 +467,8 @@ export const AdminView: React.FC = () => {
     description: string;
     craftStory: string;
     priceUSD: number;
+    originalPriceUSD: number | '';
+    discountPercentage: number | '';
     stock: number;
     lowStockThreshold: number;
     lowStockNotice: string;
@@ -478,6 +480,7 @@ export const AdminView: React.FC = () => {
     newVideoInput: string;
     weightOrVolume: string;
     tags: string[];
+    tagsInput: string;
     keywordsInput: string;
     arabicKeywords: string[];
     newArabicKeywordInput: string;
@@ -493,6 +496,8 @@ export const AdminView: React.FC = () => {
     description: '',
     craftStory: '',
     priceUSD: 15,
+    originalPriceUSD: '',
+    discountPercentage: '',
     stock: 25,
     lowStockThreshold: 5,
     lowStockNotice: '',
@@ -504,6 +509,7 @@ export const AdminView: React.FC = () => {
     newVideoInput: '',
     weightOrVolume: '',
     tags: ['Artisanal', 'Lebanese Terroir'],
+    tagsInput: 'Artisanal, Lebanese Terroir, Handmade',
     keywordsInput: 'lebanese, artisanal, authentic, gourmet',
     arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
     newArabicKeywordInput: '',
@@ -1000,7 +1006,8 @@ export const AdminView: React.FC = () => {
       await syncAllProductsToDatabase();
       showToast('🎉 Storefront and catalog successfully published live to Public!', 'success');
     } catch (err: any) {
-      showToast('Storefront changes published live to public storefront.', 'success');
+      console.error('[AdminView] Publish failed:', err);
+      showToast(`Publish failed: ${err?.message || 'the catalog could not be written to the database.'}`, 'error');
     } finally {
       setIsSyncingDb(false);
     }
@@ -1012,6 +1019,14 @@ export const AdminView: React.FC = () => {
       showToast('Please provide a name, seller name, and price.', 'warning');
       return;
     }
+
+    const stockValue = Number(newProduct.stock);
+    if (!Number.isFinite(stockValue) || stockValue < 0 || !Number.isInteger(stockValue)) {
+      showToast('Stock quantity must be a whole number of units (0 or more).', 'warning');
+      return;
+    }
+
+    const lowStockThresholdValue = Number(newProduct.lowStockThreshold) >= 0 ? Number(newProduct.lowStockThreshold) : 5;
 
     // Duplicate Product Number & Seller Item Code validation
     if (newProduct.sellerItemCode) {
@@ -1027,7 +1042,7 @@ export const AdminView: React.FC = () => {
 
     const keywordsArray = newProduct.keywordsInput 
       ? newProduct.keywordsInput.split(',').map(s => s.trim()).filter(Boolean) 
-      : ['lebanese', 'artisanal', 'authentic'];
+      : [];
 
     const matchedSeller = sellers.find(s => 
       (newProduct.seller && s.nameEn.toLowerCase() === newProduct.seller.toLowerCase()) ||
@@ -1047,10 +1062,16 @@ export const AdminView: React.FC = () => {
       description: newProduct.description || 'Authentic Lebanese artisanal product.',
       craftStory: newProduct.craftStory || 'Generational handcrafted masterpiece created in Lebanon.',
       priceUSD: Number(newProduct.priceUSD),
+      originalPriceUSD: Number(newProduct.originalPriceUSD) > 0 ? Number(newProduct.originalPriceUSD) : undefined,
+      discountPercentage: Number(newProduct.discountPercentage) > 0
+        ? Number(newProduct.discountPercentage)
+        : (Number(newProduct.originalPriceUSD) > Number(newProduct.priceUSD)
+            ? Math.round(((Number(newProduct.originalPriceUSD) - Number(newProduct.priceUSD)) / Number(newProduct.originalPriceUSD)) * 100)
+            : undefined),
       rating: 0,
       reviewsCount: 0,
-      stock: Number(newProduct.stock) >= 0 ? Number(newProduct.stock) : 10,
-      lowStockThreshold: Number(newProduct.lowStockThreshold) >= 0 ? Number(newProduct.lowStockThreshold) : 5,
+      stock: stockValue,
+      lowStockThreshold: lowStockThresholdValue,
       lowStockNotice: newProduct.lowStockNotice ? newProduct.lowStockNotice.trim() : undefined,
       image: newProduct.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80',
       additionalImages: (newProduct.additionalImages || []).filter(Boolean),
@@ -1062,7 +1083,10 @@ export const AdminView: React.FC = () => {
       isBestseller: false,
       isPublished: isPublic,
       weightOrVolume: newProduct.weightOrVolume ? newProduct.weightOrVolume.trim() : '',
-      tags: ['Authentic', 'Handmade', 'Lebanon'],
+      tags: (newProduct.tagsInput || '')
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean),
       keywords: keywordsArray,
       arabicKeywords: newProduct.arabicKeywords.filter(Boolean),
       seoTitle: `${newProduct.name} | Authentic Lebanese Goods`,
@@ -1091,6 +1115,8 @@ export const AdminView: React.FC = () => {
         description: '',
         craftStory: '',
         priceUSD: 15,
+        originalPriceUSD: '',
+        discountPercentage: '',
         stock: 25,
         lowStockThreshold: 5,
         lowStockNotice: '',
@@ -1102,6 +1128,7 @@ export const AdminView: React.FC = () => {
         newVideoInput: '',
         weightOrVolume: '',
         tags: ['Artisanal', 'Lebanese Terroir'],
+        tagsInput: 'Artisanal, Lebanese Terroir, Handmade',
         keywordsInput: 'lebanese, artisanal, authentic, gourmet',
         arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
         newArabicKeywordInput: '',
@@ -1140,6 +1167,18 @@ export const AdminView: React.FC = () => {
 
     const targetPublish = isPublic !== undefined ? isPublic : (fullEditProduct.isPublished !== false);
 
+    const stockValue = Number(fullEditProduct.stock);
+    if (!Number.isFinite(stockValue) || stockValue < 0 || !Number.isInteger(stockValue)) {
+      showToast('Stock quantity must be a whole number of units (0 or more).', 'warning');
+      return;
+    }
+
+    const priceValue = Number(fullEditProduct.priceUSD);
+    if (!Number.isFinite(priceValue) || priceValue <= 0) {
+      showToast('Price must be greater than 0.', 'warning');
+      return;
+    }
+
     const matchedSeller = sellers.find(s => 
       (fullEditProduct.seller && s.nameEn.toLowerCase() === fullEditProduct.seller.toLowerCase()) ||
       (fullEditProduct.artisan && s.nameEn.toLowerCase() === fullEditProduct.artisan.toLowerCase()) ||
@@ -1156,8 +1195,14 @@ export const AdminView: React.FC = () => {
         sellerId: matchedSeller?.id || fullEditProduct.sellerId || undefined,
         arabicSeller: fullEditProduct.arabicSeller || (matchedSeller?.nameAr || ''),
         origin: matchedSeller?.region || fullEditProduct.origin || 'Lebanon',
-        priceUSD: Number(fullEditProduct.priceUSD),
-        stock: Number(fullEditProduct.stock),
+        priceUSD: priceValue,
+        originalPriceUSD: fullEditProduct.originalPriceUSD ? Number(fullEditProduct.originalPriceUSD) : undefined,
+        discountPercentage: fullEditProduct.discountPercentage !== undefined && fullEditProduct.discountPercentage !== null && String(fullEditProduct.discountPercentage) !== ''
+          ? Number(fullEditProduct.discountPercentage)
+          : (fullEditProduct.originalPriceUSD && Number(fullEditProduct.originalPriceUSD) > Number(fullEditProduct.priceUSD)
+              ? Math.round(((Number(fullEditProduct.originalPriceUSD) - Number(fullEditProduct.priceUSD)) / Number(fullEditProduct.originalPriceUSD)) * 100)
+              : undefined),
+        stock: stockValue,
         lowStockThreshold: fullEditProduct.lowStockThreshold !== undefined ? Number(fullEditProduct.lowStockThreshold) : 5,
         lowStockNotice: fullEditProduct.lowStockNotice !== undefined ? fullEditProduct.lowStockNotice.trim() : undefined,
         weightOrVolume: fullEditProduct.weightOrVolume !== undefined ? fullEditProduct.weightOrVolume.trim() : '',
@@ -1172,6 +1217,9 @@ export const AdminView: React.FC = () => {
         isPublished: targetPublish,
         isFeatured: !!fullEditProduct.isFeatured,
         isBestseller: !!fullEditProduct.isBestseller,
+        tags: Array.isArray(fullEditProduct.tags) && fullEditProduct.tags.length > 0
+          ? fullEditProduct.tags
+          : ['Authentic', 'Handmade', 'Lebanon'],
         keywords: keywordsArray,
         arabicKeywords: arabicKeywordsArray,
         seoTitle: fullEditProduct.seoTitle || `${fullEditProduct.name} | Lebanese Artisan`,
@@ -1451,12 +1499,12 @@ export const AdminView: React.FC = () => {
       if (priceUSD <= 0) rowIssues.push('price_usd must be > 0');
       if (isNaN(stock) || stock < 0) rowIssues.push('stock must be >= 0');
 
-      const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${idx}`;
-      const isUpdate = products.some(p => p.id === sku);
+      const sku = (row.sku || row.product_id || '').toString().trim();
+      const isUpdate = sku ? products.some(p => p.id === sku) : false;
 
       parsedPreview.push({
         rowNum,
-        sku,
+        sku: sku || '(auto-generated)',
         name: name || 'Unnamed',
         sellerName: resolvedSeller?.sellerName || 'Unassigned',
         categoryName: resolvedCategory?.categoryName || 'Unassigned',
@@ -2554,6 +2602,14 @@ export const AdminView: React.FC = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={async (e) => { e.stopPropagation();
+                                  if (!Number.isFinite(editStock) || editStock < 0 || !Number.isInteger(editStock)) {
+                                    showToast('Stock quantity must be a whole number of units (0 or more).', 'warning');
+                                    return;
+                                  }
+                                  if (!Number.isFinite(editPriceUSD) || editPriceUSD <= 0) {
+                                    showToast('Price must be greater than 0.', 'warning');
+                                    return;
+                                  }
                                   await updateProduct(prod.id, { priceUSD: editPriceUSD, stock: editStock });
                                   setEditingProductId(null);
                                 }}
@@ -2582,8 +2638,11 @@ export const AdminView: React.FC = () => {
                               </span>
 
                               {prod.weightOrVolume && (
-                                <span className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
-                                  {prod.weightOrVolume}
+                                <span
+                                  className="text-[10px] text-slate-400 font-medium truncate max-w-[150px]"
+                                  title={`Package size / volume: ${prod.weightOrVolume}`}
+                                >
+                                  Size: {prod.weightOrVolume}
                                 </span>
                               )}
                             </div>
@@ -2971,6 +3030,70 @@ export const AdminView: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Sale & Deal Pricing (Optional) */}
+              <div className="p-3.5 bg-rose-50/50 rounded-2xl border border-rose-200/70 space-y-2 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <span>🏷️ Sale / Deal Pricing & Badges (Optional)</span>
+                  </span>
+                  <span className="text-[10px] text-rose-800 font-medium">Shows struck-through price & "-X%" deal badge</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Original / Compare-at Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="e.g. 24.99 (Struck-through price)"
+                      value={newProduct.originalPriceUSD}
+                      onChange={(e) => {
+                        const orig = e.target.value === '' ? '' : Number(e.target.value);
+                        let autoDisc = newProduct.discountPercentage;
+                        if (typeof orig === 'number' && orig > newProduct.priceUSD) {
+                          autoDisc = Math.round(((orig - newProduct.priceUSD) / orig) * 100);
+                        }
+                        setNewProduct({ ...newProduct, originalPriceUSD: orig, discountPercentage: autoDisc });
+                      }}
+                      className="w-full px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Discount Percentage (%)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      placeholder="e.g. 20 (shows -20% badge & Today's Deals)"
+                      value={newProduct.discountPercentage}
+                      onChange={(e) => setNewProduct({ ...newProduct, discountPercentage: e.target.value === '' ? '' : Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs font-semibold text-rose-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Tags */}
+              <div className="mt-2">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Product Tags (Comma-separated)
+                  </label>
+                  <span className="text-[10px] text-slate-400">Used for search & filters</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g. Artisanal, Terroir, Mouneh, Vegan, Organic"
+                  value={newProduct.tagsInput}
+                  onChange={(e) => setNewProduct({ ...newProduct, tagsInput: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none text-xs"
+                />
               </div>
 
               {/* Stock Threshold & Low-Stock Admin Comment Notice */}
@@ -3879,6 +4002,73 @@ export const AdminView: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none font-mono"
                   />
                 </div>
+              </div>
+
+              {/* Edit Sale & Deal Pricing (Optional) */}
+              <div className="p-3.5 bg-rose-50/50 rounded-2xl border border-rose-200/70 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-800 text-xs flex items-center gap-1.5">
+                    <span>🏷️ Sale / Deal Pricing & Badges (Optional)</span>
+                  </span>
+                  <span className="text-[10px] text-rose-800 font-medium">Shows struck-through price & "-X%" deal badge</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Original / Compare-at Price ($)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      placeholder="e.g. 24.99 (Struck-through price)"
+                      value={fullEditProduct.originalPriceUSD !== undefined && fullEditProduct.originalPriceUSD !== null ? fullEditProduct.originalPriceUSD : ''}
+                      onChange={(e) => {
+                        const orig = e.target.value === '' ? undefined : Number(e.target.value);
+                        let autoDisc = fullEditProduct.discountPercentage;
+                        if (typeof orig === 'number' && orig > Number(fullEditProduct.priceUSD)) {
+                          autoDisc = Math.round(((orig - Number(fullEditProduct.priceUSD)) / orig) * 100);
+                        }
+                        setFullEditProduct({ ...fullEditProduct, originalPriceUSD: orig, discountPercentage: autoDisc });
+                      }}
+                      className="w-full px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Discount Percentage (%)
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      max={99}
+                      placeholder="e.g. 20 (shows -20% badge & Today's Deals)"
+                      value={fullEditProduct.discountPercentage !== undefined && fullEditProduct.discountPercentage !== null ? fullEditProduct.discountPercentage : ''}
+                      onChange={(e) => setFullEditProduct({ ...fullEditProduct, discountPercentage: e.target.value === '' ? undefined : Number(e.target.value) })}
+                      className="w-full px-3 py-1.5 bg-white rounded-xl border border-slate-200 focus:outline-none text-xs font-semibold text-rose-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Edit Product Tags */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold text-slate-700 text-xs">
+                    Product Tags (Comma-separated)
+                  </label>
+                  <span className="text-[10px] text-slate-400">Used for search & filters</span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="e.g. Artisanal, Terroir, Mouneh, Vegan, Organic"
+                  value={Array.isArray(fullEditProduct.tags) ? fullEditProduct.tags.join(', ') : ''}
+                  onChange={(e) => {
+                    const tagList = e.target.value.split(',').map((t) => t.trim()).filter(Boolean);
+                    setFullEditProduct({ ...fullEditProduct, tags: tagList });
+                  }}
+                  className="w-full px-3 py-2 bg-slate-50 rounded-xl border border-slate-200 focus:outline-none text-xs"
+                />
               </div>
 
               {/* Edit Stock Threshold & Scarcity Notice */}

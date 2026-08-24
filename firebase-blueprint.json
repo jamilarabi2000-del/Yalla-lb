@@ -9,6 +9,9 @@
         "name": { "type": "string", "maxLength": 200 },
         "arabicName": { "type": "string", "maxLength": 200 },
         "artisan": { "type": "string", "maxLength": 150 },
+        "seller": { "type": "string", "maxLength": 150 },
+        "sellerId": { "type": "string" },
+        "arabicSeller": { "type": "string", "maxLength": 150 },
         "origin": { "type": "string", "maxLength": 100 },
         "category": { "type": "string", "maxLength": 50 },
         "priceUSD": { "type": "number" },
@@ -18,16 +21,83 @@
         "reviewsCount": { "type": "number" },
         "image": { "type": "string" },
         "additionalImages": { "type": "array" },
+        "videoUrl": { "type": "string" },
+        "videos": { "type": "array" },
         "description": { "type": "string", "maxLength": 2000 },
         "craftStory": { "type": "string", "maxLength": 2000 },
         "stock": { "type": "number" },
+        "lowStockThreshold": { "type": "number" },
+        "lowStockNotice": { "type": "string" },
+        "customStockLabel": { "type": "string" },
         "isFeatured": { "type": "boolean" },
         "isBestseller": { "type": "boolean" },
+        "isPublished": { "type": "boolean" },
+        "displayOrder": { "type": "number" },
         "tags": { "type": "array" },
+        "keywords": { "type": "array" },
+        "arabicKeywords": { "type": "array" },
+        "seoTitle": { "type": "string" },
+        "seoArabicTitle": { "type": "string" },
+        "seoDescription": { "type": "string" },
         "weightOrVolume": { "type": "string", "maxLength": 50 },
-        "sellerItemCode": { "type": "string", "maxLength": 100 }
+        "sellerItemCode": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "name", "category", "priceUSD", "artisan"]
+      "required": ["id", "name", "category", "priceUSD"]
+    },
+    "Seller": {
+      "title": "Seller",
+      "description": "Artisan cooperant, workshop, and brand profile",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nameEn": { "type": "string", "maxLength": 150 },
+        "nameAr": { "type": "string", "maxLength": 150 },
+        "region": { "type": "string", "maxLength": 100 },
+        "bioEn": { "type": "string", "maxLength": 2000 },
+        "bioAr": { "type": "string", "maxLength": 2000 },
+        "logo": { "type": "string" },
+        "bannerImage": { "type": "string" },
+        "phone": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "format": "email" },
+        "website": { "type": "string" },
+        "isFeatured": { "type": "boolean" },
+        "displayOrder": { "type": "number" },
+        "active": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "nameEn", "nameAr"]
+    },
+    "CategoryItem": {
+      "title": "CategoryItem",
+      "description": "Product taxonomy and navigation category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nameEn": { "type": "string", "maxLength": 100 },
+        "nameAr": { "type": "string", "maxLength": 100 },
+        "icon": { "type": "string" },
+        "descriptionEn": { "type": "string", "maxLength": 500 },
+        "descriptionAr": { "type": "string", "maxLength": 500 },
+        "displayOrder": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["id", "nameEn", "nameAr"]
+    },
+    "SiteSettings": {
+      "title": "SiteSettings",
+      "description": "Global operational settings, currencies, announcements, and flags",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "siteName": { "type": "string" },
+        "usdRate": { "type": "number" },
+        "announcement": { "type": "string" },
+        "supportPhone": { "type": "string" },
+        "supportEmail": { "type": "string" }
+      }
     },
     "User": {
       "title": "User",
@@ -36,12 +106,16 @@
       "properties": {
         "uid": { "type": "string" },
         "name": { "type": "string", "maxLength": 100 },
+        "firstName": { "type": "string", "maxLength": 100 },
+        "lastName": { "type": "string", "maxLength": 100 },
         "email": { "type": "string", "format": "email" },
         "phone": { "type": "string", "maxLength": 30 },
         "avatar": { "type": "string" },
         "defaultGovernorate": { "type": "string", "maxLength": 50 },
         "defaultCity": { "type": "string", "maxLength": 50 },
-        "defaultAddress": { "type": "string", "maxLength": 200 }
+        "defaultAddress": { "type": "string", "maxLength": 200 },
+        "defaultBuilding": { "type": "string", "maxLength": 100 },
+        "defaultNotes": { "type": "string", "maxLength": 500 }
       },
       "required": ["name", "email"]
     },
@@ -79,8 +153,10 @@
         "currency": { "type": "string" },
         "subtotalUSD": { "type": "number" },
         "deliveryFeeUSD": { "type": "number" },
+        "discountUSD": { "type": "number" },
         "totalUSD": { "type": "number" },
         "totalLBP": { "type": "number" },
+        "appliedCoupon": { "type": "string" },
         "status": { "type": "string", "enum": ["pending", "crafting", "courier_assigned", "in_transit", "delivered", "cancelled"] },
         "estimatedDelivery": { "type": "string" },
         "trackingNumber": { "type": "string" }
@@ -98,7 +174,10 @@
         "userName": { "type": "string", "maxLength": 100 },
         "rating": { "type": "number" },
         "comment": { "type": "string", "maxLength": 1000 },
-        "createdAt": { "type": "string" }
+        "createdAt": { "type": "string" },
+        "orderId": { "type": "string" },
+        "adminReply": { "type": "string", "maxLength": 1000 },
+        "adminReplyAt": { "type": "string" }
       },
       "required": ["id", "productId", "rating", "comment"]
     },
@@ -205,6 +284,18 @@
     "/products/{productId}": {
       "schema": { "$ref": "#/entities/Product" },
       "description": "Public catalog of artisanal products"
+    },
+    "/sellers/{sellerId}": {
+      "schema": { "$ref": "#/entities/Seller" },
+      "description": "Artisan sellers and brands directory"
+    },
+    "/categories/{catId}": {
+      "schema": { "$ref": "#/entities/CategoryItem" },
+      "description": "Product taxonomy and navigation hierarchy"
+    },
+    "/site_settings/{docId}": {
+      "schema": { "$ref": "#/entities/SiteSettings" },
+      "description": "Global operational settings and flags"
     },
     "/phone_registry/{phoneKey}": {
       "schema": { "$ref": "#/entities/PhoneRegistry" },

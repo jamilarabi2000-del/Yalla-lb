@@ -118,7 +118,11 @@ export const Navbar: React.FC = () => {
             <input
               id="desktop-search-input"
               type="text"
-              placeholder={t('searchPlaceholder')}
+              placeholder={
+                language === 'ar'
+                  ? (siteContent?.navbar?.searchPlaceholderArabic || siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))
+                  : (siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))
+              }
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-full ${language === 'ar' ? 'pr-10 pl-16 text-right' : 'pl-10 pr-16 text-left'} py-2.5 text-xs font-normal bg-slate-100/80 hover:bg-slate-100 text-slate-900 placeholder:text-slate-400 rounded-xl border border-slate-200/80 focus:border-[#b89753] focus:bg-white focus:ring-2 focus:ring-[#b89753]/20 focus:outline-none transition-all shadow-sm`}
@@ -319,7 +323,11 @@ export const Navbar: React.FC = () => {
               <input
                 id="mobile-search-input"
                 type="text"
-                placeholder={t('searchPlaceholder')}
+                placeholder={
+                  language === 'ar'
+                    ? (siteContent?.navbar?.searchPlaceholderArabic || siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))
+                    : (siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))
+                }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className={`w-full ${language === 'ar' ? 'pr-10 pl-16 text-right' : 'pl-10 pr-16 text-left'} py-2.5 text-xs bg-slate-100 text-slate-900 rounded-xl border border-slate-200 focus:border-[#b89753] focus:bg-white focus:ring-2 focus:ring-[#b89753]/20 focus:outline-none shadow-sm`}

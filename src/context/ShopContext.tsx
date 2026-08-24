@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion, Seller, SearchLog } from '../types';
 import { applyDiscounts } from '../lib/pricing';
+import { calcDeliveryFeeUSD } from '../lib/delivery';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
 import { DEFAULT_CATEGORIES } from '../data/categories';
@@ -432,7 +433,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
-  const [cart, setCart] = useState<CartItem[]>(() => {
+  const [storedCart, setCart] = useState<CartItem[]>(() => {
     try {
       const saved = localStorage.getItem('yallalb_cart');
       return saved ? JSON.parse(saved) : [];
@@ -440,6 +441,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return [];
     }
   });
+
+  // Live cart projection: always resolve fresh product properties from the live catalog
+  const cart = useMemo<CartItem[]>(() => {
+    if (storedCart.length === 0) return storedCart;
+    let changed = false;
+    const next = storedCart.map(item => {
+      const live = products.find(p => p.id === item.product.id);
+      if (!live || live === item.product) return item;
+      changed = true;
+      return { ...item, product: live };
+    });
+    return changed ? next : storedCart;
+  }, [storedCart, products]);
 
   const [wishlist, setWishlist] = useState<string[]>(() => {
     try {
@@ -990,7 +1004,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(normalized) }, undefined, 'ShopContext:reorderCategories');
       } catch (err) {
-        console.warn('[ShopContext] Notice for reorder categories in Firestore:', err);
+        console.error('[ShopContext] Error reordering categories in Firestore:', err);
+        showToast('Failed to save category order to database', 'warning');
       }
     }
 
@@ -1037,7 +1052,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await batch.commit();
         }
       } catch (err) {
-        console.warn('[ShopContext] Notice for reorder products in Firestore:', err);
+        console.error('[ShopContext] Error reordering products in Firestore:', err);
+        showToast('Failed to save product order to database', 'warning');
       }
     }
 
@@ -1293,6 +1309,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               errors.push(`Row ${rowNum}: price_usd must be a positive number (found ${row.price_usd || row.price})`);
               return;
             }
+            if (isNaN(stock) || stock < 0) {
+              errors.push(`Row ${rowNum}: stock must be a non-negative integer (found "${row.stock !== undefined ? row.stock : row.qty}")`);
+              return;
+            }
 
             const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${Date.now()}-${idx}`;
             const isPublished = !['false', '0', 'no', 'hidden'].includes(String(row.is_published ?? row.status ?? '').toLowerCase());
@@ -1314,7 +1334,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
 
             // Check against existing products in database
-            const isExistingSku = products.some(p => p.id === sku);
+            const existingProduct = products.find(p => p.id === sku);
+            const isExistingSku = !!existingProduct;
             const dupCodeCheck = checkDuplicateProductNumber(sellerItemCode, isExistingSku ? sku : null, products, resolvedSeller.sellerId, resolvedSeller.sellerName);
             if (dupCodeCheck.isDuplicate) {
               errors.push(`Row ${rowNum} ("${name}"): Seller item code "${sellerItemCode}" is already assigned to existing product "${dupCodeCheck.conflictingProduct?.name}" for seller "${resolvedSeller.sellerName}".`);
@@ -1338,6 +1359,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const additionalVideos = addlVideosRaw
               ? String(addlVideosRaw).split(/[|,]/).map((v: string) => v.trim()).filter(Boolean)
               : undefined;
+
+            const nowIso = new Date().toISOString();
 
             validRows.push({
               sku,
@@ -1363,13 +1386,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 description,
                 craftStory,
                 tags: row.tags ? String(row.tags).split(/[|,]/).map((t: string) => t.trim()).filter(Boolean) : ['Artisanal'],
-                rating: 5.0,
-                reviewsCount: 1,
+                rating: 0,
+                reviewsCount: 0,
                 origin: (row.origin || row.origin_terroir || 'Lebanon').toString().trim(),
                 weightOrVolume: (row.weight_or_volume || row.weight || row.volume || '').toString().trim() || undefined,
-                isPublished
+                isPublished,
+                createdAt: existingProduct?.createdAt || nowIso,
+                updatedAt: nowIso
               },
-              isUpdate: products.some(p => p.id === sku)
+              isUpdate: isExistingSku
             });
           });
 
@@ -1737,9 +1762,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     try {
-      localStorage.setItem('yallalb_cart', JSON.stringify(cart));
+      localStorage.setItem('yallalb_cart', JSON.stringify(storedCart));
     } catch {}
-  }, [cart]);
+  }, [storedCart]);
 
   useEffect(() => {
     try {
@@ -2184,7 +2209,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cartDocRef = doc(db, 'carts', userKey);
     const sanitizedCartPayload = sanitizeFirestorePayload({
       userId: userKey,
-      items: cart,
+      items: storedCart,
       updatedAt: new Date().toISOString()
     });
 
@@ -2195,7 +2220,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 1000);
 
     return () => clearTimeout(handler);
-  }, [cart, firebaseUser]);
+  }, [storedCart, firebaseUser]);
 
   // Sync Wishlist to Firestore whenever wishlist changes (debounced by 1000ms)
   useEffect(() => {
@@ -2559,7 +2584,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addToCart = (product: Product, quantity = 1, option?: string) => {
     // Determine the product from our master products list to get the most up-to-date stock
     const currentProduct = products.find(p => p.id === product.id) || product;
-    const availableStock = typeof currentProduct.stock === 'number' ? currentProduct.stock : 999;
+    const availableStock = Number.isFinite(Number(currentProduct.stock)) ? Math.max(0, Math.floor(Number(currentProduct.stock))) : 0;
     
     if (availableStock <= 0) {
       showToast(
@@ -2616,7 +2641,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const nextCart = [...prev];
       for (const item of itemsToAdd) {
         const currentProd = products.find(p => p.id === item.product.id) || item.product;
-        const availableStock = typeof currentProd.stock === 'number' ? currentProd.stock : 999;
+        const availableStock = Number.isFinite(Number(currentProd.stock)) ? Math.max(0, Math.floor(Number(currentProd.stock))) : 0;
         if (availableStock <= 0) continue;
 
         const qty = item.quantity || 1;
@@ -2650,7 +2675,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     const currentProduct = products.find(p => p.id === productId);
-    const availableStock = currentProduct && typeof currentProduct.stock === 'number' ? currentProduct.stock : 999;
+    const availableStock = currentProduct && Number.isFinite(Number(currentProduct.stock)) ? Math.max(0, Math.floor(Number(currentProduct.stock))) : 0;
 
     let finalQty = quantity;
     if (finalQty > availableStock) {
@@ -2917,7 +2942,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           isNewUser: orders.length === 0,
         });
         const subtotalUSD = Math.round(validatedItems.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
-        const totalUSD = authDiscountCalc.finalSubtotalUSD;
+        
+        const govRaw = orderData.shipping?.governorate;
+        const matchedRegion = LEBANON_REGIONS.find(r => 
+          r.id === govRaw || 
+          r.nameEn === govRaw || 
+          r.nameAr === govRaw ||
+          (govRaw && (r.nameEn.toLowerCase() === govRaw.toLowerCase() || r.id.toLowerCase() === govRaw.toLowerCase()))
+        );
+        const deliveryFeeUSD = calcDeliveryFeeUSD({
+          speed: orderData.shipping?.deliverySpeed,
+          regionId: matchedRegion?.id || govRaw,
+          matchedRegion,
+          subtotalUSD: authDiscountCalc.finalSubtotalUSD
+        });
+        const totalUSD = Math.round((authDiscountCalc.finalSubtotalUSD + deliveryFeeUSD) * 100) / 100;
         const discountUSDVal = authDiscountCalc.discountUSD;
 
         // Construct the authoritative order structure! No client-side price injection allowed.
@@ -2930,8 +2969,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           userId: activeUserId,
           items: validatedItems,
           subtotalUSD,
+          deliveryFeeUSD,
           discountUSD: discountUSDVal,
           totalUSD,
+          totalLBP: totalUSD * LBP_USD_RATE,
           appliedCoupon: appliedCouponCode || undefined
         };
 
@@ -3167,7 +3208,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Duplicate Description validation removed for flexibility
 
     const id = newProdData.id || `prod-custom-${Date.now()}`;
-    const newProduct: Product = ensureSellerItemCode({ ...newProdData, id });
+    const nowIso = new Date().toISOString();
+    const newProduct: Product = ensureSellerItemCode({
+      rating: 0,
+      reviewsCount: 0,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      ...newProdData,
+      id
+    });
     const sanitizedProduct = sanitizeDocumentData(newProduct);
     
     dbLogger.logFormInput({
@@ -3231,7 +3280,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startTime,
         payload: sanitizedProduct
       });
+      showToast(`Product "${newProduct.name}" saved to database!`);
     } catch (error) {
+      setProducts(prev => {
+        const next = prev.filter(p => p.id !== id);
+        try {
+          localStorage.setItem('yallalb_products', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
       dbLogger.logFirestoreWriteError({
         operation: 'setDoc',
         targetPath: `products/${id}`,
@@ -3242,9 +3299,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error
       });
       handleFirestoreError(error, OperationType.CREATE, `products/${id}`);
+      showToast(`Error saving product "${newProduct.name}" to database.`, 'error');
+      throw error;
     }
-
-    showToast(`Product "${newProduct.name}" saved to database!`);
   };
 
   // Update Product - Updates item in Firestore database
@@ -3265,7 +3322,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Duplicate Description validation removed for flexibility
 
     const existing = products.find(p => p.id === id);
-    const sanitizedUpdates = sanitizeDocumentData(updates);
+    const nowIso = new Date().toISOString();
+    const mergedUpdates = { ...updates, updatedAt: nowIso };
+    const sanitizedUpdates = sanitizeDocumentData(mergedUpdates);
     
     dbLogger.logFormInput({
       sourceComponent: 'AdminView',
@@ -3273,7 +3332,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       targetPath: `products/${id}`,
       summary: `Admin updated product #${id} (${existing?.name || 'Item'}): [${Object.keys(updates).join(', ')}]`,
       payload: sanitizedUpdates,
-      diff: calculateObjectDiff(existing as any, { ...existing, ...updates } as any)
+      diff: calculateObjectDiff(existing as any, { ...existing, ...mergedUpdates } as any)
     });
 
     const { startTime } = dbLogger.logFirestoreWriteStart({
@@ -3286,7 +3345,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     setProducts(prev => {
-      const next = prev.map(p => (p.id === id ? { ...p, ...updates } : p));
+      const next = prev.map(p => (p.id === id ? { ...p, ...mergedUpdates } : p));
       try {
         localStorage.setItem('yallalb_products', JSON.stringify(next));
       } catch {}
@@ -3300,7 +3359,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `Modified attributes locally: ${Object.keys(updates).join(', ')}.`,
         id,
         existing,
-        { ...existing, ...updates }
+        { ...existing, ...mergedUpdates }
       );
       showToast('Product updated locally!');
       return;
@@ -3315,7 +3374,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `Modified attributes: ${Object.keys(updates).join(', ')}.`,
         id,
         existing,
-        { ...existing, ...updates }
+        { ...existing, ...mergedUpdates }
       );
 
       dbLogger.logFirestoreWriteSuccess({
@@ -3327,7 +3386,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startTime,
         payload: sanitizedUpdates
       });
+      showToast('Product updated in database successfully');
     } catch (error) {
+      if (existing) {
+        setProducts(prev => {
+          const next = prev.map(p => (p.id === id ? existing : p));
+          try {
+            localStorage.setItem('yallalb_products', JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+      }
       dbLogger.logFirestoreWriteError({
         operation: 'setDoc',
         targetPath: `products/${id}`,
@@ -3338,9 +3407,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error
       });
       handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
+      showToast('Error updating product in database.', 'error');
+      throw error;
     }
-
-    showToast('Product updated in database successfully');
   };
 
   // Delete Product - Removes item from Firestore database

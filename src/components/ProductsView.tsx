@@ -81,33 +81,53 @@ export const ProductsView: React.FC = () => {
         ? activeCategoryObj.descriptionAr 
         : (activeCategoryObj?.description || (language === 'ar' ? `تصفح تشكيلة ${currentTitle} الفاخرة والمختارة بعناية.` : `Browse our curated collection of items.`)));
 
-  const categories = [
-    { id: 'all', name: t('cat_all'), icon: '✨' },
-    { id: 'electronics', name: t('cat_electronics'), icon: '⚡' },
-    { id: 'fashion', name: t('cat_fashion'), icon: '👔' },
-    { id: 'home', name: t('cat_home'), icon: '🛋️' },
-    { id: 'beauty', name: t('cat_beauty'), icon: '💄' },
-    { id: 'sports', name: t('cat_sports'), icon: '⚽' },
-    { id: 'books', name: t('cat_books'), icon: '📚' },
-    { id: 'toys', name: t('cat_toys'), icon: '🧸' },
-    { id: 'grocery', name: t('cat_grocery'), icon: '🛒' },
-    { id: 'yalla-global', name: t('cat_yalla_global'), icon: '🌐' },
-    { id: 'stationery', name: t('cat_stationery'), icon: '📝' },
-    { id: 'tools-hardware', name: t('cat_tools_hardware'), icon: '🛠️' },
-    { id: 'plumbing', name: t('cat_plumbing'), icon: '🚰' },
-    { id: 'beauty-personal-care', name: t('cat_beauty_personal_care'), icon: '🧴' },
-    { id: 'linen-bath', name: t('cat_linen_bath'), icon: '🛌' },
-    { id: 'houseware', name: t('cat_houseware'), icon: '🍳' },
-    { id: 'digital', name: t('cat_digital'), icon: '📱' },
-    { id: 'indoor-furniture', name: t('cat_indoor_furniture'), icon: '🪑' },
-    { id: 'outdoor-furniture', name: t('cat_outdoor_furniture'), icon: '🪴' },
-    { id: 'lawn-garden', name: t('cat_lawn_garden'), icon: '🌿' },
-    { id: 'decor', name: t('cat_decor'), icon: '🖼️' },
-    { id: 'lighting', name: t('cat_lighting'), icon: '💡' },
-    { id: 'electrical', name: t('cat_electrical'), icon: '🔌' },
-    { id: 'cleaning', name: t('cat_cleaning'), icon: '🧼' },
-    { id: 'consumable', name: t('cat_consumable'), icon: '🍯' }
-  ];
+  // Live categories from admin / database with fallback
+  const sortedActiveCategories = useMemo(() => {
+    if (!contextCategories || contextCategories.length === 0) return [];
+    return [...contextCategories]
+      .filter(cat => cat.isPublished !== false || isVisualEditMode)
+      .sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+  }, [contextCategories, isVisualEditMode]);
+
+  const categories = useMemo(() => {
+    if (sortedActiveCategories.length > 0) {
+      return [
+        { id: 'all', name: t('cat_all'), icon: '✨' },
+        ...sortedActiveCategories.map(cat => ({
+          id: cat.id,
+          name: language === 'ar' ? cat.nameAr : cat.nameEn,
+          icon: cat.icon || '📦'
+        }))
+      ];
+    }
+    return [
+      { id: 'all', name: t('cat_all'), icon: '✨' },
+      { id: 'electronics', name: t('cat_electronics'), icon: '⚡' },
+      { id: 'fashion', name: t('cat_fashion'), icon: '👔' },
+      { id: 'home', name: t('cat_home'), icon: '🛋️' },
+      { id: 'beauty', name: t('cat_beauty'), icon: '💄' },
+      { id: 'sports', name: t('cat_sports'), icon: '⚽' },
+      { id: 'books', name: t('cat_books'), icon: '📚' },
+      { id: 'toys', name: t('cat_toys'), icon: '🧸' },
+      { id: 'grocery', name: t('cat_grocery'), icon: '🛒' },
+      { id: 'yalla-global', name: t('cat_yalla_global'), icon: '🌐' },
+      { id: 'stationery', name: t('cat_stationery'), icon: '📝' },
+      { id: 'tools-hardware', name: t('cat_tools_hardware'), icon: '🛠️' },
+      { id: 'plumbing', name: t('cat_plumbing'), icon: '🚰' },
+      { id: 'beauty-personal-care', name: t('cat_beauty_personal_care'), icon: '🧴' },
+      { id: 'linen-bath', name: t('cat_linen_bath'), icon: '🛌' },
+      { id: 'houseware', name: t('cat_houseware'), icon: '🍳' },
+      { id: 'digital', name: t('cat_digital'), icon: '📱' },
+      { id: 'indoor-furniture', name: t('cat_indoor_furniture'), icon: '🪑' },
+      { id: 'outdoor-furniture', name: t('cat_outdoor_furniture'), icon: '🪴' },
+      { id: 'lawn-garden', name: t('cat_lawn_garden'), icon: '🌿' },
+      { id: 'decor', name: t('cat_decor'), icon: '🖼️' },
+      { id: 'lighting', name: t('cat_lighting'), icon: '💡' },
+      { id: 'electrical', name: t('cat_electrical'), icon: '🔌' },
+      { id: 'cleaning', name: t('cat_cleaning'), icon: '🧼' },
+      { id: 'consumable', name: t('cat_consumable'), icon: '🍯' }
+    ];
+  }, [sortedActiveCategories, language, t]);
 
   // Filtered & Sorted products
   const filteredProducts = useMemo(() => {

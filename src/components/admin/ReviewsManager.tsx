@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { Review, Product } from '../../types';
-import { collection, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { 
   Star, 
@@ -30,40 +30,43 @@ export const ReviewsManager: React.FC<ReviewsManagerProps> = ({ products }) => {
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const [isSubmittingId, setIsSubmittingId] = useState<string | null>(null);
 
-  const fetchReviews = async () => {
-    setIsLoading(true);
-    try {
-      const q = collection(db, 'reviews');
-      const snapshot = await getDocs(q);
-      const items: Review[] = [];
-      snapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        items.push({
-          id: docSnap.id,
-          productId: data.productId || '',
-          userId: data.userId || '',
-          userName: data.userName || 'Anonymous Patron',
-          rating: Number(data.rating) || 5,
-          comment: data.comment || '',
-          createdAt: data.createdAt || new Date().toISOString(),
-          orderId: data.orderId,
-          adminReply: data.adminReply || '',
-          adminReplyAt: data.adminReplyAt
-        });
-      });
-      // Sort newest first
-      items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setReviews(items);
-    } catch (err) {
-      console.error("Failed to fetch reviews:", err);
-      showToast('Failed to load reviews from Firestore', 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchReviews();
+    setIsLoading(true);
+    const q = collection(db, 'reviews');
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const items: Review[] = [];
+        snapshot.forEach(docSnap => {
+          const data = docSnap.data();
+          items.push({
+            id: docSnap.id,
+            productId: data.productId || '',
+            userId: data.userId || '',
+            userName: data.userName || 'Anonymous Patron',
+            rating: Number(data.rating) || 5,
+            comment: data.comment || '',
+            createdAt: data.createdAt || new Date().toISOString(),
+            orderId: data.orderId,
+            adminReply: data.adminReply || '',
+            adminReplyAt: data.adminReplyAt
+          });
+        });
+        // Sort newest first
+        items.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setReviews(items);
+        setIsLoading(false);
+      },
+      (err) => {
+        console.error("Failed to listen to reviews in realtime:", err);
+        showToast('Failed to load reviews from Firestore', 'error');
+        setIsLoading(false);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const productsMap = React.useMemo(() => {
@@ -145,13 +148,10 @@ export const ReviewsManager: React.FC<ReviewsManagerProps> = ({ products }) => {
             <span className="text-xs font-bold text-slate-900">{averageRating} Average Rating</span>
             <span className="text-[10px] text-slate-500">({reviews.length} reviews)</span>
           </div>
-          <button
-            type="button"
-            onClick={fetchReviews}
-            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-2xl text-xs transition-all cursor-pointer shadow-xs"
-          >
-            Refresh Reviews
-          </button>
+          <div className="px-3.5 py-2 bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold rounded-2xl text-xs flex items-center gap-2 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Live Sync</span>
+          </div>
         </div>
       </div>
 

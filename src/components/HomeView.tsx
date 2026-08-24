@@ -54,7 +54,14 @@ export const HomeView: React.FC = () => {
   const publishedProducts = products.filter(p => p.isPublished !== false);
   const featuredProducts = publishedProducts.filter(p => p.isFeatured || p.isBestseller).slice(0, 8);
   const todaysDeals = publishedProducts.filter(p => p.discountPercentage && p.discountPercentage > 0).slice(0, 8);
-  const newArrivals = publishedProducts.slice(0, 12);
+  const newArrivals = [...publishedProducts].sort((a, b) => {
+    if (a.createdAt && b.createdAt) {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+    if (a.createdAt) return -1;
+    if (b.createdAt) return 1;
+    return 0;
+  }).slice(0, 12);
 
   const handleCategoryClick = (catId: string) => {
     setSelectedCategory(catId);

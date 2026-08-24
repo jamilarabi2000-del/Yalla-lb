@@ -40,6 +40,8 @@ export interface Product {
   lowStockThreshold?: number;
   lowStockNotice?: string;
   customStockLabel?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Seller {

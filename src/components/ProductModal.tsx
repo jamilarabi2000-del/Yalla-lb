@@ -106,31 +106,8 @@ export const ProductModal: React.FC = () => {
                   {displayTitle}
                 </h2>
                 <p className="text-xs text-slate-400 mt-1">
-                  {product.artisan === 'Maison El-Helou Firebird Cutlers' ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-200 font-semibold">e.i PhotoCell</span>
-                    </>
-                  ) : product.artisan === 'Seller A' ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-200 font-semibold">A</span>
-                    </>
-                  ) : product.artisan === 'Seller B' ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-200 font-semibold">B</span>
-                    </>
-                  ) : product.artisan.startsWith('Seller:') ? (
-                    <>
-                      <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
-                      <span className="text-slate-200 font-semibold">{product.artisan.replace('Seller:', '').trim()}</span>
-                    </>
-                  ) : (
-                    <>
-                      {t('craftedBy')} <span className="text-slate-200 font-semibold">{product.artisan}</span>
-                    </>
-                  )}
+                  <span className="text-slate-500">{language === 'ar' ? 'البائع:' : 'Seller:'}</span>{' '}
+                  <span className="text-slate-200 font-semibold">{product.artisan.startsWith('Seller:') ? product.artisan.replace('Seller:', '').trim() : product.artisan}</span>
                 </p>
               </div>
 

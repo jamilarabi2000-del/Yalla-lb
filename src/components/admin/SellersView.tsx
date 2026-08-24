@@ -364,8 +364,8 @@ export const SellersView: React.FC = () => {
       if (priceUSD <= 0) rowIssues.push('price_usd must be > 0');
       if (isNaN(stock) || stock < 0) rowIssues.push('stock must be >= 0');
 
-      const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${idx}`;
-      const isUpdate = products.some(p => p.id === sku);
+      const sku = (row.sku || row.product_id || '').toString().trim();
+      const isUpdate = sku ? products.some(p => p.id === sku) : false;
       const sellerItemCode = (row.seller_item_code || row.seller_code || row.item_code || '').toString().trim();
 
       if (sellerItemCode) {
@@ -377,7 +377,7 @@ export const SellersView: React.FC = () => {
 
       parsedPreview.push({
         rowNum,
-        sku,
+        sku: sku || '(auto-generated)',
         name: name || 'Unnamed',
         sellerName: resolvedSeller?.sellerName || 'Unassigned',
         categoryName: resolvedCategory?.categoryName || 'Unassigned',

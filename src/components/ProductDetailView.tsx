@@ -4,7 +4,7 @@ import { ProductCard } from './ProductCard';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { Review } from '../types';
 import { db, IS_FIREBASE_ENABLED } from '../firebase';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { 
   ArrowLeft, 
   ShoppingBag, 
@@ -98,13 +98,17 @@ export const ProductDetailView: React.FC = () => {
     detailRelatedProducts: true
   };
 
+  // Resolve the live product record by ID from the products state to prevent stale snapshots
+  const liveProduct = products.find(p => p.id === selectedProductDetail?.id) || selectedProductDetail;
+  const product = liveProduct;
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
     setSelectedImage(null);
     setQuantity(1);
   }, [selectedProductDetail?.id]);
 
-  if (!selectedProductDetail) {
+  if (!product) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 bg-slate-50 text-slate-900 space-y-4">
         <h2 className="text-xl font-bold">Product Not Found</h2>
@@ -119,51 +123,22 @@ export const ProductDetailView: React.FC = () => {
     );
   }
 
-  const product = selectedProductDetail;
-
-  // Load reviews from Firestore
+  // Load reviews in realtime from Firestore
   useEffect(() => {
-    let active = true;
-    const fetchReviews = async () => {
-      setIsLoadingReviews(true);
-      setSubmitError(null);
-      setSubmitSuccess(false);
-      
-      const baseRating = product.rating || 5;
-      const initialMockReviews: Review[] = product.id.startsWith('prod-custom-') ? [] : [
-        {
-          id: `mock-1-${product.id}`,
-          productId: product.id,
-          userId: 'mock-user-1',
-          userName: language === 'ar' ? 'كريم سليمان' : 'Karim S.',
-          rating: Math.round(baseRating),
-          comment: language === 'ar' 
-            ? 'جودة استثنائية وعمل يدوي متقن للغاية! يمثل التراث اللبناني الأصيل بأبهى صورة.' 
-            : 'Outstanding craftsmanship and beautiful authentic design. Truly represents Lebanese artisanal heritage!',
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: `mock-2-${product.id}`,
-          productId: product.id,
-          userId: 'mock-user-2',
-          userName: language === 'ar' ? 'ليلى مراد' : 'Layla M.',
-          rating: Math.min(5, Math.max(4, Math.round(baseRating))),
-          comment: language === 'ar' 
-            ? 'منتج رائع ورائحة أصيلة. التوصيل كان سريعاً والتعامل قمة في الرقي.' 
-            : 'Wonderful product, excellent quality and fast shipping. Highly recommend to everyone support our local artisans.',
-          createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      ];
+    setIsLoadingReviews(true);
+    setSubmitError(null);
+    setSubmitSuccess(false);
 
-      if (!IS_FIREBASE_ENABLED) {
-        setReviews(initialMockReviews);
-        setIsLoadingReviews(false);
-        return;
-      }
+    if (!IS_FIREBASE_ENABLED) {
+      setReviews([]);
+      setIsLoadingReviews(false);
+      return;
+    }
 
-      try {
-        const q = query(collection(db, 'reviews'), where('productId', '==', product.id));
-        const querySnapshot = await getDocs(q);
+    const q = query(collection(db, 'reviews'), where('productId', '==', product.id));
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
         const fbReviews: Review[] = [];
         querySnapshot.forEach((docSnap) => {
           const data = docSnap.data();
@@ -172,30 +147,29 @@ export const ProductDetailView: React.FC = () => {
             productId: data.productId,
             userId: data.userId,
             userName: data.userName,
-            rating: Number(data.rating),
+            rating: Number(data.rating) || 0,
             comment: data.comment,
-            createdAt: data.createdAt
+            createdAt: data.createdAt,
+            orderId: data.orderId,
+            adminReply: data.adminReply || data.reply,
+            adminReplyAt: data.adminReplyAt
           });
         });
 
-        if (active) {
-          setReviews([...fbReviews, ...initialMockReviews]);
-        }
-      } catch (err: any) {
-        console.warn("[ProductDetailView] Failed to fetch reviews, falling back to cache/mocks:", err.message);
-        if (active) {
-          setReviews(initialMockReviews);
-        }
-      } finally {
-        if (active) {
-          setIsLoadingReviews(false);
-        }
+        // Sort newest first
+        fbReviews.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        setReviews(fbReviews);
+        setIsLoadingReviews(false);
+      },
+      (err) => {
+        console.warn("[ProductDetailView] Failed to listen to reviews in realtime:", err.message);
+        setReviews([]);
+        setIsLoadingReviews(false);
       }
-    };
+    );
 
-    fetchReviews();
     return () => {
-      active = false;
+      unsubscribe();
     };
   }, [product.id, language]);
 
@@ -565,47 +539,13 @@ export const ProductDetailView: React.FC = () => {
               {(visibility.detailArtisanBio || isVisualEditMode) && (
                 <div className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 flex-wrap">
                   <span>{language === 'ar' ? 'البائع:' : 'Seller:'}</span>
-                  {product.artisan === 'Maison El-Helou Firebird Cutlers' ? (
-                    <button
-                      onClick={() => discoverSellerProducts('Maison El-Helou Firebird Cutlers')}
-                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
-                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
-                    >
-                      e.i PhotoCell
-                    </button>
-                  ) : product.artisan === 'Seller A' ? (
-                    <button
-                      onClick={() => discoverSellerProducts('Seller A')}
-                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
-                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
-                    >
-                      A
-                    </button>
-                  ) : product.artisan === 'Seller B' ? (
-                    <button
-                      onClick={() => discoverSellerProducts('Seller B')}
-                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
-                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
-                    >
-                      B
-                    </button>
-                  ) : product.artisan.startsWith('Seller:') ? (
-                    <button
-                      onClick={() => discoverSellerProducts(product.artisan)}
-                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
-                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
-                    >
-                      {product.artisan.replace('Seller:', '').trim()}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => discoverSellerProducts(product.artisan)}
-                      className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
-                      title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
-                    >
-                      {product.artisan}
-                    </button>
-                  )}
+                  <button
+                    onClick={() => discoverSellerProducts(product.artisan)}
+                    className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                    title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
+                  >
+                    {language === 'ar' && product.arabicSeller ? product.arabicSeller : (product.artisan.startsWith('Seller:') ? product.artisan.replace('Seller:', '').trim() : product.artisan)}
+                  </button>
                 </div>
               )}
             </div>
