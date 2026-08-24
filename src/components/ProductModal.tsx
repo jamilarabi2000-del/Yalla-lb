@@ -168,9 +168,20 @@ export const ProductModal: React.FC = () => {
                   <span className="text-2xl font-black text-[#f1d592]">
                     {formatPrice(product.priceUSD * quantity)}
                   </span>
+                  {/* Stock Availability */}
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    <span className="text-[11px] text-slate-300 font-semibold">
+                      {product.stock > 0 ? `Stock: ${product.stock} in stock` : 'Out of stock'}
+                    </span>
+                    {product.stock > 0 && product.stock <= (product.lowStockThreshold ?? 5) && (
+                      <span className="text-[10px] font-black px-2 py-0.2 bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-full">
+                        ⚠️ {product.lowStockNotice || (product.stock === 1 ? 'Last piece!' : 'Limited Stock!')}
+                      </span>
+                    )}
+                  </div>
                   {product.weightOrVolume && (
-                    <span className="block text-[11px] text-slate-400 font-medium">
-                      Size: {product.weightOrVolume}
+                    <span className="block text-[11px] text-slate-400 font-medium mt-0.5">
+                      Size / Volume: {product.weightOrVolume}
                     </span>
                   )}
                   {product.sellerItemCode && (

@@ -24,6 +24,7 @@ export const ProductsView: React.FC = () => {
     products, 
     searchQuery, 
     setSearchQuery, 
+    logSearchQuery,
     selectedCategory, 
     setSelectedCategory,
     goBack,
@@ -33,6 +34,17 @@ export const ProductsView: React.FC = () => {
     isVisualEditMode,
     categories: contextCategories
   } = useShop();
+
+  // Debounced search logging when visitors search on products catalog page
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length >= 2) {
+      const timer = setTimeout(() => {
+        logSearchQuery(trimmed, 'products_page');
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, logSearchQuery]);
 
   const [sortBy, setSortBy] = useState<'featured' | 'price_low' | 'price_high' | 'rating'>('featured');
   const [onlyInStock, setOnlyInStock] = useState<boolean>(false);
@@ -136,7 +148,10 @@ export const ProductsView: React.FC = () => {
       if (sortBy === 'price_low') return a.priceUSD - b.priceUSD;
       if (sortBy === 'price_high') return b.priceUSD - a.priceUSD;
       if (sortBy === 'rating') return b.rating - a.rating;
-      // Default: featured first, then rating
+      // Default: manual display order first (if set), then featured, then rating
+      const orderA = a.displayOrder ?? 99999;
+      const orderB = b.displayOrder ?? 99999;
+      if (orderA !== orderB) return orderA - orderB;
       if (a.isFeatured && !b.isFeatured) return -1;
       if (!a.isFeatured && b.isFeatured) return 1;
       return b.rating - a.rating;

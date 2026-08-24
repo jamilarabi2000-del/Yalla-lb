@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { 
   ArrowLeft,
@@ -18,6 +18,7 @@ export type AdminMenuTab =
   | 'discounts'
   | 'customers' 
   | 'active_carts' 
+  | 'reviews'
   | 'search_analytics'
   | 'pages_cms'
   | 'page_home'
@@ -57,6 +58,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   onCloseMobile
 }) => {
   const { goBack, isVisualEditMode, setIsVisualEditMode, setIsAdminUnlocked } = useShop();
+  const navScrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll the active menu item into view when selected or changed
+  useEffect(() => {
+    if (navScrollRef.current) {
+      const activeEl = navScrollRef.current.querySelector(`#admin-menu-${currentTab}`);
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [currentTab]);
 
   const storeOperationsItems: {
     id: AdminMenuTab;
@@ -113,6 +125,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       label: 'Active Carts',
       icon: '🛒',
       badge: activeCartsCount
+    },
+    {
+      id: 'reviews',
+      label: 'Customer Reviews',
+      icon: '⭐'
     },
     {
       id: 'search_analytics',
@@ -201,15 +218,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       )}
 
       <aside className={`
-        fixed top-0 bottom-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 flex flex-col justify-between py-5 px-3.5
-        transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto shadow-sm
+        fixed top-0 bottom-0 left-0 z-50 w-72 h-screen max-h-screen bg-white border-r border-slate-200/80 flex flex-col justify-between py-4 px-3
+        transition-transform duration-200 ease-in-out lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 shadow-sm
         ${isOpenMobile ? 'translate-x-0 shadow-2xl ring-1 ring-slate-900/10' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Top Header & Scrollable Navigation */}
-        <div className="flex flex-col flex-1 overflow-hidden space-y-4">
-          <div className="flex items-center gap-3 px-2 pt-1 flex-shrink-0">
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden space-y-3">
+          <div className="flex items-center gap-3 px-2 pt-1 pb-1 flex-shrink-0">
             {/* PA Logo Squircle */}
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-indigo-700 to-indigo-500 flex items-center justify-center text-white font-black text-base tracking-wider shadow-md shadow-indigo-500/25 ring-2 ring-indigo-100">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-700 to-indigo-500 flex items-center justify-center text-white font-black text-base tracking-wider shadow-md shadow-indigo-500/25 ring-2 ring-indigo-100">
               PA
             </div>
             <div className="min-w-0 flex-1">
@@ -235,8 +252,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
           <hr className="border-slate-100 mx-1 flex-shrink-0" />
 
-          {/* Navigation Sections with smooth scroll */}
-          <div className="flex-1 overflow-y-auto space-y-5 pr-1.5 -mr-1.5 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
+          {/* Navigation Sections with smooth independent scroll */}
+          <div 
+            ref={navScrollRef}
+            className="flex-1 min-h-0 overflow-y-auto space-y-4.5 pr-1.5 -mr-1.5 overscroll-contain focus:outline-none scroll-smooth pb-4"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#cbd5e1 transparent'
+            }}
+          >
             
             {/* Section 1: Store Operations */}
             <div className="space-y-1">

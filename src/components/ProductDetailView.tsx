@@ -130,7 +130,7 @@ export const ProductDetailView: React.FC = () => {
       setSubmitSuccess(false);
       
       const baseRating = product.rating || 5;
-      const initialMockReviews: Review[] = [
+      const initialMockReviews: Review[] = product.id.startsWith('prod-custom-') ? [] : [
         {
           id: `mock-1-${product.id}`,
           productId: product.id,
@@ -287,9 +287,15 @@ export const ProductDetailView: React.FC = () => {
 
   const totalReviewsCount = reviews.length;
   const userReviews = reviews.filter(r => !r.id.startsWith('mock-'));
-  const averageRating = userReviews.length > 0 
-    ? (userReviews.reduce((sum, r) => sum + r.rating, 0) / userReviews.length).toFixed(1)
-    : product.rating.toFixed(1);
+  const hasReviews = reviews.length > 0;
+  const averageRating = hasReviews 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : '0.0';
+
+  const stockQty = typeof product.stock === 'number' ? product.stock : 0;
+  const lowThreshold = typeof product.lowStockThreshold === 'number' ? product.lowStockThreshold : 5;
+  const isLowStock = stockQty > 0 && stockQty <= lowThreshold;
+  const isOutOfStock = stockQty <= 0;
 
   const isLiked = isInWishlist(product.id);
   const currentImage = selectedImage || product.image;
@@ -510,25 +516,49 @@ export const ProductDetailView: React.FC = () => {
 
               {/* Dynamic Average Star Rating Summary */}
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <div className="flex items-center text-amber-500 gap-0.5">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <svg
-                      key={star}
-                      className={`w-4 h-4 fill-current ${
-                        star <= Math.round(Number(averageRating)) ? 'text-amber-500' : 'text-slate-200'
-                      }`}
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                  ))}
-                </div>
-                <span className="text-xs font-extrabold text-[#a37f35] bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
-                  {averageRating} / 5.0
-                </span>
-                <span className="text-xs text-slate-500">
-                  ({totalReviewsCount} {language === 'ar' ? 'تقييم' : 'reviews'})
-                </span>
+                {hasReviews ? (
+                  <>
+                    <div className="flex items-center text-amber-500 gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <svg
+                          key={star}
+                          className={`w-4 h-4 fill-current ${
+                            star <= Math.round(Number(averageRating)) ? 'text-amber-500' : 'text-slate-200'
+                          }`}
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                    </div>
+                    <span className="text-xs font-extrabold text-[#a37f35] bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
+                      {averageRating} / 5.0
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      ({totalReviewsCount} {language === 'ar' ? 'تقييم' : 'reviews'})
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center text-slate-200 gap-0.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <svg
+                          key={star}
+                          className="w-4 h-4 fill-current text-slate-200"
+                          viewBox="0 0 20 20"
+                        >
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                      ))}
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                      {language === 'ar' ? 'لا توجد تقييمات بعد' : 'No reviews yet'}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      (0 {language === 'ar' ? 'تقييم' : 'reviews'})
+                    </span>
+                  </>
+                )}
               </div>
 
               {/* Artisan Name */}
@@ -580,9 +610,9 @@ export const ProductDetailView: React.FC = () => {
               )}
             </div>
 
-            {/* Pricing Section */}
+            {/* Pricing & Stock Inventory Section */}
             {(visibility.detailPriceBox || isVisualEditMode) && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-3xl sm:text-4xl font-black text-slate-950 tracking-tight">
                     {formatPrice(product.priceUSD)}
@@ -593,13 +623,44 @@ export const ProductDetailView: React.FC = () => {
                     </span>
                   )}
                 </div>
+
+                {/* Real Inventory Stock Quantity & Admin Low-Stock Notice */}
+                <div className="flex items-center gap-2 flex-wrap text-xs pt-0.5">
+                  <span className="font-semibold text-slate-600">
+                    {language === 'ar' ? 'المخزون المتوفر:' : 'Stock Quantity:'}
+                  </span>
+                  {stockQty > 0 ? (
+                    <span className="font-bold text-slate-900">
+                      {stockQty} {language === 'ar' ? 'متوفر' : 'in stock'}
+                    </span>
+                  ) : (
+                    <span className="font-bold text-rose-600">
+                      {language === 'ar' ? 'نفد المخزون' : 'Out of stock'}
+                    </span>
+                  )}
+
+                  {isLowStock && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
+                      ⚠️ {product.lowStockNotice || (stockQty === 1 ? (language === 'ar' ? 'القطعة الأخيرة' : 'Last piece') : (language === 'ar' ? 'كمية محدودة' : 'Limited Stock'))}
+                    </span>
+                  )}
+
+                  {!isLowStock && !isOutOfStock && product.lowStockNotice && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      {product.lowStockNotice}
+                    </span>
+                  )}
+                </div>
+
+                {/* Package Net Weight or Volume or Size (if specified by Admin) */}
                 {product.weightOrVolume && (
                   <p className="text-xs text-slate-500 font-medium">
-                    {t('quantity')}: {product.weightOrVolume}
+                    <span className="font-semibold text-slate-600">{language === 'ar' ? 'الحجم / الوزن:' : 'Size / Volume:'}</span>{' '}
+                    {product.weightOrVolume}
                   </p>
                 )}
                 {product.sellerItemCode && (
-                  <p className="text-xs text-slate-500 font-medium mt-1 font-mono">
+                  <p className="text-xs text-slate-500 font-medium font-mono">
                     {language === 'ar' ? 'رمز البائع: ' : 'Seller Code: '} {product.sellerItemCode}
                   </p>
                 )}
@@ -765,8 +826,12 @@ export const ProductDetailView: React.FC = () => {
               {/* Aggregated Average Stars Rating Badge */}
               <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs self-start sm:self-auto">
                 <div className="text-center px-1">
-                  <p className="text-2xl font-black text-slate-900">{averageRating}</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{language === 'ar' ? 'من 5 نجوم' : 'out of 5'}</p>
+                  <p className="text-2xl font-black text-slate-900">
+                    {hasReviews ? averageRating : '—'}
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    {hasReviews ? (language === 'ar' ? 'من 5 نجوم' : 'out of 5') : (language === 'ar' ? 'غير مقيّم' : 'Unrated')}
+                  </p>
                 </div>
                 <div className="h-8 w-px bg-slate-200 font-normal"></div>
                 <div>
@@ -775,7 +840,7 @@ export const ProductDetailView: React.FC = () => {
                       <svg
                         key={star}
                         className={`w-4 h-4 fill-current ${
-                          star <= Math.round(Number(averageRating)) ? 'text-amber-500' : 'text-slate-200'
+                          hasReviews && star <= Math.round(Number(averageRating)) ? 'text-amber-500' : 'text-slate-200'
                         }`}
                         viewBox="0 0 20 20"
                       >
@@ -784,7 +849,9 @@ export const ProductDetailView: React.FC = () => {
                     ))}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                    {totalReviewsCount} {language === 'ar' ? 'تقييمات موثقة' : 'verified ratings'}
+                    {hasReviews
+                      ? `${totalReviewsCount} ${language === 'ar' ? 'تقييمات موثقة' : 'verified ratings'}`
+                      : (language === 'ar' ? 'كن أول من يكتب تقييماً' : '0 reviews (Be the first to review!)')}
                   </p>
                 </div>
               </div>
@@ -959,6 +1026,22 @@ export const ProductDetailView: React.FC = () => {
                         <p className="text-xs text-slate-700 leading-relaxed font-normal">
                           {review.comment}
                         </p>
+
+                        {review.adminReply && (
+                          <div className="mt-3 pl-3.5 border-l-2 border-[#a37f35] bg-amber-50/70 p-3 rounded-xl space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-[#a37f35]">
+                              <span>Store Admin Response</span>
+                              {review.adminReplyAt && (
+                                <span className="text-[10px] font-normal text-slate-400">
+                                  ({new Date(review.adminReplyAt).toLocaleDateString()})
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                              {review.adminReply}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

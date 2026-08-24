@@ -62,7 +62,7 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
 
   const totalRevenueUSD = deliveredOrders.reduce((sum, o) => sum + o.totalUSD, 0);
   const totalItemsSold  = deliveredOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
-  const activeOrdersCount = orders.length - deliveredOrders.length;
+  const activeOrdersCount = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'returned').length;
   const publishedProductsCount = products.filter(p => p.isPublished !== false).length;
 
   const handleSyncDatabase = async () => {

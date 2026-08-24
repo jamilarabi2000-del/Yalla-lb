@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion, Seller } from '../types';
+import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion, Seller, SearchLog } from '../types';
 import { applyDiscounts } from '../lib/pricing';
 import { INITIAL_PRODUCTS } from '../data/products';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
@@ -198,6 +198,7 @@ interface ShopContextType {
   updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   deleteMultipleProducts: (ids: string[]) => Promise<void>;
+  reorderProducts: (orderedProducts: Product[]) => Promise<void>;
   toggleProductPublish: (productId: string) => Promise<void>;
   syncAllProductsToDatabase: () => Promise<void>;
   selectedProductForModal: Product | null;
@@ -259,7 +260,7 @@ interface ShopContextType {
   // Search & Filtering
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  logSearchQuery: (query: string) => Promise<void>;
+  logSearchQuery: (query: string, origin?: 'navbar' | 'products_page' | 'mobile_menu' | 'direct') => Promise<void>;
   selectedCategory: string;
   setSelectedCategory: (cat: string) => void;
 
@@ -976,21 +977,71 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const reorderCategories = async (newOrder: CategoryItem[]) => {
-    const previous = [...categories];
     const normalized = newOrder.map((cat, idx) => ({ ...cat, displayOrder: idx + 1 }));
     setCategories(normalized);
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('yallalb_categories_cache', JSON.stringify(normalized));
+      }
+    } catch {}
 
     if (IS_FIREBASE_ENABLED) {
       try {
         await monitoredSetDoc(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(normalized) }, undefined, 'ShopContext:reorderCategories');
       } catch (err) {
-        setCategories(previous);
-        console.error('[ShopContext] Failed to reorder categories in Firestore:', err);
-        throw err;
+        console.warn('[ShopContext] Notice for reorder categories in Firestore:', err);
       }
     }
 
     await logAdminActivity('category_update', 'Categories reordered', `Admin reordered ${newOrder.length} categories.`);
+  };
+
+  const reorderProducts = async (orderedProducts: Product[]) => {
+    const orderMap = new Map<string, number>();
+    orderedProducts.forEach((p, idx) => {
+      orderMap.set(p.id, idx + 1);
+    });
+
+    const updatedProducts = [...products].map(p => {
+      if (orderMap.has(p.id)) {
+        return { ...p, displayOrder: orderMap.get(p.id)! };
+      }
+      return p;
+    }).sort((a, b) => {
+      const orderA = a.displayOrder ?? 9999;
+      const orderB = b.displayOrder ?? 9999;
+      return orderA - orderB;
+    });
+
+    setProducts(updatedProducts);
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('yallalb_products', JSON.stringify(updatedProducts));
+      }
+    } catch {}
+
+    if (IS_FIREBASE_ENABLED) {
+      try {
+        // Chunk into batches of 400 for Firestore safety
+        const CHUNK_SIZE = 400;
+        for (let i = 0; i < orderedProducts.length; i += CHUNK_SIZE) {
+          const chunk = orderedProducts.slice(i, i + CHUNK_SIZE);
+          const batch = writeBatch(db);
+          chunk.forEach((p, chunkIdx) => {
+            const actualIdx = i + chunkIdx + 1;
+            const prodRef = doc(db, 'products', p.id);
+            batch.update(prodRef, { displayOrder: actualIdx });
+          });
+          await batch.commit();
+        }
+      } catch (err) {
+        console.warn('[ShopContext] Notice for reorder products in Firestore:', err);
+      }
+    }
+
+    await logAdminActivity('product_update', 'Products reordered', `Admin reordered ${orderedProducts.length} products.`);
   };
 
   const updateRegion = async (id: string, updates: Partial<TerroirRegion>) => {
@@ -1270,28 +1321,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return;
             }
 
-            // 2. Validation: Duplicate Description
             const description = (row.description_en || row.description || 'Imported artisanal product.').toString().trim();
             const craftStory = (row.description_ar || row.craftstory || row.arabic_description || 'حرفية أصيلة.').toString().trim();
 
-            const cleanDesc = description.toLowerCase().replace(/\s+/g, ' ');
-            if (cleanDesc.length >= 10) {
-              if (seenDescriptionsInFile.has(cleanDesc)) {
-                errors.push(`Row ${rowNum} ("${name}"): Duplicate description detected (matches "${seenDescriptionsInFile.get(cleanDesc)}" in this file).`);
-                return;
-              }
-              const dupDescCheck = checkDuplicateDescription(description, isExistingSku ? sku : null, products);
-              if (dupDescCheck.isDuplicate) {
-                errors.push(`Row ${rowNum} ("${name}"): Duplicate description detected (already used by existing product "${dupDescCheck.conflictingProduct?.name}").`);
-                return;
-              }
-            }
-
             seenSkusInFile.add(normSku);
             seenItemCodesInFile.add(sellerCodeKey);
-            if (cleanDesc.length >= 10) {
-              seenDescriptionsInFile.set(cleanDesc, name);
-            }
 
             const mainImage = (row.image_url || row.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80').toString().trim();
             const addlImagesRaw = row.additional_images || row.images || row.gallery;
@@ -1774,7 +1808,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             dbProductsMap.set(docSnap.id, p);
           });
 
-          const allProducts = Array.from(dbProductsMap.values());
+          const allProducts = Array.from(dbProductsMap.values()).sort((a, b) => {
+            const orderA = a.displayOrder ?? 9999;
+            const orderB = b.displayOrder ?? 9999;
+            return orderA - orderB;
+          });
           setProducts(allProducts);
           setHasMoreProducts(false);
 
@@ -2730,23 +2768,56 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(language === 'ar' ? 'تمت إزالة الكوبون' : 'Coupon code removed', 'info');
   }, [language]);
 
-  const logSearchQuery = useCallback(async (query: string) => {
-    if (!IS_FIREBASE_ENABLED || !query.trim()) return;
+  const lastLoggedSearchRef = useRef<{ query: string; time: number }>({ query: '', time: 0 });
+
+  const logSearchQuery = useCallback(async (query: string, origin: 'navbar' | 'products_page' | 'mobile_menu' | 'direct' = 'direct') => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) return;
+
+    // Flood protection: Avoid logging identical consecutive queries within 6 seconds
+    const now = Date.now();
+    if (
+      lastLoggedSearchRef.current.query.toLowerCase() === trimmed.toLowerCase() &&
+      now - lastLoggedSearchRef.current.time < 6000
+    ) {
+      return;
+    }
+    lastLoggedSearchRef.current = { query: trimmed, time: now };
+
+    const searchEntry: SearchLog = {
+      id: `srch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      query: trimmed,
+      timestamp: new Date().toISOString(),
+      userId: firebaseUser?.uid || null,
+      userEmail: firebaseUser?.email || user?.email || null,
+      userName: user?.name || null,
+      origin: origin
+    };
+
+    // Immediate Local Cache for instant UI updates & offline fallback
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const raw = localStorage.getItem('yallalb_search_logs_cache');
+        const list: SearchLog[] = raw ? JSON.parse(raw) : [];
+        list.unshift(searchEntry);
+        localStorage.setItem('yallalb_search_logs_cache', JSON.stringify(list.slice(0, 200)));
+      }
+    } catch (cacheErr) {
+      console.warn("[ShopContext] Search cache notice:", cacheErr);
+    }
+
+    if (!IS_FIREBASE_ENABLED) return;
     try {
       const logDocRef = doc(collection(db, 'search_logs'));
-      const payload = sanitizeFirestorePayload({
-        id: logDocRef.id,
-        query: query.trim(),
-        timestamp: new Date().toISOString(),
-        userId: firebaseUser?.uid || null
-      });
-      await monitoredSetDoc(logDocRef, payload, {}, 'Navbar:handleSearchSubmit').catch((err) => {
+      searchEntry.id = logDocRef.id;
+      const payload = sanitizeFirestorePayload(searchEntry);
+      await monitoredSetDoc(logDocRef, payload, {}, `ShopContext:logSearchQuery:${origin}`).catch((err) => {
         console.warn("[ShopContext] Non-blocking search log notice:", err);
       });
     } catch (error) {
       console.warn("[ShopContext] Failed to log search:", error);
     }
-  }, [firebaseUser]);
+  }, [firebaseUser, user]);
 
   // Place Order - Order creation with graceful fallback for empty profiles
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
@@ -3093,24 +3164,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Validation: Duplicate Description
-    if (newProdData.description) {
-      const dupDescCheck = checkDuplicateDescription(newProdData.description, null, products);
-      if (dupDescCheck.isDuplicate) {
-        const errorMsg = `Duplicate description: A product with this description already exists ("${dupDescCheck.conflictingProduct?.name}").`;
-        showToast(errorMsg, 'error');
-        throw new Error(errorMsg);
-      }
-    }
-
-    if (newProdData.craftStory) {
-      const dupCraftCheck = checkDuplicateDescription(newProdData.craftStory, null, products);
-      if (dupCraftCheck.isDuplicate) {
-        const errorMsg = `Duplicate heritage description: Already in use by "${dupCraftCheck.conflictingProduct?.name}".`;
-        showToast(errorMsg, 'error');
-        throw new Error(errorMsg);
-      }
-    }
+    // Duplicate Description validation removed for flexibility
 
     const id = newProdData.id || `prod-custom-${Date.now()}`;
     const newProduct: Product = ensureSellerItemCode({ ...newProdData, id });
@@ -3208,24 +3262,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // 2. Validation: Duplicate Description
-    if (updates.description) {
-      const dupDescCheck = checkDuplicateDescription(updates.description, id, products);
-      if (dupDescCheck.isDuplicate) {
-        const errorMsg = `Duplicate description: Product "${dupDescCheck.conflictingProduct?.name}" already uses this exact description.`;
-        showToast(errorMsg, 'error');
-        throw new Error(errorMsg);
-      }
-    }
-
-    if (updates.craftStory) {
-      const dupCraftCheck = checkDuplicateDescription(updates.craftStory, id, products);
-      if (dupCraftCheck.isDuplicate) {
-        const errorMsg = `Duplicate heritage story: Product "${dupCraftCheck.conflictingProduct?.name}" already uses this exact story.`;
-        showToast(errorMsg, 'error');
-        throw new Error(errorMsg);
-      }
-    }
+    // Duplicate Description validation removed for flexibility
 
     const existing = products.find(p => p.id === id);
     const sanitizedUpdates = sanitizeDocumentData(updates);
@@ -3694,6 +3731,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProduct,
     deleteProduct,
     deleteMultipleProducts,
+    reorderProducts,
     syncAllProductsToDatabase,
     selectedProductForModal,
     setSelectedProductForModal,

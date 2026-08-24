@@ -27,6 +27,7 @@ export interface Product {
   isFeatured?: boolean;
   isBestseller?: boolean;
   isPublished?: boolean; // Admin can publish/hide individual products
+  displayOrder?: number; // Custom merchandising rank/order in category and store
   tags: string[];
   keywords?: string[];
   arabicKeywords?: string[];
@@ -36,6 +37,9 @@ export interface Product {
   seoArabicDescription?: string;
   weightOrVolume?: string;
   sellerItemCode?: string;
+  lowStockThreshold?: number;
+  lowStockNotice?: string;
+  customStockLabel?: string;
 }
 
 export interface Seller {
@@ -480,6 +484,8 @@ export interface Review {
   comment: string;
   createdAt: string; // ISO timestamp string
   orderId?: string;
+  adminReply?: string;
+  adminReplyAt?: string;
 }
 
 export interface DiscountRule {
@@ -495,6 +501,16 @@ export interface DiscountRule {
   startDate?: string; // ISO date-time string e.g. "2026-08-20T00:00"
   endDate?: string;   // ISO date-time string e.g. "2026-08-31T23:59"
   isNewUserOnly?: boolean; // True if rule applies only to new users
+}
+
+export interface SearchLog {
+  id: string;
+  query: string;
+  timestamp: string;
+  userId?: string | null;
+  userEmail?: string | null;
+  userName?: string | null;
+  origin?: 'navbar' | 'products_page' | 'mobile_menu' | 'direct';
 }
 
 

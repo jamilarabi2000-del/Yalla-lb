@@ -74,12 +74,21 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
 
         {/* Top Badges */}
         <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10 pointer-events-none">
+          {product.stock === 0 ? (
+            <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white rounded-md shadow-sm">
+              {language === 'ar' ? 'غير متوفر' : 'Out of Stock'}
+            </span>
+          ) : product.stock <= (product.lowStockThreshold ?? 5) ? (
+            <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-600 text-white rounded-md shadow-sm">
+              {product.lowStockNotice || (product.stock === 1 ? (language === 'ar' ? 'القطعة الأخيرة' : 'Last piece') : (language === 'ar' ? 'كمية محدودة' : 'Limited Stock'))}
+            </span>
+          ) : null}
           {product.discountPercentage && (
             <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white rounded-md shadow-sm">
               -{product.discountPercentage}%
             </span>
           )}
-          {product.isBestseller && !product.discountPercentage && (
+          {product.isBestseller && !product.discountPercentage && product.stock > 0 && (
             <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-emerald-600 text-white rounded-md shadow-sm">
               {t('bestseller')}
             </span>

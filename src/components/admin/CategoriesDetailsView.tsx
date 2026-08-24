@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { CategoryItem, TerroirRegion } from '../../types';
+import { CategoryProductsOrderModal } from './CategoryProductsOrderModal';
 import { 
   FolderTree, 
   Plus, 
@@ -18,6 +19,17 @@ import {
   EyeOff,
   MoveUp,
   MoveDown,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUp,
+  ChevronsDown,
+  ArrowUpDown,
+  ListOrdered,
+  LayoutGrid,
+  Package,
+  Star,
+  SlidersHorizontal,
+  RotateCcw,
   AlertTriangle,
   Globe,
   Image as ImageIcon,
@@ -75,6 +87,8 @@ export const CategoriesDetailsView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'categories' | 'regions'>('categories');
   const [filterPublished, setFilterPublished] = useState<'all' | 'published' | 'hidden'>('all');
+  const [categoryViewMode, setCategoryViewMode] = useState<'grid' | 'reorder'>('grid');
+  const [selectedCategoryForProductOrder, setSelectedCategoryForProductOrder] = useState<CategoryItem | null>(null);
 
   // Add / Edit Category State
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -255,21 +269,66 @@ export const CategoriesDetailsView: React.FC = () => {
     }
   };
 
-  // Reorder Category Items
-  const handleMoveCategory = async (index: number, direction: 'up' | 'down') => {
-    const targetIdx = direction === 'up' ? index - 1 : index + 1;
-    if (targetIdx < 0 || targetIdx >= categories.length) return;
+  // Reorder Category Items (Step or Extreme)
+  const handleMoveCategory = async (index: number, direction: 'up' | 'down' | 'top' | 'bottom') => {
+    let targetIdx = index;
+    if (direction === 'up') targetIdx = index - 1;
+    if (direction === 'down') targetIdx = index + 1;
+    if (direction === 'top') targetIdx = 0;
+    if (direction === 'bottom') targetIdx = categories.length - 1;
+
+    if (targetIdx < 0 || targetIdx >= categories.length || targetIdx === index) return;
 
     const newCategories = [...categories];
-    const temp = newCategories[index];
-    newCategories[index] = newCategories[targetIdx];
-    newCategories[targetIdx] = temp;
+    const item = newCategories.splice(index, 1)[0];
+    newCategories.splice(targetIdx, 0, item);
 
     try {
       await reorderCategories(newCategories);
-      showToast('Categories order saved!', 'success');
+      showToast(`Category "${item.nameEn}" moved to position #${targetIdx + 1}!`, 'success');
     } catch (err: any) {
       showToast('Could not save category order. Please try again.', 'warning');
+    }
+  };
+
+  // Direct rank positioning for categories
+  const handleSetCategoryRank = async (currentIndex: number, newRankStr: string) => {
+    const newRank = parseInt(newRankStr, 10);
+    if (isNaN(newRank) || newRank < 1 || newRank > categories.length) return;
+    
+    const targetIdx = newRank - 1;
+    if (targetIdx === currentIndex) return;
+
+    const newCategories = [...categories];
+    const item = newCategories.splice(currentIndex, 1)[0];
+    newCategories.splice(targetIdx, 0, item);
+
+    try {
+      await reorderCategories(newCategories);
+      showToast(`Category "${item.nameEn}" moved to position #${newRank}!`, 'success');
+    } catch (err: any) {
+      showToast('Could not save category order. Please try again.', 'warning');
+    }
+  };
+
+  // Quick preset sorting for categories
+  const handleSortCategories = async (mode: 'az_en' | 'az_ar' | 'products' | 'default') => {
+    let sorted = [...categories];
+    if (mode === 'az_en') {
+      sorted.sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+    } else if (mode === 'az_ar') {
+      sorted.sort((a, b) => a.nameAr.localeCompare(b.nameAr));
+    } else if (mode === 'products') {
+      sorted.sort((a, b) => getProductCountForCategory(b.id) - getProductCountForCategory(a.id));
+    } else if (mode === 'default') {
+      sorted.sort((a, b) => (a.displayOrder || 99) - (b.displayOrder || 99));
+    }
+
+    try {
+      await reorderCategories(sorted);
+      showToast('Categories order updated & saved!', 'success');
+    } catch (err: any) {
+      showToast('Could not save category order.', 'warning');
     }
   };
 
@@ -425,6 +484,63 @@ export const CategoriesDetailsView: React.FC = () => {
 
         {activeTab === 'categories' && (
           <div className="flex flex-wrap items-center gap-3">
+            {/* View Mode Toggle: Grid Cards vs Interactive Reorder List */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
+              <button
+                onClick={() => setCategoryViewMode('grid')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  categoryViewMode === 'grid' 
+                    ? 'bg-white text-slate-900 shadow-xs' 
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Grid Cards View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid Cards</span>
+              </button>
+              <button
+                onClick={() => setCategoryViewMode('reorder')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                  categoryViewMode === 'reorder' 
+                    ? 'bg-[#4f46e5] text-white shadow-xs' 
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Organize Category & Product Order"
+              >
+                <ListOrdered className="w-3.5 h-3.5" />
+                <span>Organize Order ({categories.length})</span>
+              </button>
+            </div>
+
+            {/* Quick Sort Presets for Categories */}
+            <div className="hidden lg:flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase px-1.5 flex items-center gap-1">
+                <ArrowUpDown className="w-3 h-3 text-indigo-500" />
+                <span>Sort:</span>
+              </span>
+              <button
+                onClick={() => handleSortCategories('az_en')}
+                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs"
+                title="Sort Alphabetically (English A-Z)"
+              >
+                A-Z (EN)
+              </button>
+              <button
+                onClick={() => handleSortCategories('az_ar')}
+                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-[11px] font-semibold font-serif transition-all cursor-pointer shadow-2xs"
+                title="Sort Alphabetically (Arabic أ-ي)"
+              >
+                أ-ي (AR)
+              </button>
+              <button
+                onClick={() => handleSortCategories('products')}
+                className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:border-slate-300 text-slate-700 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs"
+                title="Sort by Product Count (Most items first)"
+              >
+                Most Products
+              </button>
+            </div>
+
             {/* Status Filter */}
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
               <button
@@ -448,14 +564,14 @@ export const CategoriesDetailsView: React.FC = () => {
             </div>
 
             {/* Search */}
-            <div className="relative min-w-[260px]">
+            <div className="relative min-w-[220px]">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search name, subcategory, Arabic SEO..."
+                placeholder="Search categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4f46e5] shadow-2xs"
+                className="w-full pl-9 pr-7 py-1.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4f46e5] shadow-2xs"
               />
               {searchQuery && (
                 <button 
@@ -470,7 +586,42 @@ export const CategoriesDetailsView: React.FC = () => {
         )}
       </div>
 
-      {/* Tab 1: Categories Cards Grid */}
+      {/* Live Storefront Navigation Sequence Strip */}
+      {activeTab === 'categories' && categories.length > 0 && (
+        <div className="bg-gradient-to-r from-indigo-900/90 via-slate-900 to-slate-900 text-white p-3.5 sm:p-4 rounded-2xl border border-indigo-500/20 shadow-sm space-y-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              <span className="text-xs font-bold text-slate-200">
+                Live Storefront Customer Navigation Bar & Category Flow:
+              </span>
+            </div>
+            <span className="text-[11px] text-indigo-300 font-medium">
+              Reorder below using Up/Down arrows, Top/Bottom jumps, or typing position numbers.
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+            {categories.map((cat, idx) => (
+              <div 
+                key={cat.id}
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 border border-white/15 px-2.5 py-1 rounded-xl shrink-0 text-xs transition-all cursor-pointer"
+                onClick={() => setSelectedCategoryForProductOrder(cat)}
+                title={`Click to organize products in ${cat.nameEn}`}
+              >
+                <span className="w-4 h-4 rounded-full bg-indigo-400/40 text-[10px] font-mono font-bold flex items-center justify-center text-indigo-200">
+                  {idx + 1}
+                </span>
+                <span>{cat.icon}</span>
+                <span className="font-semibold text-white truncate max-w-[120px]">{cat.nameEn}</span>
+                <span className="text-[10px] text-amber-300 font-serif">({getProductCountForCategory(cat.id)})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 1: Categories Content */}
       {activeTab === 'categories' && (
         <div className="space-y-4">
           {filteredCategories.length === 0 ? (
@@ -489,11 +640,208 @@ export const CategoriesDetailsView: React.FC = () => {
                 Reset Search Filters
               </button>
             </div>
+          ) : categoryViewMode === 'reorder' ? (
+            /* Mode 2: Dedicated Interactive Reorder List */
+            <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+              <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <ListOrdered className="w-5 h-5 text-[#4f46e5]" />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Category & Product Order Organizer
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Arrange categories in display sequence. Click "Order Products" to reorder products within any category.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-600">
+                    Total: {categories.length} Categories
+                  </span>
+                </div>
+              </div>
+
+              <div className="divide-y divide-slate-100">
+                {categories.map((cat, index) => {
+                  const count = getProductCountForCategory(cat.id);
+                  const isPublished = cat.isPublished !== false;
+                  const isFirst = index === 0;
+                  const isLast = index === categories.length - 1;
+
+                  return (
+                    <div 
+                      key={cat.id}
+                      className={`p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:bg-slate-50/80 ${
+                        !isPublished ? 'opacity-70 bg-slate-50/50' : ''
+                      }`}
+                    >
+                      {/* Left: Position Rank & Move Buttons */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Position input / badge */}
+                        <div className="flex flex-col items-center justify-center">
+                          <div className={`w-9 h-9 rounded-xl font-mono font-black text-xs flex items-center justify-center shadow-xs ${
+                            isFirst ? 'bg-amber-500 text-white ring-2 ring-amber-300' : 'bg-slate-900 text-white'
+                          }`}>
+                            #{index + 1}
+                          </div>
+                          <span className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">Rank</span>
+                        </div>
+
+                        {/* Step Controls */}
+                        <div className="flex flex-col gap-1">
+                          <button
+                            onClick={() => handleMoveCategory(index, 'up')}
+                            disabled={isFirst}
+                            title="Move Up 1 spot"
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4f46e5] flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveCategory(index, 'down')}
+                            disabled={isLast}
+                            title="Move Down 1 spot"
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-indigo-50 text-slate-700 hover:text-[#4f46e5] flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-all active:scale-95"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Instant Jump to #1 (Top) Action */}
+                        <button
+                          onClick={() => handleMoveCategory(index, 'top')}
+                          disabled={isFirst}
+                          title="Instantly jump category to Rank #1 (First in Storefront)"
+                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer shadow-xs ${
+                            isFirst 
+                              ? 'bg-amber-100 text-amber-800 opacity-60 cursor-default' 
+                              : 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white hover:scale-105 active:scale-95'
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 fill-current" />
+                          <span>{isFirst ? 'Top #1' : 'Make #1'}</span>
+                        </button>
+
+                        {/* Jump to Bottom */}
+                        <button
+                          onClick={() => handleMoveCategory(index, 'bottom')}
+                          disabled={isLast}
+                          title="Jump to Bottom"
+                          className="hidden md:flex w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer transition-all"
+                        >
+                          <ChevronsDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Middle: Category Info & Details */}
+                      <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                        <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center shadow-2xs shrink-0">
+                          {cat.icon || '🏷️'}
+                        </div>
+
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-bold text-slate-900 truncate">
+                              {cat.nameEn}
+                            </h4>
+                            <span className="text-xs text-[#c5a059] font-serif font-bold truncate">
+                              {cat.nameAr}
+                            </span>
+                            <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {cat.id}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
+                            <span>{cat.description || 'No description'}</span>
+                            <span>•</span>
+                            <span className="font-semibold text-slate-700">
+                              {cat.subcategories?.length || 0} subcategories
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right: Product Ordering Button & Direct Controls */}
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        {/* Direct Position Rank Changer */}
+                        <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200 text-xs">
+                          <span className="text-[10px] text-slate-400 font-bold pl-1">Move to:</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={categories.length}
+                            defaultValue={index + 1}
+                            key={index + 1}
+                            id={`cat-rank-input-${cat.id}`}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleSetCategoryRank(index, (e.target as HTMLInputElement).value);
+                              }
+                            }}
+                            className="w-11 text-center font-mono font-bold bg-white border border-slate-300 rounded-lg px-1 py-1 text-xs focus:outline-none focus:border-indigo-500"
+                            title={`Type target rank (1 to ${categories.length}) and press Enter`}
+                          />
+                          <button
+                            onClick={() => {
+                              const input = document.getElementById(`cat-rank-input-${cat.id}`) as HTMLInputElement;
+                              if (input) handleSetCategoryRank(index, input.value);
+                            }}
+                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                            title="Apply target position immediately"
+                          >
+                            Go
+                          </button>
+                        </div>
+
+                        {/* Order Products Button */}
+                        <button
+                          onClick={() => setSelectedCategoryForProductOrder(cat)}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                          title={`Organize and order products in ${cat.nameEn}`}
+                        >
+                          <Package className="w-4 h-4 text-amber-600" />
+                          <span>Order Products ({count})</span>
+                        </button>
+
+                        {/* Publish Status Toggle */}
+                        <button
+                          onClick={() => updateCategory(cat.id, { isPublished: !isPublished })}
+                          className={`p-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                            isPublished 
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                          }`}
+                          title={isPublished ? 'Click to hide category' : 'Click to publish category'}
+                        >
+                          {isPublished ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </button>
+
+                        {/* Edit Button */}
+                        <button
+                          onClick={() => handleOpenEditCategory(cat)}
+                          className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#4f46e5] text-xs font-bold transition-all cursor-pointer"
+                          title="Edit Category Details"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
+            /* Mode 1: Grid Cards View */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredCategories.map((cat, index) => {
                 const count = getProductCountForCategory(cat.id);
                 const isPublished = cat.isPublished !== false;
+                const isFirst = index === 0;
+                const isLast = index === categories.length - 1;
 
                 return (
                   <div 
@@ -513,27 +861,44 @@ export const CategoriesDetailsView: React.FC = () => {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/20 to-transparent" />
                         
-                        {/* Top quick badges */}
-                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                          <span className="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-xs text-white text-[11px] font-mono font-bold">
+                        {/* Top quick badges & reordering controls */}
+                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
+                          <span className={`px-2.5 py-1 rounded-lg text-white text-[11px] font-mono font-bold border backdrop-blur-xs ${
+                            isFirst ? 'bg-amber-500/90 border-amber-300 ring-2 ring-amber-400/50' : 'bg-black/70 border-white/10'
+                          }`}>
                             #{index + 1}
                           </span>
 
-                          <div className="flex items-center gap-1.5">
-                            {/* Reorder Buttons */}
+                          <div className="flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-xl border border-white/10">
+                            {/* Make #1 Button */}
+                            <button
+                              onClick={() => handleMoveCategory(index, 'top')}
+                              disabled={isFirst}
+                              title="Instantly jump category to Rank #1 (Top)"
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                isFirst 
+                                  ? 'bg-amber-400/30 text-amber-200 opacity-60 cursor-default' 
+                                  : 'bg-amber-500 hover:bg-amber-400 text-white shadow-xs'
+                              }`}
+                            >
+                              <Sparkles className="w-3 h-3 fill-current" />
+                              <span>{isFirst ? '#1' : 'Make #1'}</span>
+                            </button>
+
+                            {/* Step Controls */}
                             <button
                               onClick={() => handleMoveCategory(index, 'up')}
-                              disabled={index === 0}
-                              title="Move Up"
-                              className="p-1 rounded-lg bg-black/50 text-white hover:bg-black/80 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                              disabled={isFirst}
+                              title="Move Up 1 spot"
+                              className="p-1 rounded-lg text-white hover:bg-white/20 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-all"
                             >
                               <MoveUp className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => handleMoveCategory(index, 'down')}
-                              disabled={index === categories.length - 1}
-                              title="Move Down"
-                              className="p-1 rounded-lg bg-black/50 text-white hover:bg-black/80 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed"
+                              disabled={isLast}
+                              title="Move Down 1 spot"
+                              className="p-1 rounded-lg text-white hover:bg-white/20 disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-all"
                             >
                               <MoveDown className="w-3.5 h-3.5" />
                             </button>
@@ -557,20 +922,63 @@ export const CategoriesDetailsView: React.FC = () => {
                     <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
                       <div className="space-y-3">
                         {!cat.bannerUrl && (
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center shadow-2xs">
-                                {cat.icon}
-                              </div>
-                              <div>
-                                <h4 className="text-sm font-bold text-slate-900 leading-snug">{cat.nameEn}</h4>
-                                <p className="text-xs text-[#c5a059] font-serif font-bold">{cat.nameAr}</p>
+                          <div className="space-y-2.5 pb-2 border-b border-slate-100">
+                            {/* Top ranking bar for cards without banner */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`px-2.5 py-0.5 rounded-lg text-[11px] font-mono font-bold border ${
+                                isFirst ? 'bg-amber-500 text-white border-amber-400' : 'bg-slate-900 text-white border-slate-800'
+                              }`}>
+                                #{index + 1}
+                              </span>
+
+                              <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-xl border border-slate-200">
+                                <button
+                                  onClick={() => handleMoveCategory(index, 'top')}
+                                  disabled={isFirst}
+                                  title="Instantly jump category to Rank #1"
+                                  className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-black transition-all cursor-pointer ${
+                                    isFirst 
+                                      ? 'bg-amber-200 text-amber-900 opacity-60 cursor-default' 
+                                      : 'bg-amber-500 hover:bg-amber-600 text-white shadow-xs'
+                                  }`}
+                                >
+                                  <Sparkles className="w-3 h-3 fill-current" />
+                                  <span>{isFirst ? '#1' : 'Make #1'}</span>
+                                </button>
+                                <button
+                                  onClick={() => handleMoveCategory(index, 'up')}
+                                  disabled={isFirst}
+                                  title="Move Up 1 spot"
+                                  className="p-1 rounded-lg text-slate-700 hover:bg-white disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-all"
+                                >
+                                  <MoveUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleMoveCategory(index, 'down')}
+                                  disabled={isLast}
+                                  title="Move Down 1 spot"
+                                  className="p-1 rounded-lg text-slate-700 hover:bg-white disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-all"
+                                >
+                                  <MoveDown className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
 
-                            <span className="px-2.5 py-1 rounded-full text-xs font-black bg-indigo-50 text-[#4f46e5]">
-                              {count} {count === 1 ? 'item' : 'items'}
-                            </span>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-2xl flex items-center justify-center shadow-2xs">
+                                  {cat.icon}
+                                </div>
+                                <div>
+                                  <h4 className="text-sm font-bold text-slate-900 leading-snug">{cat.nameEn}</h4>
+                                  <p className="text-xs text-[#c5a059] font-serif font-bold">{cat.nameAr}</p>
+                                </div>
+                              </div>
+
+                              <span className="px-2.5 py-1 rounded-full text-xs font-black bg-indigo-50 text-[#4f46e5]">
+                                {count} {count === 1 ? 'item' : 'items'}
+                              </span>
+                            </div>
                           </div>
                         )}
 
@@ -630,35 +1038,49 @@ export const CategoriesDetailsView: React.FC = () => {
                       </div>
 
                       {/* Card Footer Actions */}
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                        {/* Publish Status Toggle */}
-                        <button
-                          onClick={() => updateCategory(cat.id, { isPublished: !isPublished })}
-                          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                            isPublished 
-                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
-                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                          }`}
-                          title={isPublished ? 'Click to hide category from store' : 'Click to publish category'}
-                        >
-                          {isPublished ? (
-                            <>
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>Live</span>
-                            </>
-                          ) : (
-                            <>
-                              <EyeOff className="w-3.5 h-3.5" />
-                              <span>Hidden</span>
-                            </>
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Order Products Button */}
+                          <button
+                            onClick={() => setSelectedCategoryForProductOrder(cat)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                            title={`Organize and order products in ${cat.nameEn}`}
+                          >
+                            <Package className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Order Products ({count})</span>
+                          </button>
+
+                          {/* Quick Make #1 Footer Button */}
+                          {!isFirst && (
+                            <button
+                              onClick={() => handleMoveCategory(index, 'top')}
+                              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                              title="Instantly make this category #1 on the store homepage"
+                            >
+                              <Sparkles className="w-3 h-3 fill-white" />
+                              <span>Make #1</span>
+                            </button>
                           )}
-                        </button>
+                        </div>
 
                         <div className="flex items-center gap-1.5">
+                          {/* Publish Status Toggle */}
+                          <button
+                            onClick={() => updateCategory(cat.id, { isPublished: !isPublished })}
+                            className={`p-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              isPublished 
+                                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' 
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}
+                            title={isPublished ? 'Click to hide category from store' : 'Click to publish category'}
+                          >
+                            {isPublished ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                          </button>
+
                           {/* Edit Button */}
                           <button
                             onClick={() => handleOpenEditCategory(cat)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#4f46e5] text-xs font-bold transition-all cursor-pointer"
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-[#4f46e5] text-xs font-bold transition-all cursor-pointer"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                             <span>Edit</span>
@@ -1395,6 +1817,15 @@ export const CategoriesDetailsView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Category Products Order Modal */}
+      {selectedCategoryForProductOrder && (
+        <CategoryProductsOrderModal
+          category={selectedCategoryForProductOrder}
+          isOpen={!!selectedCategoryForProductOrder}
+          onClose={() => setSelectedCategoryForProductOrder(null)}
+        />
       )}
     </div>
   );

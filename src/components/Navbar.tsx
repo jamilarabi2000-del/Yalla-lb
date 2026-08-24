@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
 import systemLogo from '../assets/images/system_logo_1786837577985.jpg';
 import { 
@@ -59,10 +59,21 @@ export const Navbar: React.FC = () => {
     }))
   ];
 
+  // Automatically capture search queries as users type in the header (debounced)
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length >= 2) {
+      const timer = setTimeout(() => {
+        logSearchQuery(trimmed, 'navbar');
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery, logSearchQuery]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      logSearchQuery(searchQuery);
+      logSearchQuery(searchQuery.trim(), 'navbar');
     }
     if (activeTab !== 'products') {
       setActiveTab('products');
