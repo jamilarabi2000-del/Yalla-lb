@@ -362,13 +362,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (firebaseUser) {
-      const isUserAdminEmail = firebaseUser.email === 'jamilarabi2000@gmail.com';
+      // Admin status comes from the custom claim only, matching firestore.rules.
+      // A hardcoded email check here would grant the dashboard to someone whose
+      // writes the database then rejects. Use `npm run grant-admin -- <email>`
+      // to set the claim; the user must sign out and back in to pick it up.
       firebaseUser.getIdTokenResult(true) // force refresh
         .then(result => {
-          setIsAdminUser(result.claims.admin === true || isUserAdminEmail);
+          setIsAdminUser(result.claims.admin === true);
         })
         .catch(() => {
-          setIsAdminUser(isUserAdminEmail);
+          setIsAdminUser(false);
         });
     } else {
       setIsAdminUser(false);
