@@ -2972,7 +2972,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           deliveryFeeUSD,
           discountUSD: discountUSDVal,
           totalUSD,
-          totalLBP: totalUSD * LBP_USD_RATE,
+          totalLBP: Math.round(totalUSD * LBP_USD_RATE),
           appliedCoupon: appliedCouponCode || undefined
         };
 
@@ -3773,6 +3773,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error
       });
       handleFirestoreError(error, OperationType.UPDATE, `users/${userKey}`);
+      showToast('Could not save your profile. Please try again.', 'error');
+      return;
     }
 
     showToast('Profile and delivery details saved to database');

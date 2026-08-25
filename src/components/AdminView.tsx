@@ -1058,7 +1058,7 @@ export const AdminView: React.FC = () => {
       seller: newProduct.seller || 'Independent Artisan',
       sellerId: matchedSeller?.id || (newProduct as any).sellerId || undefined,
       arabicSeller: newProduct.arabicSeller || (matchedSeller?.nameAr || ''),
-      origin: matchedSeller?.region || 'Lebanon',
+      origin: matchedSeller?.region || newProduct.origin?.trim() || 'Lebanon',
       description: newProduct.description || 'Authentic Lebanese artisanal product.',
       craftStory: newProduct.craftStory || 'Generational handcrafted masterpiece created in Lebanon.',
       priceUSD: Number(newProduct.priceUSD),

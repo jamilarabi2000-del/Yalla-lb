@@ -436,15 +436,34 @@ export const CheckoutView: React.FC = () => {
       return;
     }
 
-    // Fallbacks if user profile or form data is not filled out
-    const fName = formData.firstName.trim() || user?.firstName || (user?.name ? user.name.split(' ')[0] : 'Valued');
-    const lName = formData.lastName.trim() || user?.lastName || (user?.name ? user.name.split(' ').slice(1).join(' ') : 'Customer');
-    const finalPhone = formData.phone.trim() || user?.phone || '+961 (Contact Required)';
-    const finalStreet = formData.street.trim() || user?.defaultAddress || 'Beirut, Lebanon';
-    const finalEmail = formData.email.trim() || firebaseUser?.email || user?.email || `${fName.toLowerCase()}.${lName.toLowerCase()}@example.com`;
-    const finalCity = formData.city.trim() || user?.defaultCity || 'Beirut';
+    // Fall back to the saved profile, but never to an invented value. A placeholder
+    // name, phone or address produces an order that looks complete to the admin and
+    // cannot actually be delivered.
+    const fName = formData.firstName.trim() || user?.firstName || (user?.name ? user.name.split(' ')[0] : '');
+    const lName = formData.lastName.trim() || user?.lastName || (user?.name ? user.name.split(' ').slice(1).join(' ') : '');
+    const finalPhone = formData.phone.trim() || user?.phone || '';
+    const finalStreet = formData.street.trim() || user?.defaultAddress || '';
+    const finalEmail = formData.email.trim() || firebaseUser?.email || user?.email || '';
+    const finalCity = formData.city.trim() || user?.defaultCity || '';
 
-    const fullName = `${fName} ${lName}`;
+    const missingDetails: string[] = [];
+    if (!fName) missingDetails.push(isArabic ? 'الاسم الأول' : 'first name');
+    if (!finalPhone) missingDetails.push(isArabic ? 'رقم الهاتف' : 'phone number');
+    if (!finalStreet) missingDetails.push(isArabic ? 'العنوان' : 'street address');
+    if (!finalCity) missingDetails.push(isArabic ? 'المدينة' : 'city');
+    if (!finalEmail) missingDetails.push(isArabic ? 'البريد الإلكتروني' : 'email address');
+
+    if (missingDetails.length > 0) {
+      showToast(
+        isArabic
+          ? `يرجى إكمال بيانات التوصيل: ${missingDetails.join('، ')}`
+          : `Please complete your delivery details: ${missingDetails.join(', ')}.`,
+        'warning'
+      );
+      return;
+    }
+
+    const fullName = `${fName} ${lName}`.trim();
 
     setIsSubmitting(true);
     try {

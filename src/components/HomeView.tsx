@@ -312,6 +312,78 @@ export const HomeView: React.FC = () => {
         </div>
       )}
 
+      {/* Heritage Story Section */}
+      {(visibility.homeHeritage || isVisualEditMode) && (
+        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <div className="bg-[#fcfaf8] border border-[#f5ece1] rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto">
+            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight mb-4">
+              {language === 'ar' ? (siteContent.home?.heritageTitleArabic || siteContent.home?.heritageTitle || 'تراثنا') : (siteContent.home?.heritageTitle || 'Our Heritage')}
+            </h2>
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed mx-auto max-w-2xl">
+              {language === 'ar' ? (siteContent.home?.heritageTextArabic || siteContent.home?.heritageText || '') : (siteContent.home?.heritageText || '')}
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Reviews / Testimonials Section */}
+      {(visibility.homeReviews || isVisualEditMode) && (
+        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <div className="text-center mb-8">
+            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              {language === 'ar' ? (siteContent.home?.reviewsTitleArabic || siteContent.home?.reviewsTitle || 'آراء الزبائن') : (siteContent.home?.reviewsTitle || 'Customer Reviews')}
+            </h2>
+            <p className="text-sm text-slate-500 mt-2 max-w-2xl mx-auto">
+              {language === 'ar' ? (siteContent.home?.reviewsSubtitleArabic || siteContent.home?.reviewsSubtitle || '') : (siteContent.home?.reviewsSubtitle || '')}
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex gap-1 text-amber-400 mb-3">
+                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+              </div>
+              <p className="text-sm text-slate-600 italic mb-4">"Absolutely authentic and beautiful craftsmanship. Reminds me of home."</p>
+              <div className="font-bold text-xs text-slate-900">- Sarah K., Paris</div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex gap-1 text-amber-400 mb-3">
+                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+              </div>
+              <p className="text-sm text-slate-600 italic mb-4">"The mouneh products are exactly how my grandmother used to make them!"</p>
+              <div className="font-bold text-xs text-slate-900">- Elie M., Beirut</div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="flex gap-1 text-amber-400 mb-3">
+                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+              </div>
+              <p className="text-sm text-slate-600 italic mb-4">"Quick delivery to Dubai and the packaging was excellent. Highly recommended."</p>
+              <div className="font-bold text-xs text-slate-900">- Noor A., Dubai</div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Newsletter Section */}
+      {(visibility.homeNewsletter || isVisualEditMode) && (
+        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center">
+            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-6">
+              {language === 'ar' ? (siteContent.home?.newsletterTitleArabic || siteContent.home?.newsletterTitle || 'النشرة البريدية') : (siteContent.home?.newsletterTitle || 'Join our Newsletter')}
+            </h2>
+            <div className="flex flex-col sm:flex-row w-full max-w-md gap-3">
+              <input 
+                type="email" 
+                placeholder={language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'} 
+                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+              />
+              <button className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
+                {language === 'ar' ? (siteContent.home?.newsletterButtonTextArabic || siteContent.home?.newsletterButtonText || 'اشترك') : (siteContent.home?.newsletterButtonText || 'Subscribe')}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Bottom Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="bottom" />
 

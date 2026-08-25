@@ -38,44 +38,29 @@ export const HeroBanner: React.FC = () => {
     ]
   };
 
+  const cmsHeroImage = (siteContent?.hero as any)?.bgImageUrl?.trim();
+  const heroImages = cmsHeroImage ? [cmsHeroImage] : HERO_IMAGES;
+
   const handleHeroClick = () => {
-    const targetUrl = heroData.targetUrl;
-    if (targetUrl) {
-      if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
-        window.open(targetUrl, '_blank');
-        return;
-      }
-      
-      if (targetUrl.startsWith('/products')) {
-        const urlObj = new URL(targetUrl, window.location.origin);
-        const urlCategory = urlObj.searchParams.get('category');
-        if (urlCategory) {
-          setSelectedCategory(urlCategory);
-        } else {
-          setSelectedCategory('all');
-        }
-      } else {
-        setSelectedCategory('all');
-      }
-    } else {
-      setSelectedCategory('all');
-    }
+    setSelectedCategory('all');
     setSearchQuery('');
     setActiveTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
+    setCurrentImageIndex(0);
+    if (heroImages.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % HERO_IMAGES.length);
+      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [heroImages.length]);
 
   return (
     <div className="relative overflow-hidden bg-slate-900 py-16 lg:py-24 border-b border-slate-200">
       {/* Background Slideshow Images - High clarity, sharp visibility */}
-      {HERO_IMAGES.map((img, idx) => (
+      {heroImages.map((img, idx) => (
         <img
           key={img}
           src={img}
@@ -134,19 +119,21 @@ export const HeroBanner: React.FC = () => {
 
         </div>
 
-        {/* Carousel indicators */}
-        <div className="flex justify-center items-center gap-2 mt-6">
-          {HERO_IMAGES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentImageIndex(i)}
-              className={`h-2 rounded-full transition-all duration-300 cursor-pointer shadow-md ${
-                i === currentImageIndex ? 'w-8 bg-amber-400' : 'w-2.5 bg-white/70 hover:bg-white'
-              }`}
-              aria-label={`Go to slide ${i + 1}`}
-            />
-          ))}
-        </div>
+        {/* Carousel indicators — only meaningful with more than one image */}
+        {heroImages.length > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6">
+            {heroImages.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentImageIndex(i)}
+                className={`h-2 rounded-full transition-all duration-300 cursor-pointer shadow-md ${
+                  i === currentImageIndex ? 'w-8 bg-amber-400' : 'w-2.5 bg-white/70 hover:bg-white'
+                }`}
+                aria-label={`Go to slide ${i + 1}`}
+              />
+            ))}
+          </div>
+        )}
 
       </div>
     </div>
