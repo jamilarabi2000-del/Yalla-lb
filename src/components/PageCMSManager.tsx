@@ -3,7 +3,7 @@ import { useShop } from '../context/ShopContext';
 import { HomeIcon, Layout, ShoppingBag, Search, CreditCard, User, Newspaper, Navigation, Type, Blocks, Settings } from 'lucide-react';
 
 export const PageCMSManager: React.FC<{ initialTab?: string }> = ({ initialTab = 'home' }) => {
-  const { siteContent, updateSiteContent, saveCmsSettings } = useShop();
+  const { siteContent, updateSiteContent, showToast } = useShop();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [cmsForm, setCmsForm] = useState(siteContent);
   const [isSaving, setIsSaving] = useState(false);
@@ -24,8 +24,16 @@ export const PageCMSManager: React.FC<{ initialTab?: string }> = ({ initialTab =
 
   const handleSave = async () => {
     setIsSaving(true);
-    await saveCmsSettings(cmsForm);
-    setIsSaving(false);
+    try {
+      await updateSiteContent(cmsForm);
+      showToast('Content saved and published to the storefront.', 'success');
+    } catch (err: any) {
+      // Report the failure rather than leaving the button to settle back silently.
+      console.error('[PageCMSManager] Failed to save site content:', err);
+      showToast(`Could not save content: ${err?.message || 'the write was rejected.'}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const tabs = [
