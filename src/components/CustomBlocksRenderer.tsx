@@ -46,7 +46,7 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
   };
 
   return (
-    <div className="w-full space-y-6 my-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="w-full space-y-6 my-6 max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
       {blocks.map((block) => {
         // If not published and admin is not in visual edit mode, hide completely
         if (!block.isPublished && !isVisualEditMode) return null;

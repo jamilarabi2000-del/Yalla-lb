@@ -1,6 +1,13 @@
 import { SiteContent } from '../types';
 
 export const DEFAULT_SITE_CONTENT: SiteContent = {
+  theme: {
+    primaryColor: '#c5a059',
+    accentColor: '#059669',
+    fontFamily: 'plus_jakarta',
+    borderRadius: 'xl',
+    headerStyle: 'modern'
+  },
   seo: {
     title: 'Yalla.lb - Authentic Lebanese Craftsmanship & Terroir Marketplace',
     arabicTitle: 'يلا لبنان - السوق الحرفي والمونة اللبنانية الأصيلة',
@@ -101,6 +108,10 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     secondaryBtnTextArabic: 'تعرف على الحرفيين',
     targetUrl: '/products',
     bgImageUrl: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=2000',
+    bgMediaItems: [
+      { id: 'media-1', url: 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=2000', type: 'image', title: 'Artisan Workshop', isPublished: true },
+      { id: 'media-2', url: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=2000', type: 'image', title: 'Lebanese Cedar & Pottery', isPublished: true }
+    ],
     stats: [
       { label: 'Master Artisans', labelArabic: 'حرفي ماهر', value: '120+', valueArabic: '+120', isPublished: true },
       { label: 'Lebanese Villages', labelArabic: 'بلدة لبنانية', value: '45+', valueArabic: '+45', isPublished: true },
@@ -173,6 +184,22 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     featuredTitleArabic: 'المنتجات المميزة',
     featuredSubtitle: 'Handpicked items celebrating timeless craftsmanship and Levantine gastronomy.',
     featuredSubtitleArabic: 'مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة.',
+    featuredDescription: '',
+    featuredDescriptionArabic: '',
+    dealsTitle: "Today's Deals",
+    dealsTitleArabic: "عروض اليوم",
+    dealsSubtitle: 'Flash Discounts',
+    dealsSubtitleArabic: 'تخفيضات سريعة',
+    dealsDescription: 'Limited time offers, grab them before they are gone!',
+    dealsDescriptionArabic: 'عروض لفترة محدودة، احصل عليها قبل نفاد الكمية!',
+    newArrivalsTitle: 'New Arrivals',
+    newArrivalsTitleArabic: 'وصل حديثاً',
+    newArrivalsSubtitle: 'Freshly Stocked',
+    newArrivalsSubtitleArabic: 'وصلنا حديثاً',
+    categoriesTitle: 'Explore by Category',
+    categoriesTitleArabic: 'تسوق حسب الفئات',
+    categoriesSubtitle: 'Browse Departments',
+    categoriesSubtitleArabic: 'تصفح الأقسام',
     regionsTitle: 'Explore Lebanon by Region',
     regionsTitleArabic: 'تسوق حسب الفئات والمناطق',
     regionsSubtitle: 'Discover specialized heritage crafts rooted in Lebanon\'s historical provinces.',

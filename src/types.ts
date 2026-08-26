@@ -24,6 +24,7 @@ export interface Product {
   description: string;
   craftStory: string;
   stock: number;
+  isNewArrival?: boolean;
   isFeatured?: boolean;
   isBestseller?: boolean;
   isPublished?: boolean; // Admin can publish/hide individual products
@@ -168,7 +169,10 @@ export interface CMSOfferSlide {
   discountBadgeArabic?: string;
   bgGradient: string;
   imageUrl?: string;
+  bgVideoUrl?: string;
   isCustomSchoolLayout?: boolean;
+  isCustomCrayolaLayout?: boolean;
+  isCustomGlobalLayout?: boolean;
   isPublished?: boolean;
 }
 
@@ -195,6 +199,26 @@ export interface CMSNavTab {
   label: string;
   arabicLabel?: string;
   isPublished?: boolean;
+}
+
+export interface CMSHeroMediaItem {
+  id: string;
+  url: string;
+  type: 'image' | 'video';
+  title?: string;
+  customTitle?: string;
+  customTitleArabic?: string;
+  customSubtitle?: string;
+  customSubtitleArabic?: string;
+  isPublished?: boolean;
+}
+
+export interface CMSThemeConfig {
+  primaryColor: string;
+  accentColor: string;
+  fontFamily: 'plus_jakarta' | 'playfair' | 'inter' | 'tajawal' | 'cairo' | 'amiri';
+  borderRadius: 'sm' | 'md' | 'xl' | 'full';
+  headerStyle: 'modern' | 'classic' | 'minimal';
 }
 
 export interface CMSHeroStat {
@@ -284,6 +308,7 @@ export interface SectionVisibilityConfig {
 }
 
 export interface SiteContent {
+  theme?: CMSThemeConfig;
   seo?: {
     title: string;
     arabicTitle?: string;
@@ -318,10 +343,18 @@ export interface SiteContent {
     secondaryBtnText: string;
     secondaryBtnTextArabic?: string;
     targetUrl?: string;
-    bgImageUrl: string;
+    bgImageUrl?: string;
+    bgImageUrls?: string[];
+    bgVideoUrl?: string;
+    bgVideoUrls?: string[];
+    bgMediaItems?: CMSHeroMediaItem[];
     stats: CMSHeroStat[];
   };
   offers: {
+    sectionTag?: string;
+    sectionTagArabic?: string;
+    sectionBadge?: string;
+    sectionBadgeArabic?: string;
     sectionTitle: string;
     sectionTitleArabic?: string;
     sectionSubtitle: string;
@@ -333,6 +366,22 @@ export interface SiteContent {
     featuredTitleArabic?: string;
     featuredSubtitle: string;
     featuredSubtitleArabic?: string;
+    featuredDescription?: string;
+    featuredDescriptionArabic?: string;
+    dealsTitle?: string;
+    dealsTitleArabic?: string;
+    dealsSubtitle?: string;
+    dealsSubtitleArabic?: string;
+    dealsDescription?: string;
+    dealsDescriptionArabic?: string;
+    newArrivalsTitle?: string;
+    newArrivalsTitleArabic?: string;
+    newArrivalsSubtitle?: string;
+    newArrivalsSubtitleArabic?: string;
+    categoriesTitle?: string;
+    categoriesTitleArabic?: string;
+    categoriesSubtitle?: string;
+    categoriesSubtitleArabic?: string;
     regionsTitle: string;
     regionsTitleArabic?: string;
     regionsSubtitle: string;

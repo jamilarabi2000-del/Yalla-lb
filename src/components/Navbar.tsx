@@ -82,8 +82,19 @@ export const Navbar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white border-b border-slate-200 shadow-sm">
+      {/* Top Announcement Ticker Bar */}
+      {siteContent?.visibility?.announcementTicker !== false && (siteContent?.navbar?.announcementTicker || siteContent?.navbar?.announcementTickerArabic) && (
+        <div className="bg-[#b89753] text-white text-[11px] sm:text-xs py-2 px-4 text-center font-bold tracking-wider flex items-center justify-center gap-2 overflow-hidden shadow-inner">
+          <span className="inline-block animate-pulse">✨</span>
+          <span className="truncate">
+            {language === 'ar' ? (siteContent.navbar.announcementTickerArabic || siteContent.navbar.announcementTicker) : (siteContent.navbar.announcementTicker || siteContent.navbar.announcementTickerArabic)}
+          </span>
+          <span className="inline-block animate-pulse">✨</span>
+        </div>
+      )}
+
       {/* Main Navbar */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+      <div className="max-w-screen-2xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16 lg:h-18 gap-2 sm:gap-4">
           {/* Logo & Brand */}
           <div 

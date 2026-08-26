@@ -37,6 +37,35 @@ const MainAppContent: React.FC = () => {
     }
   }, [siteContent?.seo]);
 
+  // Dynamically apply Theme CSS variables and classes
+  useEffect(() => {
+    if (siteContent?.theme) {
+      const root = document.documentElement;
+      
+      if (siteContent.theme.primaryColor) {
+        root.style.setProperty('--gold', siteContent.theme.primaryColor);
+        // Approximate a slightly darker shade for borders/hover
+        root.style.setProperty('--gold-dark', siteContent.theme.primaryColor + 'cc');
+      }
+      
+      const fonts = ['plus_jakarta', 'playfair', 'inter', 'tajawal', 'cairo', 'amiri'];
+      fonts.forEach(f => document.body.classList.remove(`font-${f}`));
+      
+      if (siteContent.theme.fontFamily) {
+        // Fallback for fonts that might not be imported: we'll just set the style directly
+        const fontMap: Record<string, string> = {
+          'plus_jakarta': '"Plus Jakarta Sans", sans-serif',
+          'playfair': '"Playfair Display", serif',
+          'inter': '"Inter", sans-serif',
+          'tajawal': '"Tajawal", sans-serif',
+          'cairo': '"Cairo", sans-serif',
+          'amiri': '"Amiri", serif'
+        };
+        document.body.style.fontFamily = fontMap[siteContent.theme.fontFamily] || '"Plus Jakarta Sans", sans-serif';
+      }
+    }
+  }, [siteContent?.theme]);
+
   // On initial mount, ensure current history entry has depth
   useEffect(() => {
     if (window.history && (!window.history.state || typeof window.history.state.depth !== 'number')) {

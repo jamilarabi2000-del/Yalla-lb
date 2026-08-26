@@ -46,7 +46,7 @@ export const FavoritesView: React.FC = () => {
     <div className="min-h-screen bg-slate-50/50 pb-20 pt-6">
       {/* Header Banner */}
       <div className="bg-white border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           
           {/* Breadcrumb / Back Link */}
           <button
@@ -101,7 +101,7 @@ export const FavoritesView: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         {favoriteProducts.length === 0 ? (
           /* Empty Wishlist State */
           <div className="bg-white rounded-3xl p-12 sm:p-16 text-center border border-slate-200 shadow-sm max-w-xl mx-auto space-y-6 my-8">
@@ -148,7 +148,7 @@ export const FavoritesView: React.FC = () => {
               </h2>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
               {favoriteProducts.map(product => (
                 <ProductCard 
                   key={product.id} 

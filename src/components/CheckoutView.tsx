@@ -629,7 +629,7 @@ export const CheckoutView: React.FC = () => {
 
       {/* Checkout Header */}
       <div className="bg-white border-b border-slate-200 pt-6 pb-10 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto space-y-3">
+        <div className="max-w-screen-2xl mx-auto space-y-3">
           <button
             id="checkout-page-back-btn"
             onClick={goBack}
@@ -659,7 +659,7 @@ export const CheckoutView: React.FC = () => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
         {cart.length === 0 ? (
           <div className="py-20 text-center space-y-4 max-w-md mx-auto">

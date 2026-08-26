@@ -212,7 +212,7 @@ const newsData: NewsItem[] = [
 export const NewsSection: React.FC = () => {
   const { language, showToast, siteContent } = useShop();
   const [activeCategory, setActiveCategory] = useState<NewsCategory>('all');
-  const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
+  const [selectedNews, setSelectedNews] = useState<any | null>(null);
 
   const { containerRef } = useDialog({
     isOpen: !!selectedNews,
@@ -231,9 +231,41 @@ export const NewsSection: React.FC = () => {
     { id: 'achievements', labelEn: 'ACHIEVEMENTS', labelAr: 'الإنجازات والجوائز' }
   ];
 
+  // Convert siteContent articles (or fallback to static newsData) into unified display items
+  const cmsArticles = siteContent?.newsSection?.articles;
+  const rawArticles = (cmsArticles && cmsArticles.length > 0) ? cmsArticles.filter(a => a.isPublished !== false) : null;
+
+  const normalizedArticles: NewsItem[] = rawArticles ? rawArticles.map(art => {
+    // Determine category based on tag or default
+    let cat: 'events' | 'dates' | 'achievements' = 'events';
+    const tagLower = (art.tag || '').toLowerCase();
+    if (tagLower.includes('date') || tagLower.includes('harvest') || tagLower.includes('موسم') || tagLower.includes('تاريخ')) {
+      cat = 'dates';
+    } else if (tagLower.includes('achievement') || tagLower.includes('award') || tagLower.includes('إنجاز') || tagLower.includes('تكريم')) {
+      cat = 'achievements';
+    }
+    return {
+      id: art.id,
+      category: cat,
+      titleEn: art.title,
+      titleAr: art.titleArabic || art.title,
+      excerptEn: art.excerpt,
+      excerptAr: art.excerptArabic || art.excerpt,
+      contentEn: [art.excerpt, 'Explore full artisanal details and verified batch provenance across Yalla.lb.'],
+      contentAr: [art.excerptArabic || art.excerpt, 'استكشف تفاصيل الحرفة ومصادر الإنتاج المعتمدة حصرياً عبر منصة يلا لبنان.'],
+      date: art.date,
+      dateAr: art.dateArabic || art.date,
+      readTimeEn: art.readTime,
+      readTimeAr: art.readTimeArabic || art.readTime,
+      authorEn: art.source,
+      authorAr: art.sourceArabic || art.source,
+      image: art.imageUrl
+    };
+  }) : newsData;
+
   const filteredNews = activeCategory === 'all' 
-    ? newsData 
-    : newsData.filter(item => item.category === activeCategory);
+    ? normalizedArticles 
+    : normalizedArticles.filter(item => item.category === activeCategory);
 
   const updateScrollButtons = () => {
     if (sliderRef.current) {
@@ -288,7 +320,7 @@ export const NewsSection: React.FC = () => {
       <div className="absolute -left-20 top-0 w-80 h-80 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -right-20 bottom-0 w-80 h-80 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto relative z-10">
+      <div className="max-w-screen-2xl mx-auto relative z-10">
         
         {/* Section Heading & Slider Controls Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">

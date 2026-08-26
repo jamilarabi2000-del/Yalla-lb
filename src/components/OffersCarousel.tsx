@@ -40,6 +40,8 @@ interface PromoOffer {
   isCustomSchoolLayout?: boolean;
   isCustomCrayolaLayout?: boolean;
   isCustomGlobalLayout?: boolean;
+  bgGradient?: string;
+  imageUrl?: string;
 }
 
 export const OffersCarousel: React.FC = () => {
@@ -48,8 +50,11 @@ export const OffersCarousel: React.FC = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // High-fidelity promo slides configured to match the user's uploaded campaign screenshots exactly
-  const offers: PromoOffer[] = [
+  const cmsSlides = siteContent?.offers?.slides;
+  const publishedCmsSlides = cmsSlides ? cmsSlides.filter(s => s.isPublished !== false) : [];
+
+  // High-fidelity promo slides configured from CMS or default fallback
+  const defaultOffers: PromoOffer[] = [
     {
       id: 'school_essentials',
       badgeEn: 'School Essentials',
@@ -111,6 +116,31 @@ export const OffersCarousel: React.FC = () => {
       isCustomGlobalLayout: true
     }
   ];
+
+  const offers: PromoOffer[] = publishedCmsSlides.length > 0 ? publishedCmsSlides.map((slide, idx) => ({
+    id: slide.id || `slide-${idx}`,
+    badgeEn: slide.badge || 'PROMOTION',
+    badgeAr: slide.badgeArabic || slide.badge || 'عرض',
+    titleEn: slide.title,
+    titleAr: slide.titleArabic || slide.title,
+    descEn: slide.subtitle,
+    descAr: slide.subtitleArabic || slide.subtitle,
+    code: slide.discountBadge || 'YALLA2026',
+    discountEn: slide.discountBadge || 'SPECIAL OFFER',
+    discountAr: slide.discountBadgeArabic || slide.discountBadge || 'عرض خاص',
+    buttonTextEn: slide.buttonText || 'Shop Collection',
+    buttonTextAr: slide.buttonTextArabic || slide.buttonText || 'تسوق التشكيلة',
+    targetCategory: slide.targetUrl || 'crafts',
+    accentTextClass: 'text-amber-800',
+    badgeClass: 'bg-amber-50 text-amber-800 border-amber-200/50',
+    expiryHours: 24,
+    icon: <Sparkles className="w-5 h-5 text-amber-600" />,
+    isCustomSchoolLayout: slide.isCustomSchoolLayout,
+    isCustomCrayolaLayout: slide.isCustomCrayolaLayout,
+    isCustomGlobalLayout: slide.isCustomGlobalLayout,
+    imageUrl: slide.imageUrl,
+    bgGradient: slide.bgGradient || 'from-amber-950 via-yellow-950 to-stone-900'
+  })) : defaultOffers;
 
   // Auto slide effect with clean restart
   const resetAutoplay = useCallback(() => {
@@ -206,16 +236,22 @@ export const OffersCarousel: React.FC = () => {
 
   return (
     <section 
-      className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 my-8"
+      className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 my-8"
     >
       {/* Section Header for Ads & Promotions Banner */}
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
           <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1 flex items-center gap-1.5">
             <Megaphone className="w-3.5 h-3.5" />
-            <span>{t('promotionsAndAds')}</span>
+            <span>
+              {language === 'ar'
+                ? (siteContent?.offers?.sectionTagArabic || siteContent?.offers?.sectionTag || t('promotionsAndAds'))
+                : (siteContent?.offers?.sectionTag || t('promotionsAndAds'))}
+            </span>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-900 border border-amber-300/70 ml-1.5">
-              {t('sponsoredBadge')}
+              {language === 'ar'
+                ? (siteContent?.offers?.sectionBadgeArabic || siteContent?.offers?.sectionBadge || t('sponsoredBadge'))
+                : (siteContent?.offers?.sectionBadge || t('sponsoredBadge'))}
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
@@ -223,7 +259,7 @@ export const OffersCarousel: React.FC = () => {
               siteContent?.offers?.sectionTitleArabic ? (
                 <span>{siteContent.offers.sectionTitleArabic}</span>
               ) : (
-                <>العروض والحملات <span className="gold-gradient font-serif italic">الإعلانية</span></>
+                <span>{siteContent?.offers?.sectionTitle || 'العروض والحملات الإعلانية'}</span>
               )
             ) : (
               siteContent?.offers?.sectionTitle ? (
@@ -235,7 +271,7 @@ export const OffersCarousel: React.FC = () => {
           </h2>
           <p className="text-xs text-slate-500 mt-1 max-w-xl">
             {language === 'ar' 
-              ? (siteContent?.offers?.sectionSubtitleArabic || t('promotionsSubtitle')) 
+              ? (siteContent?.offers?.sectionSubtitleArabic || siteContent?.offers?.sectionSubtitle || t('promotionsSubtitle')) 
               : (siteContent?.offers?.sectionSubtitle || t('promotionsSubtitle'))}
           </p>
         </div>
@@ -537,6 +573,43 @@ export const OffersCarousel: React.FC = () => {
             >
               <ShoppingBag className="w-4 h-4" />
               <span>{language === 'ar' ? currentOffer.buttonTextAr : currentOffer.buttonTextEn}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Generic / Standard CMS Slide Layout */}
+      {!currentOffer.isCustomSchoolLayout && !currentOffer.isCustomCrayolaLayout && !currentOffer.isCustomGlobalLayout && (
+        <div 
+          onClick={() => handleShopAction(currentOffer.targetCategory, currentIndex)}
+          className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentOffer.bgGradient || 'from-slate-900 via-stone-900 to-amber-950'} border border-white/15 shadow-2xl h-[460px] sm:h-[420px] md:h-[380px] flex flex-col md:flex-row items-center justify-between p-6 sm:p-8 md:p-10 transition-all duration-500 cursor-pointer group`}
+        >
+          {currentOffer.imageUrl && (
+            <div className="absolute inset-0 z-0">
+              <img 
+                src={currentOffer.imageUrl} 
+                alt={currentOffer.titleEn}
+                className="w-full h-full object-cover opacity-35 group-hover:scale-105 transition-transform duration-700"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
+            </div>
+          )}
+          <div className="relative z-10 max-w-xl space-y-4">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-amber-500/25 text-amber-300 border border-amber-400/30">
+              {language === 'ar' ? currentOffer.badgeAr : currentOffer.badgeEn}
+            </span>
+            <h2 className="text-2xl sm:text-3xl font-extrabold text-white uppercase tracking-tight">
+              {language === 'ar' ? currentOffer.titleAr : currentOffer.titleEn}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-lg">
+              {language === 'ar' ? currentOffer.descAr : currentOffer.descEn}
+            </p>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleShopAction(currentOffer.targetCategory, currentIndex); }}
+              className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg transition-all cursor-pointer"
+            >
+              {language === 'ar' ? currentOffer.buttonTextAr : currentOffer.buttonTextEn}
             </button>
           </div>
         </div>

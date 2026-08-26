@@ -38,8 +38,24 @@ export const HeroBanner: React.FC = () => {
     ]
   };
 
-  const cmsHeroImage = (siteContent?.hero as any)?.bgImageUrl?.trim();
-  const heroImages = cmsHeroImage ? [cmsHeroImage] : HERO_IMAGES;
+  const cmsMediaItems = (siteContent?.hero as any)?.bgMediaItems?.filter((item: any) => item.isPublished !== false) || [];
+  
+  const heroMedia = cmsMediaItems.length > 0 ? cmsMediaItems : [
+    { url: HERO_IMAGES[0], type: 'image' },
+    { url: HERO_IMAGES[1], type: 'image' },
+    { url: HERO_IMAGES[2], type: 'image' }
+  ];
+
+  const currentMedia = heroMedia[currentImageIndex] || heroMedia[0];
+  const isVideo = currentMedia?.type === 'video';
+
+  const activeTitle = language === 'ar'
+    ? (currentMedia?.customTitleArabic || currentMedia?.customTitle || (heroData as any).titleArabic || t('heroTitle'))
+    : (currentMedia?.customTitle || (heroData as any).title || t('heroTitle'));
+
+  const activeSubtitle = language === 'ar'
+    ? (currentMedia?.customSubtitleArabic || currentMedia?.customSubtitle || (heroData as any).subtitleArabic || (heroData as any).subtitle)
+    : (currentMedia?.customSubtitle || (heroData as any).subtitle);
 
   const handleHeroClick = () => {
     setSelectedCategory('all');
@@ -50,48 +66,60 @@ export const HeroBanner: React.FC = () => {
 
   useEffect(() => {
     setCurrentImageIndex(0);
-    if (heroImages.length <= 1) return;
+    if (heroMedia.length <= 1) return;
     const timer = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length);
+      setCurrentImageIndex((prev) => (prev + 1) % heroMedia.length);
     }, 5000);
     return () => clearInterval(timer);
-  }, [heroImages.length]);
+  }, [heroMedia.length]);
 
   return (
     <div className="relative overflow-hidden bg-slate-900 py-16 lg:py-24 border-b border-slate-200">
-      {/* Background Slideshow Images - High clarity, sharp visibility */}
-      {heroImages.map((img, idx) => (
-        <img
-          key={img}
-          src={img}
-          alt={`Lebanese Heritage slide ${idx + 1}`}
-          referrerPolicy="no-referrer"
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ease-in-out ${
-            idx === currentImageIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-100'
-          }`}
-          style={{
-            transition: 'opacity 1s ease-in-out, transform 8s ease-out'
-          }}
-        />
+      {/* Background Video or Slideshow Images */}
+      {heroMedia.map((media, idx) => (
+        media.type === 'video' ? (
+          <video
+            key={`media-${idx}`}
+            src={media.url}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-1000 ease-in-out ${
+              idx === currentImageIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-100'
+            }`}
+          />
+        ) : (
+          <img
+            key={`media-${idx}`}
+            src={media.url}
+            alt={`Hero media ${idx + 1}`}
+            referrerPolicy="no-referrer"
+            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-1000 ease-in-out ${
+              idx === currentImageIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-100'
+            }`}
+            style={{
+              transition: 'opacity 1s ease-in-out, transform 8s ease-out'
+            }}
+          />
+        )
       ))}
 
       {/* Dark subtle vignette scrim at bottom only for dot contrast, no heavy white blur or blue overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
         {/* Content Card */}
         <div className="max-w-2xl mx-auto text-center space-y-5 bg-transparent backdrop-blur-none p-6 sm:p-8">
           
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md">
-            {language === 'ar' 
-              ? ((heroData as any).titleArabic || t('heroTitle')) 
-              : ((heroData as any).title || t('heroTitle'))}
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md transition-all duration-500">
+            {activeTitle}
           </h1>
 
-          {((language === 'ar' ? ((heroData as any).subtitleArabic || (heroData as any).subtitle) : (heroData as any).subtitle)) && (
-            <p className="text-xs sm:text-sm text-slate-100/90 max-w-xl mx-auto leading-relaxed drop-shadow-xs">
-              {language === 'ar' ? ((heroData as any).subtitleArabic || (heroData as any).subtitle) : (heroData as any).subtitle}
+          {activeSubtitle && (
+            <p className="text-xs sm:text-sm text-slate-100/90 max-w-xl mx-auto leading-relaxed drop-shadow-xs transition-all duration-500">
+              {activeSubtitle}
             </p>
           )}
 
@@ -119,10 +147,26 @@ export const HeroBanner: React.FC = () => {
 
         </div>
 
-        {/* Carousel indicators — only meaningful with more than one image */}
-        {heroImages.length > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-6">
-            {heroImages.map((_, i) => (
+        {/* Hero Statistics & Trust Counters */}
+        {heroData?.stats && heroData.stats.length > 0 && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8 max-w-4xl mx-auto relative z-20">
+            {heroData.stats.filter((s: any) => s.isPublished !== false).map((stat: any, idx: number) => (
+              <div key={idx} className="bg-black/50 backdrop-blur-md border border-white/15 rounded-2xl p-4 text-center shadow-xl">
+                <div className="text-lg sm:text-2xl font-extrabold text-amber-400 font-mono mb-0.5">
+                  {language === 'ar' ? (stat.valueArabic || stat.value) : stat.value}
+                </div>
+                <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-200">
+                  {language === 'ar' ? (stat.labelArabic || stat.label) : stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Carousel indicators — only meaningful with more than one media item */}
+        {heroMedia.length > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-6 relative z-20">
+            {heroMedia.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setCurrentImageIndex(i)}

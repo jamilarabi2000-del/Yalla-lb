@@ -1096,6 +1096,7 @@ export const AdminView: React.FC = () => {
       videos: (newProduct.videos || []).filter(Boolean).length > 0
         ? (newProduct.videos || []).filter(Boolean)
         : (newProduct.videoUrl?.trim() ? [newProduct.videoUrl.trim()] : undefined),
+      isNewArrival: true,
       isFeatured: false,
       isBestseller: false,
       isPublished: isPublic,
@@ -1367,40 +1368,36 @@ export const AdminView: React.FC = () => {
     showToast('Stock & Replenishment Inventory Report downloaded successfully', 'success');
   };
 
+  const formatProductForCSV = (p: Product) => {
+    const matchedSeller = sellers.find(s => s.id === p.sellerId || (s.nameEn && s.nameEn.toLowerCase() === (p.seller || p.artisan || '').toLowerCase()));
+    const effectiveSellerId = p.sellerId || matchedSeller?.id || sellers[0]?.id || 'terroir-du-liban';
+
+    return {
+      sku: p.id,
+      name_en: p.name,
+      name_ar: p.arabicName || '',
+      seller_id: effectiveSellerId,
+      seller_item_code: p.sellerItemCode || '',
+      category: p.category,
+      price_usd: p.priceUSD,
+      original_price_usd: p.originalPriceUSD || '',
+      stock: p.stock,
+      image_url: p.image || '',
+      additional_images: (p.additionalImages || []).join('|'),
+      video_url: p.videoUrl || '',
+      additional_videos: (p.videos || []).join('|'),
+      description_en: p.description || '',
+      description_ar: p.craftStory || '',
+      tags: (p.tags || []).join('|'),
+      is_published: p.isPublished === false ? 'false' : 'true',
+      origin_terroir: p.origin || '',
+      weight_or_volume: p.weightOrVolume || ''
+    };
+  };
+
   const handleDownloadProductsReport = () => {
     import('papaparse').then((Papa) => {
-      const dataToExport = filteredCatalogProducts.map(p => {
-        const matchedSeller = sellers.find(s => s.id === p.sellerId || (s.nameEn && s.nameEn.toLowerCase() === (p.seller || p.artisan || '').toLowerCase()));
-        const effectiveSellerId = p.sellerId || matchedSeller?.id || sellers[0]?.id || 'terroir-du-liban';
-        const effectiveSellerName = matchedSeller?.nameEn || p.seller || p.artisan || '';
-
-        return {
-          sku: p.id,
-          product_id: p.id,
-          seller_item_code: p.sellerItemCode || '',
-          name_en: p.name,
-          name_ar: p.arabicName || '',
-          seller_id: effectiveSellerId,
-          seller_artisan: effectiveSellerName,
-          seller_name: effectiveSellerName,
-          arabic_seller: p.arabicSeller || matchedSeller?.nameAr || '',
-          category: p.category,
-          price_usd: p.priceUSD,
-          original_price_usd: p.originalPriceUSD || '',
-          stock: p.stock,
-          image_url: p.image || '',
-          additional_images: (p.additionalImages || []).join('|'),
-          video_url: p.videoUrl || '',
-          additional_videos: (p.videos || []).join('|'),
-          origin_terroir: p.origin || '',
-          weight_or_volume: p.weightOrVolume || '',
-          status: p.isPublished === false ? 'Hidden' : 'Published',
-          is_featured: p.isFeatured ? 'Yes' : 'No',
-          tags: (p.tags || []).join('|'),
-          description_en: p.description || '',
-          description_ar: p.craftStory || ''
-        };
-      });
+      const dataToExport = filteredCatalogProducts.map(formatProductForCSV);
 
       const csv = Papa.unparse(dataToExport);
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -1423,36 +1420,7 @@ export const AdminView: React.FC = () => {
 
     import('papaparse').then((Papa) => {
       const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
-      const dataToExport = selectedProducts.map(p => {
-        const matchedSeller = sellers.find(s => s.id === p.sellerId || (s.nameEn && s.nameEn.toLowerCase() === (p.seller || p.artisan || '').toLowerCase()));
-        const effectiveSellerId = p.sellerId || matchedSeller?.id || sellers[0]?.id || 'terroir-du-liban';
-        const effectiveSellerName = matchedSeller?.nameEn || p.seller || p.artisan || '';
-
-        return {
-          sku: p.id,
-          seller_item_code: p.sellerItemCode || '',
-          name_en: p.name,
-          name_ar: p.arabicName || '',
-          seller_id: effectiveSellerId,
-          seller_artisan: effectiveSellerName,
-          arabic_seller: p.arabicSeller || matchedSeller?.nameAr || '',
-          category: p.category,
-          price_usd: p.priceUSD,
-          original_price_usd: p.originalPriceUSD || '',
-          stock: p.stock,
-          image_url: p.image || '',
-          additional_images: (p.additionalImages || []).join('|'),
-          video_url: p.videoUrl || '',
-          additional_videos: (p.videos || []).join('|'),
-          origin_terroir: p.origin || '',
-          weight_or_volume: p.weightOrVolume || '',
-          is_published: p.isPublished === false ? 'false' : 'true',
-          is_featured: p.isFeatured ? 'true' : 'false',
-          tags: (p.tags || []).join('|'),
-          description_en: p.description || '',
-          description_ar: p.craftStory || ''
-        };
-      });
+      const dataToExport = selectedProducts.map(formatProductForCSV);
 
       const csv = Papa.unparse(dataToExport);
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });

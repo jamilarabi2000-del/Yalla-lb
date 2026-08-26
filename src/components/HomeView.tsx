@@ -2,6 +2,7 @@ import React from 'react';
 import { HeroBanner } from './HeroBanner';
 import { OffersCarousel } from './OffersCarousel';
 import { ProductCard } from './ProductCard';
+import { ProductCarousel } from './ProductCarousel';
 import { NewsSection } from './NewsSection';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { useShop } from '../context/ShopContext';
@@ -52,9 +53,11 @@ export const HomeView: React.FC = () => {
 
   // Filter products: Published check + featured / deals
   const publishedProducts = products.filter(p => p.isPublished !== false);
-  const featuredProducts = publishedProducts.filter(p => p.isFeatured || p.isBestseller).slice(0, 8);
-  const todaysDeals = publishedProducts.filter(p => p.discountPercentage && p.discountPercentage > 0).slice(0, 8);
+  const featuredProducts = publishedProducts.filter(p => p.isFeatured || p.isBestseller).slice(0, 12);
+  const todaysDeals = publishedProducts.filter(p => p.discountPercentage && p.discountPercentage > 0).slice(0, 12);
   const newArrivals = [...publishedProducts].sort((a, b) => {
+    if (a.isNewArrival && !b.isNewArrival) return -1;
+    if (!a.isNewArrival && b.isNewArrival) return 1;
     if (a.createdAt && b.createdAt) {
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
@@ -65,6 +68,12 @@ export const HomeView: React.FC = () => {
 
   const handleCategoryClick = (catId: string) => {
     setSelectedCategory(catId);
+    setActiveTab('products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleViewAllProducts = () => {
+    setSelectedCategory('all');
     setActiveTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -106,7 +115,7 @@ export const HomeView: React.FC = () => {
 
       {/* Explore by Category Grid */}
       {(visibility.homeCategories || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
           {!visibility.homeCategories && isVisualEditMode && (
             <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
               <EyeOff className="w-3.5 h-3.5" />
@@ -116,18 +125,22 @@ export const HomeView: React.FC = () => {
           <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {language === 'ar' ? 'تصفح الأقسام' : 'Browse Departments'}
+                {language === 'ar' ? (
+                  siteContent.home?.categoriesSubtitleArabic || 'تصفح الأقسام'
+                ) : (
+                  siteContent.home?.categoriesSubtitle || 'Browse Departments'
+                )}
               </div>
               <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
                 {language === 'ar' ? (
-                  siteContent.home?.regionsTitleArabic ? (
-                    <span>{siteContent.home.regionsTitleArabic}</span>
+                  siteContent.home?.categoriesTitleArabic ? (
+                    <span>{siteContent.home.categoriesTitleArabic}</span>
                   ) : (
                     <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
                   )
                 ) : (
-                  siteContent.home?.regionsTitle ? (
-                    <span>{siteContent.home.regionsTitle}</span>
+                  siteContent.home?.categoriesTitle ? (
+                    <span>{siteContent.home.categoriesTitle}</span>
                   ) : (
                     <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
                   )
@@ -143,7 +156,7 @@ export const HomeView: React.FC = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
             {categoriesGrid.map((cat) => {
               const productCount = products.filter(p => p.category === cat.id && p.isPublished !== false).length;
               return (
@@ -206,11 +219,15 @@ export const HomeView: React.FC = () => {
 
       {/* Featured Products */}
       {(visibility.homeFeatured || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
           <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {t('topPicks')}
+                {language === 'ar' ? (
+                  siteContent.home?.featuredSubtitleArabic || t('topPicks')
+                ) : (
+                  siteContent.home?.featuredSubtitle || t('topPicks')
+                )}
               </div>
               <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
                 {language === 'ar' ? (
@@ -228,24 +245,30 @@ export const HomeView: React.FC = () => {
                 )}
               </h2>
               {language === 'ar' ? (
-                siteContent.home?.featuredSubtitleArabic ? (
-                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredSubtitleArabic}</p>
+                siteContent.home?.featuredDescriptionArabic ? (
+                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescriptionArabic}</p>
                 ) : (
                   <p className="text-xs text-slate-500 mt-1">مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة</p>
                 )
               ) : (
-                siteContent.home?.featuredSubtitle && (
-                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredSubtitle}</p>
+                siteContent.home?.featuredDescription ? (
+                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescription}</p>
+                ) : (
+                  <p className="text-xs text-slate-500 mt-1">Handpicked items celebrating timeless craftsmanship and Levantine gastronomy.</p>
                 )
               )}
             </div>
+            <div className="flex-none">
+              <button 
+                onClick={handleViewAllProducts}
+                className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+              >
+                {t('viewAllProducts')}
+                <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-            {featuredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          <ProductCarousel products={featuredProducts} idPrefix="featured" />
         </section>
       )}
 
@@ -253,55 +276,53 @@ export const HomeView: React.FC = () => {
 
       {/* Today's Flash Deals */}
       {(visibility.homeDeals || isVisualEditMode) && todaysDeals.length > 0 && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeDeals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeDeals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
           <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 mb-1 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>{t('flashDiscounts')}</span>
+                <span>
+                  {language === 'ar' ? (
+                    siteContent.home?.dealsSubtitleArabic || t('flashDiscounts')
+                  ) : (
+                    siteContent.home?.dealsSubtitle || t('flashDiscounts')
+                  )}
+                </span>
               </div>
               <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
                 {language === 'ar' ? (
-                  <>عروض <span className="gold-gradient font-serif italic">اليوم</span></>
+                  siteContent.home?.dealsTitleArabic ? (
+                    <span>{siteContent.home.dealsTitleArabic}</span>
+                  ) : (
+                    <>عروض <span className="gold-gradient font-serif italic">اليوم</span></>
+                  )
                 ) : (
-                  <>Today's <span className="gold-gradient font-serif italic">Deals</span></>
+                  siteContent.home?.dealsTitle ? (
+                    <span>{siteContent.home.dealsTitle}</span>
+                  ) : (
+                    <>Today's <span className="gold-gradient font-serif italic">Deals</span></>
+                  )
                 )}
               </h2>
-              <p className="text-xs text-slate-500 mt-1">{t('limitedTimeOffers')}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-            {todaysDeals.map((product) => (
-              <ProductCard key={`deal-${product.id}`} product={product} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* New Arrivals */}
-      {(visibility.homeNewArrivals || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewArrivals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {t('freshlyStocked')}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              <p className="text-xs text-slate-500 mt-1">
                 {language === 'ar' ? (
-                  <>وصل حديثاً <span className="gold-gradient font-serif italic">إلينا</span></>
+                  siteContent.home?.dealsDescriptionArabic || t('limitedTimeOffers')
                 ) : (
-                  <>New <span className="gold-gradient font-serif italic">Arrivals</span></>
+                  siteContent.home?.dealsDescription || t('limitedTimeOffers')
                 )}
-              </h2>
+              </p>
+            </div>
+            <div className="flex-none">
+              <button 
+                onClick={handleViewAllProducts}
+                className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+              >
+                {t('viewAllProducts')}
+                <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+              </button>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
-            {newArrivals.slice(0, 8).map((product) => (
-              <ProductCard key={`new-${product.id}`} product={product} />
-            ))}
-          </div>
+          <ProductCarousel products={todaysDeals} idPrefix="deals" />
         </section>
       )}
 
@@ -312,9 +333,51 @@ export const HomeView: React.FC = () => {
         </div>
       )}
 
+      {/* New Arrivals */}
+      {(visibility.homeNewArrivals || isVisualEditMode) && (
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewArrivals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                {language === 'ar' ? (
+                  siteContent.home?.newArrivalsSubtitleArabic || t('freshlyStocked')
+                ) : (
+                  siteContent.home?.newArrivalsSubtitle || t('freshlyStocked')
+                )}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                {language === 'ar' ? (
+                  siteContent.home?.newArrivalsTitleArabic ? (
+                    <span>{siteContent.home.newArrivalsTitleArabic}</span>
+                  ) : (
+                    <>وصل حديثاً <span className="gold-gradient font-serif italic">إلينا</span></>
+                  )
+                ) : (
+                  siteContent.home?.newArrivalsTitle ? (
+                    <span>{siteContent.home.newArrivalsTitle}</span>
+                  ) : (
+                    <>New <span className="gold-gradient font-serif italic">Arrivals</span></>
+                  )
+                )}
+              </h2>
+            </div>
+            <div className="flex-none">
+              <button 
+                onClick={handleViewAllProducts}
+                className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+              >
+                {t('viewAllProducts')}
+                <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          </div>
+          <ProductCarousel products={newArrivals.slice(0, 12)} idPrefix="new" />
+        </section>
+      )}
+
       {/* Heritage Story Section */}
       {(visibility.homeHeritage || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
           <div className="bg-[#fcfaf8] border border-[#f5ece1] rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto">
             <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight mb-4">
               {language === 'ar' ? (siteContent.home?.heritageTitleArabic || siteContent.home?.heritageTitle || 'تراثنا') : (siteContent.home?.heritageTitle || 'Our Heritage')}
@@ -328,7 +391,7 @@ export const HomeView: React.FC = () => {
 
       {/* Reviews / Testimonials Section */}
       {(visibility.homeReviews || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
               {language === 'ar' ? (siteContent.home?.reviewsTitleArabic || siteContent.home?.reviewsTitle || 'آراء الزبائن') : (siteContent.home?.reviewsTitle || 'Customer Reviews')}
@@ -365,7 +428,7 @@ export const HomeView: React.FC = () => {
 
       {/* Newsletter Section */}
       {(visibility.homeNewsletter || isVisualEditMode) && (
-        <section className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
           <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center">
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-6">
               {language === 'ar' ? (siteContent.home?.newsletterTitleArabic || siteContent.home?.newsletterTitle || 'النشرة البريدية') : (siteContent.home?.newsletterTitle || 'Join our Newsletter')}

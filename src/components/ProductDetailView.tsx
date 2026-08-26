@@ -334,7 +334,7 @@ export const ProductDetailView: React.FC = () => {
       {/* Top Header Navigation Bar with Prominent Back Button */}
       {(visibility.detailBreadcrumbs || isVisualEditMode) && (
         <div className="bg-white border-b border-slate-200 sticky top-[72px] z-30 shadow-xs">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
             <button
               id="product-detail-back-btn"
               onClick={goBack}
@@ -368,7 +368,7 @@ export const ProductDetailView: React.FC = () => {
       )}
 
       {/* Main Product Details Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-12">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           
           {/* Left Column: Image & Video Media Gallery */}
@@ -999,7 +999,7 @@ export const ProductDetailView: React.FC = () => {
               {siteContent.productDetailPage?.relatedItemsTitle ?? t('relatedProducts')}
             </h3>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
               {relatedProducts.map(p => (
                 <ProductCard key={p.id} product={p} />
               ))}

@@ -13,6 +13,7 @@ export const Footer: React.FC = () => {
 
   const visibility = siteContent.visibility || {
     footerAbout: true,
+    footerContact: true,
     footerSocial: true,
     footerCopyright: true
   };
@@ -22,6 +23,10 @@ export const Footer: React.FC = () => {
     aboutText: 'Yalla is a premier digital marketplace bridging authentic Lebanese artisan workshops, cooperatives, and culinary masters with customers across Lebanon and the global diaspora.',
     phone: '+961 70 889 234',
     email: 'concierge@yalla.lb',
+    address: 'Gournaud Street, Gemmayzeh, Beirut, Lebanon',
+    addressArabic: 'شارع غورو، الجميزة، بيروت، لبنان',
+    hours: 'Mon - Sat: 9:00 AM - 7:00 PM (EET)',
+    hoursArabic: 'الإثنين - السبت: 9:00 ص - 7:00 م',
     copyrightText: '© 2026 Yalla. All Rights Reserved.'
   };
 
@@ -59,6 +64,58 @@ export const Footer: React.FC = () => {
                   : 'Lebanon’s premier artisan commerce ecosystem, connecting authentic heritage workshops and rural producers with local and diaspora patrons worldwide.'
               )}
             </p>
+          </div>
+        )}
+
+        {/* Footer Contact & Support Coordinates */}
+        {(visibility.footerContact || isVisualEditMode) && (footerData.phone || footerData.email || footerData.address || footerData.hours) && (
+          <div className={`w-full mb-6 py-4 px-6 rounded-2xl bg-white/[0.02] border border-white/5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center relative ${!visibility.footerContact && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+            {!visibility.footerContact && isVisualEditMode && (
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 z-10 whitespace-nowrap">
+                <EyeOff className="w-3 h-3" />
+                <span>Contact Block Hidden</span>
+              </div>
+            )}
+            {footerData.phone && (
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                  {language === 'ar' ? 'الهاتف' : 'Phone'}
+                </span>
+                <a href={`tel:${footerData.phone}`} className="text-xs text-slate-300 hover:text-white transition-colors">
+                  {footerData.phone}
+                </a>
+              </div>
+            )}
+            {footerData.email && (
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                  {language === 'ar' ? 'البريد الإلكتروني' : 'Email'}
+                </span>
+                <a href={`mailto:${footerData.email}`} className="text-xs text-slate-300 hover:text-white transition-colors">
+                  {footerData.email}
+                </a>
+              </div>
+            )}
+            {(footerData.address || footerData.addressArabic) && (
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                  {language === 'ar' ? 'العنوان' : 'Address'}
+                </span>
+                <span className="text-xs text-slate-300">
+                  {language === 'ar' ? (footerData.addressArabic || footerData.address) : (footerData.address || footerData.addressArabic)}
+                </span>
+              </div>
+            )}
+            {(footerData.hours || footerData.hoursArabic) && (
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                  {language === 'ar' ? 'ساعات العمل' : 'Hours'}
+                </span>
+                <span className="text-xs text-slate-300">
+                  {language === 'ar' ? (footerData.hoursArabic || footerData.hours) : (footerData.hours || footerData.hoursArabic)}
+                </span>
+              </div>
+            )}
           </div>
         )}
 

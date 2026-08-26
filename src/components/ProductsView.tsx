@@ -254,7 +254,7 @@ export const ProductsView: React.FC = () => {
               <span>Catalog Header Hidden (Draft Mode)</span>
             </div>
           )}
-          <div className="max-w-7xl mx-auto space-y-4">
+          <div className="max-w-screen-2xl mx-auto space-y-4">
             <button
               id="products-page-back-btn"
               onClick={goBack}
@@ -317,7 +317,7 @@ export const ProductsView: React.FC = () => {
       <CustomBlocksRenderer page="products" position="middle" />
 
       {/* Main Content Layout */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         
         {/* Category Filter Chips Bar */}
         {(visibility.productsCategoryTabs || isVisualEditMode) && (
@@ -426,7 +426,7 @@ export const ProductsView: React.FC = () => {
               <div className="space-y-10">
                 
                 {/* Product Items */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
                   {paginatedProducts.map(product => (
                     <ProductCard key={product.id} product={product} />
                   ))}

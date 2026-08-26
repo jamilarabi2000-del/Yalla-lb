@@ -15,7 +15,8 @@ import {
   Settings,
   Save,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Palette
 } from 'lucide-react';
 
 import { CMSVisibilityTab } from './admin/cms/CMSVisibilityTab';
@@ -29,6 +30,7 @@ import { CMSAccountTab } from './admin/cms/CMSAccountTab';
 import { CMSNewsTab } from './admin/cms/CMSNewsTab';
 import { CMSCustomBlocksTab } from './admin/cms/CMSCustomBlocksTab';
 import { CMSSeoTab } from './admin/cms/CMSSeoTab';
+import { CMSThemeTab } from './admin/cms/CMSThemeTab';
 
 interface PageCMSManagerProps {
   initialTab?: string;
@@ -93,7 +95,8 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'ho
     { id: 'newsSection', label: 'News & Stories', icon: Newspaper },
     { id: 'footer', label: 'Footer & Support', icon: Layout },
     { id: 'customBlocks', label: 'Custom Divs / Blocks', icon: Blocks },
-    { id: 'seo', label: 'SEO & SERP', icon: Type }
+    { id: 'seo', label: 'SEO & SERP', icon: Type },
+    { id: 'theme', label: 'Theme & Design', icon: Palette }
   ];
 
   return (
@@ -392,6 +395,11 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'ho
               }));
             }}
           />
+        )}
+
+        {/* 12. Theme & Global Design */}
+        {activeTab === 'theme' && (
+          <CMSThemeTab />
         )}
       </div>
     </div>
