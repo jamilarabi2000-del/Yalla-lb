@@ -313,7 +313,7 @@ interface ShopContextType {
   categories: CategoryItem[];
   addCategory: (cat: Omit<CategoryItem, 'id'> & { id?: string }) => Promise<void>;
   updateCategory: (id: string, updates: Partial<CategoryItem>) => Promise<void>;
-  deleteCategory: (id: string, reassignCategoryId?: string) => Promise<void>;
+  deleteCategory: (id: string, reassignCategoryId?: string, deleteAttachedProducts?: boolean) => Promise<void>;
   reorderCategories: (newOrder: CategoryItem[]) => Promise<void>;
 
   // Terroir Regions & Logistics
@@ -465,12 +465,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const saved = localStorage.getItem('yallalb_orders');
-      return saved ? JSON.parse(saved) : INITIAL_ORDERS;
-    } catch {
-      return INITIAL_ORDERS;
+    // Only load orders from local storage in offline/no-firebase mode, never in Firebase mode to prevent cross-account leak
+    if (!IS_FIREBASE_ENABLED) {
+      try {
+        const saved = localStorage.getItem('yallalb_orders');
+        return saved ? JSON.parse(saved) : INITIAL_ORDERS;
+      } catch {
+        return INITIAL_ORDERS;
+      }
     }
+    return INITIAL_ORDERS;
   });
 
   const [user, setUser] = useState<UserProfile>(() => {
@@ -872,7 +876,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (snap) => {
         if (snap.exists()) {
           const data = snap.data();
-          if (Array.isArray(data?.list) && data.list.length > 0) {
+          if (Array.isArray(data?.list)) {
             setRegions(data.list);
           }
         } else {
@@ -953,24 +957,45 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  const deleteCategory = async (id: string, reassignCategoryId?: string) => {
+  const deleteCategory = async (id: string, reassignCategoryId?: string, deleteAttachedProducts?: boolean) => {
     const target = categories.find(c => c.id === id);
     const affectedProducts = products.filter(p => p.category === id);
 
-    if (affectedProducts.length > 0 && !reassignCategoryId) {
-      throw new Error(`${affectedProducts.length} product(s) are in this category. Choose a category to move them to.`);
+    const shouldDeleteProducts = deleteAttachedProducts === true || reassignCategoryId === '__delete_products__';
+
+    if (affectedProducts.length > 0 && !reassignCategoryId && !shouldDeleteProducts) {
+      throw new Error(`${affectedProducts.length} product(s) are in this category. Choose an action for the attached products.`);
     }
 
     const previousCategories = [...categories];
     const nextCategories = categories.filter(c => c.id !== id);
     setCategories(nextCategories);
 
+    if (shouldDeleteProducts) {
+      const affectedIds = new Set(affectedProducts.map(p => p.id));
+      const nextProducts = products.filter(p => !affectedIds.has(p.id));
+      setProducts(nextProducts);
+      try {
+        localStorage.setItem('yallalb_products', JSON.stringify(nextProducts));
+      } catch {}
+    } else if (reassignCategoryId && reassignCategoryId !== '__delete_products__') {
+      const nextProducts = products.map(p => p.category === id ? { ...p, category: reassignCategoryId } : p);
+      setProducts(nextProducts);
+      try {
+        localStorage.setItem('yallalb_products', JSON.stringify(nextProducts));
+      } catch {}
+    }
+
     if (IS_FIREBASE_ENABLED) {
       try {
         const batch = writeBatch(db);
         batch.set(doc(db, 'site_settings', 'categories'), { list: sanitizeDocumentData(nextCategories) });
         
-        if (reassignCategoryId) {
+        if (shouldDeleteProducts) {
+          for (const prod of affectedProducts) {
+            batch.delete(doc(db, 'products', prod.id));
+          }
+        } else if (reassignCategoryId && reassignCategoryId !== '__delete_products__') {
           for (const prod of affectedProducts) {
             batch.update(doc(db, 'products', prod.id), { category: reassignCategoryId });
           }
@@ -986,7 +1011,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await logAdminActivity(
       'category_delete',
       `Category "${target?.nameEn || id}" deleted`,
-      `Removed category "${target?.nameEn || id}". ${reassignCategoryId ? `Reassigned associated products to "${reassignCategoryId}".` : ''}`
+      `Removed category "${target?.nameEn || id}". ${shouldDeleteProducts ? `Permanently deleted ${affectedProducts.length} attached product(s).` : reassignCategoryId ? `Reassigned associated products to "${reassignCategoryId}".` : ''}`
     );
   };
 
@@ -1774,9 +1799,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     try {
-      localStorage.setItem('yallalb_orders', JSON.stringify(orders));
+      if (!IS_FIREBASE_ENABLED) {
+        localStorage.setItem('yallalb_orders', JSON.stringify(orders));
+      } else if (!isAdminUser && firebaseUser && orders.length > 0) {
+        // Only cache user-specific orders for this session, never store admin whole-database orders in localStorage
+        localStorage.setItem('yallalb_orders', JSON.stringify(orders));
+      } else if (!firebaseUser) {
+        localStorage.removeItem('yallalb_orders');
+      }
     } catch {}
-  }, [orders]);
+  }, [orders, isAdminUser, firebaseUser]);
 
   useEffect(() => {
     try {
@@ -1919,7 +1951,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isFetchingMore, hasMoreProducts]);
 
-  // Real-time Orders Sync from Firestore Database (scoped for security)
+  // Real-time Orders Sync from Firestore Database (strictly scoped to current user or admin)
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) {
       try {
@@ -1944,7 +1976,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isAdminUser) {
       q = query(collection(db, 'orders'), orderBy('date', 'desc'));
     } else {
-      q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), orderBy('date', 'desc'));
+      // Query solely by userId without composite index requirement, then sort in JS memory
+      q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid));
     }
 
     const unsubscribe = onSnapshot(
@@ -1953,9 +1986,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!snapshot.empty) {
           const dbOrders: Order[] = [];
           snapshot.forEach((docSnap) => {
-            dbOrders.push(docSnap.data() as Order);
+            const data = docSnap.data();
+            dbOrders.push({
+              ...data,
+              id: data.id || docSnap.id,
+              status: data.status || 'pending'
+            } as Order);
           });
-          // Sort newest first
+          // Sort newest first client-side
           dbOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
           
           dbMonitor.logSnapshotSync({
@@ -1974,6 +2012,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           metadata: { path: 'orders/*', operation: 'SNAPSHOT_SYNC' }
         });
         console.warn("[ShopContext] Non-blocking orders listener notice:", error);
+        setOrders([]);
       }
     );
 
@@ -2009,6 +2048,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(INITIAL_USER);
         setIsAdminUser(false);
         setIsAdminUnlockedState(false);
+        setOrders([]);
+        try {
+          localStorage.removeItem('yallalb_orders');
+        } catch {}
         // Preserve local guest cart and wishlist if available
         try {
           const storedCart = localStorage.getItem('yallalb_cart');
@@ -2476,6 +2519,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOutUser = async () => {
     try {
       await signOut(auth);
+      setOrders([]);
+      try {
+        localStorage.removeItem('yallalb_orders');
+        localStorage.removeItem('yallalb_saved_checkout_data');
+      } catch {}
       showToast('Signed out successfully', 'info');
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'auth');

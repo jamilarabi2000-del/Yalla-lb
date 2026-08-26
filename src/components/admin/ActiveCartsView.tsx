@@ -49,10 +49,13 @@ export const ActiveCartsView: React.FC = () => {
               id: cartDoc.id,
               userId: cartDoc.id,
               isSynthetic: false,
-              userLabel: customer?.name || user?.name || 'Anonymous Shopper',
-              email: customer?.email || user?.email || null,
-              phone: customer?.phone || user?.phone || null,
-              city: customer?.city || user?.defaultCity || null,
+              // Only ever show the resolved cart owner. Falling back to the signed-in
+              // admin's own details attributed one shopper's cart to another person
+              // and pointed WhatsApp recovery at the admin's own number.
+              userLabel: customer?.name || 'Unidentified Shopper',
+              email: customer?.email || null,
+              phone: customer?.phone || null,
+              city: customer?.city || null,
               items: items,
               totalUSD: totalUSD,
               itemCount: items.reduce((s, i) => s + i.quantity, 0),

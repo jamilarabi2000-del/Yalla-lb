@@ -129,6 +129,29 @@ export const CategoriesDetailsView: React.FC = () => {
   // Delete Category Safeguard Modal
   const [categoryToDelete, setCategoryToDelete] = useState<CategoryItem | null>(null);
   const [reassignTargetCatId, setReassignTargetCatId] = useState<string>('');
+  const [deleteProductsAction, setDeleteProductsAction] = useState<'reassign' | 'delete' | 'unlink'>('reassign');
+
+  // Quick remove subcategory directly from category
+  const handleRemoveSubcategory = async (cat: CategoryItem, subToRemove: string) => {
+    try {
+      const nextSubcats = (cat.subcategories || []).filter(s => s !== subToRemove);
+      await updateCategory(cat.id, { subcategories: nextSubcats });
+      showToast(`Removed subcategory "${subToRemove}" from "${cat.nameEn}"`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Could not remove subcategory.', 'warning');
+    }
+  };
+
+  // Quick remove Arabic SEO keyword directly from category
+  const handleRemoveArabicKeyword = async (cat: CategoryItem, kwToRemove: string) => {
+    try {
+      const nextKws = (cat.arabicKeywords || []).filter(k => k !== kwToRemove);
+      await updateCategory(cat.id, { arabicKeywords: nextKws });
+      showToast(`Removed keyword "${kwToRemove}" from "${cat.nameEn}"`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Could not remove keyword.', 'warning');
+    }
+  };
 
   // Region Add/Edit Modal
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
@@ -171,6 +194,19 @@ export const CategoriesDetailsView: React.FC = () => {
     if (filterPublished === 'published') return c.isPublished !== false;
     if (filterPublished === 'hidden') return c.isPublished === false;
     return true;
+  });
+
+  // Filter Regions
+  const filteredRegions = regions.filter(r => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      r.nameEn.toLowerCase().includes(q) ||
+      r.nameAr.includes(q) ||
+      r.id.toLowerCase().includes(q) ||
+      (r.majorCities || []).some(city => city.toLowerCase().includes(q)) ||
+      (r.estimatedTimeEn || '').toLowerCase().includes(q)
+    );
   });
 
   const getProductCountForCategory = (catId: string) => {
@@ -336,10 +372,17 @@ export const CategoriesDetailsView: React.FC = () => {
   const handleConfirmDeleteCategory = async () => {
     if (!categoryToDelete) return;
     try {
-      await deleteCategory(categoryToDelete.id, reassignTargetCatId || undefined);
-      showToast(`Category "${categoryToDelete.nameEn}" deleted`, 'success');
+      const targetReassign = deleteProductsAction === 'delete'
+        ? '__delete_products__'
+        : deleteProductsAction === 'unlink'
+          ? 'general'
+          : (reassignTargetCatId || undefined);
+
+      await deleteCategory(categoryToDelete.id, targetReassign, deleteProductsAction === 'delete');
+      showToast(`Category "${categoryToDelete.nameEn}" deleted successfully`, 'success');
       setCategoryToDelete(null);
       setReassignTargetCatId('');
+      setDeleteProductsAction('reassign');
     } catch (err: any) {
       showToast(err.message || 'Could not delete category.', 'warning');
     }
@@ -482,7 +525,7 @@ export const CategoriesDetailsView: React.FC = () => {
           </button>
         </div>
 
-        {activeTab === 'categories' && (
+        {activeTab === 'categories' ? (
           <div className="flex flex-wrap items-center gap-3">
             {/* View Mode Toggle: Grid Cards vs Interactive Reorder List */}
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
@@ -582,6 +625,31 @@ export const CategoriesDetailsView: React.FC = () => {
                 </button>
               )}
             </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            {/* Search Delivery Zones */}
+            <div className="relative min-w-[240px]">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search delivery zones & hubs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-7 py-1.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-xl border border-slate-200 focus:outline-none focus:border-amber-500 shadow-2xs"
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <span className="text-xs font-bold text-slate-500 hidden sm:inline">
+              Showing {filteredRegions.length} of {regions.length} zones
+            </span>
           </div>
         )}
       </div>
@@ -1111,78 +1179,97 @@ export const CategoriesDetailsView: React.FC = () => {
       {/* Tab 2: Lebanon Terroir Regions & Logistics Map */}
       {activeTab === 'regions' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {regions.map((reg) => (
-              <div key={reg.id} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between hover:border-amber-200 transition-all">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-2xl bg-amber-50 text-[#c5a059] flex items-center justify-center shadow-2xs">
-                        <MapPin className="w-5 h-5" />
+          {filteredRegions.length === 0 ? (
+            <div className="bg-white p-12 rounded-3xl border border-slate-200/80 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+                <MapPin className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800">No delivery zones found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                {searchQuery ? `No delivery zones match "${searchQuery}".` : 'No delivery zones currently configured.'}
+              </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Clear Search
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredRegions.map((reg) => (
+                <div key={reg.id} className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4 flex flex-col justify-between hover:border-amber-200 transition-all">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-2xl bg-amber-50 text-[#c5a059] flex items-center justify-center shadow-2xs">
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900">{reg.nameEn}</h4>
+                          <p className="text-xs text-amber-700 font-serif font-bold">{reg.nameAr}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900">{reg.nameEn}</h4>
-                        <p className="text-xs text-amber-700 font-serif font-bold">{reg.nameAr}</p>
+
+                      <span className="px-2.5 py-1 rounded-full text-xs font-black bg-slate-900 text-white">
+                        ${reg.baseDeliveryUSD.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Major Artisan Villages & Delivery Hubs ({reg.majorCities?.length || 0}):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {reg.majorCities && reg.majorCities.map((city, idx) => (
+                          <span key={idx} className="px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-700 text-[11px]">
+                            {city}
+                          </span>
+                        ))}
                       </div>
                     </div>
 
-                    <span className="px-2.5 py-1 rounded-full text-xs font-black bg-slate-900 text-white">
-                      ${reg.baseDeliveryUSD.toFixed(2)}
-                    </span>
-                  </div>
+                    {reg.estimatedTimeEn && (
+                      <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        <span>{reg.estimatedTimeEn}</span>
+                      </div>
+                    )}
 
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Major Artisan Villages & Delivery Hubs ({reg.majorCities?.length || 0}):
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {reg.majorCities && reg.majorCities.map((city, idx) => (
-                        <span key={idx} className="px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200/60 text-slate-700 text-[11px]">
-                          {city}
-                        </span>
-                      ))}
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Express Delivery:</span>
+                      <span className={`font-bold ${reg.expressAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        {reg.expressAvailable ? '✓ Available (Same Day)' : 'Standard (24-48h)'}
+                      </span>
                     </div>
                   </div>
 
-                  {reg.estimatedTimeEn && (
-                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] text-slate-600 flex items-center gap-2">
-                      <Truck className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                      <span>{reg.estimatedTimeEn}</span>
-                    </div>
-                  )}
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">Express Delivery:</span>
-                    <span className={`font-bold ${reg.expressAvailable ? 'text-emerald-600' : 'text-slate-400'}`}>
-                      {reg.expressAvailable ? '✓ Available (Same Day)' : 'Standard (24-48h)'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10px] text-slate-400">id: {reg.id}</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleOpenEditRegion(reg)}
-                      className="px-3 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
-                    >
-                      <Edit3 className="w-3 h-3" />
-                      <span>Edit Zone</span>
-                    </button>
-                    {regions.length > 1 && (
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-mono text-[10px] text-slate-400">id: {reg.id}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenEditRegion(reg)}
+                        className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit Zone</span>
+                      </button>
                       <button
                         onClick={() => setRegionToDelete(reg)}
-                        className="p-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition-all cursor-pointer"
-                        title="Delete zone"
+                        className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border border-rose-200/60 shadow-2xs active:scale-95"
+                        title={`Delete "${reg.nameEn}" delivery zone`}
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1766,20 +1853,38 @@ export const CategoriesDetailsView: React.FC = () => {
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsRegionModalOpen(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#c5a059] text-white font-bold shadow-md"
-                >
-                  Save Region
-                </button>
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                {editingRegion ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const toDel = editingRegion;
+                      setIsRegionModalOpen(false);
+                      setRegionToDelete(toDel);
+                    }}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs cursor-pointer border border-rose-200 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete This Zone</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsRegionModalOpen(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#c5a059] hover:bg-[#b08d46] text-white font-bold text-xs shadow-md cursor-pointer transition-all active:scale-95"
+                  >
+                    Save Region
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1789,28 +1894,54 @@ export const CategoriesDetailsView: React.FC = () => {
       {/* Delete Region Safeguard Modal */}
       {regionToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white max-w-md w-full p-6 rounded-3xl shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900">
-              Delete Region "{regionToDelete.nameEn}"?
-            </h3>
-            <p className="text-xs text-slate-500">
-              Are you sure you want to remove this delivery zone? Orders mapped to this zone will need fallback pricing.
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
+          <div className="bg-white max-w-md w-full p-6 sm:p-7 rounded-3xl shadow-2xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Delete Delivery Zone?
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">id: {regionToDelete.id}</p>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-rose-50/70 border border-rose-200/80 rounded-2xl space-y-1.5">
+              <div className="font-bold text-xs text-rose-950 flex items-center justify-between">
+                <span>{regionToDelete.nameEn}</span>
+                <span className="font-serif text-amber-800">{regionToDelete.nameAr}</span>
+              </div>
+              <p className="text-[11px] text-rose-700 leading-relaxed">
+                Base Fee: <strong>${regionToDelete.baseDeliveryUSD.toFixed(2)}</strong> • {regionToDelete.majorCities?.length || 0} delivery hubs
+              </p>
+              <p className="text-[11px] text-slate-600 pt-1">
+                Are you sure you want to permanently delete this delivery zone? Shoppers will no longer be able to select it at checkout.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setRegionToDelete(null)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-bold"
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={async () => {
-                  await deleteRegion(regionToDelete.id);
-                  setRegionToDelete(null);
+                  const targetName = regionToDelete.nameEn;
+                  const targetId = regionToDelete.id;
+                  try {
+                    await deleteRegion(targetId);
+                    setRegionToDelete(null);
+                    showToast(`Delivery zone "${targetName}" deleted successfully!`, 'success');
+                  } catch (err: any) {
+                    showToast(err.message || 'Could not delete delivery zone.', 'warning');
+                  }
                 }}
-                className="px-5 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md"
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer active:scale-95 transition-all"
               >
                 Confirm Delete
               </button>

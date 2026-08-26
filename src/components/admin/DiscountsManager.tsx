@@ -125,6 +125,13 @@ export const DiscountsManager: React.FC = () => {
       return;
     }
 
+    // The pricing engine clamps percentages at 100, so anything above that would be
+    // displayed in the rules list but never actually applied at checkout.
+    if (form.type === 'percentage' && form.value > 100) {
+      showToast('A percentage discount cannot exceed 100%', 'warning');
+      return;
+    }
+
     // Validate start date < end date if both provided
     if (form.startDate && form.endDate) {
       if (new Date(form.startDate) >= new Date(form.endDate)) {
@@ -594,6 +601,7 @@ export const DiscountsManager: React.FC = () => {
                   <input
                     type="number"
                     min="0.1"
+                    max={form.type === 'percentage' ? 100 : undefined}
                     step="0.1"
                     required
                     value={form.value}

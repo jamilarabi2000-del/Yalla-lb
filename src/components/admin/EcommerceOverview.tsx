@@ -60,8 +60,18 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
   // One definition of a completed sale, shared by every tile.
   const deliveredOrders = orders.filter(o => o.status === 'delivered');
 
-  const totalRevenueUSD = deliveredOrders.reduce((sum, o) => sum + o.totalUSD, 0);
-  const totalItemsSold  = deliveredOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0), 0);
+  // Guarded so a single malformed order document cannot turn the revenue tile into
+  // NaN, or crash the page outright on a missing items array.
+  const totalRevenueUSD = deliveredOrders.reduce(
+    (sum, o) => sum + (Number.isFinite(Number(o.totalUSD)) ? Number(o.totalUSD) : 0),
+    0
+  );
+  const totalItemsSold = deliveredOrders.reduce(
+    (sum, o) => sum + (Array.isArray(o.items)
+      ? o.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)
+      : 0),
+    0
+  );
   const activeOrdersCount = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled' && o.status !== 'returned').length;
   const publishedProductsCount = products.filter(p => p.isPublished !== false).length;
 

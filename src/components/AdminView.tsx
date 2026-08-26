@@ -348,8 +348,6 @@ export const AdminView: React.FC = () => {
     };
   }, []);
 
-  const [passcodeInput, setPasscodeInput] = useState('');
-  const [passcodeError, setPasscodeError] = useState('');
   const [currentTab, setCurrentTab] = useState<AdminMenuTab>(getInitialAdminTab);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -415,8 +413,12 @@ export const AdminView: React.FC = () => {
   const [lastMovedProductId, setLastMovedProductId] = useState<string | null>(null);
   const [isSavingProductOrder, setIsSavingProductOrder] = useState(false);
 
+  const hasProductOrderChangesRef = useRef(false);
+  hasProductOrderChangesRef.current = hasProductOrderChanges;
+
   // Synchronize orderedCatalogList with products state
   useEffect(() => {
+    if (hasProductOrderChangesRef.current) return;
     const sorted = [...products].sort((a, b) => {
       const orderA = a.displayOrder ?? 9999;
       const orderB = b.displayOrder ?? 9999;
@@ -672,40 +674,52 @@ export const AdminView: React.FC = () => {
     });
   }, [products]);
 
-  // Registered users from Firestore to keep counts synchronized
+  // Registered users and active carts from Firestore to keep counts synchronized
   const [dbUsers, setDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
+  const [dbActiveCartsCount, setDbActiveCartsCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
-    const fetchUsers = async () => {
+    const fetchUsersAndCarts = async () => {
       try {
-        const usersRef = collection(db, 'users');
-        const snapshot = await getDocs(usersRef);
+        const [usersSnapshot, cartsSnapshot] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(collection(db, 'carts'))
+        ]);
         if (!isMounted) return;
         const usersData: (UserProfile & { uid?: string })[] = [];
-        snapshot.forEach(doc => {
+        usersSnapshot.forEach(doc => {
           usersData.push({ uid: doc.id, ...doc.data() } as UserProfile & { uid: string });
         });
         setDbUsers(usersData);
-      } catch (err) {
-        console.warn("[AdminView] Users fetch notice:", err);
+
+        // Count only carts that actually hold items, matching the Active Carts page.
+        let carts = 0;
+        cartsSnapshot.forEach(doc => {
+          const data = doc.data() as { items?: unknown[] };
+          if (Array.isArray(data.items) && data.items.length > 0) carts++;
+        });
+        setDbActiveCartsCount(carts);
+      } catch (err: any) {
+        console.error("[AdminView] Customer directory fetch failed:", err);
+        showToast(`Could not load the customer directory: ${err?.message || 'permission denied'}. Counts may be incomplete.`, 'error');
       }
     };
-    fetchUsers();
+    fetchUsersAndCarts();
     return () => {
       isMounted = false;
     };
   }, []);
 
   // Calculate distinct counts for sidebar badges
-  const categoriesCount = categories.length || 14; // Comprehensive catalog taxonomy
+  const categoriesCount = categories.length;
   
   // Calculate distinct customers using unified Customer Index
   const customerIndex = useMemo(() => buildCustomerIndex(dbUsers, orders), [dbUsers, orders]);
   const customersCount = customerIndex.size;
 
-  // Active Carts count
-  const activeCartsCount = cart.length > 0 ? 1 : 0;
+  // Active Carts count backed by database
+  const activeCartsCount = dbActiveCartsCount;
 
   if (isVerifyingAuth) {
     return (
@@ -989,8 +1003,11 @@ export const AdminView: React.FC = () => {
       try {
         await reorderProducts(orderedCatalogList);
         setHasProductOrderChanges(false);
-      } catch (err) {
+      } catch (err: any) {
+        // Never report success for a save that failed.
         console.error('Error saving product order in draft:', err);
+        showToast(`Could not save product order: ${err?.message || 'the write was rejected.'}`, 'error');
+        return;
       }
     }
     showToast('All administrative modifications and drafts saved.', 'success');
@@ -1261,8 +1278,18 @@ export const AdminView: React.FC = () => {
     const confirmed = window.confirm(`Are you sure you want to ${actionLabel} ${idsToUpdate.length} selected product(s)?`);
     if (!confirmed) return;
 
-    await Promise.all(idsToUpdate.map(id => updateProduct(id, { isPublished: targetState })));
-    showToast(`${idsToUpdate.length} product(s) are now ${targetState ? 'Published' : 'Hidden'}`, 'success');
+    // allSettled, not all: one rejection must not hide the outcome of the rest.
+    const results = await Promise.allSettled(
+      idsToUpdate.map(id => updateProduct(id, { isPublished: targetState }))
+    );
+    const failed = results.filter(r => r.status === 'rejected').length;
+    const succeeded = results.length - failed;
+
+    if (failed === 0) {
+      showToast(`${succeeded} product(s) are now ${targetState ? 'Published' : 'Hidden'}`, 'success');
+    } else {
+      showToast(`${succeeded} of ${results.length} product(s) updated. ${failed} failed — reload to see the stored state.`, 'error');
+    }
   };
 
   const toggleSelectAll = () => {
@@ -1564,23 +1591,35 @@ export const AdminView: React.FC = () => {
 
     try {
       const reader = new FileReader();
-      reader.onload = async (event) => {
-        const text = event.target?.result as string;
-        if (!text) {
-          setIsBulkImporting(false);
-          return;
-        }
-
-        const res = await bulkImportProducts(text, {
-          targetSellerId: bulkImportTargetSellerId,
-          fallbackCategoryId: bulkImportFallbackCategoryId
-        });
-        setBulkImportResult(res);
+      reader.onerror = () => {
+        setBulkImportResult({ created: 0, updated: 0, errors: ['Could not read the selected file.'] });
         setIsBulkImporting(false);
-        if (res.created > 0 || res.updated > 0) {
-          showToast(`Successfully uploaded: ${res.created} created and ${res.updated} updated!`, 'success');
-        } else if (res.errors.length > 0) {
-          showToast(`Upload encountered errors: ${res.errors[0]}`, 'warning');
+        showToast('Could not read the selected file', 'error');
+      };
+      reader.onload = async (event) => {
+        // This callback runs after the outer try/catch has already returned, so it
+        // needs its own guard.
+        try {
+          const text = event.target?.result as string;
+          if (!text) {
+            setIsBulkImporting(false);
+            return;
+          }
+
+          const res = await bulkImportProducts(text, {
+            targetSellerId: bulkImportTargetSellerId,
+            fallbackCategoryId: bulkImportFallbackCategoryId
+          });
+          setBulkImportResult(res);
+          if (res.created > 0 || res.updated > 0) {
+            showToast(`Successfully uploaded: ${res.created} created and ${res.updated} updated!`, 'success');
+          } else if (res.errors.length > 0) {
+            showToast(`Upload encountered errors: ${res.errors[0]}`, 'warning');
+          }
+        } catch (err: any) {
+          showToast(`Import failed: ${err?.message || 'the catalog could not be written.'}`, 'error');
+        } finally {
+          setIsBulkImporting(false);
         }
       };
       reader.readAsText(bulkImportFile, 'UTF-8');

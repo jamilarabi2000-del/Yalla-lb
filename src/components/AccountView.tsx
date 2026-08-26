@@ -49,6 +49,24 @@ export const AccountView: React.FC = () => {
 
   const [activeAccountTab, setActiveAccountTab] = useState<'orders' | 'wishlist' | 'profile'>('orders');
   
+  // User-isolated orders: Only display orders belonging to this authenticated user
+  const userOrders = React.useMemo(() => {
+    if (!firebaseUser) return [];
+    const uid = firebaseUser.uid;
+    const email = (firebaseUser.email || user?.email || '').trim().toLowerCase();
+    const phone = (user?.phone || '').replace(/\D/g, '');
+
+    return orders.filter(o => {
+      // 1. Direct UID match
+      if (o.userId && o.userId === uid) return true;
+      // 2. Guest order matching user's confirmed email
+      if (email && o.shipping?.email && o.shipping.email.trim().toLowerCase() === email) return true;
+      // 3. Phone matching order recipient phone
+      if (phone && o.shipping?.phone && o.shipping.phone.replace(/\D/g, '') === phone) return true;
+      return false;
+    });
+  }, [orders, firebaseUser, user]);
+  
   // Profile form local state
   const [profileFirstName, setProfileFirstName] = useState('');
   const [profileLastName, setProfileLastName] = useState('');
@@ -374,7 +392,7 @@ export const AccountView: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center min-w-[90px] shadow-sm">
                 <p className="text-[10px] uppercase font-bold text-slate-500">{language === 'ar' ? 'إجمالي الطلبات' : 'Orders'}</p>
-                <p className="text-xl font-black text-slate-900">{orders.length}</p>
+                <p className="text-xl font-black text-slate-900">{userOrders.length}</p>
               </div>
               <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200/70 text-center min-w-[90px] shadow-sm">
                 <p className="text-[10px] uppercase font-bold text-rose-600">{language === 'ar' ? 'المفضلة' : 'Favorites'}</p>
@@ -399,7 +417,7 @@ export const AccountView: React.FC = () => {
           >
             <Package className="w-4 h-4" />
             <span>{language === 'ar' ? 'سجل الطلبات' : 'My Orders'}</span>
-            <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded-md text-[10px]">{orders.length}</span>
+            <span className="ml-1 px-1.5 py-0.5 bg-white/20 rounded-md text-[10px]">{userOrders.length}</span>
           </button>
 
           <button
@@ -493,7 +511,7 @@ export const AccountView: React.FC = () => {
           {/* Tab 1: Orders History */}
           {activeAccountTab === 'orders' && (
             <OrderHistory 
-              orders={orders} 
+              orders={userOrders} 
               formatPrice={formatPrice} 
               onNavigateProducts={() => setActiveTab('products')} 
               language={language}

@@ -1,163 +1,399 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
-import { HomeIcon, Layout, ShoppingBag, Search, CreditCard, User, Newspaper, Navigation, Type, Blocks, Settings } from 'lucide-react';
+import { SectionVisibilityConfig } from '../types';
+import { 
+  HomeIcon, 
+  Layout, 
+  ShoppingBag, 
+  Search, 
+  CreditCard, 
+  User, 
+  Newspaper, 
+  Navigation, 
+  Type, 
+  Blocks, 
+  Settings,
+  Save,
+  RotateCcw,
+  Sparkles
+} from 'lucide-react';
 
-export const PageCMSManager: React.FC<{ initialTab?: string }> = ({ initialTab = 'home' }) => {
-  const { siteContent, updateSiteContent, saveCmsSettings } = useShop();
+import { CMSVisibilityTab } from './admin/cms/CMSVisibilityTab';
+import { CMSNavbarTab } from './admin/cms/CMSNavbarTab';
+import { CMSFooterTab } from './admin/cms/CMSFooterTab';
+import { CMSHomeTab } from './admin/cms/CMSHomeTab';
+import { CMSProductsTab } from './admin/cms/CMSProductsTab';
+import { CMSProductDetailTab } from './admin/cms/CMSProductDetailTab';
+import { CMSCheckoutTab } from './admin/cms/CMSCheckoutTab';
+import { CMSAccountTab } from './admin/cms/CMSAccountTab';
+import { CMSNewsTab } from './admin/cms/CMSNewsTab';
+import { CMSCustomBlocksTab } from './admin/cms/CMSCustomBlocksTab';
+import { CMSSeoTab } from './admin/cms/CMSSeoTab';
+
+interface PageCMSManagerProps {
+  initialTab?: string;
+}
+
+export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'home' }) => {
+  const { siteContent, updateSiteContent, showToast } = useShop();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [cmsForm, setCmsForm] = useState(siteContent);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     setCmsForm(siteContent);
+    setIsDirty(false);
   }, [siteContent]);
 
-  const updateSectionField = (section: keyof typeof cmsForm, field: string, value: string) => {
-    setCmsForm(prev => ({
-      ...prev,
-      [section]: {
-        ...(prev[section] as any),
-        [field]: value
-      }
-    }));
+  const handleUpdate = (updater: (prev: typeof cmsForm) => typeof cmsForm) => {
+    setCmsForm(prev => {
+      const next = updater(prev);
+      setIsDirty(true);
+      return next;
+    });
   };
 
   const handleSave = async () => {
     setIsSaving(true);
-    await saveCmsSettings(cmsForm);
-    setIsSaving(false);
+    try {
+      await updateSiteContent(cmsForm);
+      setIsDirty(false);
+      showToast('CMS changes successfully published to the live storefront.', 'success');
+    } catch (err: any) {
+      console.error('[PageCMSManager] Failed to save site content:', err);
+      showToast(`Could not save CMS content: ${err?.message || 'the write was rejected.'}`, 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleReset = () => {
+    if (confirm('Revert all unsaved CMS edits back to currently published live store content?')) {
+      setCmsForm(siteContent);
+      setIsDirty(false);
+      showToast('Reverted unsaved edits.', 'info');
+    }
   };
 
   const tabs = [
-    { id: 'home', label: 'Home Sections', icon: HomeIcon },
-    { id: 'navbar', label: 'Navbar & Brand', icon: Navigation },
-    { id: 'footer', label: 'Footer', icon: Layout },
+    { id: 'visibility', label: 'Section Visibility', icon: Settings },
+    { id: 'navbar', label: 'Navbar & Ticker', icon: Navigation },
+    { id: 'home', label: 'Home Page', icon: HomeIcon },
     { id: 'productsPage', label: 'Catalog Page', icon: ShoppingBag },
-    { id: 'productDetailPage', label: 'Product Details', icon: Search },
-    { id: 'checkoutPage', label: 'Checkout Page', icon: CreditCard },
+    { id: 'productDetailPage', label: 'Product Detail', icon: Search },
+    { id: 'checkoutPage', label: 'Checkout & Success', icon: CreditCard },
     { id: 'accountPage', label: 'Account Page', icon: User },
-    { id: 'newsSection', label: 'News / Blog', icon: Newspaper },
-    { id: 'customBlocks', label: 'Custom Blocks', icon: Blocks },
-    { id: 'visibility', label: 'Visibility', icon: Settings },
-    { id: 'seo', label: 'SEO Config', icon: Type }
+    { id: 'newsSection', label: 'News & Stories', icon: Newspaper },
+    { id: 'footer', label: 'Footer & Support', icon: Layout },
+    { id: 'customBlocks', label: 'Custom Divs / Blocks', icon: Blocks },
+    { id: 'seo', label: 'SEO & SERP', icon: Type }
   ];
 
   return (
-    <div className="bg-[#1a1a2e] p-6 rounded-3xl text-white">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-bold text-amber-400">Content Management System</h2>
-        <button 
-          onClick={handleSave} 
-          disabled={isSaving}
-          className="bg-amber-500 hover:bg-amber-600 text-slate-900 px-6 py-2 rounded-xl font-bold transition-all disabled:opacity-50"
-        >
-          {isSaving ? 'Saving...' : 'Save Changes'}
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-2 mb-6">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-              activeTab === tab.id ? 'bg-[#4f46e5] text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            <span>{tab.label}</span>
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'home' && (
-        <div className="bg-[#121222] border border-white/10 rounded-3xl p-6 space-y-6">
-          <h3 className="text-base font-bold text-white flex items-center gap-2">
-            <HomeIcon className="w-4 h-4 text-amber-400" />
-            <span>Home Page Content & Narrative Blocks</span>
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+    <div className="bg-[#1a1a2e] p-6 sm:p-8 rounded-3xl text-white shadow-xl space-y-6">
+      {/* Top Header & Global Actions */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/10 pb-6">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="p-2 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <Sparkles className="w-5 h-5" />
+            </span>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Featured Items Title</label>
-              <input type="text" value={cmsForm.home?.featuredTitle || ''} onChange={e => updateSectionField('home', 'featuredTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">عنوان المنتجات المميزة (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.featuredTitleArabic || ''} onChange={e => updateSectionField('home', 'featuredTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Featured Items Subtitle</label>
-              <input type="text" value={cmsForm.home?.featuredSubtitle || ''} onChange={e => updateSectionField('home', 'featuredSubtitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">وصف المنتجات المميزة (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.featuredSubtitleArabic || ''} onChange={e => updateSectionField('home', 'featuredSubtitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Heritage Story Title</label>
-              <input type="text" value={cmsForm.home?.heritageTitle || ''} onChange={e => updateSectionField('home', 'heritageTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">عنوان قصة التراث (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.heritageTitleArabic || ''} onChange={e => updateSectionField('home', 'heritageTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Heritage Story Full Narrative</label>
-              <textarea rows={4} value={cmsForm.home?.heritageText || ''} onChange={e => updateSectionField('home', 'heritageText', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none leading-relaxed" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">سرد قصة التراث (عربي)</label>
-              <textarea rows={4} dir="rtl" value={cmsForm.home?.heritageTextArabic || ''} onChange={e => updateSectionField('home', 'heritageTextArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none leading-relaxed" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Reviews Section Title</label>
-              <input type="text" value={cmsForm.home?.reviewsTitle || ''} onChange={e => updateSectionField('home', 'reviewsTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">عنوان قسم التقييمات (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.reviewsTitleArabic || ''} onChange={e => updateSectionField('home', 'reviewsTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Reviews Section Subtitle</label>
-              <input type="text" value={cmsForm.home?.reviewsSubtitle || ''} onChange={e => updateSectionField('home', 'reviewsSubtitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">وصف قسم التقييمات (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.reviewsSubtitleArabic || ''} onChange={e => updateSectionField('home', 'reviewsSubtitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Newsletter Title</label>
-              <input type="text" value={cmsForm.home?.newsletterTitle || ''} onChange={e => updateSectionField('home', 'newsletterTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">عنوان النشرة البريدية (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.newsletterTitleArabic || ''} onChange={e => updateSectionField('home', 'newsletterTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Newsletter Button Label</label>
-              <input type="text" value={cmsForm.home?.newsletterButtonText || ''} onChange={e => updateSectionField('home', 'newsletterButtonText', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-amber-500/70 mb-1.5" dir="rtl">زر النشرة البريدية (عربي)</label>
-              <input type="text" dir="rtl" value={cmsForm.home?.newsletterButtonTextArabic || ''} onChange={e => updateSectionField('home', 'newsletterButtonTextArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                Storefront CMS Studio
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Full visual management, bilingual EN/AR copywriting, section toggles, and marketing controls.
+              </p>
             </div>
           </div>
         </div>
-      )}
-      
-      {activeTab !== 'home' && (
-        <div className="bg-[#121222] border border-white/10 rounded-3xl p-12 text-center">
-          <p className="text-slate-400 mb-2">This section is currently being optimized.</p>
-          <p className="text-sm text-slate-500">Please use the Home Sections tab for now while the interface is being upgraded.</p>
+
+        <div className="flex items-center gap-2.5 self-end md:self-center">
+          {isDirty && (
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={isSaving}
+              className="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Discard unsaved changes"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Discard</span>
+            </button>
+          )}
+
+          <button 
+            type="button"
+            onClick={handleSave} 
+            disabled={isSaving}
+            className={`px-6 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center gap-2 cursor-pointer shadow-lg active:scale-95 ${
+              isDirty 
+                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-2 ring-amber-400/50' 
+                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+            } disabled:opacity-50`}
+          >
+            <Save className={`w-4 h-4 ${isSaving ? 'animate-spin' : ''}`} />
+            <span>{isSaving ? 'Publishing Changes...' : isDirty ? 'Publish Unsaved Changes' : 'Save & Publish Live'}</span>
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* CMS Navigation Tabs Bar */}
+      <div className="flex flex-wrap gap-2 pb-2">
+        {tabs.map(tab => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                isActive 
+                  ? 'bg-amber-500 text-slate-950 shadow-md ring-1 ring-amber-400' 
+                  : 'bg-slate-900/90 text-slate-300 hover:bg-slate-800 hover:text-white border border-white/5'
+              }`}
+            >
+              <tab.icon className={`w-3.5 h-3.5 ${isActive ? 'text-slate-950' : 'text-slate-400'}`} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tab Panels */}
+      <div className="pt-2">
+        {/* 1. Section Visibility */}
+        {activeTab === 'visibility' && (
+          <CMSVisibilityTab
+            visibility={cmsForm.visibility}
+            onChange={(key: keyof SectionVisibilityConfig, value: boolean) => {
+              handleUpdate(prev => ({
+                ...prev,
+                visibility: {
+                  ...prev.visibility,
+                  [key]: value
+                }
+              }));
+            }}
+            onSetAll={(value: boolean) => {
+              handleUpdate(prev => {
+                const nextVis = { ...prev.visibility };
+                (Object.keys(nextVis) as Array<keyof SectionVisibilityConfig>).forEach(k => {
+                  nextVis[k] = value;
+                });
+                return {
+                  ...prev,
+                  visibility: nextVis
+                };
+              });
+            }}
+          />
+        )}
+
+        {/* 2. Navbar & Brand */}
+        {activeTab === 'navbar' && (
+          <CMSNavbarTab
+            navbarData={cmsForm.navbar as any}
+            onChangeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                navbar: {
+                  ...(prev.navbar as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 3. Home Page Sections */}
+        {activeTab === 'home' && (
+          <CMSHomeTab
+            homeData={cmsForm.home as any}
+            heroData={cmsForm.hero as any}
+            offersData={cmsForm.offers as any}
+            onChangeHomeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                home: {
+                  ...(prev.home as any),
+                  [field]: value
+                }
+              }));
+            }}
+            onChangeHeroField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                hero: {
+                  ...(prev.hero as any),
+                  [field]: value
+                }
+              }));
+            }}
+            onChangeOffersField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                offers: {
+                  ...(prev.offers as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 4. Products Catalog Page */}
+        {activeTab === 'productsPage' && (
+          <CMSProductsTab
+            productsData={cmsForm.productsPage as any}
+            onChangeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                productsPage: {
+                  ...(prev.productsPage as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 5. Product Detail Page */}
+        {activeTab === 'productDetailPage' && (
+          <CMSProductDetailTab
+            detailData={cmsForm.productDetailPage as any}
+            onChangeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                productDetailPage: {
+                  ...(prev.productDetailPage as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 6. Checkout & Success Pages */}
+        {activeTab === 'checkoutPage' && (
+          <CMSCheckoutTab
+            checkoutData={cmsForm.checkoutPage as any}
+            checkoutSuccessData={cmsForm.checkoutSuccessPage as any}
+            onChangeCheckoutField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                checkoutPage: {
+                  ...(prev.checkoutPage as any),
+                  [field]: value
+                }
+              }));
+            }}
+            onChangeSuccessField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                checkoutSuccessPage: {
+                  ...(prev.checkoutSuccessPage as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 7. Patron Account Page */}
+        {activeTab === 'accountPage' && (
+          <CMSAccountTab
+            accountData={cmsForm.accountPage as any}
+            onChangeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                accountPage: {
+                  ...(prev.accountPage as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 8. News & Blog Stories */}
+        {activeTab === 'newsSection' && (
+          <CMSNewsTab
+            newsData={cmsForm.newsSection as any}
+            onChangeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                newsSection: {
+                  ...(prev.newsSection as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 9. Footer & Social Links */}
+        {activeTab === 'footer' && (
+          <CMSFooterTab
+            footerData={cmsForm.footer as any}
+            socialLinks={cmsForm.socialLinks as any}
+            onChangeFooterField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                footer: {
+                  ...(prev.footer as any),
+                  [field]: value
+                }
+              }));
+            }}
+            onChangeSocialField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                socialLinks: {
+                  ...(prev.socialLinks as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+
+        {/* 10. Custom Divs / Visual Blocks */}
+        {activeTab === 'customBlocks' && (
+          <CMSCustomBlocksTab
+            customBlocks={cmsForm.customBlocks || []}
+            onChange={(blocks) => {
+              handleUpdate(prev => ({
+                ...prev,
+                customBlocks: blocks
+              }));
+            }}
+          />
+        )}
+
+        {/* 11. SEO & SERP */}
+        {activeTab === 'seo' && (
+          <CMSSeoTab
+            seoData={cmsForm.seo as any}
+            onChangeField={(field, value) => {
+              handleUpdate(prev => ({
+                ...prev,
+                seo: {
+                  ...(prev.seo as any),
+                  [field]: value
+                }
+              }));
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };

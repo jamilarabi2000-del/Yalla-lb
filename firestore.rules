@@ -5,12 +5,27 @@ service cloud.firestore {
     function isSignedIn() { return request.auth != null; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
     function isAdmin() {
-      return isSignedIn() && request.auth.token.admin == true;
+      return isSignedIn() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'jamilarabi2000@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Health / probe ping document used by connection testing
+    match /test/{docId} {
+      allow get: if true;
     }
 
     // Catalog: public read, admin-only write.
     match /products/{productId} {
       allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Admins registry: admins can manage admins list
+    match /admins/{adminId} {
+      allow get, list: if isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
@@ -44,12 +59,11 @@ service cloud.firestore {
       allow get: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid);
       allow list: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
-      allow create: if isSignedIn()
-        && request.auth.token.email_verified == true
+      allow create: if (isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.totalUSD is number
-        && request.resource.data.totalUSD >= 0;
+        && request.resource.data.totalUSD >= 0) || isAdmin();
       allow update, delete: if isAdmin();
     }
 

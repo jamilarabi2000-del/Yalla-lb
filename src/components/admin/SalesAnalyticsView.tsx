@@ -128,20 +128,26 @@ export const SalesAnalyticsView: React.FC = () => {
       return { startDate: firstDayYear, endDate: end };
     }
     if (datePreset === 'custom') {
-      const s = customStartDate ? new Date(`${customStartDate}T00:00:00`) : new Date(2020, 0, 1);
+      const s = customStartDate ? new Date(`${customStartDate}T00:00:00`) : new Date(0);
       const e = customEndDate ? new Date(`${customEndDate}T23:59:59.999`) : end;
       return { startDate: s, endDate: e };
     }
 
-    // 'all_time'
-    return { startDate: new Date(2020, 0, 1), endDate: end };
+    // 'all_time' — genuinely all of it.
+    return { startDate: new Date(0), endDate: end };
   }, [datePreset, customStartDate, customEndDate]);
 
   // Filter Orders by Date Range & Status & Payment & Customer
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
-      // 1. Date filter
-      const orderDate = new Date(order.date || Date.now());
+      // 1. Date filter.
+      // An unparseable date must exclude the order from a dated report, not slip
+      // through it: every comparison against an Invalid Date is false, so such an
+      // order previously counted inside every period at once.
+      const orderDate = new Date(order.date);
+      if (!Number.isFinite(orderDate.getTime())) {
+        return false;
+      }
       if (orderDate < startDate || orderDate > endDate) {
         return false;
       }
