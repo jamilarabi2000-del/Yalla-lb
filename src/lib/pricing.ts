@@ -1,4 +1,4 @@
-import { CartItem, DiscountRule, Product } from '../types';
+import { CartItem, DiscountRule, Product, ProductBundle } from '../types';
 
 export interface DiscountCalculationResult {
   subtotalUSD: number;
@@ -15,6 +15,7 @@ export interface DiscountOptions {
   couponCode?: string;
   isNewUser?: boolean;
   currentDate?: Date;
+  productBundles?: ProductBundle[];
 }
 
 function matchesTarget(product: Product, rule: DiscountRule): boolean {
@@ -69,6 +70,75 @@ export function applyDiscounts(
   const normalizedCoupon = options.couponCode ? options.couponCode.trim().toUpperCase() : '';
   const now = options.currentDate || new Date();
   const isNewUser = options.isNewUser ?? false;
+
+  // 1. Calculate Combo & Product Bundle automatic discounts first
+  if (options.productBundles && options.productBundles.length > 0) {
+    const availableQuantities: { [key: string]: number } = {};
+    for (const item of items) {
+      const pid = item.product.id;
+      availableQuantities[pid] = (availableQuantities[pid] || 0) + item.quantity;
+    }
+
+    const activeBundles = options.productBundles.filter(b => b.isActive !== false);
+    
+    // Sort bundles by unit savings descending to prioritize the best deal for the user
+    const bundlesWithSavings = activeBundles.map(bundle => {
+      // Find matching products in current items to calculate original prices
+      const bundleProducts = items
+        .map(item => item.product)
+        .filter(p => bundle.productIds.includes(p.id))
+        .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+      
+      const originalSum = bundleProducts.reduce((sum, p) => sum + p.priceUSD, 0);
+      const savingsPerSet = Math.max(0, originalSum - bundle.bundlePriceUSD);
+      return { bundle, savingsPerSet };
+    }).sort((a, b) => b.savingsPerSet - a.savingsPerSet);
+
+    for (const { bundle, savingsPerSet } of bundlesWithSavings) {
+      if (savingsPerSet <= 0 || bundle.productIds.length === 0) continue;
+
+      // Exclude if promotion periods don't match
+      if (bundle.startDate) {
+        const bStart = new Date(bundle.startDate);
+        if (!isNaN(bStart.getTime()) && now < bStart) continue;
+      }
+      if (bundle.endDate) {
+        const bEnd = new Date(bundle.endDate);
+        if (!isNaN(bEnd.getTime()) && now > bEnd) continue;
+      }
+
+      // Calculate complete sets we can form with the remaining items
+      let completeSets = Infinity;
+      for (const pid of bundle.productIds) {
+        const qty = availableQuantities[pid] || 0;
+        if (qty < completeSets) {
+          completeSets = qty;
+        }
+      }
+
+      if (completeSets > 0 && completeSets !== Infinity) {
+        // Consume items
+        for (const pid of bundle.productIds) {
+          availableQuantities[pid] -= completeSets;
+        }
+
+        const totalSaved = Math.round(savingsPerSet * completeSets * 100) / 100;
+        if (totalSaved > 0) {
+          totalDiscount += totalSaved;
+          const virtualRule: DiscountRule = {
+            id: `bundle-${bundle.id}`,
+            name: `${bundle.name} (Combo Offer)`,
+            nameAr: `${bundle.nameAr || bundle.name} (عرض كومبو)`,
+            type: 'fixed',
+            value: totalSaved,
+            target: 'checkout',
+            isActive: true
+          };
+          appliedRules.push({ rule: virtualRule, savedUSD: totalSaved });
+        }
+      }
+    }
+  }
 
   for (const rule of rules) {
     if (!rule.isActive) continue;

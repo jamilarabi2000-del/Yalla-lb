@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, CategoryItem, TerroirRegion, Seller, SearchLog } from '../types';
+import { Product, CartItem, Order, UserProfile, Currency, SiteContent, SectionVisibilityConfig, CMSCustomBlock, RecentActivity, DiscountRule, ProductBundle, CategoryItem, TerroirRegion, Seller, SearchLog } from '../types';
 import { applyDiscounts } from '../lib/pricing';
 import { calcDeliveryFeeUSD } from '../lib/delivery';
 import { INITIAL_PRODUCTS } from '../data/products';
@@ -280,6 +280,10 @@ interface ShopContextType {
   // Visual Edit Mode
   isVisualEditMode: boolean;
   setIsVisualEditMode: (val: boolean) => void;
+  isCustomBlockModalOpen: boolean;
+  setIsCustomBlockModalOpen: (open: boolean) => void;
+  customBlockToEdit: CMSCustomBlock | null;
+  setCustomBlockToEdit: (block: CMSCustomBlock | null) => void;
 
   // Admin Security Lock
   isAdminUnlocked: boolean;
@@ -308,6 +312,13 @@ interface ShopContextType {
   addDiscountRule: (rule: Omit<DiscountRule, 'id'>) => Promise<void>;
   updateDiscountRule: (id: string, updates: Partial<DiscountRule>) => Promise<void>;
   deleteDiscountRule: (id: string) => Promise<void>;
+
+  // Bundles & Combo Deals
+  productBundles: ProductBundle[];
+  addProductBundle: (bundle: Omit<ProductBundle, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateProductBundle: (id: string, updates: Partial<ProductBundle>) => Promise<void>;
+  deleteProductBundle: (id: string) => Promise<void>;
+  addBundleToCart: (bundleId: string) => void;
 
   // Categories & Details Management
   categories: CategoryItem[];
@@ -507,6 +518,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [isVisualEditMode, setIsVisualEditMode] = useState<boolean>(false);
+  const [isCustomBlockModalOpen, setIsCustomBlockModalOpen] = useState<boolean>(false);
+  const [customBlockToEdit, setCustomBlockToEdit] = useState<CMSCustomBlock | null>(null);
 
    const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(() => {
     try {
@@ -789,6 +802,141 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setDiscountRules(prev => prev.filter(r => r.id !== id));
     await logAdminActivity('meta_change', 'Deleted Discount Rule', `Deleted discount ID: ${id}`);
+  };
+
+  // Product Bundles & Combo Deals State
+  const [productBundles, setProductBundles] = useState<ProductBundle[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_product_bundles');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: 'bundle-gourmet-breakfast',
+        name: 'Lebanese Gourmet Breakfast Bundle',
+        nameAr: 'باقة الفطور اللبناني الفاخر',
+        description: 'Authentic Koura Extra Virgin Olive Oil, Chouf Zaatar Blend, and Artisan Halloumi Cheese packaged together.',
+        descriptionAr: 'زيت زيتون كورة بكر ممتاز، خلطة زعتر الشوف البلدي، وجبنة حلوم حرفية ممتازة.',
+        badgeText: 'COMBO DEAL - SAVE 20%',
+        badgeTextAr: 'صفقة كومبو - خصم ٢٠٪',
+        productIds: ['prod-1', 'prod-2', 'prod-3'],
+        bundlePriceUSD: 24.99,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: 'bundle-student-study-set',
+        name: 'Student Study & Craft Combo',
+        nameAr: 'حزمة الدراسة والإبداع للطلاب',
+        description: 'Handcrafted Genuine Leather Backpack, Cedar Wood Notebook, and Brass Pencil Box.',
+        descriptionAr: 'حقيبة ظهر من الجلد الطبيعي المصنوعة يدوياً، دفتر خشب الأرز، ومقلمة نحاسية ممتازة.',
+        badgeText: 'BACK TO SCHOOL BUNDLE',
+        badgeTextAr: 'حزمة العودة للمدرسة',
+        productIds: ['prod-4', 'prod-5'],
+        bundlePriceUSD: 64.99,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      }
+    ];
+  });
+
+  const hasSeededBundlesRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('yallalb_product_bundles', JSON.stringify(productBundles));
+    } catch {}
+  }, [productBundles]);
+
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED) return;
+    const bundlesColRef = collection(db, 'product_bundles');
+    const unsubscribe = onSnapshot(
+      bundlesColRef,
+      async (snapshot) => {
+        if (snapshot.empty && !hasSeededBundlesRef.current) {
+          hasSeededBundlesRef.current = true;
+          const initialBundles: ProductBundle[] = [
+            {
+              id: 'bundle-gourmet-breakfast',
+              name: 'Lebanese Gourmet Breakfast Bundle',
+              nameAr: 'باقة الفطور اللبناني الفاخر',
+              description: 'Authentic Koura Extra Virgin Olive Oil, Chouf Zaatar Blend, and Artisan Halloumi Cheese packaged together.',
+              descriptionAr: 'زيت زيتون كورة بكر ممتاز، خلطة زعتر الشوف البلدي، وجبنة حلوم حرفية ممتازة.',
+              badgeText: 'COMBO DEAL - SAVE 20%',
+              badgeTextAr: 'صفقة كومبو - خصم ٢٠٪',
+              productIds: ['prod-1', 'prod-2', 'prod-3'],
+              bundlePriceUSD: 24.99,
+              isActive: true,
+              createdAt: new Date().toISOString()
+            }
+          ];
+          for (const b of initialBundles) {
+            await monitoredSetDoc(doc(db, 'product_bundles', b.id), sanitizeDocumentData(b), undefined, 'ShopContext:seedBundles');
+          }
+        } else if (!snapshot.empty) {
+          const list: ProductBundle[] = [];
+          snapshot.forEach(docSnap => {
+            list.push({ id: docSnap.id, ...docSnap.data() } as ProductBundle);
+          });
+          setProductBundles(list);
+        }
+      },
+      (error) => {
+        console.warn("[ShopContext] Bundles listener warning:", error);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const addProductBundle = async (bundleData: Omit<ProductBundle, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const id = 'bundle-' + Math.random().toString(36).substring(2, 9);
+    const newBundle: ProductBundle = {
+      ...bundleData,
+      id,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    try {
+      if (IS_FIREBASE_ENABLED) {
+        await monitoredSetDoc(doc(db, 'product_bundles', id), sanitizeDocumentData(newBundle), undefined, 'ShopContext:addProductBundle');
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error saving bundle to Firestore:", err);
+    }
+    setProductBundles(prev => [newBundle, ...prev]);
+    await logAdminActivity('meta_change', 'Created Combo Deal', `Created bundle: ${newBundle.name}`);
+  };
+
+  const updateProductBundle = async (id: string, updates: Partial<ProductBundle>) => {
+    let updatedBundle: ProductBundle | null = null;
+    setProductBundles(prev => prev.map(b => {
+      if (b.id === id) {
+        updatedBundle = { ...b, ...updates, updatedAt: new Date().toISOString() };
+        return updatedBundle;
+      }
+      return b;
+    }));
+    try {
+      if (IS_FIREBASE_ENABLED && updatedBundle) {
+        await monitoredSetDoc(doc(db, 'product_bundles', id), sanitizeDocumentData(updatedBundle), { merge: true }, 'ShopContext:updateProductBundle');
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error updating bundle in Firestore:", err);
+    }
+    await logAdminActivity('meta_change', 'Updated Combo Deal', `Updated bundle ID: ${id}`);
+  };
+
+  const deleteProductBundle = async (id: string) => {
+    try {
+      if (IS_FIREBASE_ENABLED) {
+        await monitoredDeleteDoc(doc(db, 'product_bundles', id), 'ShopContext:deleteProductBundle');
+      }
+    } catch (err) {
+      console.error("[ShopContext] Error deleting bundle from Firestore:", err);
+    }
+    setProductBundles(prev => prev.filter(b => b.id !== id));
+    await logAdminActivity('meta_change', 'Deleted Combo Deal', `Deleted bundle ID: ${id}`);
   };
 
   // Categories & Details Management State
@@ -2801,9 +2949,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const discountCalculation = useMemo(() => {
     return applyDiscounts(cart, discountRules, {
       couponCode: appliedCouponCode,
-      isNewUser
+      isNewUser,
+      productBundles
     });
-  }, [cart, discountRules, appliedCouponCode, isNewUser]);
+  }, [cart, discountRules, appliedCouponCode, isNewUser, productBundles]);
 
   const discountUSD = discountCalculation.discountUSD;
   const finalCartTotalUSD = discountCalculation.finalSubtotalUSD;
@@ -2815,7 +2964,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const applyCoupon = useCallback((code: string): boolean => {
     const normalized = code.trim().toUpperCase();
     if (!normalized) return false;
-    const testResult = applyDiscounts(cart, discountRules, { couponCode: normalized, isNewUser });
+    const testResult = applyDiscounts(cart, discountRules, { couponCode: normalized, isNewUser, productBundles });
     if (testResult.discountUSD > 0) {
       setAppliedCouponCode(normalized);
       showToast(
@@ -2834,12 +2983,44 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       return false;
     }
-  }, [cart, discountRules, language]);
+  }, [cart, discountRules, language, isNewUser, productBundles]);
 
   const removeCoupon = useCallback(() => {
     setAppliedCouponCode('');
     showToast(language === 'ar' ? 'تمت إزالة الكوبون' : 'Coupon code removed', 'info');
   }, [language]);
+
+  const addBundleToCart = useCallback((bundleId: string) => {
+    const bundle = productBundles.find(b => b.id === bundleId);
+    if (!bundle) return;
+    
+    // Find matching products
+    const itemsToAdd = products.filter(p => bundle.productIds.includes(p.id));
+    if (itemsToAdd.length === 0) {
+      showToast(language === 'ar' ? 'المنتجات في هذه الباقة غير متوفرة حالياً' : 'Bundle products are currently unavailable', 'warning');
+      return;
+    }
+
+    // Add each item to cart
+    itemsToAdd.forEach(p => {
+      setCart(prev => {
+        const existingIndex = prev.findIndex(ci => ci.product.id === p.id);
+        if (existingIndex > -1) {
+          const updated = [...prev];
+          updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
+          return updated;
+        }
+        return [...prev, { product: p, quantity: 1 }];
+      });
+    });
+
+    showToast(
+      language === 'ar'
+        ? `تمت إضافة صفقة "${bundle.nameAr || bundle.name}" إلى سلة التسوق!`
+        : `Added "${bundle.name}" Combo Deal to your cart!`,
+      'success'
+    );
+  }, [productBundles, products, language, showToast]);
 
   const lastLoggedSearchRef = useRef<{ query: string; time: number }>({ query: '', time: 0 });
 
@@ -2988,6 +3169,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const authDiscountCalc = applyDiscounts(validatedItems, discountRules, {
           couponCode: appliedCouponCode,
           isNewUser: orders.length === 0,
+          productBundles
         });
         const subtotalUSD = Math.round(validatedItems.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
         
@@ -3911,6 +4093,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     deleteCustomBlock,
     isVisualEditMode,
     setIsVisualEditMode,
+    isCustomBlockModalOpen,
+    setIsCustomBlockModalOpen,
+    customBlockToEdit,
+    setCustomBlockToEdit,
     isAdminUnlocked,
     setIsAdminUnlocked,
     recentActivities,
@@ -3926,6 +4112,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     addDiscountRule,
     updateDiscountRule,
     deleteDiscountRule,
+    productBundles,
+    addProductBundle,
+    updateProductBundle,
+    deleteProductBundle,
+    addBundleToCart,
     categories,
     addCategory,
     updateCategory,
@@ -3968,6 +4159,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toast,
     siteContent,
     isVisualEditMode,
+    isCustomBlockModalOpen,
+    customBlockToEdit,
     isAdminUnlocked,
     recentActivities,
     discountRules,
@@ -3977,6 +4170,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     discountUSD,
     finalCartTotalUSD,
     appliedDiscountRules,
+    productBundles,
+    addBundleToCart,
     categories,
     regions,
     sellers

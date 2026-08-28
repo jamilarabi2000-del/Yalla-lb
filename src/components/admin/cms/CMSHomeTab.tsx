@@ -78,6 +78,8 @@ interface CMSHomeTabProps {
     secondaryBtnTextArabic?: string;
     targetUrl?: string;
     bgImageUrl: string;
+    slideInterval?: number;
+    overlayOpacity?: number;
     stats: CMSHeroStat[];
   };
   offersData: {
@@ -347,6 +349,44 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
             />
           </div>
 
+          {/* Slider Auto-Play Timer & Dark Overlay Tint Controls */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+              Slider Auto-Play Speed (Seconds)
+            </label>
+            <select
+              value={heroData?.slideInterval ?? 5}
+              onChange={(e) => onChangeHeroField('slideInterval', parseInt(e.target.value, 10))}
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none font-medium"
+            >
+              <option value={0}>Pause Auto-Play (Manual Navigation Only)</option>
+              <option value={3}>3 Seconds (Fast)</option>
+              <option value={5}>5 Seconds (Recommended)</option>
+              <option value={8}>8 Seconds (Relaxed)</option>
+              <option value={10}>10 Seconds (Slow)</option>
+              <option value={15}>15 Seconds (Very Slow)</option>
+            </select>
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1.5">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                Background Dark Overlay Tint
+              </label>
+              <span className="text-xs font-mono text-amber-400 font-bold">{heroData?.overlayOpacity ?? 0}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="70"
+              step="5"
+              value={heroData?.overlayOpacity ?? 0}
+              onChange={(e) => onChangeHeroField('overlayOpacity', parseInt(e.target.value, 10))}
+              className="w-full accent-amber-500 cursor-pointer"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">Set to 0% for 100% natural, un-tinted true image colors.</p>
+          </div>
+
           {/* Hero Background Media Manager */}
           <div className="md:col-span-2 pt-4 border-t border-white/10 space-y-4">
             <div className="flex items-center justify-between">
@@ -465,6 +505,50 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
                           className="w-full px-2 py-1.5 rounded-lg bg-black border border-white/10 text-xs text-white text-right"
                           dir="rtl"
                         />
+                      </div>
+
+                      {/* Image Zoom & Focus Controls */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-[10px] uppercase text-amber-400 font-bold">Image Zoom Level</label>
+                          <span className="text-[10px] font-mono text-amber-400">{item.imageZoom || 100}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="100"
+                          max="200"
+                          step="5"
+                          value={item.imageZoom || 100}
+                          onChange={(e) => handleUpdateMediaItem(idx, { imageZoom: parseInt(e.target.value, 10) })}
+                          className="w-full accent-amber-500 cursor-pointer"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1">Focus Alignment</label>
+                        <select
+                          value={item.objectPosition || 'center'}
+                          onChange={(e) => handleUpdateMediaItem(idx, { objectPosition: e.target.value })}
+                          className="w-full px-2 py-1.5 rounded-lg bg-black border border-white/10 text-xs text-white"
+                        >
+                          <option value="center">Center (Default)</option>
+                          <option value="top">Top Focus</option>
+                          <option value="bottom">Bottom Focus</option>
+                          <option value="left">Left Focus</option>
+                          <option value="right">Right Focus</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] uppercase text-amber-400 font-bold mb-1">Display Fit Mode</label>
+                        <select
+                          value={item.imageFit || 'cover'}
+                          onChange={(e) => handleUpdateMediaItem(idx, { imageFit: e.target.value as any })}
+                          className="w-full px-2 py-1.5 rounded-lg bg-black border border-white/10 text-xs text-white"
+                        >
+                          <option value="cover">Cover (Fill Screen Background)</option>
+                          <option value="contain">Contain (Fit Full Uncropped Image)</option>
+                        </select>
                       </div>
                     </div>
                     
@@ -790,6 +874,50 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
                   onChange={(e) => setSlideForm({ ...slideForm, imageUrl: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none font-mono"
                 />
+              </div>
+
+              {/* Image Zoom & Focus Controls */}
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[11px] font-bold text-amber-400 uppercase">Image Zoom Level</label>
+                  <span className="text-xs font-mono text-amber-400">{slideForm.imageZoom || 100}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="100"
+                  max="200"
+                  step="5"
+                  value={slideForm.imageZoom || 100}
+                  onChange={(e) => setSlideForm({ ...slideForm, imageZoom: parseInt(e.target.value, 10) })}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Focus Alignment</label>
+                <select
+                  value={slideForm.objectPosition || 'center'}
+                  onChange={(e) => setSlideForm({ ...slideForm, objectPosition: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                >
+                  <option value="center">Center (Default)</option>
+                  <option value="top">Top Focus</option>
+                  <option value="bottom">Bottom Focus</option>
+                  <option value="left">Left Focus</option>
+                  <option value="right">Right Focus</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Display Fit Mode</label>
+                <select
+                  value={slideForm.imageFit || 'cover'}
+                  onChange={(e) => setSlideForm({ ...slideForm, imageFit: e.target.value as any })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                >
+                  <option value="cover">Cover (Fill Screen Background)</option>
+                  <option value="contain">Contain (Fit Full Uncropped Image)</option>
+                </select>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Slide Background Video URL (Optional MP4/WebM)</label>

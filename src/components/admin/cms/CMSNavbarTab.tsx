@@ -14,6 +14,8 @@ import {
 
 interface CMSNavbarTabProps {
   navbarData: {
+    logoUrl?: string;
+    faviconUrl?: string;
     announcementTicker: string;
     announcementTickerArabic?: string;
     brandName: string;
@@ -113,12 +115,64 @@ export const CMSNavbarTab: React.FC<CMSNavbarTabProps> = ({
         </div>
       </div>
 
-      {/* Brand Identity & Header Contacts */}
+      {/* Brand Identity, Logo & Header Contacts */}
       <div className="bg-[#121222] border border-white/10 rounded-3xl p-6 space-y-5">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-amber-400" />
-          <span>Brand Identity & Header Configuration</span>
+          <span>Store Logo, Favicon & Brand Identity</span>
         </h3>
+
+        {/* Logo & Favicon Upload / URL Inputs */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 p-4 bg-slate-950/70 border border-white/10 rounded-2xl">
+          {/* Logo Field */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400">
+              Header Logo Image URL
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-slate-900 border border-white/10 overflow-hidden flex items-center justify-center flex-shrink-0">
+                {navbarData.logoUrl ? (
+                  <img src={navbarData.logoUrl} alt="Store Logo Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-xs text-slate-500 font-bold">Default</span>
+                )}
+              </div>
+              <input
+                type="text"
+                value={navbarData.logoUrl || ''}
+                onChange={(e) => onChangeField('logoUrl', e.target.value)}
+                placeholder="https://example.com/logo.png (leave blank for default)"
+                className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400">Replaces the top left navbar icon across the entire store.</p>
+          </div>
+
+          {/* Favicon Field */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400">
+              Browser Favicon Icon URL (.ico / .png)
+            </label>
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-slate-900 border border-white/10 overflow-hidden flex items-center justify-center flex-shrink-0">
+                {navbarData.faviconUrl ? (
+                  <img src={navbarData.faviconUrl} alt="Favicon Preview" className="w-6 h-6 object-contain" referrerPolicy="no-referrer" />
+                ) : (
+                  <span className="text-[10px] text-slate-500 font-bold">Default</span>
+                )}
+              </div>
+              <input
+                type="text"
+                value={navbarData.faviconUrl || ''}
+                onChange={(e) => onChangeField('faviconUrl', e.target.value)}
+                placeholder="https://example.com/favicon.ico (leave blank for default)"
+                className="flex-1 px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+              />
+            </div>
+            <p className="text-[11px] text-slate-400">Updates the browser tab icon in your customers' browsers.</p>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">

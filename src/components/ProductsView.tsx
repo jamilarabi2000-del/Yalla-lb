@@ -232,7 +232,6 @@ export const ProductsView: React.FC = () => {
   };
 
   const resetFilters = () => {
-    setSelectedCategory('all');
     setSortBy('featured');
     setOnlyInStock(false);
     setSearchQuery('');
@@ -403,7 +402,7 @@ export const ProductsView: React.FC = () => {
               </label>
 
               {/* Reset Filters */}
-              {(selectedCategory !== 'all' || searchQuery || onlyInStock) && (
+              {(searchQuery || onlyInStock || sortBy !== 'featured') && (
                 <button
                   id="reset-filters-btn"
                   onClick={resetFilters}
@@ -548,7 +547,10 @@ export const ProductsView: React.FC = () => {
                   {language === 'ar' ? 'جرب البحث عن كلمة أخرى أو تصفح الأقسام المختلفة.' : 'Try clearing your search keyword or switching territory/category filters.'}
                 </p>
                 <button
-                  onClick={resetFilters}
+                  onClick={() => {
+                    setSelectedCategory('all');
+                    resetFilters();
+                  }}
                   className="px-6 py-2.5 bg-amber-600 text-white font-bold uppercase text-xs tracking-widest cursor-pointer rounded-xl hover:bg-amber-700 transition-colors"
                 >
                   {language === 'ar' ? 'عرض جميع المنتجات اللبنانية' : 'Show All Lebanese Products'}

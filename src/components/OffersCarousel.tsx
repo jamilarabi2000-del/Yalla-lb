@@ -291,7 +291,7 @@ export const OffersCarousel: React.FC = () => {
           <img
             src={schoolBannerImg}
             alt="School Essentials Background Blur"
-            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-105 pointer-events-none select-none transition-transform duration-500"
+            className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 pointer-events-none select-none transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
 
@@ -589,7 +589,7 @@ export const OffersCarousel: React.FC = () => {
               <img 
                 src={currentOffer.imageUrl} 
                 alt={currentOffer.titleEn}
-                className="w-full h-full object-cover opacity-35 group-hover:scale-105 transition-transform duration-700"
+                className="w-full h-full object-cover opacity-35 transition-transform duration-700"
                 referrerPolicy="no-referrer"
               />
               <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />

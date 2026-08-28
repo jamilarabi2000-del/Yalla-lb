@@ -9,6 +9,7 @@ interface CMSSeoTabProps {
     arabicDescription?: string;
     keywords?: string[];
     arabicKeywords?: string[];
+    faviconUrl?: string;
   };
   onChangeField: (field: string, value: any) => void;
 }
@@ -93,12 +94,36 @@ export const CMSSeoTab: React.FC<CMSSeoTabProps> = ({
         </div>
       </div>
 
-      {/* Meta Titles & Descriptions */}
+      {/* Meta Titles, Favicon & Descriptions */}
       <div className="bg-[#121222] border border-white/10 rounded-3xl p-6 space-y-5">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
           <Type className="w-5 h-5 text-amber-400" />
-          <span>Meta Titles & Descriptions</span>
+          <span>Meta Titles, Favicon Icon & Search Descriptions</span>
         </h3>
+
+        {/* Favicon Icon Control */}
+        <div className="p-4 bg-slate-950/70 border border-white/10 rounded-2xl flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 border border-white/10 flex items-center justify-center flex-shrink-0">
+            {seoData.faviconUrl ? (
+              <img src={seoData.faviconUrl} alt="Favicon Preview" className="w-6 h-6 object-contain" referrerPolicy="no-referrer" />
+            ) : (
+              <Globe className="w-5 h-5 text-amber-400" />
+            )}
+          </div>
+          <div className="flex-1 space-y-1">
+            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400">
+              Browser Favicon Icon URL (.ico / .png)
+            </label>
+            <input
+              type="text"
+              value={seoData.faviconUrl || ''}
+              onChange={(e) => onChangeField('faviconUrl', e.target.value)}
+              placeholder="https://example.com/favicon.ico (leave blank for default)"
+              className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {/* English Meta */}
           <div className="space-y-4">

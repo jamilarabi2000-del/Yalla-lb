@@ -44,7 +44,7 @@ export const CMSVisibilityTab: React.FC<CMSVisibilityTabProps> = ({
       icon: Home,
       color: 'text-emerald-400',
       items: [
-        { key: 'homeHero' as const, label: 'Hero Banner & Statistics', desc: 'Primary landing showcase & artisan metrics' },
+        { key: 'homeHero' as const, label: 'Consolidated Hero & Promotional Slider', desc: 'Main landing showcase, promo coupon slides & artisan metrics' },
         { key: 'homeCategories' as const, label: 'Category Quick-Filter Icons', desc: 'Terroir & category icons bar' },
         { key: 'homeOffers' as const, label: 'Promotional Offers Carousel', desc: 'Cultural & seasonal promotion slides' },
         { key: 'homeFeatured' as const, label: 'Featured Artisan Products', desc: 'Curated collection of top handcrafted items' },

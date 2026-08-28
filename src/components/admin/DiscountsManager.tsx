@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { DiscountRule } from '../../types';
+import { ProductBundlesManager } from './ProductBundlesManager';
 import { 
   Tag, 
   Plus, 
@@ -22,10 +23,13 @@ import {
   CheckCircle2,
   AlertCircle,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  PackageCheck
 } from 'lucide-react';
 
 export const DiscountsManager: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'rules' | 'bundles'>('rules');
+
   const { 
     discountRules = [], 
     addDiscountRule = async () => {}, 
@@ -214,27 +218,58 @@ export const DiscountsManager: React.FC = () => {
   return (
     <div className="space-y-6">
       
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -z-1" />
-        <div>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#b89753] mb-1">
-            <Tag className="w-4 h-4" />
-            <span>Promotions & Discount Engine</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Admin Discounts & Campaigns</h1>
-          <p className="text-xs text-slate-500 mt-1 max-w-xl">
-            Create discount rules across all items, specific brands, sellers, or categories. Configure timed promotion periods and exclusive new user discounts.
-          </p>
-        </div>
+      {/* Top Tab Selector */}
+      <div className="flex border-b border-slate-200 gap-4">
         <button
-          onClick={handleOpenCreate}
-          className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#b89753] to-[#96783d] text-white font-extrabold text-xs tracking-wider uppercase shadow-md shadow-amber-500/20 hover:brightness-105 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 hover:-translate-y-0.5 active:translate-y-0"
+          onClick={() => setActiveTab('rules')}
+          className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'rules'
+              ? 'border-[#b89753] text-[#b89753]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
         >
-          <Plus className="w-4 h-4" />
-          <span>Create New Discount</span>
+          <Tag className="w-4 h-4" />
+          <span>Discount Rules & Coupons</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('bundles')}
+          className={`pb-3 px-4 font-bold text-xs uppercase tracking-wider flex items-center gap-2 border-b-2 transition-all ${
+            activeTab === 'bundles'
+              ? 'border-[#b89753] text-[#b89753]'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <PackageCheck className="w-4 h-4" />
+          <span>Combo & Bundle Deals Creator</span>
         </button>
       </div>
+
+      {activeTab === 'bundles' ? (
+        <ProductBundlesManager />
+      ) : (
+        <>
+          {/* Header Banner */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl -z-1" />
+            <div>
+              <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#b89753] mb-1">
+                <Tag className="w-4 h-4" />
+                <span>Promotions & Discount Engine</span>
+              </div>
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Admin Discounts & Campaigns</h1>
+              <p className="text-xs text-slate-500 mt-1 max-w-xl">
+                Create discount rules across all items, specific brands, sellers, or categories. Configure timed promotion periods and exclusive new user discounts.
+              </p>
+            </div>
+            <button
+              onClick={handleOpenCreate}
+              className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-[#b89753] to-[#96783d] text-white font-extrabold text-xs tracking-wider uppercase shadow-md shadow-amber-500/20 hover:brightness-105 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0 hover:-translate-y-0.5 active:translate-y-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Discount</span>
+            </button>
+          </div>
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -717,6 +752,8 @@ export const DiscountsManager: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
 
     </div>

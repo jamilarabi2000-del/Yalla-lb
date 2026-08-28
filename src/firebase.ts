@@ -63,7 +63,6 @@ if (typeof window !== 'undefined') {
 let firestoreInstance;
 try {
   firestoreInstance = initializeFirestore(app, {
-    experimentalForceLongPolling: true,
     localCache: memoryLocalCache()
   }, firebaseConfig.firestoreDatabaseId);
 } catch (e) {

@@ -1,34 +1,71 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
 import { 
-  Search
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  Copy,
+  Check,
+  ShoppingBag,
+  Award,
+  Tag,
+  Gift
 } from 'lucide-react';
 
 import mountainTownImg from '../assets/images/mountain_town_1786766825066.jpg';
 import cobblestoneStreetImg from '../assets/images/cobblestone_street_1786766842879.jpg';
 import lebaneseMountainTownImg from '../assets/images/rachaya_mountain_perfect_1786799009637.jpg';
 import raoucheSunsetImg from '../assets/images/raouche_rocks_sunset_1786799732002.jpg';
+import schoolBannerImg from '../assets/images/school_banner_1786797167259.jpg';
 
-const HERO_IMAGES = [
-  raoucheSunsetImg,
-  lebaneseMountainTownImg,
-  mountainTownImg,
-  cobblestoneStreetImg,
-  'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1920&q=80', // Lebanese mountain landscape / Beqaa
-  'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1920&q=80'  // Cedar forest and nature
-];
+interface ConsolidatedSlide {
+  id: string;
+  type?: 'image' | 'video';
+  url: string;
+  badgeEn?: string;
+  badgeAr?: string;
+  titleEn: string;
+  titleAr?: string;
+  subtitleEn?: string;
+  subtitleAr?: string;
+  discountBadgeEn?: string;
+  discountBadgeAr?: string;
+  promoCode?: string;
+  buttonTextEn?: string;
+  buttonTextAr?: string;
+  targetCategory?: string;
+  targetUrl?: string;
+  imageZoom?: number;
+  objectPosition?: string;
+  imageFit?: 'cover' | 'contain';
+  isCustomSchoolLayout?: boolean;
+  bundleId?: string;
+}
 
 export const HeroBanner: React.FC = () => {
-  const { setActiveTab, setSelectedCategory, setSearchQuery, t, language, siteContent } = useShop();
+  const { 
+    setActiveTab, 
+    setSelectedCategory, 
+    setSearchQuery, 
+    showToast, 
+    t, 
+    language, 
+    siteContent,
+    productBundles = [],
+    products = [],
+    addBundleToCart
+  } = useShop();
   
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const heroData = siteContent?.hero || {
     badgeText: 'Handcrafted with Love in Lebanon',
     title: 'Authentic Lebanese Treasures, Handcrafted by Master Artisans',
     subtitle: 'Connecting traditional craft workshops across Beirut, Tripoli, Sidon, and Mount Lebanon directly to lovers of authentic Levantine heritage worldwide.',
     primaryBtnText: 'Explore Collection',
-    secondaryBtnText: 'Meet the Artisans',
     targetUrl: '/products',
     stats: [
       { label: 'Master Artisans', value: '120+' },
@@ -38,124 +75,481 @@ export const HeroBanner: React.FC = () => {
     ]
   };
 
+  // Extract custom slides from CMS
   const cmsMediaItems = (siteContent?.hero as any)?.bgMediaItems?.filter((item: any) => item.isPublished !== false) || [];
-  
-  const heroMedia = cmsMediaItems.length > 0 ? cmsMediaItems : [
-    { url: HERO_IMAGES[0], type: 'image' },
-    { url: HERO_IMAGES[1], type: 'image' },
-    { url: HERO_IMAGES[2], type: 'image' }
+  const cmsOfferSlides = (siteContent?.offers as any)?.slides?.filter((item: any) => item.isPublished !== false) || [];
+
+  // Build unified consolidated slides list
+  const defaultConsolidatedSlides: ConsolidatedSlide[] = [
+    {
+      id: 'slide_hero_1',
+      type: 'image',
+      url: raoucheSunsetImg,
+      badgeEn: (heroData as any).badgeText || 'Handcrafted in Lebanon',
+      badgeAr: (heroData as any).badgeTextArabic || 'صُنع بحب في لبنان',
+      titleEn: (heroData as any).title || 'Authentic Lebanese Treasures, Handcrafted by Master Artisans',
+      titleAr: (heroData as any).titleArabic || 'كنوز لبنانية أصيلة، صُنعت بأيدي ماهرين',
+      subtitleEn: (heroData as any).subtitle || 'Connecting traditional craft workshops across Beirut, Tripoli, Sidon, and Mount Lebanon directly to lovers of Levantine heritage.',
+      subtitleAr: (heroData as any).subtitleArabic || 'نربط ورش الحرف التقليدية في بيروت وطرابلس وصيدا وجبل لبنان بمحبي التراث المشرقي الأصيل.',
+      buttonTextEn: (heroData as any).primaryBtnText || 'Explore Collection',
+      buttonTextAr: (heroData as any).primaryBtnTextArabic || 'تصفح التشكيلة',
+      targetCategory: 'all'
+    },
+    {
+      id: 'slide_school_promo',
+      type: 'image',
+      url: schoolBannerImg,
+      badgeEn: 'School Essentials',
+      badgeAr: 'مستلزمات المدرسة',
+      titleEn: 'YOUR SCHOOL ESSENTIALS ALL IN ONE PLACE',
+      titleAr: 'مستلزمات المدرسة كلها في مكان واحد',
+      subtitleEn: 'OFFER IS VALID UNTIL 9 SEPTEMBER 2026 • ON SELECTED PRODUCTS',
+      subtitleAr: 'العرض سارٍ حتى ٩ سبتمبر ٢٠٢٦ • على منتجات مختارة',
+      discountBadgeEn: '50% OFF',
+      discountBadgeAr: 'خصم ٥٠٪',
+      promoCode: 'SCHOOL50',
+      buttonTextEn: 'Shop Essentials',
+      buttonTextAr: 'تسوق المستلزمات',
+      targetCategory: 'crafts',
+      isCustomSchoolLayout: true
+    },
+    {
+      id: 'slide_hero_2',
+      type: 'image',
+      url: lebaneseMountainTownImg,
+      badgeEn: 'Artisanal Mouneh & Pantry',
+      badgeAr: 'المونة اللبنانية الأصيلة',
+      titleEn: 'Fresh Harvest Mouneh & Levantine Pantry Delicacies',
+      titleAr: 'خيرات الطبيعة اللبنانية والمونة العريقة',
+      subtitleEn: 'Sustainably harvested za’atar, cold-pressed extra virgin olive oil, wild orange blossom water, and sun-dried figs from mountain orchards.',
+      subtitleAr: 'زعتر جبلي، زيت زيتون معصور على البارد، ماء زهر بلدي، وتين مجفف تحت أشعة الشمس.',
+      buttonTextEn: 'Shop Pantry',
+      buttonTextAr: 'تسوق المونة',
+      targetCategory: 'pantry'
+    },
+    {
+      id: 'slide_crayola_promo',
+      type: 'image',
+      url: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=1920&q=80',
+      badgeEn: 'Crayola Creative',
+      badgeAr: 'إبداع كرايولا',
+      titleEn: 'EXPAND YOUR CRAYOLA COLLECTION',
+      titleAr: 'وسّع مجموعتك من ألوان كرايولا المميزة',
+      subtitleEn: 'Special creative promotion on art supplies, markers, and sketchbooks.',
+      subtitleAr: 'عرض خاص على أدوات الرسم والتلوين والأوراق الإبداعية.',
+      discountBadgeEn: 'BUY 2 GET 3RD FREE',
+      discountBadgeAr: 'اشترِ ٢ واحصل على ٣ مجاناً',
+      promoCode: 'CRAYOLA3',
+      buttonTextEn: 'Shop Crayola',
+      buttonTextAr: 'تسوق كرايولا',
+      targetCategory: 'crafts'
+    },
+    {
+      id: 'slide_global_promo',
+      type: 'image',
+      url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=80',
+      badgeEn: 'Yalla-Global Collection',
+      badgeAr: 'مجموعة يلا غلوبال العالمية',
+      titleEn: 'PREMIUM INTERNATIONAL BRANDS & HANDPICKED LUXURY',
+      titleAr: 'ماركات عالمية متميزة وفخامة منتقاة بعناية',
+      subtitleEn: 'Swiss chocolates, Amalfi ceramics, and French lavender directly imported with international safety standards.',
+      subtitleAr: 'شوكولاتة سويسرية، سيراميك إيطالي، ولافندر فرنسي مستورد بمقاييس عالمية.',
+      discountBadgeEn: '20% OFF',
+      discountBadgeAr: 'خصم ٢٠٪',
+      promoCode: 'GLOBAL20',
+      buttonTextEn: 'Shop Global',
+      buttonTextAr: 'تسوق عالمياً',
+      targetCategory: 'yalla-global'
+    }
   ];
 
-  const currentMedia = heroMedia[currentImageIndex] || heroMedia[0];
-  const isVideo = currentMedia?.type === 'video';
+  // Map CMS custom offers and hero items into consolidated list if configured
+  const cmsConsolidatedSlides: ConsolidatedSlide[] = [];
+  
+  if (cmsOfferSlides.length > 0) {
+    cmsOfferSlides.forEach((slide: any, idx: number) => {
+      cmsConsolidatedSlides.push({
+        id: slide.id || `offer-${idx}`,
+        type: slide.bgVideoUrl ? 'video' : 'image',
+        url: slide.imageUrl || slide.bgVideoUrl || raoucheSunsetImg,
+        badgeEn: slide.badge || 'SPECIAL OFFER',
+        badgeAr: slide.badgeArabic || slide.badge || 'عرض خاص',
+        titleEn: slide.title,
+        titleAr: slide.titleArabic || slide.title,
+        subtitleEn: slide.subtitle,
+        subtitleAr: slide.subtitleArabic || slide.subtitle,
+        discountBadgeEn: slide.discountBadge || 'DISCOUNT',
+        discountBadgeAr: slide.discountBadgeArabic || slide.discountBadge || 'خصم',
+        promoCode: slide.discountBadge?.includes('CODE:') ? slide.discountBadge.split('CODE:')[1]?.trim() : 'YALLA2026',
+        buttonTextEn: slide.buttonText || 'Shop Offer',
+        buttonTextAr: slide.buttonTextArabic || slide.buttonText || 'تسوق العرض',
+        targetCategory: slide.targetUrl || 'all',
+        imageZoom: slide.imageZoom,
+        objectPosition: slide.objectPosition,
+        imageFit: slide.imageFit,
+        isCustomSchoolLayout: slide.isCustomSchoolLayout
+      });
+    });
+  }
 
-  const activeTitle = language === 'ar'
-    ? (currentMedia?.customTitleArabic || currentMedia?.customTitle || (heroData as any).titleArabic || t('heroTitle'))
-    : (currentMedia?.customTitle || (heroData as any).title || t('heroTitle'));
+  if (cmsMediaItems.length > 0) {
+    cmsMediaItems.forEach((item: any, idx: number) => {
+      cmsConsolidatedSlides.push({
+        id: item.id || `media-${idx}`,
+        type: item.type || 'image',
+        url: item.url,
+        badgeEn: item.badgeText || (heroData as any).badgeText,
+        badgeAr: item.badgeTextArabic || (heroData as any).badgeTextArabic,
+        titleEn: item.customTitle || item.title || (heroData as any).title,
+        titleAr: item.customTitleArabic || (heroData as any).titleArabic,
+        subtitleEn: item.customSubtitle || (heroData as any).subtitle,
+        subtitleAr: item.customSubtitleArabic || (heroData as any).subtitleArabic,
+        buttonTextEn: (heroData as any).primaryBtnText || 'Explore Collection',
+        buttonTextAr: (heroData as any).primaryBtnTextArabic || 'تصفح التشكيلة',
+        imageZoom: item.imageZoom,
+        objectPosition: item.objectPosition,
+        imageFit: item.imageFit,
+        targetCategory: 'all'
+      });
+    });
+  }
+  
+  // Map active product bundles into slide formats
+  const activeBundles = productBundles.filter((b: any) => b.isActive !== false);
+  const bundleSlides: ConsolidatedSlide[] = activeBundles.map((bundle: any) => {
+    const bundledProducts = products.filter((p: any) => bundle.productIds.includes(p.id));
+    const originalSum = bundledProducts.reduce((sum: number, p: any) => sum + p.priceUSD, 0);
+    const savedUSD = Math.max(0, originalSum - bundle.bundlePriceUSD);
+    const savedPercent = originalSum > 0 ? Math.round((savedUSD / originalSum) * 100) : 0;
+    
+    // Use first product's image or fallback
+    const bgUrl = bundledProducts[0]?.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=80';
 
-  const activeSubtitle = language === 'ar'
-    ? (currentMedia?.customSubtitleArabic || currentMedia?.customSubtitle || (heroData as any).subtitleArabic || (heroData as any).subtitle)
-    : (currentMedia?.customSubtitle || (heroData as any).subtitle);
+    // Build lists of products
+    const itemsEn = bundledProducts.map((p: any) => p.name).join(', ');
+    const itemsAr = bundledProducts.map((p: any) => p.nameAr || p.name).join('، ');
 
-  const handleHeroClick = () => {
-    setSelectedCategory('all');
+    const bundleDescEn = bundle.description || '';
+    const bundleDescAr = bundle.descriptionAr || bundle.description || '';
+
+    return {
+      id: `bundle-${bundle.id}`,
+      type: 'image',
+      url: bgUrl,
+      badgeEn: bundle.badgeText || 'SPECIAL BUNDLE DEAL',
+      badgeAr: bundle.badgeTextAr || bundle.badgeText || 'صفقة حزمة خاصة',
+      titleEn: bundle.name,
+      titleAr: bundle.nameAr || bundle.name,
+      subtitleEn: `${bundleDescEn}${bundleDescEn ? ' • ' : ''}Includes: ${itemsEn}`,
+      subtitleAr: `${bundleDescAr}${bundleDescAr ? ' • ' : ''}يشمل: ${itemsAr}`,
+      discountBadgeEn: savedUSD > 0 ? `SAVE $${savedUSD.toFixed(2)} (${savedPercent}% OFF)` : 'BUNDLE DEAL',
+      discountBadgeAr: savedUSD > 0 ? `وفر $${savedUSD.toFixed(2)} (خصم ${savedPercent}٪)` : 'صفقة حزمة',
+      buttonTextEn: 'Add Entire Combo to Cart',
+      buttonTextAr: 'إضافة الكومبو كاملاً للسلة',
+      imageFit: 'cover' as const,
+      bundleId: bundle.id
+    };
+  });
+
+  const baseSlides = cmsConsolidatedSlides.length > 0 ? cmsConsolidatedSlides : defaultConsolidatedSlides;
+  const slides: ConsolidatedSlide[] = [...baseSlides, ...bundleSlides];
+
+  const currentSlide = slides[currentSlideIndex] || slides[0];
+
+  // Auto-slide effect driven by CMS slideInterval
+  const slideIntervalSec = (heroData as any)?.slideInterval ?? 5;
+
+  const resetAutoplay = useCallback(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (slides.length <= 1 || slideIntervalSec === 0) return;
+    timerRef.current = setInterval(() => {
+      setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
+    }, slideIntervalSec * 1000);
+  }, [slides.length, slideIntervalSec]);
+
+  useEffect(() => {
+    resetAutoplay();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [resetAutoplay]);
+
+  const handleCopyCode = (e: React.MouseEvent, code: string) => {
+    e.stopPropagation();
+    navigator.clipboard?.writeText(code);
+    setCopiedCode(code);
+    showToast(
+      language === 'ar' ? `تم نسخ كود الخصم ${code} بنجاح!` : `Promo code ${code} copied to clipboard!`,
+      'success'
+    );
+    setTimeout(() => setCopiedCode(null), 2500);
+  };
+
+  const handleActionClick = (targetCat?: string) => {
+    if (currentSlide.bundleId) {
+      addBundleToCart(currentSlide.bundleId);
+      return;
+    }
+    const cat = targetCat || currentSlide.targetCategory || 'all';
+    setSelectedCategory(cat);
     setSearchQuery('');
     setActiveTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  useEffect(() => {
-    setCurrentImageIndex(0);
-    if (heroMedia.length <= 1) return;
-    const timer = setInterval(() => {
-      setCurrentImageIndex((prev) => (prev + 1) % heroMedia.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [heroMedia.length]);
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentSlideIndex((prev) => (prev - 1 + slides.length) % slides.length);
+    resetAutoplay();
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
+    resetAutoplay();
+  };
+
+  // Touch Swipe Gesture Support for Mobile
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    if (isLeftSwipe) {
+      setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
+      resetAutoplay();
+    } else if (isRightSwipe) {
+      setCurrentSlideIndex((prev) => (prev - 1 + slides.length) % slides.length);
+      resetAutoplay();
+    }
+  };
+
+  const activeBadge = language === 'ar' ? (currentSlide.badgeAr || currentSlide.badgeEn) : currentSlide.badgeEn;
+  const activeTitle = language === 'ar' ? (currentSlide.titleAr || currentSlide.titleEn) : currentSlide.titleEn;
+  const activeSubtitle = language === 'ar' ? (currentSlide.subtitleAr || currentSlide.subtitleEn) : currentSlide.subtitleEn;
+  const activeDiscount = language === 'ar' ? (currentSlide.discountBadgeAr || currentSlide.discountBadgeEn) : currentSlide.discountBadgeEn;
+  const activeBtnText = language === 'ar' ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn) : currentSlide.buttonTextEn;
 
   return (
-    <div className="relative overflow-hidden bg-slate-900 py-16 lg:py-24 border-b border-slate-200">
-      {/* Background Video or Slideshow Images */}
-      {heroMedia.map((media, idx) => (
-        media.type === 'video' ? (
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="relative overflow-hidden bg-slate-950 h-[520px] sm:h-[560px] lg:h-[600px] border-b border-slate-200 group/hero flex flex-col justify-between py-6 sm:py-8"
+    >
+      
+      {/* Background Images / Videos with Smooth Fades */}
+      {slides.map((slide, idx) => {
+        const fitMode = slide.imageFit || 'cover';
+        const isActive = idx === currentSlideIndex;
+
+        return slide.type === 'video' ? (
           <video
-            key={`media-${idx}`}
-            src={media.url}
+            key={slide.id}
+            src={slide.url}
             autoPlay
             loop
             muted
             playsInline
-            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-1000 ease-in-out ${
-              idx === currentImageIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-100'
-            }`}
-          />
-        ) : (
-          <img
-            key={`media-${idx}`}
-            src={media.url}
-            alt={`Hero media ${idx + 1}`}
-            referrerPolicy="no-referrer"
-            className={`absolute inset-0 w-full h-full object-cover z-0 transition-opacity duration-1000 ease-in-out ${
-              idx === currentImageIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-100'
+            className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
+              fitMode === 'contain' ? 'object-contain' : 'object-cover'
+            } ${
+              isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
             style={{
-              transition: 'opacity 1s ease-in-out, transform 8s ease-out'
+              objectPosition: slide.objectPosition || 'center',
+              transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
+              transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
             }}
           />
-        )
-      ))}
+        ) : (
+          <React.Fragment key={slide.id}>
+            {/* If contain mode is active, render a soft blurred backdrop copy so sides aren't pitch black */}
+            {fitMode === 'contain' && isActive && (
+              <img
+                src={slide.url}
+                alt=""
+                referrerPolicy="no-referrer"
+                className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-40 pointer-events-none transition-opacity duration-1000"
+              />
+            )}
+            <img
+              src={slide.url}
+              alt={slide.titleEn}
+              referrerPolicy="no-referrer"
+              className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
+                fitMode === 'contain' ? 'object-contain' : 'object-cover'
+              } ${
+                isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+              }`}
+              style={{
+                objectPosition: slide.objectPosition || 'center',
+                transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
+                transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
+              }}
+            />
+          </React.Fragment>
+        );
+      })}
 
-      {/* Dark subtle vignette scrim at bottom only for dot contrast, no heavy white blur or blue overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 pointer-events-none" />
+      {/* Optional Dark Overlay Tint controlled by Admin (0% = 100% true natural image colors) */}
+      {((heroData as any)?.overlayOpacity ?? 0) > 0 && (
+        <div 
+          className="absolute inset-0 bg-black pointer-events-none z-10 transition-opacity duration-300" 
+          style={{ opacity: ((heroData as any)?.overlayOpacity ?? 0) / 100 }}
+        />
+      )}
 
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 w-full flex-1 flex flex-col justify-between">
         
-        {/* Content Card */}
-        <div className="max-w-2xl mx-auto text-center space-y-5 bg-transparent backdrop-blur-none p-6 sm:p-8">
+        {/* Dynamic-Height Content Container to Prevent Layout Overlaps */}
+        <div className="max-w-3xl mx-auto text-center space-y-3 sm:space-y-4 p-1 sm:p-2 flex-1 flex flex-col justify-center items-center">
           
-          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-md transition-all duration-500">
-            {activeTitle}
-          </h1>
+          {/* Top Eyebrow Badge & Promo Discount Pill */}
+          <div className="flex flex-wrap items-center justify-center gap-2 min-h-[32px] h-auto py-1 flex-shrink-0">
+            {activeBadge && (
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-widest bg-slate-900/80 text-amber-300 border border-amber-400/50 backdrop-blur-md shadow-xl">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span className="truncate max-w-[280px] sm:max-w-none">{activeBadge}</span>
+              </span>
+            )}
 
-          {activeSubtitle && (
-            <p className="text-xs sm:text-sm text-slate-100/90 max-w-xl mx-auto leading-relaxed drop-shadow-xs transition-all duration-500">
-              {activeSubtitle}
-            </p>
-          )}
+            {activeDiscount && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-rose-600 text-white shadow-xl animate-pulse border border-rose-400">
+                <Award className="w-3.5 h-3.5" />
+                <span className="truncate max-w-[200px] sm:max-w-none">{activeDiscount}</span>
+              </span>
+            )}
+          </div>
 
-          {/* Search Bar */}
-          <div className="relative max-w-xl mx-auto pt-1">
-            <div className="relative flex items-center bg-white rounded-full border border-slate-200/80 focus-within:border-amber-500 shadow-2xl overflow-hidden transition-all p-1.5">
+          {/* Headline Title - Auto-adjusting Height with min-h */}
+          <div className="min-h-[64px] sm:min-h-[84px] lg:min-h-[96px] h-auto py-1.5 flex items-center justify-center w-full flex-shrink-0">
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)] transition-all duration-500 line-clamp-2">
+              {activeTitle}
+            </h1>
+          </div>
+
+          {/* Subtitle / Description - Auto-adjusting Height with min-h */}
+          <div className="min-h-[36px] sm:min-h-[48px] h-auto py-1 flex items-center justify-center w-full flex-shrink-0">
+            {activeSubtitle ? (
+              <p className="text-xs sm:text-sm text-slate-100 max-w-2xl mx-auto leading-relaxed drop-shadow-[0_1px_8px_rgba(0,0,0,0.95)] font-medium line-clamp-2">
+                {activeSubtitle}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Optional Promo Code Box with One-Click Copy - Auto-adjusting Height */}
+          <div className="min-h-[42px] h-auto py-1 flex items-center justify-center flex-shrink-0">
+            {currentSlide.promoCode ? (
+              <div className="inline-flex items-center bg-slate-900/90 border border-amber-400/40 rounded-2xl p-1 shadow-2xl backdrop-blur-md">
+                <span className="px-3 py-1 text-[10px] sm:text-xs font-black uppercase text-amber-400 tracking-wider">
+                  {language === 'ar' ? 'كود الخصم:' : 'PROMO CODE:'}
+                </span>
+                <span className="px-3 font-mono font-bold text-xs sm:text-sm text-white tracking-widest select-all">
+                  {currentSlide.promoCode}
+                </span>
+                <button
+                  onClick={(e) => handleCopyCode(e, currentSlide.promoCode!)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-colors cursor-pointer shadow"
+                >
+                  {copiedCode === currentSlide.promoCode ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>{language === 'ar' ? 'تم النسخ!' : 'Copied!'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{language === 'ar' ? 'نسخ' : 'Copy'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : null}
+          </div>
+
+        </div>
+
+        {/* Bottom Hero Controls: Search Bar & Pagination Dots */}
+        <div className="max-w-2xl mx-auto w-full space-y-3 pt-2 pb-1 relative z-30">
+          
+          {currentSlide.bundleId ? (
+            <div className="flex justify-center pt-1">
+              <button
+                onClick={() => handleActionClick()}
+                className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm uppercase tracking-widest rounded-full shadow-2xl transition-all flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer border border-amber-400"
+              >
+                <ShoppingBag className="w-5 h-5 stroke-[2.5]" />
+                <span>{activeBtnText}</span>
+              </button>
+            </div>
+          ) : (
+            /* Search Bar Embedded inside Hero */
+            <div className="relative flex items-center bg-white rounded-full border border-slate-200/90 focus-within:border-amber-500 shadow-2xl overflow-hidden transition-all p-1.5">
               <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} w-5 h-5 text-slate-400 pointer-events-none z-10`} />
               <input
                 type="text"
                 placeholder={language === 'ar' ? (siteContent?.navbar?.searchPlaceholderArabic || t('searchPlaceholder')) : (siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') setActiveTab('products');
+                  if (e.key === 'Enter') handleActionClick();
                 }}
-                className={`w-full ${language === 'ar' ? 'pr-11 pl-44 sm:pl-48' : 'pl-11 pr-44 sm:pr-48'} py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none bg-transparent font-medium truncate`}
+                className={`w-full ${language === 'ar' ? 'pr-11 pl-44 sm:pl-56' : 'pl-11 pr-44 sm:pr-56'} py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none bg-transparent font-medium truncate`}
               />
               <button 
-                onClick={handleHeroClick}
-                className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center justify-center px-4 sm:px-5 bg-amber-600 hover:bg-amber-500 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
+                onClick={() => handleActionClick()}
+                className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center gap-1.5 px-3 sm:px-6 max-w-[150px] sm:max-w-none bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
               >
-                {language === 'ar' ? ((heroData as any).primaryBtnTextArabic || t('products')) : ((heroData as any).primaryBtnText || t('products'))}
+                <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{activeBtnText || (language === 'ar' ? 'تسوق الان' : 'Shop Now')}</span>
               </button>
             </div>
-          </div>
+          )}
+
+          {/* Carousel Indicators & Controls directly below Search Bar */}
+          {slides.length > 1 && (
+            <div className="flex justify-center items-center gap-2 pt-1">
+              {slides.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCurrentSlideIndex(i);
+                    resetAutoplay();
+                  }}
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer shadow-md ${
+                    i === currentSlideIndex ? 'w-8 bg-amber-400' : 'w-2.5 bg-white/60 hover:bg-white'
+                  }`}
+                  aria-label={`Go to slide ${i + 1}`}
+                />
+              ))}
+            </div>
+          )}
 
         </div>
 
-        {/* Hero Statistics & Trust Counters */}
+        {/* Hero Statistics & Artisan Trust Counters */}
         {heroData?.stats && heroData.stats.length > 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-8 max-w-4xl mx-auto relative z-20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 mt-4 max-w-4xl mx-auto relative z-20">
             {heroData.stats.filter((s: any) => s.isPublished !== false).map((stat: any, idx: number) => (
-              <div key={idx} className="bg-black/50 backdrop-blur-md border border-white/15 rounded-2xl p-4 text-center shadow-xl">
-                <div className="text-lg sm:text-2xl font-extrabold text-amber-400 font-mono mb-0.5">
+              <div key={idx} className="bg-black/40 backdrop-blur-md border border-white/10 rounded-xl p-2.5 text-center shadow-lg">
+                <div className="text-base sm:text-xl font-extrabold text-amber-400 font-mono">
                   {language === 'ar' ? (stat.valueArabic || stat.value) : stat.value}
                 </div>
-                <div className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-slate-200">
+                <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-200 truncate">
                   {language === 'ar' ? (stat.labelArabic || stat.label) : stat.label}
                 </div>
               </div>
@@ -163,24 +557,32 @@ export const HeroBanner: React.FC = () => {
           </div>
         )}
 
-        {/* Carousel indicators — only meaningful with more than one media item */}
-        {heroMedia.length > 1 && (
-          <div className="flex justify-center items-center gap-2 mt-6 relative z-20">
-            {heroMedia.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => setCurrentImageIndex(i)}
-                className={`h-2 rounded-full transition-all duration-300 cursor-pointer shadow-md ${
-                  i === currentImageIndex ? 'w-8 bg-amber-400' : 'w-2.5 bg-white/70 hover:bg-white'
-                }`}
-                aria-label={`Go to slide ${i + 1}`}
-              />
-            ))}
-          </div>
-        )}
-
       </div>
+
+      {/* Floating Prev Arrow Button */}
+      {slides.length > 1 && (
+        <button
+          onClick={handlePrev}
+          aria-label={language === 'ar' ? 'الشريحة السابقة' : 'Previous Slide'}
+          className="absolute left-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-slate-900/80 hover:bg-slate-900 text-amber-400 shadow-2xl border border-white/20 hidden md:flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md opacity-0 group-hover/hero:opacity-100"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+      )}
+
+      {/* Floating Next Arrow Button */}
+      {slides.length > 1 && (
+        <button
+          onClick={handleNext}
+          aria-label={language === 'ar' ? 'الشريحة التالية' : 'Next Slide'}
+          className="absolute right-6 top-1/2 -translate-y-1/2 z-30 w-12 h-12 rounded-full bg-slate-900/80 hover:bg-slate-900 text-amber-400 shadow-2xl border border-white/20 hidden md:flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer backdrop-blur-md opacity-0 group-hover/hero:opacity-100"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+      )}
+
     </div>
   );
 };
+
 

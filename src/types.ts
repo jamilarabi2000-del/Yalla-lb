@@ -173,6 +173,9 @@ export interface CMSOfferSlide {
   isCustomSchoolLayout?: boolean;
   isCustomCrayolaLayout?: boolean;
   isCustomGlobalLayout?: boolean;
+  imageZoom?: number;
+  objectPosition?: string;
+  imageFit?: 'cover' | 'contain';
   isPublished?: boolean;
 }
 
@@ -210,6 +213,9 @@ export interface CMSHeroMediaItem {
   customTitleArabic?: string;
   customSubtitle?: string;
   customSubtitleArabic?: string;
+  imageZoom?: number;
+  objectPosition?: string;
+  imageFit?: 'cover' | 'contain';
   isPublished?: boolean;
 }
 
@@ -316,10 +322,13 @@ export interface SiteContent {
     arabicDescription?: string;
     keywords?: string[];
     arabicKeywords?: string[];
+    faviconUrl?: string;
   };
   visibility: SectionVisibilityConfig;
   customBlocks: CMSCustomBlock[];
   navbar: {
+    logoUrl?: string;
+    faviconUrl?: string;
     announcementTicker: string;
     announcementTickerArabic?: string;
     brandName: string;
@@ -348,6 +357,8 @@ export interface SiteContent {
     bgVideoUrl?: string;
     bgVideoUrls?: string[];
     bgMediaItems?: CMSHeroMediaItem[];
+    slideInterval?: number;
+    overlayOpacity?: number;
     stats: CMSHeroStat[];
   };
   offers: {
@@ -542,6 +553,7 @@ export interface Review {
 export interface DiscountRule {
   id: string;
   name: string;
+  nameAr?: string;
   type: 'percentage' | 'fixed';
   value: number; // e.g. 15 for 15% or 5 for $5
   target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
@@ -563,5 +575,24 @@ export interface SearchLog {
   userName?: string | null;
   origin?: 'navbar' | 'products_page' | 'mobile_menu' | 'direct';
 }
+
+export interface ProductBundle {
+  id: string;
+  name: string;
+  nameAr?: string;
+  description?: string;
+  descriptionAr?: string;
+  badgeText?: string;
+  badgeTextAr?: string;
+  imageUrl?: string;
+  productIds: string[];
+  bundlePriceUSD: number;
+  isActive: boolean;
+  startDate?: string;
+  endDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 
 

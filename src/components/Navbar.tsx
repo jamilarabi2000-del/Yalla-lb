@@ -103,8 +103,8 @@ export const Navbar: React.FC = () => {
           >
             <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 overflow-hidden border border-slate-200 shadow-sm group-hover:border-[#b89753] transition-all flex-shrink-0">
               <img 
-                src={systemLogo} 
-                alt="Logo" 
+                src={siteContent?.navbar?.logoUrl || systemLogo} 
+                alt={siteContent?.navbar?.brandName || "Logo"} 
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 referrerPolicy="no-referrer"
               />

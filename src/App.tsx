@@ -10,16 +10,33 @@ import { ProductDetailView } from './components/ProductDetailView';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
+import { AdminQuickEditor } from './components/AdminQuickEditor';
+import { CustomBlockModal } from './components/CustomBlockModal';
 import { CheckCircle2, AlertCircle, Info, Sparkles, Loader2 } from 'lucide-react';
 
 const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({ default: m.CheckoutView })));
 const AdminView = lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
 
 const MainAppContent: React.FC = () => {
-  const { activeTab, setActiveTab, selectedProductDetail, openProductDetail, setSelectedProductDetail, products, toast, siteContent, selectedCategory, setSelectedCategory } = useShop();
+  const { 
+    activeTab, 
+    setActiveTab, 
+    selectedProductDetail, 
+    openProductDetail, 
+    setSelectedProductDetail, 
+    products, 
+    toast, 
+    siteContent, 
+    selectedCategory, 
+    setSelectedCategory,
+    isCustomBlockModalOpen,
+    setIsCustomBlockModalOpen,
+    customBlockToEdit,
+    setCustomBlockToEdit
+  } = useShop();
   const isPopStateRef = useRef(false);
 
-  // Dynamically update SEO metadata
+  // Dynamically update SEO metadata & Favicon Icon
   useEffect(() => {
     if (siteContent?.seo) {
       if (siteContent.seo.title) {
@@ -35,7 +52,19 @@ const MainAppContent: React.FC = () => {
         metaDescription.setAttribute('content', siteContent.seo.description);
       }
     }
-  }, [siteContent?.seo]);
+
+    // Dynamic Favicon Icon handler
+    const faviconUrl = siteContent?.navbar?.faviconUrl || siteContent?.seo?.faviconUrl;
+    if (faviconUrl) {
+      let iconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]') || document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
+      if (!iconLink) {
+        iconLink = document.createElement('link');
+        iconLink.rel = 'icon';
+        document.head.appendChild(iconLink);
+      }
+      iconLink.href = faviconUrl;
+    }
+  }, [siteContent?.seo, siteContent?.navbar?.faviconUrl]);
 
   // Dynamically apply Theme CSS variables and classes
   useEffect(() => {
@@ -224,6 +253,15 @@ const MainAppContent: React.FC = () => {
       {/* Modals & Overlays */}
       <ProductModal />
       <CartDrawer />
+      <AdminQuickEditor onOpenCustomBlockModal={(block) => {
+        setCustomBlockToEdit(block || null);
+        setIsCustomBlockModalOpen(true);
+      }} />
+      <CustomBlockModal
+        isOpen={isCustomBlockModalOpen}
+        onClose={() => setIsCustomBlockModalOpen(false)}
+        blockToEdit={customBlockToEdit}
+      />
 
       {/* Global Interactive Toast Notification */}
       {toast && (

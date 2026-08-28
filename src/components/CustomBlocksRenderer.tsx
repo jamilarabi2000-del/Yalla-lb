@@ -14,7 +14,7 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
   position,
   onEditBlock
 }) => {
-  const { siteContent, setActiveTab, setSelectedCategory, isAdminUnlocked, isVisualEditMode, deleteCustomBlock, toggleSectionVisibility } = useShop();
+  const { siteContent, setActiveTab, setSelectedCategory, isAdminUnlocked, isVisualEditMode, deleteCustomBlock, toggleSectionVisibility, setCustomBlockToEdit, setIsCustomBlockModalOpen } = useShop();
 
   const blocks = (siteContent.customBlocks || [])
     .filter(block => {
@@ -100,9 +100,16 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
                     Hidden (Draft)
                   </span>
                 )}
-                {onEditBlock && (
+                {(onEditBlock || (setCustomBlockToEdit && setIsCustomBlockModalOpen)) && (
                   <button
-                    onClick={() => onEditBlock(block)}
+                    onClick={() => {
+                      if (onEditBlock) {
+                        onEditBlock(block);
+                      } else {
+                        setCustomBlockToEdit(block);
+                        setIsCustomBlockModalOpen(true);
+                      }
+                    }}
                     className="text-amber-400 hover:text-amber-300 p-1 hover:bg-white/10 rounded cursor-pointer"
                     title="Edit Div / Block Content"
                   >

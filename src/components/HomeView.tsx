@@ -1,6 +1,5 @@
 import React from 'react';
 import { HeroBanner } from './HeroBanner';
-import { OffersCarousel } from './OffersCarousel';
 import { ProductCard } from './ProductCard';
 import { ProductCarousel } from './ProductCarousel';
 import { NewsSection } from './NewsSection';
@@ -16,11 +15,25 @@ import {
   Star,
   Quote,
   ArrowRight,
-  Mail
+  Mail,
+  ShoppingBag
 } from 'lucide-react';
 
 export const HomeView: React.FC = () => {
-  const { products, setActiveTab, setSelectedCategory, t, language, siteContent, isVisualEditMode, showToast, categories = [] } = useShop();
+  const { 
+    products, 
+    setActiveTab, 
+    setSelectedCategory, 
+    t, 
+    language, 
+    siteContent, 
+    isVisualEditMode, 
+    showToast, 
+    categories = [],
+    productBundles = [],
+    addBundleToCart,
+    formatPrice
+  } = useShop();
 
   const [email, setEmail] = React.useState('');
   const [subscribed, setSubscribed] = React.useState(false);
@@ -84,7 +97,7 @@ export const HomeView: React.FC = () => {
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="top" />
 
-      {/* Hero Banner with Search */}
+      {/* Consolidated Hero Banner with Search & Promotional Banners */}
       {(visibility.homeHero || isVisualEditMode) && (
         <div className={`relative ${!visibility.homeHero && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80 p-2' : ''}`}>
           {!visibility.homeHero && isVisualEditMode && (
@@ -94,19 +107,6 @@ export const HomeView: React.FC = () => {
             </div>
           )}
           <HeroBanner />
-        </div>
-      )}
-
-      {/* Promotional Offers & Campaign Banners Carousel */}
-      {(visibility.homeOffers || isVisualEditMode) && (
-        <div className={`relative ${!visibility.homeOffers && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          {!visibility.homeOffers && isVisualEditMode && (
-            <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>Section Hidden (Draft Preview)</span>
-            </div>
-          )}
-          <OffersCarousel />
         </div>
       )}
 
@@ -217,6 +217,8 @@ export const HomeView: React.FC = () => {
         </section>
       )}
 
+
+
       {/* Featured Products */}
       {(visibility.homeFeatured || isVisualEditMode) && (
         <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
@@ -323,6 +325,123 @@ export const HomeView: React.FC = () => {
             </div>
           </div>
           <ProductCarousel products={todaysDeals} idPrefix="deals" />
+        </section>
+      )}
+
+      {/* Exclusive Curated Bundles */}
+      {(productBundles || []).filter(b => b.isActive !== false).length > 0 && (
+        <section className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                {language === 'ar' ? 'باقات توفير حصرية' : 'Exclusive Curated Packs'}
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                {language === 'ar' ? (
+                  <>مجموعات <span className="gold-gradient font-serif italic">الهدايا والكومبو</span> المميزة</>
+                ) : (
+                  <>Lebanese <span className="gold-gradient font-serif italic">Combo & Gift Sets</span></>
+                )}
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                {language === 'ar' ? 'وفر أكثر مع هذه المجموعات المختارة بعناية من منتجاتنا التقليدية' : 'Save more with our handpicked artisanal combinations and custom-packaged Lebanese treasures.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+            {productBundles
+              .filter(b => b.isActive !== false)
+              .map((bundle) => {
+                const bundleProds = (products || []).filter(p => bundle.productIds.includes(p.id) && p.isPublished !== false);
+                const originalTotal = bundleProds.reduce((sum, p) => sum + (p.priceUSD || 0), 0);
+                const discountAmount = originalTotal - bundle.bundlePriceUSD;
+                
+                return (
+                  <div
+                    key={bundle.id}
+                    className="flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden text-start p-5 sm:p-6"
+                  >
+                    {/* Badge & Title */}
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-[#b89753]/20 text-[#8c6d2d] rounded-md border border-[#b89753]/30">
+                        {language === 'ar' ? (bundle.badgeTextAr || 'مجموعة توفير') : (bundle.badgeText || 'SPECIAL COMBO')}
+                      </span>
+                      {discountAmount > 0 && (
+                        <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded-md shadow-sm">
+                          {language === 'ar' ? `وفر ${formatPrice(discountAmount)}` : `Save ${formatPrice(discountAmount)}`}
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="text-lg font-bold text-slate-900 mb-1 leading-snug">
+                      {language === 'ar' ? (bundle.nameAr || bundle.name) : bundle.name}
+                    </h3>
+
+                    {bundle.description && (
+                      <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">
+                        {language === 'ar' ? (bundle.descriptionAr || bundle.description) : bundle.description}
+                      </p>
+                    )}
+
+                    {/* Bundle items list */}
+                    <div className="space-y-2.5 mb-6 border-y border-slate-100 py-4 flex-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        {language === 'ar' ? 'المنتجات المشمولة:' : 'Includes:'}
+                      </p>
+                      {bundleProds.map(prod => (
+                        <div key={prod.id} className="flex items-center gap-3">
+                          <img
+                            src={prod.image}
+                            alt={prod.name}
+                            className="w-8 h-8 rounded-lg object-cover border border-slate-100 animate-fadeIn"
+                            referrerPolicy="no-referrer"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-700 truncate">
+                              {language === 'ar' ? (prod.arabicName || prod.name) : prod.name}
+                            </p>
+                          </div>
+                          <span className="text-xs text-slate-500 font-medium">
+                            {formatPrice(prod.priceUSD)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Price & Add Button */}
+                    <div className="flex items-center justify-between gap-4 mt-auto">
+                      <div className="flex flex-col">
+                        {originalTotal > bundle.bundlePriceUSD && (
+                          <span className="text-xs text-slate-400 line-through">
+                            {formatPrice(originalTotal)}
+                          </span>
+                        )}
+                        <span className="text-xl font-bold text-slate-900 leading-none">
+                          {formatPrice(bundle.bundlePriceUSD)}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          addBundleToCart(bundle.id);
+                          showToast(
+                            language === 'ar' 
+                              ? 'تمت إضافة المجموعة الحصرية بنجاح إلى السلة!' 
+                              : 'Exclusive bundle added successfully to your cart!', 
+                            'success'
+                          );
+                        }}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md transition-colors cursor-pointer"
+                      >
+                        <ShoppingBag className="w-4 h-4" />
+                        <span>{language === 'ar' ? 'أضف المجموعة' : 'Add Pack'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </section>
       )}
 
