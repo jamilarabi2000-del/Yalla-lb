@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../../context/ShopContext';
 import { Review, Product } from '../../types';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, limit, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { 
   Star, 
@@ -32,7 +32,7 @@ export const ReviewsManager: React.FC<ReviewsManagerProps> = ({ products }) => {
 
   useEffect(() => {
     setIsLoading(true);
-    const q = collection(db, 'reviews');
+    const q = query(collection(db, 'reviews'), limit(500));
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {

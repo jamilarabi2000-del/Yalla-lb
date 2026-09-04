@@ -12,7 +12,8 @@ import {
   X, 
   MapPin,
   Clock,
-  ChevronDown
+  ChevronDown,
+  Store
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -218,6 +219,19 @@ export const Navbar: React.FC = () => {
               {t('checkout')}
             </button>
 
+            <button
+              id="nav-seller-btn"
+              onClick={() => setActiveTab('seller')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all cursor-pointer ${
+                activeTab === 'seller' 
+                  ? 'text-amber-900 bg-amber-50 border border-amber-300 font-bold' 
+                  : 'text-slate-600 hover:text-amber-800 hover:bg-amber-50/50'
+              }`}
+            >
+              <Store className="w-3.5 h-3.5 text-amber-600" />
+              <span>{language === 'ar' ? 'بوابة التجار' : 'Artisan Portal'}</span>
+            </button>
+
             {showAdminTab && (
               <button
                 id="nav-admin-btn"
@@ -417,6 +431,17 @@ export const Navbar: React.FC = () => {
             >
               <ShoppingBag className="w-4 h-4 text-[#b89753]" />
               <span>{t('checkoutAndDelivery')}</span>
+            </button>
+
+            <button
+              id="nav-mobile-seller-btn"
+              onClick={() => { setActiveTab('seller'); setMobileMenuOpen(false); }}
+              className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-between ${
+                activeTab === 'seller' ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'text-amber-800 hover:bg-slate-50'
+              }`}
+            >
+              <span>{language === 'ar' ? 'بوابة الحرفيين والتجار' : 'Artisan & Merchant Portal'}</span>
+              <Store className="w-4 h-4 text-amber-600" />
             </button>
 
             {showAdminTab && (

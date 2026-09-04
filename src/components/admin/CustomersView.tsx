@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { sanitizeRowForCsv } from '../../utils/csvSafe';
 import { useShop } from '../../context/ShopContext';
 import { 
   Users, 
@@ -26,13 +27,18 @@ interface CustomersViewProps {
 }
 
 export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUsers }) => {
-  const { orders, formatPrice, convertUSDToLBP, showToast } = useShop();
+  const { orders, formatPrice, convertUSDToLBP, showToast, isAdminUser, isAdminUnlocked } = useShop();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
   const [localDbUsers, setLocalDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
   const [isLoading, setIsLoading] = useState(!propDbUsers);
 
   useEffect(() => {
+    if (!isAdminUser && !isAdminUnlocked) {
+      setIsLoading(false);
+      return;
+    }
+
     if (propDbUsers !== undefined) {
       setLocalDbUsers(propDbUsers);
       setIsLoading(false);
@@ -84,7 +90,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUse
     }
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const message = encodeURIComponent(`Marhaba ${name}! This is Yalla.lb Merchant Support regarding your Lebanese artisanal orders. How can we assist you today?`);
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank', 'noopener,noreferrer');
     showToast(`Opening WhatsApp chat for ${name}`, 'info');
   };
 
@@ -103,7 +109,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUse
         last_order_date: c.lastOrderDate || 'No orders yet'
       }));
 
-      const csv = Papa.unparse(dataToExport);
+      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -112,6 +118,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUse
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Customers report downloaded successfully', 'success');
     });
   };

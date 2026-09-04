@@ -15,16 +15,22 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { CMSSectionReorder } from './CMSSectionReorder';
+
 interface CMSVisibilityTabProps {
   visibility: SectionVisibilityConfig;
   onChange: (key: keyof SectionVisibilityConfig, value: boolean) => void;
   onSetAll: (value: boolean) => void;
+  sectionOrder?: string[];
+  onOrderChange?: (newOrder: string[]) => void;
 }
 
 export const CMSVisibilityTab: React.FC<CMSVisibilityTabProps> = ({
   visibility = {} as SectionVisibilityConfig,
   onChange,
   onSetAll,
+  sectionOrder,
+  onOrderChange,
 }) => {
   const sections = [
     {
@@ -162,6 +168,16 @@ export const CMSVisibilityTab: React.FC<CMSVisibilityTabProps> = ({
           </button>
         </div>
       </div>
+      
+      {/* Homepage Section Arrangement & Sequence */}
+      {onOrderChange && (
+        <CMSSectionReorder
+          order={sectionOrder}
+          visibility={visibility}
+          onOrderChange={onOrderChange}
+          onVisibilityToggle={(key, val) => onChange(key as keyof SectionVisibilityConfig, val)}
+        />
+      )}
 
       {/* Sections Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

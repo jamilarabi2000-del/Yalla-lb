@@ -34,6 +34,7 @@ export const CustomBlockModal: React.FC<CustomBlockModalProps> = ({
   const [content, setContent] = useState('');
   const [badge, setBadge] = useState('');
   const [buttonText, setButtonText] = useState('');
+  const [buttonTextArabic, setButtonTextArabic] = useState('');
   const [buttonUrl, setButtonUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [bgStyle, setBgStyle] = useState<'dark' | 'light' | 'gold_gradient' | 'emerald_gradient' | 'custom_image' | 'glass'>('gold_gradient');
@@ -56,6 +57,7 @@ export const CustomBlockModal: React.FC<CustomBlockModalProps> = ({
       setContent(blockToEdit.content || '');
       setBadge(blockToEdit.badge || '');
       setButtonText(blockToEdit.buttonText || '');
+      setButtonTextArabic(blockToEdit.buttonTextArabic || '');
       setButtonUrl(blockToEdit.buttonUrl || '');
       setImageUrl(blockToEdit.imageUrl || '');
       setBgStyle(blockToEdit.bgStyle || 'gold_gradient');
@@ -99,6 +101,7 @@ export const CustomBlockModal: React.FC<CustomBlockModalProps> = ({
       content,
       badge,
       buttonText,
+      buttonTextArabic,
       buttonUrl,
       imageUrl,
       bgStyle,
@@ -268,16 +271,30 @@ export const CustomBlockModal: React.FC<CustomBlockModalProps> = ({
           </div>
 
           {/* Button CTA & Action Link */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-                Action Button Label
+                Action Button Label (EN)
               </label>
               <input
                 type="text"
                 value={buttonText}
                 onChange={(e) => setButtonText(e.target.value)}
                 placeholder="e.g. Shop Honey Collection →"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                Action Button Label (AR)
+              </label>
+              <input
+                type="text"
+                value={buttonTextArabic}
+                onChange={(e) => setButtonTextArabic(e.target.value)}
+                placeholder="مثال: تسوق التشكيلة ←"
+                dir="rtl"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400"
               />
             </div>

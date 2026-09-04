@@ -14,7 +14,7 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
   position,
   onEditBlock
 }) => {
-  const { siteContent, setActiveTab, setSelectedCategory, isAdminUnlocked, isVisualEditMode, deleteCustomBlock, toggleSectionVisibility, setCustomBlockToEdit, setIsCustomBlockModalOpen } = useShop();
+  const { siteContent, setActiveTab, setSelectedCategory, isAdminUnlocked, isVisualEditMode, deleteCustomBlock, toggleSectionVisibility, setCustomBlockToEdit, setIsCustomBlockModalOpen, language } = useShop();
 
   const blocks = (siteContent.customBlocks || [])
     .filter(block => {
@@ -100,7 +100,7 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
                     Hidden (Draft)
                   </span>
                 )}
-                {(onEditBlock || (setCustomBlockToEdit && setIsCustomBlockModalOpen)) && (
+                {(Boolean(onEditBlock) || Boolean(setCustomBlockToEdit)) && (
                   <button
                     onClick={() => {
                       if (onEditBlock) {
@@ -152,14 +152,14 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
                 )}
               </div>
 
-              {block.buttonText && (
+              {(block.buttonText || block.buttonTextArabic) && (
                 <div className="flex-shrink-0">
                   <button
                     onClick={() => handleAction(block.buttonUrl)}
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#b89753] to-[#8c6d2d] hover:from-[#c5a059] hover:to-[#9e7b34] text-white font-bold text-xs uppercase tracking-wider shadow-md hover:shadow-lg transition-all cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
                   >
-                    <span>{block.buttonText}</span>
-                    <ArrowRight className="w-4 h-4" />
+                    <span>{language === 'ar' ? (block.buttonTextArabic || block.buttonText) : (block.buttonText || block.buttonTextArabic)}</span>
+                    <ArrowRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                   </button>
                 </div>
               )}

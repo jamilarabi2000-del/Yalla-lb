@@ -4,6 +4,7 @@ import { ProductCard } from './ProductCard';
 import { OrderHistory } from './OrderHistory';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
+import { SellerDashboard } from './SellerDashboard';
 import { sendEmailVerification } from '../firebase';
 import { 
   User, 
@@ -20,7 +21,8 @@ import {
   KeyRound,
   ShieldCheck,
   Save,
-  Loader2
+  Loader2,
+  Store
 } from 'lucide-react';
 
 export const AccountView: React.FC = () => {
@@ -54,15 +56,12 @@ export const AccountView: React.FC = () => {
     if (!firebaseUser) return [];
     const uid = firebaseUser.uid;
     const email = (firebaseUser.email || user?.email || '').trim().toLowerCase();
-    const phone = (user?.phone || '').replace(/\D/g, '');
 
     return orders.filter(o => {
       // 1. Direct UID match
       if (o.userId && o.userId === uid) return true;
-      // 2. Guest order matching user's confirmed email
+      // 2. Order matching user's confirmed email
       if (email && o.shipping?.email && o.shipping.email.trim().toLowerCase() === email) return true;
-      // 3. Phone matching order recipient phone
-      if (phone && o.shipping?.phone && o.shipping.phone.replace(/\D/g, '') === phone) return true;
       return false;
     });
   }, [orders, firebaseUser, user]);
@@ -321,6 +320,36 @@ export const AccountView: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  if (user?.role === 'seller') {
+    return (
+      <div className="min-h-screen bg-slate-50 pb-24">
+        {/* Account Header with Sign Out */}
+        <div className="bg-white border-b border-slate-200 py-4 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
+            <button
+              onClick={goBack}
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider border border-slate-200 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
+              <span>{t('back')}</span>
+            </button>
+            <div className="flex items-center gap-3">
+              {firebaseUser && (
+                <button
+                  onClick={signOutUser}
+                  className="px-4 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign Out'} ({firebaseUser.email})</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        <SellerDashboard />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -676,6 +705,22 @@ export const AccountView: React.FC = () => {
                       >
                         {isAuthLoading ? 'Signing In...' : 'Sign In'}
                       </button>
+
+                      {/* Artisan / Seller Login Shortcut */}
+                      <div className="pt-3 border-t border-slate-100 text-center">
+                        <p className="text-xs text-slate-500 mb-1.5">
+                          {language === 'ar' ? 'هل أنت حرفي أو مورد معتمد في المنصة؟' : 'Are you a verified Lebanese artisan or merchant?'}
+                        </p>
+                        <button
+                          type="button"
+                          id="account-to-seller-portal-btn"
+                          onClick={() => setActiveTab('seller')}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                        >
+                          <Store className="w-3.5 h-3.5 text-[#b89753]" />
+                          <span>{language === 'ar' ? 'دخول بوابة الحرفيين والتجار' : 'Access Artisan & Merchant Portal'}</span>
+                        </button>
+                      </div>
                     </form>
                   ) : (
                     <form onSubmit={handleSignUp} className="space-y-4">

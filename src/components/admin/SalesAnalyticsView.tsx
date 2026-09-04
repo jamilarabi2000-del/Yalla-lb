@@ -222,6 +222,10 @@ export const SalesAnalyticsView: React.FC = () => {
       const isDelivered = order.status === 'delivered';
       const isCancelled = order.status === 'cancelled' || order.status === 'returned';
 
+      if (isCancelled && selectedOrderStatus !== 'cancelled') {
+        return;
+      }
+
       if (order.shipping?.phone) {
         buyerPhoneSet.add(order.shipping.phone.replace(/[^0-9]/g, ''));
       }
@@ -661,7 +665,8 @@ export const SalesAnalyticsView: React.FC = () => {
 
   const downloadCSV = async (data: any[], filename: string) => {
     const { default: Papa } = await import('papaparse');
-    const csv = Papa.unparse(data);
+    const { sanitizeRowForCsv } = await import('../../utils/csvSafe');
+    const csv = Papa.unparse(data.map(sanitizeRowForCsv));
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1261,7 +1266,7 @@ export const SalesAnalyticsView: React.FC = () => {
                             <a
                               href={`https://wa.me/${item.sellerObj.contactPhone.replace(/[^0-9]/g, '')}`}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               className="text-emerald-700 font-mono font-bold hover:underline inline-flex items-center gap-1"
                             >
                               <Phone className="w-3 h-3" />

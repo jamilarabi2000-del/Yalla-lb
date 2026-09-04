@@ -5,11 +5,12 @@ import {
   Mail, 
   Instagram, 
   Facebook, 
-  EyeOff
+  EyeOff,
+  Store
 } from 'lucide-react';
 
 export const Footer: React.FC = () => {
-  const { language, siteContent, isVisualEditMode } = useShop();
+  const { language, siteContent, isVisualEditMode, setActiveTab } = useShop();
 
   const visibility = siteContent.visibility || {
     footerAbout: true,
@@ -193,9 +194,21 @@ export const Footer: React.FC = () => {
 
         {/* Copyright & Lebanese Heritage Attribution */}
         {(visibility.footerCopyright || isVisualEditMode) && (
-          <div className={`pt-4 border-t border-white/[0.06] w-full flex items-center justify-center text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
+          <div className={`pt-4 border-t border-white/[0.06] w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
             <div className="flex items-center gap-2">
               <span>{footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`}</span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                id="footer-artisan-portal-btn"
+                onClick={() => setActiveTab('seller')}
+                className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
+              >
+                <Store className="w-3.5 h-3.5" />
+                <span>{language === 'ar' ? 'بوابة الحرفيين والتجار' : 'Artisan & Merchant Portal'}</span>
+              </button>
             </div>
           </div>
         )}

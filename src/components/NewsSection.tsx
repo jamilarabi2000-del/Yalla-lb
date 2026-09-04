@@ -485,7 +485,7 @@ export const NewsSection: React.FC = () => {
               </div>
 
               <div className="space-y-4 text-sm sm:text-base text-slate-200 leading-relaxed font-light">
-                {(language === 'ar' ? selectedNews.contentAr : selectedNews.contentEn).map((paragraph, index) => (
+                {(language === 'ar' ? selectedNews.contentAr : selectedNews.contentEn).map((paragraph: string, index: number) => (
                   <p key={index}>{paragraph}</p>
                 ))}
               </div>

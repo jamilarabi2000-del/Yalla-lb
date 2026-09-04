@@ -60,9 +60,10 @@ function redactPII(data: any): any {
   
   const redacted = { ...data };
   const piiKeys = [
-    'fullName', 'firstName', 'lastName', 'phone', 'email', 'street', 
-    'building', 'floorApartment', 'deliveryNotes', 'address', 
-    'defaultAddress', 'defaultNotes', 'name'
+    'fullName', 'firstName', 'lastName', 'customerName', 'recipientName', 'userName', 'profileName',
+    'phone', 'email', 'street', 'building', 'floorApartment', 'deliveryNotes', 'address', 
+    'defaultAddress', 'defaultNotes', 'shipping', 'recipient',
+    'customer', 'user', 'profile'
   ];
   
   for (const key of Object.keys(redacted)) {
@@ -372,7 +373,8 @@ class DatabaseMonitorService {
     const redactedRecord: FirestoreLogRecord = {
       ...record,
       payload: redactPII(record.payload),
-      diff: redactPII(record.diff)
+      diff: redactPII(record.diff),
+      metadata: redactPII(record.metadata)
     };
     this.logs.unshift(redactedRecord);
     if (this.logs.length > this.maxLogCapacity) {

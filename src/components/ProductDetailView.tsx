@@ -315,7 +315,7 @@ export const ProductDetailView: React.FC = () => {
     const text = encodeURIComponent(
       `Hello Yalla-lb! I am interested in inquiring about "${displayTitle}" (ID: ${product.id}) priced at $${product.priceUSD}. Can you please assist me?`
     );
-    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank');
+    window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${text}`, '_blank', 'noopener,noreferrer');
   };
 
   const discoverSellerProducts = (artisan: string) => {

@@ -51,6 +51,7 @@ export interface Seller {
   nameEn: string;
   nameAr?: string;
   logoUrl?: string;
+  bannerImage?: string;
   bioEn?: string;
   bioAr?: string;
   governorate?: string;        // e.g. 'mount_lebanon'
@@ -62,6 +63,9 @@ export interface Seller {
   contactEmail?: string;
   commissionPct?: number;      // if you take a cut
   isActive: boolean;           // master switch — hides ALL their products
+  hasAccount?: boolean;        // linked access credential flag
+  accountEmail?: string;
+  accountUid?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,6 +110,7 @@ export interface ShippingDetails {
   email: string;
   governorate: string; // Beirut, Mount Lebanon, North, South, Bekaa, Nabatieh, International
   city: string;
+  village?: string; // e.g. Deir El Qamar
   street: string;
   building: string;
   floorApartment?: string;
@@ -120,6 +125,7 @@ export type OrderStatus = 'pending' | 'confirmed' | 'crafting' | 'courier_assign
 export interface Order {
   id: string;
   userId?: string;
+  sellerIds?: string[]; // linked sellers for access control
   date: string;
   items: CartItem[];
   shipping: ShippingDetails;
@@ -152,6 +158,8 @@ export interface UserProfile {
   defaultNotes?: string;
   emailVerified?: boolean;
   isOtpVerified?: boolean;
+  role?: 'customer' | 'seller' | 'admin';
+  sellerId?: string;
 }
 
 export interface CMSOfferSlide {
@@ -169,13 +177,15 @@ export interface CMSOfferSlide {
   discountBadgeArabic?: string;
   bgGradient: string;
   imageUrl?: string;
+  desktopImageUrl?: string;
+  mobileImageUrl?: string;
   bgVideoUrl?: string;
   isCustomSchoolLayout?: boolean;
   isCustomCrayolaLayout?: boolean;
   isCustomGlobalLayout?: boolean;
   imageZoom?: number;
   objectPosition?: string;
-  imageFit?: 'cover' | 'contain';
+  imageFit?: 'cover' | 'contain' | 'fill';
   isPublished?: boolean;
 }
 
@@ -242,6 +252,7 @@ export interface CMSCustomBlock {
   content: string; // HTML, rich text or description
   badge?: string;
   buttonText?: string;
+  buttonTextArabic?: string;
   buttonUrl?: string;
   imageUrl?: string;
   bgStyle: 'dark' | 'light' | 'gold_gradient' | 'emerald_gradient' | 'custom_image' | 'glass';
@@ -415,6 +426,7 @@ export interface SiteContent {
     newsletterSubtitleArabic?: string;
     newsletterButtonText: string;
     newsletterButtonTextArabic?: string;
+    sectionOrder?: string[];
   };
   productsPage: {
     title: string;

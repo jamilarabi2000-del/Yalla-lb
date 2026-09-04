@@ -277,11 +277,15 @@ export function resolveCategory(
  * Sanitizes numeric price values from dirty string inputs (e.g., "$15.50", "15,50 USD").
  */
 export function parsePrice(val: any): number {
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (typeof val === 'number') {
+    if (isNaN(val) || !isFinite(val)) return 0;
+    return Math.max(0, Math.round(val * 100) / 100);
+  }
   if (!val) return 0;
   const str = String(val).replace(/[^0-9.,]/g, '').replace(',', '.');
   const num = parseFloat(str);
-  return isNaN(num) ? 0 : num;
+  if (isNaN(num) || !isFinite(num)) return 0;
+  return Math.max(0, Math.round(num * 100) / 100);
 }
 
 /**

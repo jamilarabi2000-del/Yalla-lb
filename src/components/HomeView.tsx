@@ -1,4 +1,5 @@
 import React from 'react';
+import { isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
 import { HeroBanner } from './HeroBanner';
 import { ProductCard } from './ProductCard';
 import { ProductCarousel } from './ProductCarousel';
@@ -30,6 +31,7 @@ export const HomeView: React.FC = () => {
     isVisualEditMode, 
     showToast, 
     categories = [],
+    sellers = [],
     productBundles = [],
     addBundleToCart,
     formatPrice
@@ -64,8 +66,8 @@ export const HomeView: React.FC = () => {
     image: cat.bannerUrl || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'
   }));
 
-  // Filter products: Published check + featured / deals
-  const publishedProducts = products.filter(p => p.isPublished !== false);
+  // Filter products: Published check + seller active check + featured / deals
+  const publishedProducts = products.filter(p => isProductVisibleOnStorefront(p, sellers, isVisualEditMode));
   const featuredProducts = publishedProducts.filter(p => p.isFeatured || p.isBestseller).slice(0, 12);
   const todaysDeals = publishedProducts.filter(p => p.discountPercentage && p.discountPercentage > 0).slice(0, 12);
   const newArrivals = [...publishedProducts].sort((a, b) => {
@@ -91,480 +93,492 @@ export const HomeView: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const defaultOrder = [
+    'homeHero',
+    'homeCategories',
+    'homeFeatured',
+    'homeDeals',
+    'homeBundles',
+    'homeNews',
+    'homeNewArrivals',
+    'homeHeritage',
+    'homeReviews',
+    'homeNewsletter'
+  ];
+
+  const activeSectionOrder = siteContent.home?.sectionOrder && siteContent.home.sectionOrder.length > 0
+    ? Array.from(new Set([...siteContent.home.sectionOrder, ...defaultOrder]))
+    : defaultOrder;
+
+  const renderSectionItem = (sectionId: string) => {
+    switch (sectionId) {
+      case 'homeHero':
+        return (visibility.homeHero || isVisualEditMode) ? (
+          <div key="homeHero" className={`relative ${!visibility.homeHero && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80 p-2' : ''}`}>
+            {!visibility.homeHero && isVisualEditMode && (
+              <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Section Hidden (Draft Preview)</span>
+              </div>
+            )}
+            <HeroBanner />
+          </div>
+        ) : null;
+
+      case 'homeCategories':
+        return (visibility.homeCategories || isVisualEditMode) ? (
+          <section key="homeCategories" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            {!visibility.homeCategories && isVisualEditMode && (
+              <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Section Hidden (Draft Preview)</span>
+              </div>
+            )}
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                  {language === 'ar' ? (
+                    siteContent.home?.categoriesSubtitleArabic || 'تصفح الأقسام'
+                  ) : (
+                    siteContent.home?.categoriesSubtitle || 'Browse Departments'
+                  )}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                  {language === 'ar' ? (
+                    siteContent.home?.categoriesTitleArabic ? (
+                      <span>{siteContent.home.categoriesTitleArabic}</span>
+                    ) : (
+                      <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
+                    )
+                  ) : (
+                    siteContent.home?.categoriesTitle ? (
+                      <span>{siteContent.home.categoriesTitle}</span>
+                    ) : (
+                      <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
+                    )
+                  )}
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {language === 'ar' ? (
+                    siteContent.home?.regionsSubtitleArabic || 'اكتشف الحرف اللبنانية، المؤونة، والأجهزة المنزلية بكل سهولة'
+                  ) : (
+                    siteContent.home?.regionsSubtitle || 'Discover authentic Lebanese crafts, pantry delicacies, electronics, and home essentials'
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
+              {categoriesGrid.map((cat) => {
+                const productCount = products.filter(p => p.category === cat.id && p.isPublished !== false).length;
+                return (
+                  <div
+                    key={cat.id}
+                    id={`category-card-${cat.id}`}
+                    onClick={() => handleCategoryClick(cat.id)}
+                    className="group relative flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer text-start"
+                  >
+                    <div className="relative aspect-square w-full overflow-hidden bg-slate-100">
+                      <img
+                        src={cat.image}
+                        alt={cat.name}
+                        className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+                        loading="lazy"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-black/10 opacity-40 group-hover:opacity-60 transition-opacity" />
+                      <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10 pointer-events-none">
+                        <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-slate-900/85 backdrop-blur-xs text-amber-300 rounded-md shadow-sm border border-amber-400/20">
+                          {productCount > 0 
+                            ? `${productCount} ${language === 'ar' ? 'منتجات' : 'items'}` 
+                            : (language === 'ar' ? 'قسم' : 'Category')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-1 flex-col p-3.5 sm:p-4 justify-between space-y-3 bg-white">
+                      <div>
+                        <h3 className="text-xs sm:text-sm font-extrabold text-black group-hover:text-amber-700 transition-colors line-clamp-1 leading-snug">
+                          {cat.name}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
+                          {cat.subtitle}
+                        </p>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
+                        <span className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
+                          {language === 'ar' ? 'استكشف القسم' : 'Explore Category'}
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-slate-900 group-hover:bg-amber-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs flex-shrink-0">
+                          <ArrowRight className={`w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 ${language === 'ar' ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ) : null;
+
+      case 'homeFeatured':
+        return (visibility.homeFeatured || isVisualEditMode) ? (
+          <section key="homeFeatured" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                  {language === 'ar' ? (
+                    siteContent.home?.featuredSubtitleArabic || t('topPicks')
+                  ) : (
+                    siteContent.home?.featuredSubtitle || t('topPicks')
+                  )}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                  {language === 'ar' ? (
+                    siteContent.home?.featuredTitleArabic ? (
+                      <span>{siteContent.home.featuredTitleArabic}</span>
+                    ) : (
+                      <>المنتجات <span className="gold-gradient font-serif italic">المميزة</span></>
+                    )
+                  ) : (
+                    siteContent.home?.featuredTitle ? (
+                      <span>{siteContent.home.featuredTitle}</span>
+                    ) : (
+                      <>Featured <span className="gold-gradient font-serif italic">Products</span></>
+                    )
+                  )}
+                </h2>
+                {language === 'ar' ? (
+                  siteContent.home?.featuredDescriptionArabic ? (
+                    <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescriptionArabic}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500 mt-1">مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة</p>
+                  )
+                ) : (
+                  siteContent.home?.featuredDescription ? (
+                    <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescription}</p>
+                  ) : (
+                    <p className="text-xs text-slate-500 mt-1">Handpicked items celebrating timeless craftsmanship and Levantine gastronomy.</p>
+                  )
+                )}
+              </div>
+              <div className="flex-none">
+                <button 
+                  onClick={handleViewAllProducts}
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                >
+                  {t('viewAllProducts')}
+                  <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+            <ProductCarousel products={featuredProducts} idPrefix="featured" />
+          </section>
+        ) : null;
+
+      case 'homeDeals':
+        return ((visibility.homeDeals || isVisualEditMode) && todaysDeals.length > 0) ? (
+          <section key="homeDeals" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeDeals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 mb-1 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>
+                    {language === 'ar' ? (
+                      siteContent.home?.dealsSubtitleArabic || t('flashDiscounts')
+                    ) : (
+                      siteContent.home?.dealsSubtitle || t('flashDiscounts')
+                    )}
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                  {language === 'ar' ? (
+                    siteContent.home?.dealsTitleArabic ? (
+                      <span>{siteContent.home.dealsTitleArabic}</span>
+                    ) : (
+                      <>عروض <span className="gold-gradient font-serif italic">اليوم</span></>
+                    )
+                  ) : (
+                    siteContent.home?.dealsTitle ? (
+                      <span>{siteContent.home.dealsTitle}</span>
+                    ) : (
+                      <>Today's <span className="gold-gradient font-serif italic">Deals</span></>
+                    )
+                  )}
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {language === 'ar' ? (
+                    siteContent.home?.dealsDescriptionArabic || t('limitedTimeOffers')
+                  ) : (
+                    siteContent.home?.dealsDescription || t('limitedTimeOffers')
+                  )}
+                </p>
+              </div>
+              <div className="flex-none">
+                <button 
+                  onClick={handleViewAllProducts}
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                >
+                  {t('viewAllProducts')}
+                  <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+            <ProductCarousel products={todaysDeals} idPrefix="deals" />
+          </section>
+        ) : null;
+
+      case 'homeBundles':
+        return ((productBundles || []).filter(b => b.isActive !== false).length > 0) ? (
+          <section key="homeBundles" className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                  {language === 'ar' ? 'باقات توفير حصرية' : 'Exclusive Curated Packs'}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                  {language === 'ar' ? (
+                    <>مجموعات <span className="gold-gradient font-serif italic">الهدايا والكومبو</span> المميزة</>
+                  ) : (
+                    <>Lebanese <span className="gold-gradient font-serif italic">Combo & Gift Sets</span></>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {language === 'ar' ? 'وفر أكثر مع هذه المجموعات المختارة بعناية من منتجاتنا التقليدية' : 'Save more with our handpicked artisanal combinations and custom-packaged Lebanese treasures.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+              {productBundles
+                .filter(b => b.isActive !== false)
+                .map((bundle) => {
+                  const bundleProds = (products || []).filter(p => bundle.productIds.includes(p.id) && p.isPublished !== false);
+                  const originalTotal = bundleProds.reduce((sum, p) => sum + (p.priceUSD || 0), 0);
+                  const discountAmount = originalTotal - bundle.bundlePriceUSD;
+                  
+                  return (
+                    <div
+                      key={bundle.id}
+                      className="flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden text-start p-5 sm:p-6"
+                    >
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-[#b89753]/20 text-[#8c6d2d] rounded-md border border-[#b89753]/30">
+                          {language === 'ar' ? (bundle.badgeTextAr || 'مجموعة توفير') : (bundle.badgeText || 'SPECIAL COMBO')}
+                        </span>
+                        {discountAmount > 0 && (
+                          <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded-md shadow-sm">
+                            {language === 'ar' ? `وفر ${formatPrice(discountAmount)}` : `Save ${formatPrice(discountAmount)}`}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 className="text-lg font-bold text-slate-900 mb-1 leading-snug">
+                        {language === 'ar' ? (bundle.nameAr || bundle.name) : bundle.name}
+                      </h3>
+
+                      {bundle.description && (
+                        <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">
+                          {language === 'ar' ? (bundle.descriptionAr || bundle.description) : bundle.description}
+                        </p>
+                      )}
+
+                      <div className="space-y-2.5 mb-6 border-y border-slate-100 py-4 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                          {language === 'ar' ? 'المنتجات المشمولة:' : 'Includes:'}
+                        </p>
+                        {bundleProds.map(prod => (
+                          <div key={prod.id} className="flex items-center gap-3">
+                            <img
+                              src={prod.image}
+                              alt={prod.name}
+                              className="w-8 h-8 rounded-lg object-cover border border-slate-100 animate-fadeIn"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-semibold text-slate-700 truncate">
+                                {language === 'ar' ? (prod.arabicName || prod.name) : prod.name}
+                              </p>
+                            </div>
+                            <span className="text-xs text-slate-500 font-medium">
+                              {formatPrice(prod.priceUSD)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 mt-auto">
+                        <div className="flex flex-col">
+                          {originalTotal > bundle.bundlePriceUSD && (
+                            <span className="text-xs text-slate-400 line-through">
+                              {formatPrice(originalTotal)}
+                            </span>
+                          )}
+                          <span className="text-xl font-bold text-slate-900 leading-none">
+                            {formatPrice(bundle.bundlePriceUSD)}
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            addBundleToCart(bundle.id);
+                            showToast(
+                              language === 'ar' 
+                                ? 'تمت إضافة المجموعة الحصرية بنجاح إلى السلة!' 
+                                : 'Exclusive bundle added successfully to your cart!', 
+                              'success'
+                            );
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md transition-colors cursor-pointer"
+                        >
+                          <ShoppingBag className="w-4 h-4" />
+                          <span>{language === 'ar' ? 'أضف المجموعة' : 'Add Pack'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          </section>
+        ) : null;
+
+      case 'homeNews':
+        return (visibility.homeNews || isVisualEditMode) ? (
+          <div key="homeNews" className={`relative ${!visibility.homeNews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl' : ''}`}>
+            <NewsSection />
+          </div>
+        ) : null;
+
+      case 'homeNewArrivals':
+        return (visibility.homeNewArrivals || isVisualEditMode) ? (
+          <section key="homeNewArrivals" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewArrivals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                  {language === 'ar' ? (
+                    siteContent.home?.newArrivalsSubtitleArabic || t('freshlyStocked')
+                  ) : (
+                    siteContent.home?.newArrivalsSubtitle || t('freshlyStocked')
+                  )}
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                  {language === 'ar' ? (
+                    siteContent.home?.newArrivalsTitleArabic ? (
+                      <span>{siteContent.home.newArrivalsTitleArabic}</span>
+                    ) : (
+                      <>وصل حديثاً <span className="gold-gradient font-serif italic">إلينا</span></>
+                    )
+                  ) : (
+                    siteContent.home?.newArrivalsTitle ? (
+                      <span>{siteContent.home.newArrivalsTitle}</span>
+                    ) : (
+                      <>New <span className="gold-gradient font-serif italic">Arrivals</span></>
+                    )
+                  )}
+                </h2>
+              </div>
+              <div className="flex-none">
+                <button 
+                  onClick={handleViewAllProducts}
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                >
+                  {t('viewAllProducts')}
+                  <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+            <ProductCarousel products={newArrivals.slice(0, 12)} idPrefix="new" />
+          </section>
+        ) : null;
+
+      case 'homeHeritage':
+        return (visibility.homeHeritage || isVisualEditMode) ? (
+          <section key="homeHeritage" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            <div className="bg-[#fcfaf8] border border-[#f5ece1] rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto">
+              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight mb-4">
+                {language === 'ar' ? (siteContent.home?.heritageTitleArabic || siteContent.home?.heritageTitle || 'تراثنا') : (siteContent.home?.heritageTitle || 'Our Heritage')}
+              </h2>
+              <p className="text-sm sm:text-base text-slate-600 leading-relaxed mx-auto max-w-2xl">
+                {language === 'ar' ? (siteContent.home?.heritageTextArabic || siteContent.home?.heritageText || '') : (siteContent.home?.heritageText || '')}
+              </p>
+            </div>
+          </section>
+        ) : null;
+
+      case 'homeReviews':
+        return (visibility.homeReviews || isVisualEditMode) ? (
+          <section key="homeReviews" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            <div className="text-center mb-8">
+              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                {language === 'ar' ? (siteContent.home?.reviewsTitleArabic || siteContent.home?.reviewsTitle || 'آراء الزبائن') : (siteContent.home?.reviewsTitle || 'Customer Reviews')}
+              </h2>
+              <p className="text-sm text-slate-500 mt-2 max-w-2xl mx-auto">
+                {language === 'ar' ? (siteContent.home?.reviewsSubtitleArabic || siteContent.home?.reviewsSubtitle || '') : (siteContent.home?.reviewsSubtitle || '')}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="flex gap-1 text-amber-400 mb-3">
+                  {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+                </div>
+                <p className="text-sm text-slate-600 italic mb-4">"Absolutely authentic and beautiful craftsmanship. Reminds me of home."</p>
+                <div className="font-bold text-xs text-slate-900">- Sarah K., Paris</div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="flex gap-1 text-amber-400 mb-3">
+                  {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+                </div>
+                <p className="text-sm text-slate-600 italic mb-4">"The mouneh products are exactly how my grandmother used to make them!"</p>
+                <div className="font-bold text-xs text-slate-900">- Elie M., Beirut</div>
+              </div>
+              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                <div className="flex gap-1 text-amber-400 mb-3">
+                  {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
+                </div>
+                <p className="text-sm text-slate-600 italic mb-4">"Quick delivery to Dubai and the packaging was excellent. Highly recommended."</p>
+                <div className="font-bold text-xs text-slate-900">- Noor A., Dubai</div>
+              </div>
+            </div>
+          </section>
+        ) : null;
+
+      case 'homeNewsletter':
+        return (visibility.homeNewsletter || isVisualEditMode) ? (
+          <section key="homeNewsletter" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center">
+              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-6">
+                {language === 'ar' ? (siteContent.home?.newsletterTitleArabic || siteContent.home?.newsletterTitle || 'النشرة البريدية') : (siteContent.home?.newsletterTitle || 'Join our Newsletter')}
+              </h2>
+              <div className="flex flex-col sm:flex-row w-full max-w-md gap-3">
+                <input 
+                  type="email" 
+                  placeholder={language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'} 
+                  className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+                />
+                <button className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
+                  {language === 'ar' ? (siteContent.home?.newsletterButtonTextArabic || siteContent.home?.newsletterButtonText || 'اشترك') : (siteContent.home?.newsletterButtonText || 'Subscribe')}
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null;
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="space-y-12 sm:space-y-14 pb-8 bg-slate-50">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="top" />
 
-      {/* Consolidated Hero Banner with Search & Promotional Banners */}
-      {(visibility.homeHero || isVisualEditMode) && (
-        <div className={`relative ${!visibility.homeHero && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80 p-2' : ''}`}>
-          {!visibility.homeHero && isVisualEditMode && (
-            <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>Section Hidden (Draft Preview)</span>
-            </div>
-          )}
-          <HeroBanner />
-        </div>
-      )}
-
       {/* Middle Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="middle" />
 
-      {/* Explore by Category Grid */}
-      {(visibility.homeCategories || isVisualEditMode) && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          {!visibility.homeCategories && isVisualEditMode && (
-            <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-              <EyeOff className="w-3.5 h-3.5" />
-              <span>Section Hidden (Draft Preview)</span>
-            </div>
-          )}
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {language === 'ar' ? (
-                  siteContent.home?.categoriesSubtitleArabic || 'تصفح الأقسام'
-                ) : (
-                  siteContent.home?.categoriesSubtitle || 'Browse Departments'
-                )}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {language === 'ar' ? (
-                  siteContent.home?.categoriesTitleArabic ? (
-                    <span>{siteContent.home.categoriesTitleArabic}</span>
-                  ) : (
-                    <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
-                  )
-                ) : (
-                  siteContent.home?.categoriesTitle ? (
-                    <span>{siteContent.home.categoriesTitle}</span>
-                  ) : (
-                    <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
-                  )
-                )}
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                {language === 'ar' ? (
-                  siteContent.home?.regionsSubtitleArabic || 'اكتشف الحرف اللبنانية، المؤونة، والأجهزة المنزلية بكل سهولة'
-                ) : (
-                  siteContent.home?.regionsSubtitle || 'Discover authentic Lebanese crafts, pantry delicacies, electronics, and home essentials'
-                )}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
-            {categoriesGrid.map((cat) => {
-              const productCount = products.filter(p => p.category === cat.id && p.isPublished !== false).length;
-              return (
-                <div
-                  key={cat.id}
-                  id={`category-card-${cat.id}`}
-                  onClick={() => handleCategoryClick(cat.id)}
-                  className="group relative flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer text-start"
-                >
-                  {/* Image Container */}
-                  <div className="relative aspect-square w-full overflow-hidden bg-slate-100">
-                    <img
-                      src={cat.image}
-                      alt={cat.name}
-                      className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
-                      loading="lazy"
-                    />
-                    
-                    {/* Subtle Ambient Gradient on Hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-black/10 opacity-40 group-hover:opacity-60 transition-opacity" />
-
-                    {/* Top Badges */}
-                    <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10 pointer-events-none">
-                      <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-slate-900/85 backdrop-blur-xs text-amber-300 rounded-md shadow-sm border border-amber-400/20">
-                        {productCount > 0 
-                          ? `${productCount} ${language === 'ar' ? 'منتجات' : 'items'}` 
-                          : (language === 'ar' ? 'قسم' : 'Category')}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="flex flex-1 flex-col p-3.5 sm:p-4 justify-between space-y-3 bg-white">
-                    <div>
-                      <h3 className="text-xs sm:text-sm font-extrabold text-black group-hover:text-amber-700 transition-colors line-clamp-1 leading-snug">
-                        {cat.name}
-                      </h3>
-                      <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
-                        {cat.subtitle}
-                      </p>
-                    </div>
-
-                    {/* Action Row */}
-                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
-                      <span className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
-                        {language === 'ar' ? 'استكشف القسم' : 'Explore Category'}
-                      </span>
-
-                      <div className="w-8 h-8 rounded-xl bg-slate-900 group-hover:bg-amber-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs flex-shrink-0">
-                        <ArrowRight className={`w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 ${language === 'ar' ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
-
-
-      {/* Featured Products */}
-      {(visibility.homeFeatured || isVisualEditMode) && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {language === 'ar' ? (
-                  siteContent.home?.featuredSubtitleArabic || t('topPicks')
-                ) : (
-                  siteContent.home?.featuredSubtitle || t('topPicks')
-                )}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {language === 'ar' ? (
-                  siteContent.home?.featuredTitleArabic ? (
-                    <span>{siteContent.home.featuredTitleArabic}</span>
-                  ) : (
-                    <>المنتجات <span className="gold-gradient font-serif italic">المميزة</span></>
-                  )
-                ) : (
-                  siteContent.home?.featuredTitle ? (
-                    <span>{siteContent.home.featuredTitle}</span>
-                  ) : (
-                    <>Featured <span className="gold-gradient font-serif italic">Products</span></>
-                  )
-                )}
-              </h2>
-              {language === 'ar' ? (
-                siteContent.home?.featuredDescriptionArabic ? (
-                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescriptionArabic}</p>
-                ) : (
-                  <p className="text-xs text-slate-500 mt-1">مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة</p>
-                )
-              ) : (
-                siteContent.home?.featuredDescription ? (
-                  <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescription}</p>
-                ) : (
-                  <p className="text-xs text-slate-500 mt-1">Handpicked items celebrating timeless craftsmanship and Levantine gastronomy.</p>
-                )
-              )}
-            </div>
-            <div className="flex-none">
-              <button 
-                onClick={handleViewAllProducts}
-                className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
-              >
-                {t('viewAllProducts')}
-                <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          </div>
-          <ProductCarousel products={featuredProducts} idPrefix="featured" />
-        </section>
-      )}
-
-
-
-      {/* Today's Flash Deals */}
-      {(visibility.homeDeals || isVisualEditMode) && todaysDeals.length > 0 && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeDeals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 mb-1 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>
-                  {language === 'ar' ? (
-                    siteContent.home?.dealsSubtitleArabic || t('flashDiscounts')
-                  ) : (
-                    siteContent.home?.dealsSubtitle || t('flashDiscounts')
-                  )}
-                </span>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {language === 'ar' ? (
-                  siteContent.home?.dealsTitleArabic ? (
-                    <span>{siteContent.home.dealsTitleArabic}</span>
-                  ) : (
-                    <>عروض <span className="gold-gradient font-serif italic">اليوم</span></>
-                  )
-                ) : (
-                  siteContent.home?.dealsTitle ? (
-                    <span>{siteContent.home.dealsTitle}</span>
-                  ) : (
-                    <>Today's <span className="gold-gradient font-serif italic">Deals</span></>
-                  )
-                )}
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                {language === 'ar' ? (
-                  siteContent.home?.dealsDescriptionArabic || t('limitedTimeOffers')
-                ) : (
-                  siteContent.home?.dealsDescription || t('limitedTimeOffers')
-                )}
-              </p>
-            </div>
-            <div className="flex-none">
-              <button 
-                onClick={handleViewAllProducts}
-                className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
-              >
-                {t('viewAllProducts')}
-                <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          </div>
-          <ProductCarousel products={todaysDeals} idPrefix="deals" />
-        </section>
-      )}
-
-      {/* Exclusive Curated Bundles */}
-      {(productBundles || []).filter(b => b.isActive !== false).length > 0 && (
-        <section className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {language === 'ar' ? 'باقات توفير حصرية' : 'Exclusive Curated Packs'}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {language === 'ar' ? (
-                  <>مجموعات <span className="gold-gradient font-serif italic">الهدايا والكومبو</span> المميزة</>
-                ) : (
-                  <>Lebanese <span className="gold-gradient font-serif italic">Combo & Gift Sets</span></>
-                )}
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                {language === 'ar' ? 'وفر أكثر مع هذه المجموعات المختارة بعناية من منتجاتنا التقليدية' : 'Save more with our handpicked artisanal combinations and custom-packaged Lebanese treasures.'}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {productBundles
-              .filter(b => b.isActive !== false)
-              .map((bundle) => {
-                const bundleProds = (products || []).filter(p => bundle.productIds.includes(p.id) && p.isPublished !== false);
-                const originalTotal = bundleProds.reduce((sum, p) => sum + (p.priceUSD || 0), 0);
-                const discountAmount = originalTotal - bundle.bundlePriceUSD;
-                
-                return (
-                  <div
-                    key={bundle.id}
-                    className="flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden text-start p-5 sm:p-6"
-                  >
-                    {/* Badge & Title */}
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-[#b89753]/20 text-[#8c6d2d] rounded-md border border-[#b89753]/30">
-                        {language === 'ar' ? (bundle.badgeTextAr || 'مجموعة توفير') : (bundle.badgeText || 'SPECIAL COMBO')}
-                      </span>
-                      {discountAmount > 0 && (
-                        <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded-md shadow-sm">
-                          {language === 'ar' ? `وفر ${formatPrice(discountAmount)}` : `Save ${formatPrice(discountAmount)}`}
-                        </span>
-                      )}
-                    </div>
-
-                    <h3 className="text-lg font-bold text-slate-900 mb-1 leading-snug">
-                      {language === 'ar' ? (bundle.nameAr || bundle.name) : bundle.name}
-                    </h3>
-
-                    {bundle.description && (
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">
-                        {language === 'ar' ? (bundle.descriptionAr || bundle.description) : bundle.description}
-                      </p>
-                    )}
-
-                    {/* Bundle items list */}
-                    <div className="space-y-2.5 mb-6 border-y border-slate-100 py-4 flex-1">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {language === 'ar' ? 'المنتجات المشمولة:' : 'Includes:'}
-                      </p>
-                      {bundleProds.map(prod => (
-                        <div key={prod.id} className="flex items-center gap-3">
-                          <img
-                            src={prod.image}
-                            alt={prod.name}
-                            className="w-8 h-8 rounded-lg object-cover border border-slate-100 animate-fadeIn"
-                            referrerPolicy="no-referrer"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-700 truncate">
-                              {language === 'ar' ? (prod.arabicName || prod.name) : prod.name}
-                            </p>
-                          </div>
-                          <span className="text-xs text-slate-500 font-medium">
-                            {formatPrice(prod.priceUSD)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Price & Add Button */}
-                    <div className="flex items-center justify-between gap-4 mt-auto">
-                      <div className="flex flex-col">
-                        {originalTotal > bundle.bundlePriceUSD && (
-                          <span className="text-xs text-slate-400 line-through">
-                            {formatPrice(originalTotal)}
-                          </span>
-                        )}
-                        <span className="text-xl font-bold text-slate-900 leading-none">
-                          {formatPrice(bundle.bundlePriceUSD)}
-                        </span>
-                      </div>
-
-                      <button
-                        onClick={() => {
-                          addBundleToCart(bundle.id);
-                          showToast(
-                            language === 'ar' 
-                              ? 'تمت إضافة المجموعة الحصرية بنجاح إلى السلة!' 
-                              : 'Exclusive bundle added successfully to your cart!', 
-                            'success'
-                          );
-                        }}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md transition-colors cursor-pointer"
-                      >
-                        <ShoppingBag className="w-4 h-4" />
-                        <span>{language === 'ar' ? 'أضف المجموعة' : 'Add Pack'}</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </section>
-      )}
-
-      {/* News & Stories Section */}
-      {(visibility.homeNews || isVisualEditMode) && (
-        <div className={`relative ${!visibility.homeNews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl' : ''}`}>
-          <NewsSection />
-        </div>
-      )}
-
-      {/* New Arrivals */}
-      {(visibility.homeNewArrivals || isVisualEditMode) && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewArrivals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                {language === 'ar' ? (
-                  siteContent.home?.newArrivalsSubtitleArabic || t('freshlyStocked')
-                ) : (
-                  siteContent.home?.newArrivalsSubtitle || t('freshlyStocked')
-                )}
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-                {language === 'ar' ? (
-                  siteContent.home?.newArrivalsTitleArabic ? (
-                    <span>{siteContent.home.newArrivalsTitleArabic}</span>
-                  ) : (
-                    <>وصل حديثاً <span className="gold-gradient font-serif italic">إلينا</span></>
-                  )
-                ) : (
-                  siteContent.home?.newArrivalsTitle ? (
-                    <span>{siteContent.home.newArrivalsTitle}</span>
-                  ) : (
-                    <>New <span className="gold-gradient font-serif italic">Arrivals</span></>
-                  )
-                )}
-              </h2>
-            </div>
-            <div className="flex-none">
-              <button 
-                onClick={handleViewAllProducts}
-                className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
-              >
-                {t('viewAllProducts')}
-                <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-          </div>
-          <ProductCarousel products={newArrivals.slice(0, 12)} idPrefix="new" />
-        </section>
-      )}
-
-      {/* Heritage Story Section */}
-      {(visibility.homeHeritage || isVisualEditMode) && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="bg-[#fcfaf8] border border-[#f5ece1] rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto">
-            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight mb-4">
-              {language === 'ar' ? (siteContent.home?.heritageTitleArabic || siteContent.home?.heritageTitle || 'تراثنا') : (siteContent.home?.heritageTitle || 'Our Heritage')}
-            </h2>
-            <p className="text-sm sm:text-base text-slate-600 leading-relaxed mx-auto max-w-2xl">
-              {language === 'ar' ? (siteContent.home?.heritageTextArabic || siteContent.home?.heritageText || '') : (siteContent.home?.heritageText || '')}
-            </p>
-          </div>
-        </section>
-      )}
-
-      {/* Reviews / Testimonials Section */}
-      {(visibility.homeReviews || isVisualEditMode) && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
-              {language === 'ar' ? (siteContent.home?.reviewsTitleArabic || siteContent.home?.reviewsTitle || 'آراء الزبائن') : (siteContent.home?.reviewsTitle || 'Customer Reviews')}
-            </h2>
-            <p className="text-sm text-slate-500 mt-2 max-w-2xl mx-auto">
-              {language === 'ar' ? (siteContent.home?.reviewsSubtitleArabic || siteContent.home?.reviewsSubtitle || '') : (siteContent.home?.reviewsSubtitle || '')}
-            </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex gap-1 text-amber-400 mb-3">
-                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
-              </div>
-              <p className="text-sm text-slate-600 italic mb-4">"Absolutely authentic and beautiful craftsmanship. Reminds me of home."</p>
-              <div className="font-bold text-xs text-slate-900">- Sarah K., Paris</div>
-            </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex gap-1 text-amber-400 mb-3">
-                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
-              </div>
-              <p className="text-sm text-slate-600 italic mb-4">"The mouneh products are exactly how my grandmother used to make them!"</p>
-              <div className="font-bold text-xs text-slate-900">- Elie M., Beirut</div>
-            </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-              <div className="flex gap-1 text-amber-400 mb-3">
-                {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
-              </div>
-              <p className="text-sm text-slate-600 italic mb-4">"Quick delivery to Dubai and the packaging was excellent. Highly recommended."</p>
-              <div className="font-bold text-xs text-slate-900">- Noor A., Dubai</div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Newsletter Section */}
-      {(visibility.homeNewsletter || isVisualEditMode) && (
-        <section className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-          <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center">
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-6">
-              {language === 'ar' ? (siteContent.home?.newsletterTitleArabic || siteContent.home?.newsletterTitle || 'النشرة البريدية') : (siteContent.home?.newsletterTitle || 'Join our Newsletter')}
-            </h2>
-            <div className="flex flex-col sm:flex-row w-full max-w-md gap-3">
-              <input 
-                type="email" 
-                placeholder={language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'} 
-                className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
-              />
-              <button className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
-                {language === 'ar' ? (siteContent.home?.newsletterButtonTextArabic || siteContent.home?.newsletterButtonText || 'اشترك') : (siteContent.home?.newsletterButtonText || 'Subscribe')}
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
+      {/* Dynamic Ordered Homepage Sections */}
+      {activeSectionOrder.map(sectionId => renderSectionItem(sectionId))}
 
       {/* Bottom Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="bottom" />

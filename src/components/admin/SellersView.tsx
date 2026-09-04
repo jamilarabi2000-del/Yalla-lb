@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { sanitizeRowForCsv } from '../../utils/csvSafe';
 import { useShop } from '../../context/ShopContext';
 import { Seller, Product } from '../../types';
 import { 
@@ -23,6 +24,15 @@ import {
 } from '../../utils/exportMasterReport';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../../utils/importerResolvers';
 import { checkDuplicateSellerItemCode } from '../../lib/productValidation';
+import { normalizeLebanesePhone, isValidLebanesePhone } from '../../utils/phoneUtils';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { 
+  getAuth as getSecondaryAuth, 
+  createUserWithEmailAndPassword as createSecondaryUser,
+  sendPasswordResetEmail
+} from 'firebase/auth';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { db, auth, firebaseConfig } from '../../firebase';
 
 const LEBANON_GOVERNORATES_DATA: Record<string, { nameEn: string; districts: string[] }> = {
   akkar: {
@@ -115,13 +125,128 @@ export const SellersView: React.FC = () => {
   const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Account management state
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [accountTargetSeller, setAccountTargetSeller] = useState<Seller | null>(null);
+  const [accountEmailInput, setAccountEmailInput] = useState('');
+  const [accountPhoneInput, setAccountPhoneInput] = useState('');
+  const [accountPasswordInput, setAccountPasswordInput] = useState('');
+  const [isAccountActionLoading, setIsAccountActionLoading] = useState(false);
+
+  const handleOpenAccountModal = (seller: Seller) => {
+    setAccountTargetSeller(seller);
+    setAccountEmailInput(seller.accountEmail || seller.contactEmail || '');
+    setAccountPhoneInput(seller.contactPhone || '');
+    setAccountPasswordInput('');
+    setIsAccountModalOpen(true);
+  };
+
+  const handleCreateAccountSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountTargetSeller) return;
+    if (!accountEmailInput.trim()) {
+      showToast('Please enter an email address for this seller.', 'warning');
+      return;
+    }
+    if (!accountPhoneInput.trim()) {
+      showToast('Please enter a mobile phone number for this seller.', 'warning');
+      return;
+    }
+    if (accountPasswordInput.length < 6) {
+      showToast('Password must be at least 6 characters.', 'warning');
+      return;
+    }
+    setIsAccountActionLoading(true);
+    
+    const tempAppName = `TempApp_${accountTargetSeller.id}_${Date.now()}`;
+    const tempApp = initializeApp(firebaseConfig, tempAppName);
+    const tempAuth = getSecondaryAuth(tempApp);
+
+    try {
+      const userCredential = await createSecondaryUser(tempAuth, accountEmailInput.trim(), accountPasswordInput);
+      const uid = userCredential.user.uid;
+      const normPhone = normalizeLebanesePhone(accountPhoneInput.trim());
+      const formattedPhone = normPhone.isValid ? normPhone.formatted : accountPhoneInput.trim();
+
+      // Create Profile in /users/{uid}
+      const userProfileRef = doc(db, 'users', uid);
+      await setDoc(userProfileRef, {
+        uid,
+        name: accountTargetSeller.nameEn,
+        firstName: accountTargetSeller.nameEn.split(' ')[0] || accountTargetSeller.nameEn,
+        lastName: accountTargetSeller.nameEn.split(' ').slice(1).join(' ') || '',
+        email: accountEmailInput.trim(),
+        phone: formattedPhone,
+        avatar: accountTargetSeller.logoUrl || '',
+        defaultGovernorate: accountTargetSeller.governorate || '',
+        defaultCity: accountTargetSeller.village || '',
+        defaultAddress: accountTargetSeller.exactAddress || '',
+        role: 'seller',
+        sellerId: accountTargetSeller.id,
+        createdAt: new Date().toISOString()
+      });
+
+      // Update Seller document
+      await updateSeller(accountTargetSeller.id, {
+        hasAccount: true,
+        accountEmail: accountEmailInput.trim(),
+        contactPhone: formattedPhone,
+        accountUid: uid
+      });
+
+      showToast(`Successfully created login account for "${accountTargetSeller.nameEn}"!`, 'success');
+      setIsAccountModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create seller login account.', 'warning');
+    } finally {
+      setIsAccountActionLoading(false);
+      try {
+        await deleteApp(tempApp);
+      } catch {}
+    }
+  };
+
+  const handleSendPasswordReset = async (email: string) => {
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showToast(`A secure password reset link has been dispatched to ${email}`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to send password reset email.', 'warning');
+    }
+  };
+
+  const handleDeleteAccountConfirm = async (seller: Seller) => {
+    if (!seller.accountUid) return;
+    if (window.confirm(`Are you sure you want to revoke account access for "${seller.nameEn}"? They will no longer be able to log in to their dashboard.`)) {
+      try {
+        // Delete Profile in /users/{uid}
+        const userProfileRef = doc(db, 'users', seller.accountUid);
+        await deleteDoc(userProfileRef);
+
+        // Update Seller document
+        await updateSeller(seller.id, {
+          hasAccount: false,
+          accountEmail: '',
+          accountUid: ''
+        });
+
+        showToast(`Revoked access credentials for "${seller.nameEn}".`, 'success');
+      } catch (err: any) {
+        showToast(err.message || 'Failed to revoke account.', 'warning');
+      }
+    }
+  };
+
   const filteredSellers = sellers.filter(s => {
     const q = searchQuery.toLowerCase().trim();
     const linkedProducts = products.filter(p => isProductLinkedToSeller(p, s));
     const matchesInfo = s.nameEn.toLowerCase().includes(q) ||
       (s.nameAr && s.nameAr.includes(q)) ||
       s.id.toLowerCase().includes(q) ||
-      (s.sellerCode && s.sellerCode.toLowerCase().includes(q));
+      (s.sellerCode && s.sellerCode.toLowerCase().includes(q)) ||
+      (s.contactEmail && s.contactEmail.toLowerCase().includes(q)) ||
+      (s.accountEmail && s.accountEmail.toLowerCase().includes(q)) ||
+      (s.contactPhone && s.contactPhone.toLowerCase().includes(q));
 
     const matchesProduct = linkedProducts.some(p =>
       (p.sellerItemCode && p.sellerItemCode.toLowerCase().includes(q)) ||
@@ -213,6 +338,7 @@ export const SellersView: React.FC = () => {
       return;
     }
     try {
+      const trimmedEmail = formEmail.trim().toLowerCase();
       if (editingSeller) {
         await updateSeller(editingSeller.id, {
           sellerCode: formSellerCode.trim() || undefined,
@@ -224,7 +350,8 @@ export const SellersView: React.FC = () => {
           exactAddress: formExactAddress.trim(),
           region: formGovernorate,
           contactPhone: formPhone.trim(),
-          contactEmail: formEmail.trim(),
+          contactEmail: trimmedEmail,
+          accountEmail: editingSeller.hasAccount ? (trimmedEmail || editingSeller.accountEmail) : (trimmedEmail || undefined),
           isActive: formIsActive
         });
         showToast('Seller updated successfully!');
@@ -239,7 +366,8 @@ export const SellersView: React.FC = () => {
           exactAddress: formExactAddress.trim(),
           region: formGovernorate,
           contactPhone: formPhone.trim(),
-          contactEmail: formEmail.trim(),
+          contactEmail: trimmedEmail,
+          accountEmail: trimmedEmail || undefined,
           isActive: formIsActive
         });
         showToast('Seller created successfully!');
@@ -311,6 +439,7 @@ export const SellersView: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleDownloadSellersReport = () => {
@@ -322,11 +451,12 @@ export const SellersView: React.FC = () => {
         status: seller.isActive ? 'Active' : 'Inactive',
         region: seller.region || 'Lebanon',
         contact_phone: seller.contactPhone || '',
+        contact_email: seller.contactEmail || seller.accountEmail || '',
         linked_products_count: products.filter(p => isProductLinkedToSeller(p, seller)).length,
         created_at: seller.createdAt || '',
       }));
 
-      const csv = Papa.unparse(dataToExport);
+      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -335,6 +465,7 @@ export const SellersView: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Sellers report downloaded successfully', 'success');
     });
   };
@@ -626,9 +757,58 @@ export const SellersView: React.FC = () => {
                       {seller.contactPhone && (
                         <div className="flex justify-between items-center">
                           <span className="text-slate-400">WhatsApp:</span>
-                          <span className="font-bold truncate max-w-[140px] text-right">{seller.contactPhone}</span>
+                          <span className="font-bold truncate max-w-[140px] text-right font-mono text-[11px]">{seller.contactPhone}</span>
                         </div>
                       )}
+                      {(seller.contactEmail || seller.accountEmail) && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-slate-400">Email:</span>
+                          <span className="font-medium truncate max-w-[150px] text-right font-mono text-[11px] text-indigo-600" title={seller.contactEmail || seller.accountEmail}>
+                            {seller.contactEmail || seller.accountEmail}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Admin Credentials Manager for Merchant Portal Access */}
+                      <div className="pt-2.5 mt-2.5 border-t border-slate-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Merchant Portal Access</span>
+                        </div>
+                        {seller.hasAccount ? (
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-bold text-slate-800 truncate flex items-center gap-1.5" title={seller.accountEmail}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
+                              <span className="truncate max-w-[170px]">{seller.accountEmail}</span>
+                            </p>
+                            <div className="flex gap-1 pt-1">
+                              <button
+                                onClick={() => handleSendPasswordReset(seller.accountEmail || '')}
+                                className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[9px] font-bold transition-all cursor-pointer"
+                                title="Send official password reset email link"
+                              >
+                                Reset Pass
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAccountConfirm(seller)}
+                                className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-[9px] font-bold transition-all cursor-pointer"
+                                title="Revoke access and unlink account credentials"
+                              >
+                                Revoke Account
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-[10px] font-medium text-slate-400 italic">No access configured</p>
+                            <button
+                              onClick={() => handleOpenAccountModal(seller)}
+                              className="w-full mt-1.5 py-1.5 px-3 bg-slate-900 hover:bg-slate-800 text-white text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                            >
+                              <span>Configure Credentials</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -957,27 +1137,42 @@ export const SellersView: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">WhatsApp Phone</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Exact Address / Street / Building</label>
                   <input
                     type="text"
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="+961 3 123 456"
+                    value={formExactAddress}
+                    onChange={(e) => setFormExactAddress(e.target.value)}
+                    placeholder="e.g. Main Street, Cooperatives Bldg"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Exact Address / Street / Building</label>
-                <input
-                  type="text"
-                  value={formExactAddress}
-                  onChange={(e) => setFormExactAddress(e.target.value)}
-                  placeholder="e.g. Main Street, Cooperatives Building 2nd Floor"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">WhatsApp / Contact Phone</label>
+                  <input
+                    type="text"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="e.g. +961 70 123 456"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Seller Gmail / Email Address</label>
+                  <input
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder="e.g. artisan@gmail.com"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
               </div>
+              <p className="text-[10px] text-slate-500 -mt-2">
+                The seller email is used for order communications and merchant portal authentication.
+              </p>
 
               <div className="flex items-center gap-2 pt-2">
                 <input
@@ -1046,6 +1241,86 @@ export const SellersView: React.FC = () => {
                 Reassign & Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Configure Seller Access Modal */}
+      {isAccountModalOpen && accountTargetSeller && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-6 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-black text-slate-950">Setup Supplier Credentials</h3>
+              <button 
+                onClick={() => setIsAccountModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/50 space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">{accountTargetSeller.sellerCode || 'Supplier'}</span>
+              <h4 className="text-sm font-black text-slate-900">{accountTargetSeller.nameEn}</h4>
+              <p className="text-xs text-slate-500">Creating login credentials grants the artisan direct portal access to modify their stock, update pricing, write craft stories, and track their dispatches.</p>
+            </div>
+
+            <form onSubmit={handleCreateAccountSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Seller Gmail / Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  value={accountEmailInput}
+                  onChange={(e) => setAccountEmailInput(e.target.value)}
+                  placeholder="e.g. artisan@gmail.com"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Seller Mobile Phone Number *</label>
+                <input
+                  type="tel"
+                  required
+                  value={accountPhoneInput}
+                  onChange={(e) => setAccountPhoneInput(e.target.value)}
+                  placeholder="e.g. 70 123 456 or +961 70 123456"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">Sellers log in using their Gmail, this mobile number, and their password.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Temporary Password *</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={accountPasswordInput}
+                  onChange={(e) => setAccountPasswordInput(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAccountModalOpen(false)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAccountActionLoading}
+                  className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {isAccountActionLoading ? 'Creating User...' : 'Provision Account'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

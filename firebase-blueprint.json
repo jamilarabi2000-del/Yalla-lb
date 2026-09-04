@@ -115,7 +115,10 @@
         "defaultCity": { "type": "string", "maxLength": 50 },
         "defaultAddress": { "type": "string", "maxLength": 200 },
         "defaultBuilding": { "type": "string", "maxLength": 100 },
-        "defaultNotes": { "type": "string", "maxLength": 500 }
+        "defaultNotes": { "type": "string", "maxLength": 500 },
+        "role": { "type": "string", "enum": ["customer", "seller", "admin"] },
+        "sellerId": { "type": "string" },
+        "isBanned": { "type": "boolean" }
       },
       "required": ["name", "email"]
     },

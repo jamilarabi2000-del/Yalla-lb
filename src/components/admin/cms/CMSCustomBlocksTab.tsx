@@ -231,15 +231,29 @@ export const CMSCustomBlocksTab: React.FC<CMSCustomBlocksTabProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase mb-1">CTA Button Label</label>
-              <input
-                type="text"
-                value={formState.buttonText || ''}
-                onChange={(e) => setFormState({ ...formState, buttonText: e.target.value })}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
-                placeholder="e.g. Reserve Workshop Slot"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase mb-1">CTA Button Label (EN)</label>
+                <input
+                  type="text"
+                  value={formState.buttonText || ''}
+                  onChange={(e) => setFormState({ ...formState, buttonText: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                  placeholder="e.g. Reserve Workshop Slot"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase mb-1">CTA Button Label (AR)</label>
+                <input
+                  type="text"
+                  value={formState.buttonTextArabic || ''}
+                  onChange={(e) => setFormState({ ...formState, buttonTextArabic: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                  placeholder="مثال: احجز مكانك في الورشة"
+                  dir="rtl"
+                />
+              </div>
             </div>
 
             <div>

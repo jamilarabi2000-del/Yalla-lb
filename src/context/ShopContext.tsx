@@ -131,7 +131,7 @@ interface Toast {
   type: 'success' | 'info' | 'warning' | 'error';
 }
 
-export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'account' | 'admin' | 'favorites';
+export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'account' | 'admin' | 'favorites' | 'seller';
 
 const getInitialNavTab = (): NavTab => {
   if (typeof window === 'undefined') return 'home';
@@ -139,6 +139,9 @@ const getInitialNavTab = (): NavTab => {
   const searchParams = new URLSearchParams(window.location.search);
   if (searchParams.get('admin') === 'true' || searchParams.has('admin') || path === 'admin' || path === 'admin.html') {
     return 'admin';
+  }
+  if (path === 'seller' || path === 'seller/' || path === 'seller.html' || searchParams.get('seller') === 'true') {
+    return 'seller';
   }
   if (path.startsWith('product/')) {
     return 'product_detail';
@@ -373,7 +376,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (firebaseUser) {
-      const isUserAdminEmail = firebaseUser.email === 'jamilarabi2000@gmail.com';
+      const isUserAdminEmail = firebaseUser.email === 'jamilarabi2000@gmail.com' && firebaseUser.emailVerified === true;
       firebaseUser.getIdTokenResult(true) // force refresh
         .then(result => {
           setIsAdminUser(result.claims.admin === true || isUserAdminEmail);
@@ -385,7 +388,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAdminUser(false);
     }
   }, [firebaseUser]);
-  const [isAdminUnlocked, setIsAdminUnlockedState] = useState<boolean>(() => {
+
+  const [isLocalAdminUnlocked, setIsLocalAdminUnlockedState] = useState<boolean>(() => {
     try {
       return localStorage.getItem('yallalb_admin_unlocked') === 'true';
     } catch {
@@ -393,8 +397,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   });
 
+  // HARDENED SECURITY DECISION:
+  // An attacker can NEVER unlock admin mode by manipulating localStorage keys.
+  // isAdminUnlocked is strictly gated by cryptographically verified isAdminUser.
+  const isAdminUnlocked = useMemo(() => {
+    return isAdminUser && isLocalAdminUnlocked;
+  }, [isAdminUser, isLocalAdminUnlocked]);
+
   const setIsAdminUnlocked = (val: boolean) => {
-    setIsAdminUnlockedState(val);
+    setIsLocalAdminUnlockedState(val);
     try {
       localStorage.setItem('yallalb_admin_unlocked', String(val));
     } catch {}
@@ -581,7 +592,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return next;
       });
 
-      if (IS_FIREBASE_ENABLED && (isAdminUser || isAdminUnlocked)) {
+      if (IS_FIREBASE_ENABLED && isAdminUser) {
         await monitoredSetDoc(doc(db, 'recent_activity', activityId), sanitizeDocumentData(newActivity), undefined, 'ShopContext:logAdminActivity').catch((err) => {
           console.warn("[ShopContext] Non-blocking admin activity log notice:", err);
         });
@@ -727,7 +738,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               minPurchaseUSD: 30
             }
           ];
-          if (isAdminUser || isAdminUnlocked) {
+          if (isAdminUser) {
             console.log("[ShopContext] Database discounts collection is empty. Seeding initial discount rules to Firestore...");
             try {
               const batch = writeBatch(db);
@@ -768,26 +779,27 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (err) {
       console.error("[ShopContext] Error saving discount rule to Firestore:", err);
+      showToast('Failed to save discount rule to database', 'warning');
+      throw err;
     }
     setDiscountRules(prev => [newRule, ...prev]);
     await logAdminActivity('meta_change', 'Created Discount Rule', `Created discount: ${newRule.name}`);
   };
 
   const updateDiscountRule = async (id: string, updates: Partial<DiscountRule>) => {
-    let updatedRule: DiscountRule | null = null;
-    setDiscountRules(prev => prev.map(r => {
-      if (r.id === id) {
-        updatedRule = { ...r, ...updates };
-        return updatedRule;
-      }
-      return r;
-    }));
+    const target = discountRules.find(r => r.id === id);
+    if (!target) return;
+    const updatedRule: DiscountRule = { ...target, ...updates };
+
     try {
-      if (IS_FIREBASE_ENABLED && updatedRule) {
+      if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(updatedRule), { merge: true }, 'ShopContext:updateDiscountRule');
       }
+      setDiscountRules(prev => prev.map(r => r.id === id ? updatedRule : r));
     } catch (err) {
       console.error("[ShopContext] Error updating discount rule in Firestore:", err);
+      showToast('Failed to update discount rule in database', 'warning');
+      throw err;
     }
     await logAdminActivity('meta_change', 'Updated Discount Rule', `Updated discount ID: ${id}`);
   };
@@ -797,10 +809,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (IS_FIREBASE_ENABLED) {
         await monitoredDeleteDoc(doc(db, 'discounts', id), 'ShopContext:deleteDiscountRule');
       }
+      setDiscountRules(prev => prev.filter(r => r.id !== id));
     } catch (err) {
       console.error("[ShopContext] Error deleting discount rule from Firestore:", err);
+      showToast('Failed to delete discount rule from database', 'warning');
+      throw err;
     }
-    setDiscountRules(prev => prev.filter(r => r.id !== id));
     await logAdminActivity('meta_change', 'Deleted Discount Rule', `Deleted discount ID: ${id}`);
   };
 
@@ -901,28 +915,29 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'product_bundles', id), sanitizeDocumentData(newBundle), undefined, 'ShopContext:addProductBundle');
       }
+      setProductBundles(prev => [newBundle, ...prev]);
     } catch (err) {
       console.error("[ShopContext] Error saving bundle to Firestore:", err);
+      showToast('Failed to create combo deal in database', 'warning');
+      throw err;
     }
-    setProductBundles(prev => [newBundle, ...prev]);
     await logAdminActivity('meta_change', 'Created Combo Deal', `Created bundle: ${newBundle.name}`);
   };
 
   const updateProductBundle = async (id: string, updates: Partial<ProductBundle>) => {
-    let updatedBundle: ProductBundle | null = null;
-    setProductBundles(prev => prev.map(b => {
-      if (b.id === id) {
-        updatedBundle = { ...b, ...updates, updatedAt: new Date().toISOString() };
-        return updatedBundle;
-      }
-      return b;
-    }));
+    const target = productBundles.find(b => b.id === id);
+    if (!target) return;
+    const updatedBundle: ProductBundle = { ...target, ...updates, updatedAt: new Date().toISOString() };
+
     try {
-      if (IS_FIREBASE_ENABLED && updatedBundle) {
+      if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'product_bundles', id), sanitizeDocumentData(updatedBundle), { merge: true }, 'ShopContext:updateProductBundle');
       }
+      setProductBundles(prev => prev.map(b => b.id === id ? updatedBundle : b));
     } catch (err) {
       console.error("[ShopContext] Error updating bundle in Firestore:", err);
+      showToast('Failed to update combo deal in database', 'warning');
+      throw err;
     }
     await logAdminActivity('meta_change', 'Updated Combo Deal', `Updated bundle ID: ${id}`);
   };
@@ -932,10 +947,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (IS_FIREBASE_ENABLED) {
         await monitoredDeleteDoc(doc(db, 'product_bundles', id), 'ShopContext:deleteProductBundle');
       }
+      setProductBundles(prev => prev.filter(b => b.id !== id));
     } catch (err) {
       console.error("[ShopContext] Error deleting bundle from Firestore:", err);
+      showToast('Failed to delete combo deal from database', 'warning');
+      throw err;
     }
-    setProductBundles(prev => prev.filter(b => b.id !== id));
     await logAdminActivity('meta_change', 'Deleted Combo Deal', `Deleted bundle ID: ${id}`);
   };
 
@@ -984,7 +1001,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Check if any default categories are missing in Firestore list
             const firestoreIds = new Set(data.list.map((c: any) => c.id));
             const missingFromDefault = DEFAULT_CATEGORIES.filter(c => !firestoreIds.has(c.id));
-            if (missingFromDefault.length > 0 && (isAdminUser || isAdminUnlocked)) {
+            if (missingFromDefault.length > 0 && isAdminUser) {
               console.log('[ShopContext] Supplementing missing categories to Firestore:', missingFromDefault.map(c => c.id));
               const merged = [...data.list, ...missingFromDefault];
               setCategories(merged);
@@ -998,7 +1015,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
         } else {
-          if (isAdminUser || isAdminUnlocked) {
+          if (isAdminUser) {
             try {
               await monitoredSetDoc(catDocRef, { list: sanitizeDocumentData(DEFAULT_CATEGORIES) }, undefined, 'ShopContext:seedCategories');
             } catch (seedErr) {
@@ -1028,7 +1045,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setRegions(data.list);
           }
         } else {
-          if (isAdminUser || isAdminUnlocked) {
+          if (isAdminUser) {
             try {
               await monitoredSetDoc(regDocRef, { list: sanitizeDocumentData(LEBANON_REGIONS) }, undefined, 'ShopContext:seedRegions');
             } catch (seedErr) {
@@ -1179,6 +1196,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('[ShopContext] Error reordering categories in Firestore:', err);
         showToast('Failed to save category order to database', 'warning');
+        throw err;
       }
     }
 
@@ -1227,6 +1245,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch (err) {
         console.error('[ShopContext] Error reordering products in Firestore:', err);
         showToast('Failed to save product order to database', 'warning');
+        throw err;
       }
     }
 
@@ -1313,7 +1332,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       sellersColRef,
       async (snapshot) => {
         if (snapshot.empty) {
-          if (isAdminUser || isAdminUnlocked) {
+          if (isAdminUser) {
             try {
               const batch = writeBatch(db);
               DEFAULT_SELLERS.forEach(s => {
@@ -1340,7 +1359,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
     return () => unsubscribe();
-  }, [isAdminUser, isAdminUnlocked]);
+  }, [isAdminUser]);
 
   const addSeller = async (sellerData: Omit<Seller, 'id' | 'createdAt' | 'updatedAt'> & { id?: string; sellerCode?: string }) => {
     const slug = sellerData.id?.trim() || sellerData.nameEn.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `seller-${Date.now()}`;
@@ -1630,7 +1649,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           );
           resolve({ created, updated, errors });
         },
-        error: (err) => {
+        error: (err: any) => {
           reject(err);
         }
       });
@@ -1653,7 +1672,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (snapshot) => {
         if (!snapshot.exists()) {
           console.log("[ShopContext] CMS main document does not exist.");
-          if (isAdminUser || isAdminUnlocked) {
+          if (isAdminUser) {
             console.log("[ShopContext] Seeding DEFAULT_SITE_CONTENT to Firestore...");
             try {
               const sanitizedDefault = sanitizeDocumentData(DEFAULT_SITE_CONTENT);
@@ -1990,7 +2009,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (snapshot) => {
         if (snapshot.empty && !hasSeededProductsRef.current) {
           hasSeededProductsRef.current = true;
-          if (isAdminUser || isAdminUnlocked) {
+          if (isAdminUser) {
             console.log("[ShopContext] Database products collection is empty. Seeding initial catalog to Firestore...");
             try {
               const batch = writeBatch(db);
@@ -2045,7 +2064,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => unsubscribe();
-  }, [isAdminUser, isAdminUnlocked]);
+  }, [isAdminUser]);
 
   const loadMoreProducts = useCallback(async () => {
     if (!IS_FIREBASE_ENABLED || isFetchingMore || !hasMoreProducts || !lastVisibleDocRef.current) {
@@ -2122,10 +2141,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let q;
     if (isAdminUser) {
-      q = query(collection(db, 'orders'), orderBy('date', 'desc'));
+      q = query(collection(db, 'orders'), orderBy('date', 'desc'), limit(500));
+    } else if (user?.role === 'seller' && user?.sellerId) {
+      q = query(collection(db, 'orders'), where('sellerIds', 'array-contains', user.sellerId), limit(200));
     } else {
       // Query solely by userId without composite index requirement, then sort in JS memory
-      q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid));
+      q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), limit(100));
     }
 
     const unsubscribe = onSnapshot(
@@ -2165,7 +2186,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => unsubscribe();
-  }, [firebaseUser, isAdminUser, isAdminUnlocked]);
+  }, [firebaseUser, isAdminUser]);
 
   // Auth & User / Cart / Wishlist synchronization
   useEffect(() => {
@@ -2195,7 +2216,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setFirebaseUser(null);
         setUser(INITIAL_USER);
         setIsAdminUser(false);
-        setIsAdminUnlockedState(false);
+        setIsLocalAdminUnlockedState(false);
         setOrders([]);
         try {
           localStorage.removeItem('yallalb_orders');
@@ -2234,7 +2255,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const parts = displayName.trim().split(/\s+/);
               return {
                 firstName: parts[0],
-                lastName: parts.slice(1).join(' ') || 'Patron',
+                lastName: parts.slice(1).join(' ') || '',
                 name: displayName.trim()
               };
             }
@@ -2516,60 +2537,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      let isUserInDb = false;
-
-      // 1. Check Firestore 'users' collection for saved account
       if (IS_FIREBASE_ENABLED) {
-        try {
-          const usersRef = collection(db, 'users');
-          const allUsersSnap = await getDocs(usersRef);
-          allUsersSnap.forEach((docSnap) => {
-            const uData = docSnap.data();
-            if (uData && uData.email && typeof uData.email === 'string' && uData.email.trim().toLowerCase() === cleanEmail) {
-              isUserInDb = true;
-            }
-          });
-        } catch (dbErr) {
-          console.warn("[resetPassword] Firestore user search error:", dbErr);
-        }
+        await sendPasswordResetEmail(auth, cleanEmail);
       }
-
-      // 2. Fallback check via Firebase Auth sign in methods
-      if (!isUserInDb && IS_FIREBASE_ENABLED) {
-        try {
-          const methods = await fetchSignInMethodsForEmail(auth, cleanEmail);
-          if (methods && methods.length > 0) {
-            isUserInDb = true;
-          }
-        } catch (authErr: any) {
-          console.warn("[resetPassword] Auth methods check error:", authErr);
-        }
-      }
-
-      // If email is NOT found in database, block password reset and show warning notification
-      if (!isUserInDb) {
-        const notFoundMsg = language === 'ar'
-          ? 'عذراً، لم يتم العثور على حساب مسجل بهذا البريد الإلكتروني في قاعدة البيانات'
-          : 'No registered account found with this email address in our database. Please sign up or check your email.';
-        showToast(notFoundMsg, 'warning');
-        throw new Error(notFoundMsg);
-      }
-
-      // Email exists in database - proceed to send reset link
-      await sendPasswordResetEmail(auth, cleanEmail);
       const successMsg = language === 'ar'
-        ? 'تم إرسال رابط إعادة تعيين كلمة المرور. يرجى التحقق من صندوق الوارد الخاص بك.'
-        : 'Password reset email sent. Please check your inbox.';
+        ? 'إذا كان البريد مسجلاً لدينا، فقد تم إرسال رابط إعادة تعيين كلمة المرور إلى صندوق الوارد.'
+        : 'If an account exists for this email address, a password reset link has been sent.';
       showToast(successMsg, 'success');
     } catch (error: any) {
-      if (error.message && (error.message.includes('No registered account') || error.message.includes('لم يتم العثور'))) {
-        throw error;
+      if (error.code === 'auth/user-not-found') {
+        // OWASP User Enumeration Prevention: generic response prevents email address discovery
+        const successMsg = language === 'ar'
+          ? 'إذا كان البريد مسجلاً لدينا، فقد تم إرسال رابط إعادة تعيين كلمة المرور إلى صندوق الوارد.'
+          : 'If an account exists for this email address, a password reset link has been sent.';
+        showToast(successMsg, 'success');
+        return;
       }
       let msg = language === 'ar' ? 'فشل إرسال رابط إعادة التعيين: ' : 'Failed to send reset email: ';
       if (error.code === 'auth/network-request-failed') {
         msg = language === 'ar' ? 'خطأ في الاتصال بالشبكة. يرجى التحقق والتجربة مجدداً.' : 'Network connection error. Please check your connection and try again.';
-      } else if (error.code === 'auth/user-not-found') {
-        msg = language === 'ar' ? 'لم يتم العثور على حساب بهذا البريد الإلكتروني.' : 'No account found with this email address in our database.';
       } else {
         msg += error.message || '';
       }
@@ -2661,6 +2647,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         msg = 'Invalid email address format.';
       }
       showToast(msg, 'warning');
+      throw error;
     }
   };
 
@@ -3075,19 +3062,19 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Place Order - Order creation with graceful fallback for empty profiles
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
-    const activeUserId = firebaseUser?.uid || auth?.currentUser?.uid || 'guest-user';
+    const activeUserId = firebaseUser?.uid || auth?.currentUser?.uid || undefined;
 
     const orderDocRef = doc(collection(db, 'orders'));
     const orderId = orderDocRef.id;
 
     // L-3: Secure random tracker numbers using Web Crypto API
-    let trackingSuffix: number;
+    let trackingSuffix: string;
     if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-      const array = new Uint32Array(1);
+      const array = new Uint8Array(6);
       window.crypto.getRandomValues(array);
-      trackingSuffix = 100000 + (array[0] % 900000);
+      trackingSuffix = Array.from(array, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     } else {
-      trackingSuffix = Math.floor(100000 + Math.random() * 900000);
+      trackingSuffix = Math.random().toString(36).substring(2, 14).toUpperCase();
     }
     const dateStr = new Date().toISOString();
     const trackingNumberStr = `LB-EXP-${trackingSuffix}`;
@@ -3100,7 +3087,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         date: dateStr,
         trackingNumber: trackingNumberStr,
         status: 'pending',
-        userId: activeUserId
+        userId: activeUserId,
+        sellerIds: Array.from(new Set((orderData.items || []).map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
       };
       setOrders(prev => {
         const next = [newOrder, ...prev];
@@ -3166,9 +3154,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // 3. Recalculate subtotal, discounts, and total using authoritative values
+        let isNewUser = false;
+        if (activeUserId) {
+          const userDocRef = doc(db, 'users', activeUserId);
+          const userSnap = await transaction.get(userDocRef);
+          const ordersPlaced = userSnap.exists() ? (userSnap.data()?.ordersPlaced || 0) : 0;
+          isNewUser = ordersPlaced === 0;
+          if (userSnap.exists()) {
+            transaction.update(userDocRef, { ordersPlaced: ordersPlaced + 1 });
+          }
+        }
+
         const authDiscountCalc = applyDiscounts(validatedItems, discountRules, {
           couponCode: appliedCouponCode,
-          isNewUser: orders.length === 0,
+          isNewUser,
           productBundles
         });
         const subtotalUSD = Math.round(validatedItems.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
@@ -3203,18 +3202,39 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           discountUSD: discountUSDVal,
           totalUSD,
           totalLBP: Math.round(totalUSD * LBP_USD_RATE),
-          appliedCoupon: appliedCouponCode || undefined
+          appliedCoupon: appliedCouponCode || undefined,
+          sellerIds: Array.from(new Set(validatedItems.map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
         };
 
         const sanitizedOrder = sanitizeFirestorePayload(newOrder);
 
-        // 4. Stock availability is verified above. Direct client-side product stock writes
-        //    are restricted to admin roles (see firestore.rules).
-        
+        // 4. Atomically decrement stock in Firestore if administrative authority permits
+        if (isAdminUser) {
+          for (const dbProd of dbProducts) {
+            const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 0;
+            const newStock = Math.max(0, currentStock - dbProd.cartItem.quantity);
+            transaction.update(dbProd.ref, { stock: newStock });
+          }
+        }
+
         // 5. Create the order
         transaction.set(orderDocRef, sanitizedOrder);
 
         return newOrder;
+      });
+
+      // Optimistically update local catalog state so patron immediately sees decremented stock in session
+      setProducts(prevProducts => {
+        return prevProducts.map(p => {
+          const item = orderData.items.find(i => i.product.id === p.id);
+          if (item) {
+            return {
+              ...p,
+              stock: Math.max(0, (p.stock || 0) - item.quantity)
+            };
+          }
+          return p;
+        });
       });
 
       dbLogger.logFirestoreWriteSuccess({
@@ -3406,6 +3426,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       handleFirestoreError(error, OperationType.DELETE, `orders/${orderId}`);
       showToast('Error deleting order from database. You must be signed in as an admin.', 'error');
+      throw error;
       return;
     }
 
@@ -3414,6 +3435,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Add Product - Saves new item to Firestore database
   const addProduct = async (newProdData: Omit<Product, 'id'> & { id?: string }) => {
+    // Seller authorization check: non-admin sellers can only create products for their own workshop
+    if (!isAdminUser && user.role === 'seller') {
+      if (!user.sellerId) {
+        const errorMsg = 'Unauthorized: Your account is not linked to a registered seller workshop.';
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+      newProdData.sellerId = user.sellerId;
+    }
+
     // 1. Validation: Duplicate Product Number (sellerItemCode or custom ID)
     if (newProdData.sellerItemCode) {
       const targetSellerId = newProdData.sellerId;
@@ -3437,14 +3468,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Duplicate Description validation removed for flexibility
 
+    const { rating = 0, reviewsCount = 0, ...restProdData } = newProdData;
     const id = newProdData.id || `prod-custom-${Date.now()}`;
     const nowIso = new Date().toISOString();
     const newProduct: Product = ensureSellerItemCode({
-      rating: 0,
-      reviewsCount: 0,
       createdAt: nowIso,
       updatedAt: nowIso,
-      ...newProdData,
+      rating,
+      reviewsCount,
+      ...restProdData,
       id
     });
     const sanitizedProduct = sanitizeDocumentData(newProduct);
@@ -3536,9 +3568,20 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Update Product - Updates item in Firestore database
   const updateProduct = async (id: string, updates: Partial<Product>) => {
+    const existing = products.find(p => p.id === id);
+
+    // Seller authorization check: non-admin sellers can only update their own products
+    if (!isAdminUser && user.role === 'seller') {
+      if (!user.sellerId || !existing || existing.sellerId?.toLowerCase() !== user.sellerId?.toLowerCase()) {
+        const errorMsg = 'Unauthorized: You can only edit products belonging to your workshop.';
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+      updates.sellerId = user.sellerId;
+    }
+
     // 1. Validation: Duplicate Product Number
     if (updates.sellerItemCode) {
-      const existing = products.find(p => p.id === id);
       const targetSellerId = updates.sellerId || existing?.sellerId;
       const targetSellerName = updates.artisan || updates.seller || existing?.artisan || existing?.seller;
       const dupCodeCheck = checkDuplicateProductNumber(updates.sellerItemCode, id, products, targetSellerId, targetSellerName);
@@ -3551,7 +3594,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Duplicate Description validation removed for flexibility
 
-    const existing = products.find(p => p.id === id);
     const nowIso = new Date().toISOString();
     const mergedUpdates = { ...updates, updatedAt: nowIso };
     const sanitizedUpdates = sanitizeDocumentData(mergedUpdates);
@@ -3646,6 +3688,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteProduct = async (id: string) => {
     const target = products.find(p => p.id === id);
     
+    // Seller authorization check: non-admin sellers can only delete their own products
+    if (!isAdminUser && user.role === 'seller') {
+      if (!user.sellerId || !target || target.sellerId?.toLowerCase() !== user.sellerId?.toLowerCase()) {
+        const errorMsg = 'Unauthorized: You can only delete products belonging to your workshop.';
+        showToast(errorMsg, 'error');
+        throw new Error(errorMsg);
+      }
+    }
+
     dbLogger.logFormInput({
       sourceComponent: 'AdminView',
       actionName: 'deleteProduct',
@@ -3714,6 +3765,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       handleFirestoreError(error, OperationType.DELETE, `products/${id}`);
       showToast('Error deleting product from database. You must be signed in as an admin.', 'error');
+      throw error;
       return;
     }
 
@@ -3758,9 +3810,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      // Execute deletions in parallel
-      await Promise.all(ids.map(id => monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteMultipleProducts')));
-      
+      const results = await Promise.allSettled(ids.map(id => monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteMultipleProducts')));
+      const fulfilledCount = results.filter(r => r.status === 'fulfilled').length;
+      const rejectedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (rejectedCount > 0) {
+        showToast(`Deleted ${fulfilledCount} of ${ids.length} products (${rejectedCount} failed)`, 'warning');
+        throw new Error(`Failed to delete ${rejectedCount} products from database`);
+      }
+
       await logAdminActivity(
         'product_delete',
         `Bulk deleted ${ids.length} products`,
@@ -3787,7 +3845,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startTime,
         error
       });
-      showToast(`Error bulk deleting products. Some may remain.`, 'error');
+      throw error;
     }
   };
 
@@ -3834,6 +3892,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.error("[ShopContext] Error syncing all products to Firestore:", err);
       showToast('Error syncing products to database', 'warning');
+      throw err;
     }
   };
 
@@ -3858,25 +3917,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (regSnap.exists()) {
             const regData = regSnap.data();
             if (regData && regData.uid && (!excludeUid || regData.uid !== excludeUid)) {
-              return {
-                available: false,
-                reason: language === 'ar'
-                  ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر. يرجى استخدام رقم آخر أو تسجيل الدخول.'
-                  : 'This phone number is already registered to another account. Please sign in or use a different phone number.'
-              };
-            }
-          }
-        }
-
-        // 2. Comprehensive check across users collection
-        const usersRef = collection(db, 'users');
-        const usersSnap = await getDocs(usersRef);
-        for (const uDoc of usersSnap.docs) {
-          if (excludeUid && uDoc.id === excludeUid) continue;
-          const uData = uDoc.data();
-          if (uData && uData.phone) {
-            const uNorm = normalizeLebanesePhone(uData.phone);
-            if (uNorm.isValid && uNorm.cleanDigits === norm.cleanDigits) {
               return {
                 available: false,
                 reason: language === 'ar'
@@ -3954,7 +3994,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    const updatedUser = { ...user, ...updates };
+    // Strip privileged fields from non-admin updates to prevent client-side privilege escalation
+    const safeUpdates = { ...updates };
+    if (!isAdminUser) {
+      delete (safeUpdates as any).role;
+      delete (safeUpdates as any).sellerId;
+      delete (safeUpdates as any).isBanned;
+      delete (safeUpdates as any).ordersPlaced;
+    }
+
+    const updatedUser = { ...user, ...safeUpdates };
     const sanitizedUser = sanitizeDocumentData(updatedUser);
     setUser(updatedUser);
 
@@ -4152,6 +4201,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     checkPhoneUniqueness,
     firebaseUser,
+    isEmailVerified,
     isAdminUser,
     searchQuery,
     logSearchQuery,

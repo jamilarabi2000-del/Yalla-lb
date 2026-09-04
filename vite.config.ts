@@ -23,6 +23,7 @@ export default defineConfig(() => {
         input: {
           main: path.resolve(__dirname, 'index.html'),
           admin: path.resolve(__dirname, 'admin.html'),
+          seller: path.resolve(__dirname, 'seller.html'),
         },
       },
     },

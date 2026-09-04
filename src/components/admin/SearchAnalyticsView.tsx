@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { csvSafe } from '../../utils/csvSafe';
 import { db } from '../../firebase';
 import { collection, query, onSnapshot, orderBy, limit, doc, getDocs, writeBatch, deleteDoc } from 'firebase/firestore';
 import { 
@@ -214,7 +215,7 @@ export const SearchAnalyticsView: React.FC = () => {
     const headers = ['Rank', 'Search Term', 'Search Count', 'Percentage of Total', 'First Searched', 'Last Searched'];
     const rows = aggregatedTrends.map((t, idx) => [
       idx + 1,
-      `"${t.term.replace(/"/g, '""')}"`,
+      `"${csvSafe(t.term).replace(/"/g, '""')}"`,
       t.count,
       `${totalSearches > 0 ? ((t.count / totalSearches) * 100).toFixed(1) : 0}%`,
       `"${new Date(t.firstSeen).toLocaleString()}"`,
@@ -230,6 +231,7 @@ export const SearchAnalyticsView: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     showToast('Search trends CSV report downloaded successfully', 'success');
   };
 

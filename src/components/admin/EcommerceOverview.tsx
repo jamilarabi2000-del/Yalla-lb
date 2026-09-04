@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { sanitizeRowForCsv } from '../../utils/csvSafe';
 import { useShop } from '../../context/ShopContext';
 import { 
   TrendingUp, 
@@ -119,7 +120,7 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
         status: ord.status
       }));
 
-      const csv = Papa.unparse(dataToExport);
+      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -128,6 +129,7 @@ export const EcommerceOverview: React.FC<EcommerceOverviewProps> = ({ onNavigate
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Orders & Courier ledger downloaded successfully.', 'success');
     });
   };

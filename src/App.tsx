@@ -16,6 +16,7 @@ import { CheckCircle2, AlertCircle, Info, Sparkles, Loader2 } from 'lucide-react
 
 const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({ default: m.CheckoutView })));
 const AdminView = lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
+const SellerLoginView = lazy(() => import('./components/SellerLoginView').then(m => ({ default: m.SellerLoginView })));
 
 const MainAppContent: React.FC = () => {
   const { 
@@ -32,7 +33,8 @@ const MainAppContent: React.FC = () => {
     isCustomBlockModalOpen,
     setIsCustomBlockModalOpen,
     customBlockToEdit,
-    setCustomBlockToEdit
+    setCustomBlockToEdit,
+    user
   } = useShop();
   const isPopStateRef = useRef(false);
 
@@ -118,6 +120,9 @@ const MainAppContent: React.FC = () => {
       if (isAdminQuery || path === 'admin' || path.startsWith('admin/') || path === 'admin.html') {
         setSelectedProductDetail(null);
         setActiveTab('admin');
+      } else if (path === 'seller' || path === 'seller/' || path === 'seller.html') {
+        setSelectedProductDetail(null);
+        setActiveTab('seller');
       } else if (path.startsWith('product/')) {
         const prodId = path.replace('product/', '');
         const foundProduct = productsRef.current.find(p => p.id === prodId);
@@ -153,7 +158,9 @@ const MainAppContent: React.FC = () => {
       return;
     }
     let targetPath = activeTab === 'home' ? '' : activeTab;
-    if (activeTab === 'product_detail' && selectedProductDetail) {
+    if (activeTab === 'seller' || (activeTab === 'account' && user?.role === 'seller')) {
+      targetPath = 'seller';
+    } else if (activeTab === 'product_detail' && selectedProductDetail) {
       targetPath = `product/${selectedProductDetail.id}`;
     } else if (activeTab === 'products' && selectedCategory && selectedCategory !== 'all') {
       targetPath = `products/${encodeURIComponent(selectedCategory)}`;
@@ -170,7 +177,7 @@ const MainAppContent: React.FC = () => {
         : 0;
       window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', targetUrl);
     }
-  }, [activeTab, selectedProductDetail, selectedCategory]);
+  }, [activeTab, selectedProductDetail, selectedCategory, user?.role]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1a1a2e] text-slate-100 selection:bg-[#c5a059] selection:text-[#1a1a2e] font-sans antialiased">
@@ -213,13 +220,17 @@ const MainAppContent: React.FC = () => {
                 <a href="/account">Account</a>
                 — Account on Yalla.lb. A premium, high-velocity marketplace bridging Lebanese craftsmanship with modern.
               </li>
+              <li>
+                <a href="/seller">Artisan Portal</a>
+                — Merchant and artisan login portal for authentic Lebanese workshops and producers.
+              </li>
             </ul>
           </nav>
         </main>
       </div>
 
       {/* Main Top Navigation Header */}
-      {activeTab !== 'admin' && <Navbar />}
+      {activeTab !== 'admin' && activeTab !== 'seller' && <Navbar />}
 
       {/* Dynamic View Display */}
       <main className="flex-1">
@@ -237,6 +248,15 @@ const MainAppContent: React.FC = () => {
         )}
         {activeTab === 'account' && <AccountView />}
         {activeTab === 'favorites' && <FavoritesView />}
+        {activeTab === 'seller' && (
+          <Suspense fallback={
+            <div className="min-h-[80vh] bg-slate-900 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
+            </div>
+          }>
+            <SellerLoginView />
+          </Suspense>
+        )}
         {activeTab === 'admin' && (
           <AdminErrorBoundary>
             <Suspense fallback={
@@ -286,7 +306,7 @@ const MainAppContent: React.FC = () => {
       )}
 
       {/* Lebanese Craftsmanship Footer */}
-      {activeTab !== 'admin' && <Footer />}
+      {activeTab !== 'admin' && activeTab !== 'seller' && <Footer />}
 
     </div>
   );

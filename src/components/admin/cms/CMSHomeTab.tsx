@@ -19,6 +19,8 @@ import {
   ChevronUp,
   ChevronDown
 } from 'lucide-react';
+import { BilingualField } from './BilingualField';
+import { MediaAssetPicker } from './MediaAssetPicker';
 
 interface CMSHomeTabProps {
   homeData: {
@@ -252,102 +254,77 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
           <Sparkles className="w-5 h-5 text-amber-400" />
           <span>Landing Hero Banner & Core Messaging</span>
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Hero Eyebrow Badge (English)
-            </label>
-            <input
-              type="text"
-              value={heroData?.badgeText || ''}
-              onChange={(e) => onChangeHeroField('badgeText', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+        <div className="space-y-4">
+          <BilingualField
+            labelEn="Hero Eyebrow Badge"
+            labelAr="شارة الهيرو العلوية"
+            valueEn={heroData?.badgeText || ''}
+            valueAr={heroData?.badgeTextArabic || ''}
+            onChangeEn={(val) => onChangeHeroField('badgeText', val)}
+            onChangeAr={(val) => onChangeHeroField('badgeTextArabic', val)}
+            placeholderEn="e.g. 🌲 AUTHENTIC LEBANESE TREASURES"
+            placeholderAr="مثال: 🌲 كنوز وتراث المونة اللبنانية"
+            presetSuggestions={[
+              { en: '🌲 AUTHENTIC LEBANESE TREASURES', ar: '🌲 كنوز وتراث المونة اللبنانية' },
+              { en: '🇱🇧 DIRECT COOPERATIVE HERITAGE', ar: '🇱🇧 إنتاج مباشر من التعاونيات اللبنانية' },
+              { en: '✨ HANDCRAFTED ARTISAN ESSENTIALS', ar: '✨ حرف يدوية ومونة بيتية فاخرة' },
+            ]}
+          />
+
+          <BilingualField
+            labelEn="Hero Main Headline"
+            labelAr="عنوان الهيرو الرئيسي"
+            valueEn={heroData?.title || ''}
+            valueAr={heroData?.titleArabic || ''}
+            onChangeEn={(val) => onChangeHeroField('title', val)}
+            onChangeAr={(val) => onChangeHeroField('titleArabic', val)}
+            placeholderEn="Handcrafted Heritage & Timeless Mouneh..."
+            placeholderAr="أصالة المونة اللبنانية وحرفية القرى العريقة..."
+          />
+
+          <BilingualField
+            labelEn="Hero Subtitle / Description"
+            labelAr="وصف الهيرو التعريفي"
+            valueEn={heroData?.subtitle || ''}
+            valueAr={heroData?.subtitleArabic || ''}
+            onChangeEn={(val) => onChangeHeroField('subtitle', val)}
+            onChangeAr={(val) => onChangeHeroField('subtitleArabic', val)}
+            isTextarea
+            rows={2}
+            placeholderEn="Direct from Lebanese artisanal workshops to your doorstep..."
+            placeholderAr="مباشرة من ورش الحرفيين والتعاونيات الريفية إلى عتبة منزلك..."
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <BilingualField
+              labelEn="Primary CTA Button Label"
+              labelAr="نص الزر الرئيسي"
+              valueEn={heroData?.primaryBtnText || ''}
+              valueAr={heroData?.primaryBtnTextArabic || ''}
+              onChangeEn={(val) => onChangeHeroField('primaryBtnText', val)}
+              onChangeAr={(val) => onChangeHeroField('primaryBtnTextArabic', val)}
+              placeholderEn="Explore Collection"
+              placeholderAr="استكشف المجموعة"
+              presetSuggestions={[
+                { en: 'Explore Collection', ar: 'استكشف التشكيلة' },
+                { en: 'Shop Artisan Mouneh', ar: 'تسوق المونة الريفية' },
+                { en: 'Discover Crafts', ar: 'اكتشف الحرف' },
+              ]}
             />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">
-              شارة الهيرو العلوية (عربي)
-            </label>
-            <input
-              type="text"
-              dir="rtl"
-              value={heroData?.badgeTextArabic || ''}
-              onChange={(e) => onChangeHeroField('badgeTextArabic', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+
+            <BilingualField
+              labelEn="Secondary CTA Button Label"
+              labelAr="نص الزر الثانوي"
+              valueEn={heroData?.secondaryBtnText || ''}
+              valueAr={heroData?.secondaryBtnTextArabic || ''}
+              onChangeEn={(val) => onChangeHeroField('secondaryBtnText', val)}
+              onChangeAr={(val) => onChangeHeroField('secondaryBtnTextArabic', val)}
+              placeholderEn="Diaspora Shipping"
+              placeholderAr="شحن للمغتربين"
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Hero Main Headline (English)
-            </label>
-            <input
-              type="text"
-              value={heroData?.title || ''}
-              onChange={(e) => onChangeHeroField('title', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">
-              عنوان الهيرو الرئيسي (عربي)
-            </label>
-            <input
-              type="text"
-              dir="rtl"
-              value={heroData?.titleArabic || ''}
-              onChange={(e) => onChangeHeroField('titleArabic', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Hero Subtitle / Description (English)
-            </label>
-            <textarea
-              rows={2}
-              value={heroData?.subtitle || ''}
-              onChange={(e) => onChangeHeroField('subtitle', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none leading-relaxed"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">
-              وصف الهيرو التعريفي (عربي)
-            </label>
-            <textarea
-              rows={2}
-              dir="rtl"
-              value={heroData?.subtitleArabic || ''}
-              onChange={(e) => onChangeHeroField('subtitleArabic', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none leading-relaxed"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">
-              Primary CTA Button Label (English)
-            </label>
-            <input
-              type="text"
-              value={heroData?.primaryBtnText || ''}
-              onChange={(e) => onChangeHeroField('primaryBtnText', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">
-              نص الزر الرئيسي (عربي)
-            </label>
-            <input
-              type="text"
-              dir="rtl"
-              value={heroData?.primaryBtnTextArabic || ''}
-              onChange={(e) => onChangeHeroField('primaryBtnTextArabic', e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
-            />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
 
           {/* Slider Auto-Play Timer & Dark Overlay Tint Controls */}
           <div>
@@ -586,6 +563,7 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
             </div>
           </div>
         </div>
+      </div>
 
         {/* Hero Stats Metric List */}
         <div className="pt-4 border-t border-white/10 space-y-3">
@@ -839,11 +817,22 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Button Label</label>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Button Label (EN)</label>
                 <input
                   type="text"
                   value={slideForm.buttonText}
                   onChange={(e) => setSlideForm({ ...slideForm, buttonText: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Button Label (AR)</label>
+                <input
+                  type="text"
+                  value={slideForm.buttonTextArabic || ''}
+                  onChange={(e) => setSlideForm({ ...slideForm, buttonTextArabic: e.target.value })}
+                  placeholder="تسوق العرض"
+                  dir="rtl"
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
                 />
               </div>
@@ -867,30 +856,52 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
                 />
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-300 uppercase mb-1">Slide Image URL</label>
+                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">
+                  💻 Laptop / Desktop Image URL (Landscape 16:9)
+                </label>
                 <input
                   type="url"
                   value={slideForm.imageUrl || ''}
                   onChange={(e) => setSlideForm({ ...slideForm, imageUrl: e.target.value })}
+                  placeholder="https://.../laptop-landscape-banner.jpg"
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none font-mono"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">
+                  📱 Mobile Screen Image URL (Optional Portrait 4:5 / 1:1)
+                </label>
+                <input
+                  type="url"
+                  value={slideForm.mobileImageUrl || ''}
+                  onChange={(e) => setSlideForm({ ...slideForm, mobileImageUrl: e.target.value })}
+                  placeholder="https://.../mobile-portrait-banner.jpg"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">If blank, the desktop image will be automatically adapted for mobile.</p>
               </div>
 
               {/* Image Zoom & Focus Controls */}
               <div>
                 <div className="flex justify-between items-center mb-1">
-                  <label className="text-[11px] font-bold text-amber-400 uppercase">Image Zoom Level</label>
+                  <label className="text-[11px] font-bold text-amber-400 uppercase">Image Zoom Scale</label>
                   <span className="text-xs font-mono text-amber-400">{slideForm.imageZoom || 100}%</span>
                 </div>
                 <input
                   type="range"
-                  min="100"
+                  min="50"
                   max="200"
                   step="5"
                   value={slideForm.imageZoom || 100}
                   onChange={(e) => setSlideForm({ ...slideForm, imageZoom: parseInt(e.target.value, 10) })}
                   className="w-full accent-amber-500 cursor-pointer"
                 />
+                <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-0.5">
+                  <span>50% (Zoom Out)</span>
+                  <span>100% (Default)</span>
+                  <span>200% (Zoom In)</span>
+                </div>
               </div>
 
               <div>
@@ -901,10 +912,14 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
                 >
                   <option value="center">Center (Default)</option>
-                  <option value="top">Top Focus</option>
-                  <option value="bottom">Bottom Focus</option>
-                  <option value="left">Left Focus</option>
-                  <option value="right">Right Focus</option>
+                  <option value="top">Top Center</option>
+                  <option value="bottom">Bottom Center</option>
+                  <option value="left">Left Center</option>
+                  <option value="right">Right Center</option>
+                  <option value="top left">Top Left</option>
+                  <option value="top right">Top Right</option>
+                  <option value="bottom left">Bottom Left</option>
+                  <option value="bottom right">Bottom Right</option>
                 </select>
               </div>
 
@@ -915,10 +930,20 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
                   onChange={(e) => setSlideForm({ ...slideForm, imageFit: e.target.value as any })}
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none"
                 >
-                  <option value="cover">Cover (Fill Screen Background)</option>
-                  <option value="contain">Contain (Fit Full Uncropped Image)</option>
+                  <option value="cover">Cover (Fill & Crop Widescreen)</option>
+                  <option value="contain">Contain (Fit Entire Image + Ambient Glow)</option>
+                  <option value="fill">Fill (Stretch Full Container)</option>
                 </select>
               </div>
+
+              <div className="md:col-span-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-slate-300 text-[11px] leading-relaxed">
+                <span className="font-bold text-amber-300">💡 Image Fitting Advice for Laptops & Mobiles:</span>
+                <ul className="list-disc list-inside mt-1 space-y-0.5 text-slate-400">
+                  <li><strong className="text-slate-200">Laptop Screens</strong> are widescreen (16:9, e.g. 1920×1080). Use horizontal photos or select <strong>Contain</strong> or set <strong>Zoom to 60%-90%</strong> to prevent top/bottom cropping.</li>
+                  <li><strong className="text-slate-200">Mobile Screens</strong> are vertical. Use the optional <em>Mobile Screen Image URL</em> if you have a vertical photo.</li>
+                </ul>
+              </div>
+
               <div className="md:col-span-2">
                 <label className="block text-[11px] font-bold text-amber-400 uppercase mb-1">Slide Background Video URL (Optional MP4/WebM)</label>
                 <input
@@ -1013,140 +1038,129 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
           <span>Home Page Section Titles & Story Blocks</span>
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Featured Items Title</label>
-            <input type="text" value={homeData?.featuredTitle || ''} onChange={e => onChangeHomeField('featuredTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان المنتجات المميزة (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.featuredTitleArabic || ''} onChange={e => onChangeHomeField('featuredTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+        <div className="space-y-5">
+          <BilingualField
+            labelEn="Featured Products Section Title"
+            labelAr="عنوان قسم المنتجات المميزة"
+            valueEn={homeData?.featuredTitle || ''}
+            valueAr={homeData?.featuredTitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('featuredTitle', val)}
+            onChangeAr={(val) => onChangeHomeField('featuredTitleArabic', val)}
+            placeholderEn="Handcrafted Lebanese Treasures"
+            placeholderAr="كنوز وحرف لبنانية مختارة"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Featured Items Subtitle (Above Title)</label>
-            <input type="text" value={homeData?.featuredSubtitle || ''} onChange={e => onChangeHomeField('featuredSubtitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان فرعي للمنتجات المميزة (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.featuredSubtitleArabic || ''} onChange={e => onChangeHomeField('featuredSubtitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Featured Products Subtitle"
+            labelAr="العنوان الفرعي للمنتجات المميزة"
+            valueEn={homeData?.featuredSubtitle || ''}
+            valueAr={homeData?.featuredSubtitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('featuredSubtitle', val)}
+            onChangeAr={(val) => onChangeHomeField('featuredSubtitleArabic', val)}
+            placeholderEn="Authentic Artisan Mouneh"
+            placeholderAr="مونة بيتية أصيلة من القرى"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Featured Items Description (Below Title)</label>
-            <input type="text" value={homeData?.featuredDescription || ''} onChange={e => onChangeHomeField('featuredDescription', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">وصف المنتجات المميزة (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.featuredDescriptionArabic || ''} onChange={e => onChangeHomeField('featuredDescriptionArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Today's Flash Deals Title"
+            labelAr="عنوان عروض اليوم السريعة"
+            valueEn={homeData?.dealsTitle || ''}
+            valueAr={homeData?.dealsTitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('dealsTitle', val)}
+            onChangeAr={(val) => onChangeHomeField('dealsTitleArabic', val)}
+            placeholderEn="Today's Harvest Specials"
+            placeholderAr="عروض موسم القطاف الحصرية"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Today's Deals Title</label>
-            <input type="text" value={homeData?.dealsTitle || ''} onChange={e => onChangeHomeField('dealsTitle', e.target.value)} placeholder="Today's Deals" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان عروض اليوم (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.dealsTitleArabic || ''} onChange={e => onChangeHomeField('dealsTitleArabic', e.target.value)} placeholder="عروض اليوم" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Today's Deals Subtitle"
+            labelAr="العنوان الفرعي لعروض اليوم"
+            valueEn={homeData?.dealsSubtitle || ''}
+            valueAr={homeData?.dealsSubtitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('dealsSubtitle', val)}
+            onChangeAr={(val) => onChangeHomeField('dealsSubtitleArabic', val)}
+            placeholderEn="Limited Seasonal Batches"
+            placeholderAr="كميات محدودة وأسعار تشجيعية"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Today's Deals Subtitle (Above Title)</label>
-            <input type="text" value={homeData?.dealsSubtitle || ''} onChange={e => onChangeHomeField('dealsSubtitle', e.target.value)} placeholder="Flash Discounts" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان فرعي لعروض اليوم (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.dealsSubtitleArabic || ''} onChange={e => onChangeHomeField('dealsSubtitleArabic', e.target.value)} placeholder="تخفيضات سريعة" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="New Arrivals Section Title"
+            labelAr="عنوان قسم وصل حديثاً"
+            valueEn={homeData?.newArrivalsTitle || ''}
+            valueAr={homeData?.newArrivalsTitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('newArrivalsTitle', val)}
+            onChangeAr={(val) => onChangeHomeField('newArrivalsTitleArabic', val)}
+            placeholderEn="Fresh From the Village"
+            placeholderAr="وصل حديثاً من القرى والتعاونيات"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Today's Deals Description (Below Title)</label>
-            <input type="text" value={homeData?.dealsDescription || ''} onChange={e => onChangeHomeField('dealsDescription', e.target.value)} placeholder="Limited time offers..." className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">وصف عروض اليوم (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.dealsDescriptionArabic || ''} onChange={e => onChangeHomeField('dealsDescriptionArabic', e.target.value)} placeholder="عروض لفترة محدودة..." className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Shop By Category Title"
+            labelAr="عنوان تصفح الفئات"
+            valueEn={homeData?.categoriesTitle || ''}
+            valueAr={homeData?.categoriesTitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('categoriesTitle', val)}
+            onChangeAr={(val) => onChangeHomeField('categoriesTitleArabic', val)}
+            placeholderEn="Explore Lebanese Heritage Departments"
+            placeholderAr="استكشف أقسام التراث والمونة اللبنانية"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">New Arrivals Title</label>
-            <input type="text" value={homeData?.newArrivalsTitle || ''} onChange={e => onChangeHomeField('newArrivalsTitle', e.target.value)} placeholder="New Arrivals" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان حديثاً (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.newArrivalsTitleArabic || ''} onChange={e => onChangeHomeField('newArrivalsTitleArabic', e.target.value)} placeholder="وصل حديثاً" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Heritage Story Title"
+            labelAr="عنوان قصة التراث والمونة"
+            valueEn={homeData?.heritageTitle || ''}
+            valueAr={homeData?.heritageTitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('heritageTitle', val)}
+            onChangeAr={(val) => onChangeHomeField('heritageTitleArabic', val)}
+            placeholderEn="The Story of Cedar Roots"
+            placeholderAr="حكاية جذور الأرز والتراث الحي"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">New Arrivals Subtitle</label>
-            <input type="text" value={homeData?.newArrivalsSubtitle || ''} onChange={e => onChangeHomeField('newArrivalsSubtitle', e.target.value)} placeholder="Freshly Stocked" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان فرعي لحديثاً (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.newArrivalsSubtitleArabic || ''} onChange={e => onChangeHomeField('newArrivalsSubtitleArabic', e.target.value)} placeholder="وصل حديثاً" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Heritage Story Narrative"
+            labelAr="سرد قصة التراث"
+            valueEn={homeData?.heritageText || ''}
+            valueAr={homeData?.heritageTextArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('heritageText', val)}
+            onChangeAr={(val) => onChangeHomeField('heritageTextArabic', val)}
+            isTextarea
+            rows={3}
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Shop by Category Title</label>
-            <input type="text" value={homeData?.categoriesTitle || ''} onChange={e => onChangeHomeField('categoriesTitle', e.target.value)} placeholder="Explore by Category" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان الفئات (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.categoriesTitleArabic || ''} onChange={e => onChangeHomeField('categoriesTitleArabic', e.target.value)} placeholder="تسوق حسب الفئات" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <BilingualField
+            labelEn="Customer Reviews Section Title"
+            labelAr="عنوان آراء وتجارب العملاء"
+            valueEn={homeData?.reviewsTitle || ''}
+            valueAr={homeData?.reviewsTitleArabic || ''}
+            onChangeEn={(val) => onChangeHomeField('reviewsTitle', val)}
+            onChangeAr={(val) => onChangeHomeField('reviewsTitleArabic', val)}
+            placeholderEn="What Our Community Says"
+            placeholderAr="ماذا يقول مجتمعنا وأحباؤنا"
+          />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Shop by Category Subtitle</label>
-            <input type="text" value={homeData?.categoriesSubtitle || ''} onChange={e => onChangeHomeField('categoriesSubtitle', e.target.value)} placeholder="Browse Departments" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان فرعي للفئات (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.categoriesSubtitleArabic || ''} onChange={e => onChangeHomeField('categoriesSubtitleArabic', e.target.value)} placeholder="تصفح الأقسام" className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <BilingualField
+              labelEn="Newsletter Title"
+              labelAr="عنوان النشرة البريدية"
+              valueEn={homeData?.newsletterTitle || ''}
+              valueAr={homeData?.newsletterTitleArabic || ''}
+              onChangeEn={(val) => onChangeHomeField('newsletterTitle', val)}
+              onChangeAr={(val) => onChangeHomeField('newsletterTitleArabic', val)}
+            />
 
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Heritage Story Title</label>
-            <input type="text" value={homeData?.heritageTitle || ''} onChange={e => onChangeHomeField('heritageTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان قصة التراث (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.heritageTitleArabic || ''} onChange={e => onChangeHomeField('heritageTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Heritage Story Narrative</label>
-            <textarea rows={3} value={homeData?.heritageText || ''} onChange={e => onChangeHomeField('heritageText', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none leading-relaxed" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">سرد قصة التراث (عربي)</label>
-            <textarea rows={3} dir="rtl" value={homeData?.heritageTextArabic || ''} onChange={e => onChangeHomeField('heritageTextArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none leading-relaxed" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Reviews Section Title</label>
-            <input type="text" value={homeData?.reviewsTitle || ''} onChange={e => onChangeHomeField('reviewsTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان قسم التقييمات (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.reviewsTitleArabic || ''} onChange={e => onChangeHomeField('reviewsTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Newsletter Title</label>
-            <input type="text" value={homeData?.newsletterTitle || ''} onChange={e => onChangeHomeField('newsletterTitle', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">عنوان النشرة البريدية (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.newsletterTitleArabic || ''} onChange={e => onChangeHomeField('newsletterTitleArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Newsletter Button Label</label>
-            <input type="text" value={homeData?.newsletterButtonText || ''} onChange={e => onChangeHomeField('newsletterButtonText', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5" dir="rtl">زر النشرة البريدية (عربي)</label>
-            <input type="text" dir="rtl" value={homeData?.newsletterButtonTextArabic || ''} onChange={e => onChangeHomeField('newsletterButtonTextArabic', e.target.value)} className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white focus:border-amber-400 focus:outline-none" />
+            <BilingualField
+              labelEn="Newsletter Button Label"
+              labelAr="زر النشرة البريدية"
+              valueEn={homeData?.newsletterButtonText || ''}
+              valueAr={homeData?.newsletterButtonTextArabic || ''}
+              onChangeEn={(val) => onChangeHomeField('newsletterButtonText', val)}
+              onChangeAr={(val) => onChangeHomeField('newsletterButtonTextArabic', val)}
+              presetSuggestions={[
+                { en: 'Subscribe', ar: 'اشتراك' },
+                { en: 'Join Heritage Club', ar: 'انضم لمجتمع التراث' },
+                { en: 'Get Updates', ar: 'احصل على الجديد' },
+              ]}
+            />
           </div>
         </div>
       </div>

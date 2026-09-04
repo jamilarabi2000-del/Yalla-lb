@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import { Product, Seller, Order } from '../types';
 import { LBP_USD_RATE } from '../data/regions';
+import { sanitizeRowForCsv } from './csvSafe';
 
 const isProductLinkedToSeller = (p: Product, seller: Seller) => {
   if (p.sellerId && seller.id && p.sellerId.toLowerCase() === seller.id.toLowerCase()) return true;
@@ -264,7 +265,7 @@ export function downloadFullMasterReport(
     };
   });
 
-  const csv = Papa.unparse(rows);
+  const csv = Papa.unparse(rows.map(sanitizeRowForCsv));
   triggerDownload(csv, `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
@@ -400,7 +401,7 @@ export function downloadSellerPerformanceReport(
     };
   });
 
-  const csv = Papa.unparse(rows);
+  const csv = Papa.unparse(rows.map(sanitizeRowForCsv));
   triggerDownload(csv, `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
@@ -482,7 +483,7 @@ export function downloadStockInventoryReport(
       };
     });
 
-  const csv = Papa.unparse(rows);
+  const csv = Papa.unparse(rows.map(sanitizeRowForCsv));
   triggerDownload(csv, `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 

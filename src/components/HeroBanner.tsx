@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
 import { 
-  Search,
   ChevronLeft,
   ChevronRight,
   Sparkles,
@@ -23,6 +22,8 @@ interface ConsolidatedSlide {
   id: string;
   type?: 'image' | 'video';
   url: string;
+  desktopImageUrl?: string;
+  mobileImageUrl?: string;
   badgeEn?: string;
   badgeAr?: string;
   titleEn: string;
@@ -38,7 +39,7 @@ interface ConsolidatedSlide {
   targetUrl?: string;
   imageZoom?: number;
   objectPosition?: string;
-  imageFit?: 'cover' | 'contain';
+  imageFit?: 'cover' | 'contain' | 'fill';
   isCustomSchoolLayout?: boolean;
   bundleId?: string;
 }
@@ -171,7 +172,9 @@ export const HeroBanner: React.FC = () => {
       cmsConsolidatedSlides.push({
         id: slide.id || `offer-${idx}`,
         type: slide.bgVideoUrl ? 'video' : 'image',
-        url: slide.imageUrl || slide.bgVideoUrl || raoucheSunsetImg,
+        url: slide.imageUrl || slide.desktopImageUrl || slide.bgVideoUrl || raoucheSunsetImg,
+        desktopImageUrl: slide.desktopImageUrl || slide.imageUrl,
+        mobileImageUrl: slide.mobileImageUrl,
         badgeEn: slide.badge || 'SPECIAL OFFER',
         badgeAr: slide.badgeArabic || slide.badge || 'عرض خاص',
         titleEn: slide.title,
@@ -365,7 +368,7 @@ export const HeroBanner: React.FC = () => {
             muted
             playsInline
             className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
-              fitMode === 'contain' ? 'object-contain' : 'object-cover'
+              fitMode === 'contain' ? 'object-contain' : fitMode === 'fill' ? 'object-fill' : 'object-cover'
             } ${
               isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
@@ -386,21 +389,44 @@ export const HeroBanner: React.FC = () => {
                 className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-40 pointer-events-none transition-opacity duration-1000"
               />
             )}
-            <img
-              src={slide.url}
-              alt={slide.titleEn}
-              referrerPolicy="no-referrer"
-              className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
-                fitMode === 'contain' ? 'object-contain' : 'object-cover'
-              } ${
+            
+            {slide.mobileImageUrl ? (
+              <picture className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
                 isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}
-              style={{
-                objectPosition: slide.objectPosition || 'center',
-                transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
-                transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
-              }}
-            />
+              }`}>
+                <source media="(max-width: 640px)" srcSet={slide.mobileImageUrl} />
+                <source media="(min-width: 641px)" srcSet={slide.desktopImageUrl || slide.url} />
+                <img
+                  src={slide.desktopImageUrl || slide.url}
+                  alt={slide.titleEn}
+                  referrerPolicy="no-referrer"
+                  className={`w-full h-full ${
+                    fitMode === 'contain' ? 'object-contain' : fitMode === 'fill' ? 'object-fill' : 'object-cover'
+                  }`}
+                  style={{
+                    objectPosition: slide.objectPosition || 'center',
+                    transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
+                    transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
+                  }}
+                />
+              </picture>
+            ) : (
+              <img
+                src={slide.url}
+                alt={slide.titleEn}
+                referrerPolicy="no-referrer"
+                className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
+                  fitMode === 'contain' ? 'object-contain' : fitMode === 'fill' ? 'object-fill' : 'object-cover'
+                } ${
+                  isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                }`}
+                style={{
+                  objectPosition: slide.objectPosition || 'center',
+                  transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
+                  transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
+                }}
+              />
+            )}
           </React.Fragment>
         );
       })}
@@ -483,45 +509,22 @@ export const HeroBanner: React.FC = () => {
 
         </div>
 
-        {/* Bottom Hero Controls: Search Bar & Pagination Dots */}
+        {/* Bottom Hero Controls: Action Button & Pagination Dots */}
         <div className="max-w-2xl mx-auto w-full space-y-3 pt-2 pb-1 relative z-30">
           
-          {currentSlide.bundleId ? (
-            <div className="flex justify-center pt-1">
-              <button
-                onClick={() => handleActionClick()}
-                className="w-full sm:w-auto px-10 py-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-sm uppercase tracking-widest rounded-full shadow-2xl transition-all flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer border border-amber-400"
-              >
-                <ShoppingBag className="w-5 h-5 stroke-[2.5]" />
-                <span>{activeBtnText}</span>
-              </button>
-            </div>
-          ) : (
-            /* Search Bar Embedded inside Hero */
-            <div className="relative flex items-center bg-white rounded-full border border-slate-200/90 focus-within:border-amber-500 shadow-2xl overflow-hidden transition-all p-1.5">
-              <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} w-5 h-5 text-slate-400 pointer-events-none z-10`} />
-              <input
-                type="text"
-                placeholder={language === 'ar' ? (siteContent?.navbar?.searchPlaceholderArabic || t('searchPlaceholder')) : (siteContent?.navbar?.searchPlaceholder || t('searchPlaceholder'))}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleActionClick();
-                }}
-                className={`w-full ${language === 'ar' ? 'pr-11 pl-44 sm:pl-56' : 'pl-11 pr-44 sm:pr-56'} py-2.5 sm:py-3 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none bg-transparent font-medium truncate`}
-              />
-              <button 
-                onClick={() => handleActionClick()}
-                className={`absolute ${language === 'ar' ? 'left-1.5' : 'right-1.5'} top-1.5 bottom-1.5 flex items-center gap-1.5 px-3 sm:px-6 max-w-[150px] sm:max-w-none bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-[10px] sm:text-xs uppercase tracking-wider rounded-full cursor-pointer shadow-md transition-all whitespace-nowrap`}
-              >
-                <ShoppingBag className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{activeBtnText || (language === 'ar' ? 'تسوق الان' : 'Shop Now')}</span>
-              </button>
-            </div>
-          )}
+          <div className="flex justify-center pt-1">
+            <button
+              onClick={() => handleActionClick()}
+              className="w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-widest rounded-full shadow-2xl transition-all flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer border border-amber-400 hover:shadow-amber-500/30"
+            >
+              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+              <span>{activeBtnText || (language === 'ar' ? 'تسوق الآن' : 'Shop Now')}</span>
+            </button>
+          </div>
 
-          {/* Carousel Indicators & Controls directly below Search Bar */}
+          {/* Carousel Indicators & Controls */}
           {slides.length > 1 && (
-            <div className="flex justify-center items-center gap-2 pt-1">
+            <div className="flex justify-center items-center gap-2 pt-2">
               {slides.map((_, i) => (
                 <button
                   key={i}

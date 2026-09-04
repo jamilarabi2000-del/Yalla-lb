@@ -189,8 +189,8 @@ export function applyDiscounts(
     if (rule.type === 'percentage') {
       ruleDiscount = baseApplicableAmount * (Math.min(100, Math.max(0, rule.value)) / 100);
     } else {
-      // Fixed discount cannot exceed eligible amount
-      ruleDiscount = Math.min(rule.value, baseApplicableAmount);
+      // Fixed discount cannot exceed eligible amount and cannot be negative
+      ruleDiscount = Math.max(0, Math.min(rule.value, baseApplicableAmount));
     }
 
     ruleDiscount = Math.round(ruleDiscount * 100) / 100;

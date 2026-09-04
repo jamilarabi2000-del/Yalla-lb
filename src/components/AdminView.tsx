@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { sanitizeRowForCsv } from '../utils/csvSafe';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
 import { Product, OrderStatus, Order, UserProfile } from '../types';
@@ -679,6 +680,7 @@ export const AdminView: React.FC = () => {
   const [dbActiveCartsCount, setDbActiveCartsCount] = useState(0);
 
   useEffect(() => {
+    if (!isAdminUser && !isAdminUnlocked) return;
     let isMounted = true;
     const fetchUsersAndCarts = async () => {
       try {
@@ -709,7 +711,7 @@ export const AdminView: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAdminUser, isAdminUnlocked]);
 
   // Calculate distinct counts for sidebar badges
   const categoriesCount = categories.length;
@@ -1340,7 +1342,7 @@ export const AdminView: React.FC = () => {
         status: ord.status
       }));
 
-      const csv = Papa.unparse(dataToExport);
+      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1349,6 +1351,7 @@ export const AdminView: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Orders report downloaded successfully', 'success');
     });
   };
@@ -1399,7 +1402,7 @@ export const AdminView: React.FC = () => {
     import('papaparse').then((Papa) => {
       const dataToExport = filteredCatalogProducts.map(formatProductForCSV);
 
-      const csv = Papa.unparse(dataToExport);
+      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1408,6 +1411,7 @@ export const AdminView: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Products catalog report downloaded successfully', 'success');
     });
   };
@@ -1422,7 +1426,7 @@ export const AdminView: React.FC = () => {
       const selectedProducts = products.filter(p => selectedProductIds.has(p.id));
       const dataToExport = selectedProducts.map(formatProductForCSV);
 
-      const csv = Papa.unparse(dataToExport);
+      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
       const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1431,6 +1435,7 @@ export const AdminView: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast(`Downloaded CSV for ${selectedProducts.length} selected items for bulk update. Edit fields and re-upload in Bulk Upload CSV modal.`, 'success');
     });
   };
@@ -1466,6 +1471,7 @@ export const AdminView: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     showToast('Headers-only CSV template downloaded successfully', 'success');
   };
 
@@ -4827,7 +4833,7 @@ export const AdminView: React.FC = () => {
                       <a
                         href={`https://wa.me/${selectedInvoiceOrder.shipping.phone.replace(/[^0-9]/g, '')}`}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors inline-flex items-center gap-1"
                         title="Chat on WhatsApp"
                       >

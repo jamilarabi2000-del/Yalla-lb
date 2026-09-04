@@ -165,7 +165,7 @@ export const CheckoutView: React.FC = () => {
         if (nameCandidate.trim()) {
           const parts = nameCandidate.trim().split(/\s+/);
           fName = fName || parts[0];
-          lName = lName || (parts.length > 1 ? parts.slice(1).join(' ') : 'Ghattas');
+          lName = lName || (parts.length > 1 ? parts.slice(1).join(' ') : '');
         }
       }
 

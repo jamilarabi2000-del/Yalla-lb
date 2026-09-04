@@ -20,12 +20,16 @@ import { db } from '../../firebase';
 import { buildCustomerIndex } from '../../lib/customerIndex';
 
 export const ActiveCartsView: React.FC = () => {
-  const { cart, cartTotalUSD, clearCart, formatPrice, convertUSDToLBP, showToast, user, orders } = useShop();
+  const { cart, cartTotalUSD, clearCart, formatPrice, convertUSDToLBP, showToast, user, orders, isAdminUser, isAdminUnlocked } = useShop();
   const [selectedCartDetail, setSelectedCartDetail] = useState<boolean>(false);
   const [activeCartsList, setActiveCartsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isAdminUser && !isAdminUnlocked) {
+      setIsLoading(false);
+      return;
+    }
     const fetchCarts = async () => {
       try {
         const [usersSnap, cartsSnap] = await Promise.all([
@@ -100,7 +104,7 @@ export const ActiveCartsView: React.FC = () => {
   const handleSendReminder = (phone: string, total: number) => {
     const cleanPhone = phone.replace(/[^0-9]/g, '');
     const message = encodeURIComponent(`Marhaba! We noticed you left some authentic Lebanese artisanal items in your cart on Yalla.lb (${formatPrice(total)}). Would you like help finalizing your delivery in Lebanon?`);
-    window.open(`https://wa.me/${cleanPhone || '96170123456'}?text=${message}`, '_blank');
+    window.open(`https://wa.me/${cleanPhone || '96170123456'}?text=${message}`, '_blank', 'noopener,noreferrer');
     showToast('Opened WhatsApp reminder message!', 'info');
   };
 
@@ -178,7 +182,7 @@ export const ActiveCartsView: React.FC = () => {
                   </h5>
 
                   <div className="divide-y divide-slate-100">
-                    {cartSession.items.map((item) => (
+                    {cartSession.items.map((item: any) => (
                       <div key={item.product.id} className="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
                         <div className="flex items-center gap-3">
                           <img 

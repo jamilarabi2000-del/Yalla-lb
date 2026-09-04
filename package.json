@@ -10,6 +10,7 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "test:delivery": "vitest run test/delivery.test.ts",
+    "test:security": "vitest run test/security.test.ts",
     "test:rules": "npx firebase emulators:exec --only firestore 'vitest run test/rules.test.ts'",
     "verify": "npm run lint && npm run test:delivery && npm run test:rules",
     "grant-admin": "node scripts/grant-admin.mjs"
@@ -35,5 +36,11 @@
     "typescript": "~5.8.2",
     "vite": "^6.2.3",
     "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "tar": "^7.5.3",
+    "qs": "^6.16.0",
+    "stream-json": "^1.9.1",
+    "uuid": "^11.1.1"
   }
 }

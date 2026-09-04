@@ -20,7 +20,7 @@ export function buildCustomerIndex(
   orders: Order[]
 ): Map<string, CustomerRecord> {
   const getCleanKey = (u: { uid?: string; phone?: string | null; email?: string | null; id?: string }) => {
-    if (u.uid && u.uid.trim()) return u.uid.trim();
+    if (u.uid && u.uid.trim() && u.uid !== 'guest-user') return u.uid.trim();
     if (u.email && u.email.trim()) return u.email.trim().toLowerCase();
     if (u.phone && u.phone.trim()) return u.phone.trim();
     if (u.id && u.id.trim()) return u.id.trim();

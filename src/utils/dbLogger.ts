@@ -41,9 +41,10 @@ function redactPII(data: any): any {
   
   const redacted = { ...data };
   const piiKeys = [
-    'fullName', 'firstName', 'lastName', 'phone', 'email', 'street', 
-    'building', 'floorApartment', 'deliveryNotes', 'address', 
-    'defaultAddress', 'defaultNotes', 'name'
+    'fullName', 'firstName', 'lastName', 'customerName', 'recipientName', 'userName', 'profileName',
+    'phone', 'email', 'street', 'building', 'floorApartment', 'deliveryNotes', 'address', 
+    'defaultAddress', 'defaultNotes', 'shipping', 'recipient',
+    'customer', 'user', 'profile'
   ];
   
   for (const key of Object.keys(redacted)) {

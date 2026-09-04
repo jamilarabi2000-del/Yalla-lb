@@ -18,6 +18,7 @@ import {
 import { Order, Product } from '../types';
 import { db, IS_FIREBASE_ENABLED } from '../firebase';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { useShop } from '../context/ShopContext';
 
 interface OrderHistoryProps {
   orders: Order[];
@@ -32,6 +33,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
   onNavigateProducts,
   language
 }) => {
+  const { firebaseUser, isAdminUser } = useShop();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -59,43 +61,66 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       o => o.id === cleanInput || o.trackingNumber === cleanInput || o.trackingNumber.toLowerCase() === cleanInput.toLowerCase()
     );
 
+    if (localMatch) {
+      setTrackedOrder(localMatch);
+      setIsTrackingLoading(false);
+      return;
+    }
+
     if (!IS_FIREBASE_ENABLED) {
       setIsTrackingLoading(false);
-      if (localMatch) {
-        setTrackedOrder(localMatch);
-      } else {
-        setTrackingError(language === 'ar' ? 'لم يتم العثور على طلب بهذا الرمز' : 'No order found with this tracking code.');
-      }
+      setTrackingError(language === 'ar' ? 'لم يتم العثور على طلب بهذا الرمز' : 'No order found with this tracking code.');
+      return;
+    }
+
+    if (!firebaseUser && !isAdminUser) {
+      setIsTrackingLoading(false);
+      setTrackingError(language === 'ar' ? 'يرجى تسجيل الدخول لتتبع طلبك.' : 'Please sign in to track your order.');
       return;
     }
 
     try {
-      const docRef = doc(db, 'orders', cleanInput);
-      const docSnap = await getDoc(docRef);
+      if (isAdminUser) {
+        const docRef = doc(db, 'orders', cleanInput);
+        const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        setTrackedOrder(docSnap.data() as Order);
-        setIsTrackingLoading(false);
-        return;
-      }
+        if (docSnap.exists()) {
+          setTrackedOrder(docSnap.data() as Order);
+          setIsTrackingLoading(false);
+          return;
+        }
 
-      const q = query(collection(db, 'orders'), where('trackingNumber', '==', cleanInput));
-      const querySnap = await getDocs(q);
+        const q = query(collection(db, 'orders'), where('trackingNumber', '==', cleanInput));
+        const querySnap = await getDocs(q);
 
-      if (!querySnap.empty) {
-        setTrackedOrder(querySnap.docs[0].data() as Order);
-      } else if (localMatch) {
-        setTrackedOrder(localMatch);
+        if (!querySnap.empty) {
+          setTrackedOrder(querySnap.docs[0].data() as Order);
+        } else {
+          setTrackingError(language === 'ar' ? 'لم يتم العثور على طلب بهذا الرمز' : 'No order found with this ID or tracking number.');
+        }
       } else {
-        setTrackingError(language === 'ar' ? 'لم يتم العثور على طلب بهذا الرمز' : 'No order found with this ID or tracking number.');
+        const q = query(
+          collection(db, 'orders'),
+          where('userId', '==', firebaseUser?.uid || ''),
+          where('trackingNumber', '==', cleanInput)
+        );
+        const querySnap = await getDocs(q);
+
+        if (!querySnap.empty) {
+          setTrackedOrder(querySnap.docs[0].data() as Order);
+        } else {
+          const docRef = doc(db, 'orders', cleanInput);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists() && docSnap.data().userId === firebaseUser?.uid) {
+            setTrackedOrder(docSnap.data() as Order);
+          } else {
+            setTrackingError(language === 'ar' ? 'لم يتم العثور على طلب يخص حسابك بهذا الرمز' : 'No order found for your account with this ID or tracking number.');
+          }
+        }
       }
     } catch (err: any) {
       console.error("Error tracking order from Firestore:", err);
-      if (localMatch) {
-        setTrackedOrder(localMatch);
-      } else {
-        setTrackingError(language === 'ar' ? 'خطأ أثناء البحث عن الطلب. يرجى المحاولة لاحقاً.' : 'Error fetching order details. Please try again.');
-      }
+      setTrackingError(language === 'ar' ? 'خطأ أثناء البحث عن الطلب. يرجى المحاولة لاحقاً.' : 'Error fetching order details. Please try again.');
     } finally {
       setIsTrackingLoading(false);
     }

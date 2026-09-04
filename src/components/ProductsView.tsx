@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
+import { isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
 import { ProductCard } from './ProductCard';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { 
@@ -32,6 +33,7 @@ export const ProductsView: React.FC = () => {
     language,
     siteContent,
     isVisualEditMode,
+    sellers = [],
     categories: contextCategories
   } = useShop();
 
@@ -132,8 +134,8 @@ export const ProductsView: React.FC = () => {
   // Filtered & Sorted products
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      // If product is unpublished and not in draft edit mode, filter out
-      if (product.isPublished === false && !isVisualEditMode) {
+      // Check seller active status + product published status
+      if (!isProductVisibleOnStorefront(product, sellers, isVisualEditMode)) {
         return false;
       }
 
