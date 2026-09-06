@@ -23,6 +23,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
   } = useShop();
 
   const isLiked = isInWishlist(product.id);
+  const instanceId = React.useId();
 
   // One language only in grid card
   const displayTitle = language === 'ar' ? (product.arabicName || product.name) : product.name;
@@ -54,7 +55,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
 
   return (
     <div 
-      id={`product-card-${product.id}`}
+      id={`product-card-${product.id}-${instanceId}`}
       onClick={() => openProductDetail(product)}
       className="group relative flex flex-col h-full w-full rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer"
     >
@@ -99,7 +100,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
         {showRemoveButton ? (
           <button
             type="button"
-            id={`remove-favorite-btn-${product.id}`}
+            id={`remove-favorite-btn-${product.id}-${instanceId}`}
             onClick={handleRemoveClick}
             aria-label={language === 'ar' ? "إزالة من المفضلة" : "Remove from favorites"}
             title={language === 'ar' ? "إزالة من المفضلة" : "Remove from favorites"}
@@ -110,7 +111,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
         ) : (
           <button
             type="button"
-            id={`favorite-btn-${product.id}`}
+            id={`favorite-btn-${product.id}-${instanceId}`}
             onClick={handleFavoriteClick}
             aria-label={isLiked ? "Remove from favorites" : "Add to favorites"}
             title={isLiked ? "Remove from favorites" : "Add to favorites"}
@@ -157,7 +158,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
             {showRemoveButton && (
               <button
                 type="button"
-                id={`remove-action-btn-${product.id}`}
+                id={`remove-action-btn-${product.id}-${instanceId}`}
                 onClick={handleRemoveClick}
                 aria-label={language === 'ar' ? 'إزالة' : 'Remove'}
                 title={language === 'ar' ? 'إزالة من المفضلة' : 'Remove from favorites'}
@@ -169,7 +170,7 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
 
             <button
               type="button"
-              id={`quick-add-btn-${product.id}`}
+              id={`quick-add-btn-${product.id}-${instanceId}`}
               onClick={handleQuickAdd}
               aria-label={language === 'ar' ? 'أضف للسلة' : 'Add To Cart'}
               title={language === 'ar' ? 'أضف للسلة' : 'Add To Cart'}

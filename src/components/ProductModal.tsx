@@ -112,7 +112,7 @@ export const ProductModal: React.FC = () => {
               </div>
 
               {/* Description */}
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-light">
+              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-light whitespace-pre-line">
                 {product.description}
               </p>
 
@@ -122,7 +122,7 @@ export const ProductModal: React.FC = () => {
                   <Sparkles className="w-3.5 h-3.5 text-[#c5a059]" />
                   <span>The Artisan's Craft Legacy</span>
                 </div>
-                <p className="text-xs text-slate-300 italic font-light leading-relaxed">
+                <p className="text-xs text-slate-300 italic font-light leading-relaxed whitespace-pre-line">
                   "{product.craftStory || product.description}"
                 </p>
               </div>

@@ -1,3 +1,4 @@
+import { safeHref } from '../lib/safeUrl';
 import React from 'react';
 import { useShop } from '../context/ShopContext';
 import { 
@@ -58,7 +59,7 @@ export const Footer: React.FC = () => {
               <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-l from-transparent to-[#c5a059]/60" />
             </div>
 
-            <p className="text-xs text-slate-300/90 leading-relaxed font-light max-w-xl mx-auto">
+            <p className="text-xs text-slate-300/90 leading-relaxed font-light max-w-xl mx-auto whitespace-pre-line">
               {footerData.aboutText || (
                 language === 'ar'
                   ? 'المنصة الرائدة للتجارة الحرفية اللبنانية، تجمع نخبة الحرفيين والمزارعين لتقديم أشهى منتجات المونة والتحف التراثية بأعلى معايير الجودة والأصالة.'
@@ -102,7 +103,7 @@ export const Footer: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
                   {language === 'ar' ? 'العنوان' : 'Address'}
                 </span>
-                <span className="text-xs text-slate-300">
+                <span className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
                   {language === 'ar' ? (footerData.addressArabic || footerData.address) : (footerData.address || footerData.addressArabic)}
                 </span>
               </div>
@@ -112,7 +113,7 @@ export const Footer: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
                   {language === 'ar' ? 'ساعات العمل' : 'Hours'}
                 </span>
-                <span className="text-xs text-slate-300">
+                <span className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
                   {language === 'ar' ? (footerData.hoursArabic || footerData.hours) : (footerData.hours || footerData.hoursArabic)}
                 </span>
               </div>
@@ -126,7 +127,7 @@ export const Footer: React.FC = () => {
             {/* Instagram */}
             {(siteContent?.socialLinks?.instagram || isVisualEditMode) && (
               <a
-                href={siteContent?.socialLinks?.instagram || "https://instagram.com/yalla.lb"}
+                href={safeHref(siteContent?.socialLinks?.instagram, "https://instagram.com/yalla.lb")}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
@@ -158,7 +159,7 @@ export const Footer: React.FC = () => {
             {/* Facebook */}
             {(siteContent?.socialLinks?.facebook || isVisualEditMode) && (
               <a
-                href={siteContent?.socialLinks?.facebook || "https://facebook.com/yallalb"}
+                href={safeHref(siteContent?.socialLinks?.facebook, "https://facebook.com/yallalb")}
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"
@@ -196,18 +197,22 @@ export const Footer: React.FC = () => {
         {(visibility.footerCopyright || isVisualEditMode) && (
           <div className={`pt-4 border-t border-white/[0.06] w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
             <div className="flex items-center gap-2">
-              <span>{footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`}</span>
+              <span className="whitespace-pre-line text-center sm:text-start leading-relaxed">
+                {language === 'ar'
+                  ? (footerData.copyrightTextArabic || footerData.copyrightText || `© ${new Date().getFullYear()} يلا. جميع الحقوق محفوظة.`)
+                  : (footerData.copyrightText || `© ${new Date().getFullYear()} Yalla. All Rights Reserved.`)}
+              </span>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 shrink-0">
               <button
                 type="button"
-                id="footer-artisan-portal-btn"
+                id="footer-seller-portal-btn"
                 onClick={() => setActiveTab('seller')}
                 className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
               >
                 <Store className="w-3.5 h-3.5" />
-                <span>{language === 'ar' ? 'بوابة الحرفيين والتجار' : 'Artisan & Merchant Portal'}</span>
+                <span>{language === 'ar' ? 'بوابة البائعين والتجار' : 'Seller & Merchant Portal'}</span>
               </button>
             </div>
           </div>

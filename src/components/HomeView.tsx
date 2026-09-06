@@ -68,7 +68,17 @@ export const HomeView: React.FC = () => {
 
   // Filter products: Published check + seller active check + featured / deals
   const publishedProducts = products.filter(p => isProductVisibleOnStorefront(p, sellers, isVisualEditMode));
-  const featuredProducts = publishedProducts.filter(p => p.isFeatured || p.isBestseller).slice(0, 12);
+  const featuredProducts = publishedProducts
+    .filter(p => p.isFeatured || p.isBestseller || (p.displayOrder !== undefined && p.displayOrder <= 50))
+    .sort((a, b) => {
+      const orderA = a.displayOrder ?? 99999;
+      const orderB = b.displayOrder ?? 99999;
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.isFeatured && !b.isFeatured) return -1;
+      if (!a.isFeatured && b.isFeatured) return 1;
+      return 0;
+    })
+    .slice(0, 12);
   const todaysDeals = publishedProducts.filter(p => p.discountPercentage && p.discountPercentage > 0).slice(0, 12);
   const newArrivals = [...publishedProducts].sort((a, b) => {
     if (a.isNewArrival && !b.isNewArrival) return -1;
@@ -114,7 +124,7 @@ export const HomeView: React.FC = () => {
     switch (sectionId) {
       case 'homeHero':
         return (visibility.homeHero || isVisualEditMode) ? (
-          <div key="homeHero" className={`relative ${!visibility.homeHero && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80 p-2' : ''}`}>
+          <div key="homeHero" className={`w-full max-w-full relative ${!visibility.homeHero && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80 p-2' : ''}`}>
             {!visibility.homeHero && isVisualEditMode && (
               <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
                 <EyeOff className="w-3.5 h-3.5" />
@@ -123,6 +133,93 @@ export const HomeView: React.FC = () => {
             )}
             <HeroBanner />
           </div>
+        ) : null;
+
+      case 'homeTrustBadges':
+        return (visibility.homeTrustBadges || isVisualEditMode) ? (
+          <section key="homeTrustBadges" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeTrustBadges && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+            {!visibility.homeTrustBadges && isVisualEditMode && (
+              <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
+                <EyeOff className="w-3.5 h-3.5" />
+                <span>Section Hidden (Draft Preview)</span>
+              </div>
+            )}
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 sm:p-8">
+              {(siteContent.home?.trustBadgesTitle || siteContent.home?.trustBadgesTitleArabic) && (
+                <div className="text-center mb-6">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                    {language === 'ar' 
+                      ? (siteContent.home?.trustBadgesTitleArabic || siteContent.home?.trustBadgesTitle) 
+                      : (siteContent.home?.trustBadgesTitle || siteContent.home?.trustBadgesTitleArabic)}
+                  </h3>
+                  {(siteContent.home?.trustBadgesSubtitle || siteContent.home?.trustBadgesSubtitleArabic) && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      {language === 'ar' 
+                        ? (siteContent.home?.trustBadgesSubtitleArabic || siteContent.home?.trustBadgesSubtitle) 
+                        : (siteContent.home?.trustBadgesSubtitle || siteContent.home?.trustBadgesSubtitleArabic)}
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-700 flex items-center justify-center shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      {language === 'ar' ? 'أصالة لبنانية موثقة 100%' : '100% Verified Lebanese'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                      {language === 'ar' ? 'منتجات أصلية من ورش الحرفيين والتعاونيات القروية' : 'Authentic artisan creations from village cooperatives'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200/60 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      {language === 'ar' ? 'توصيل محلي وشحن دولي' : 'Domestic & Global Courier'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                      {language === 'ar' ? 'شحن سريع لجميع الأراضي اللبنانية وأكثر من 40 دولة' : 'Express door-to-door delivery across Lebanon & diaspora'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200/60 text-blue-700 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      {language === 'ar' ? 'مونة طازجة وحرفية نقية' : 'Fresh Batches & Mouneh'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                      {language === 'ar' ? 'محضرة من موسم القطاف بأعلى معايير النظافة والجودة' : 'Small seasonal batches packed at the height of freshness'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200/60 text-purple-700 flex items-center justify-center shrink-0">
+                    <RotateCcw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                      {language === 'ar' ? 'دعم الحرفيين المباشر' : 'Direct Artisan Support'}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                      {language === 'ar' ? 'عوائد الشراء تدعم مباشرة استمرار الحرف اليدوية' : 'Empowering independent rural workshops & families'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         ) : null;
 
       case 'homeCategories':
@@ -334,17 +431,29 @@ export const HomeView: React.FC = () => {
             <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
               <div>
                 <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
-                  {language === 'ar' ? 'باقات توفير حصرية' : 'Exclusive Curated Packs'}
+                  {language === 'ar' 
+                    ? (siteContent.home?.bundlesBadgeArabic || 'باقات توفير حصرية') 
+                    : (siteContent.home?.bundlesBadge || 'Exclusive Curated Packs')}
                 </div>
                 <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
                   {language === 'ar' ? (
-                    <>مجموعات <span className="gold-gradient font-serif italic">الهدايا والكومبو</span> المميزة</>
+                    siteContent.home?.bundlesTitleArabic ? (
+                      <span>{siteContent.home.bundlesTitleArabic}</span>
+                    ) : (
+                      <>مجموعات <span className="gold-gradient font-serif italic">الهدايا والكومبو</span> المميزة</>
+                    )
                   ) : (
-                    <>Lebanese <span className="gold-gradient font-serif italic">Combo & Gift Sets</span></>
+                    siteContent.home?.bundlesTitle ? (
+                      <span>{siteContent.home.bundlesTitle}</span>
+                    ) : (
+                      <>Lebanese <span className="gold-gradient font-serif italic">Combo & Gift Sets</span></>
+                    )
                   )}
                 </h2>
                 <p className="text-xs text-slate-500 mt-1">
-                  {language === 'ar' ? 'وفر أكثر مع هذه المجموعات المختارة بعناية من منتجاتنا التقليدية' : 'Save more with our handpicked artisanal combinations and custom-packaged Lebanese treasures.'}
+                  {language === 'ar' 
+                    ? (siteContent.home?.bundlesSubtitleArabic || 'وفر أكثر مع هذه المجموعات المختارة بعناية من منتجاتنا التقليدية') 
+                    : (siteContent.home?.bundlesSubtitle || 'Save more with our handpicked artisanal combinations and custom-packaged Lebanese treasures.')}
                 </p>
               </div>
             </div>
@@ -546,10 +655,17 @@ export const HomeView: React.FC = () => {
         return (visibility.homeNewsletter || isVisualEditMode) ? (
           <section key="homeNewsletter" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
             <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center">
-              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-6">
+              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
                 {language === 'ar' ? (siteContent.home?.newsletterTitleArabic || siteContent.home?.newsletterTitle || 'النشرة البريدية') : (siteContent.home?.newsletterTitle || 'Join our Newsletter')}
               </h2>
-              <div className="flex flex-col sm:flex-row w-full max-w-md gap-3">
+              {(siteContent.home?.newsletterSubtitle || siteContent.home?.newsletterSubtitleArabic) && (
+                <p className="text-xs sm:text-sm text-slate-300 mb-6 max-w-md">
+                  {language === 'ar' 
+                    ? (siteContent.home?.newsletterSubtitleArabic || siteContent.home?.newsletterSubtitle) 
+                    : (siteContent.home?.newsletterSubtitle || siteContent.home?.newsletterSubtitleArabic)}
+                </p>
+              )}
+              <div className="flex flex-col sm:flex-row w-full max-w-md gap-3 mt-2">
                 <input 
                   type="email" 
                   placeholder={language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'} 

@@ -1,3 +1,4 @@
+import { safeExternalUrl } from '../lib/safeUrl';
 import React from 'react';
 import { useShop } from '../context/ShopContext';
 import { CMSCustomBlock } from '../types';
@@ -38,7 +39,8 @@ export const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({
       setSelectedCategory(cat);
       setActiveTab('products');
     } else if (url.startsWith('http')) {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      const safe = safeExternalUrl(url);
+      if (safe) window.open(safe, '_blank', 'noopener,noreferrer');
     } else {
       setSelectedCategory('all');
       setActiveTab('products');

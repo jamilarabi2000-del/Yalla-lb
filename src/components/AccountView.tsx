@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { ProductCard } from './ProductCard';
 import { OrderHistory } from './OrderHistory';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
 import { SellerDashboard } from './SellerDashboard';
 import { sendEmailVerification } from '../firebase';
+import { validatePassword } from '../lib/passwordPolicy';
+import { OTPModal } from './OTPModal';
 import { 
   User, 
   Package, 
@@ -89,6 +92,11 @@ export const AccountView: React.FC = () => {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const { containerRef: forgotPasswordModalRef } = useDialog({
+    isOpen: showForgotPasswordModal,
+    onClose: () => setShowForgotPasswordModal(false)
+  });
 
   const handleResetPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -178,19 +186,31 @@ export const AccountView: React.FC = () => {
     }
   }, [user, firebaseUser]);
 
+  const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
+  const [otpTargetContact, setOtpTargetContact] = useState<string>('');
+  const [otpActionType, setOtpActionType] = useState<'login' | 'signup'>('login');
+  const [pendingAuthAction, setPendingAuthAction] = useState<(() => Promise<void>) | null>(null);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!authEmail || !authPassword) {
       showToast('Please enter both email and password', 'warning');
       return;
     }
-    setIsAuthLoading(true);
-    try {
-      await signInWithEmail(authEmail, authPassword);
-      setProfileEmail(authEmail);
-    } catch (err) {} finally {
-      setIsAuthLoading(false);
-    }
+    
+    setOtpTargetContact(authEmail);
+    setOtpActionType('login');
+    setPendingAuthAction(() => async () => {
+      setIsAuthLoading(true);
+      try {
+        await signInWithEmail(authEmail, authPassword);
+        setProfileEmail(authEmail);
+        showToast(language === 'ar' ? 'تم تسجيل الدخول بنجاح!' : 'Successfully signed in!', 'success');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    });
+    setShowOtpModal(true);
   };
 
   const handleGoogleSignIn = async () => {
@@ -222,8 +242,9 @@ export const AccountView: React.FC = () => {
       showToast('A valid email format is required', 'warning');
       return;
     }
-    if (!authPassword || authPassword.length < 6) {
-      showToast('Password must be at least 6 characters', 'warning');
+    const passwordCheck = validatePassword(authPassword);
+    if (!passwordCheck.isValid) {
+      showToast(passwordCheck.message || 'Password must be at least 8 characters and include numbers and letters', 'warning');
       return;
     }
     if (authPassword !== authConfirmPassword) {
@@ -243,35 +264,45 @@ export const AccountView: React.FC = () => {
       setIsAuthLoading(false);
       return;
     }
+    setIsAuthLoading(false);
 
     const fullName = `${profileFirstName.trim()} ${profileLastName.trim()}`;
-    try {
+    const contactInfo = authEmail || `+961 ${profilePhone}`;
+
+    setOtpTargetContact(contactInfo);
+    setOtpActionType('signup');
+    setPendingAuthAction(() => async () => {
+      setIsAuthLoading(true);
       try {
-        localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
+        try {
+          localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
+            firstName: profileFirstName.trim(),
+            lastName: profileLastName.trim(),
+            phone: '+961 ' + profilePhone,
+            defaultCity: profileCity,
+            defaultAddress: profileAddress,
+            defaultBuilding: profileBuilding,
+            defaultNotes: profileNotes
+          }));
+        } catch {}
+        await signUpWithEmail(authEmail, authPassword, profilePhone);
+        await updateUser({
+          name: fullName,
           firstName: profileFirstName.trim(),
           lastName: profileLastName.trim(),
+          email: authEmail,
           phone: '+961 ' + profilePhone,
           defaultCity: profileCity,
           defaultAddress: profileAddress,
           defaultBuilding: profileBuilding,
           defaultNotes: profileNotes
-        }));
-      } catch {}
-      await signUpWithEmail(authEmail, authPassword, profilePhone);
-      await updateUser({
-        name: fullName,
-        firstName: profileFirstName.trim(),
-        lastName: profileLastName.trim(),
-        email: authEmail,
-        phone: '+961 ' + profilePhone,
-        defaultCity: profileCity,
-        defaultAddress: profileAddress,
-        defaultBuilding: profileBuilding,
-        defaultNotes: profileNotes
-      });
-    } catch (err) {} finally {
-      setIsAuthLoading(false);
-    }
+        });
+        showToast(language === 'ar' ? 'تم إنشاء الحساب بنجاح!' : 'Account registered successfully!', 'success');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    });
+    setShowOtpModal(true);
   };
 
   const wishlistProducts = products.filter(p => wishlist.includes(p.id));
@@ -706,10 +737,10 @@ export const AccountView: React.FC = () => {
                         {isAuthLoading ? 'Signing In...' : 'Sign In'}
                       </button>
 
-                      {/* Artisan / Seller Login Shortcut */}
+                      {/* Seller Login Shortcut */}
                       <div className="pt-3 border-t border-slate-100 text-center">
                         <p className="text-xs text-slate-500 mb-1.5">
-                          {language === 'ar' ? 'هل أنت حرفي أو مورد معتمد في المنصة؟' : 'Are you a verified Lebanese artisan or merchant?'}
+                          {language === 'ar' ? 'هل أنت بائع أو مورد معتمد في المنصة؟' : 'Are you a verified Lebanese seller or merchant?'}
                         </p>
                         <button
                           type="button"
@@ -718,7 +749,7 @@ export const AccountView: React.FC = () => {
                           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                         >
                           <Store className="w-3.5 h-3.5 text-[#b89753]" />
-                          <span>{language === 'ar' ? 'دخول بوابة الحرفيين والتجار' : 'Access Artisan & Merchant Portal'}</span>
+                          <span>{language === 'ar' ? 'دخول بوابة البائعين والتجار' : 'Access Seller & Merchant Portal'}</span>
                         </button>
                       </div>
                     </form>
@@ -1035,7 +1066,13 @@ export const AccountView: React.FC = () => {
       {/* Forgot Password Modal */}
       {showForgotPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative">
+          <div 
+            ref={forgotPasswordModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="account-reset-password-title"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative"
+          >
             <button
               type="button"
               onClick={() => setShowForgotPasswordModal(false)}
@@ -1049,7 +1086,7 @@ export const AccountView: React.FC = () => {
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Reset Your Password</h3>
+                <h3 id="account-reset-password-title" className="font-bold text-slate-900 text-base">Reset Your Password</h3>
                 <p className="text-xs text-slate-500">Enter your registered email address to receive a password reset link.</p>
               </div>
             </div>
@@ -1092,6 +1129,20 @@ export const AccountView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Security OTP Modal */}
+      <OTPModal
+        isOpen={showOtpModal}
+        onClose={() => setShowOtpModal(false)}
+        targetContact={otpTargetContact}
+        actionType={otpActionType}
+        language={language}
+        onVerifySuccess={async () => {
+          if (pendingAuthAction) {
+            await pendingAuthAction();
+          }
+        }}
+      />
     </div>
   );
 };

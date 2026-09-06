@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Product, CategoryItem } from '../../types';
 import { useShop } from '../../context/ShopContext';
+import { useDialog } from '../../hooks/useDialog';
 import { 
   X, 
   ArrowUp, 
@@ -35,6 +36,11 @@ export const CategoryProductsOrderModal: React.FC<CategoryProductsOrderModalProp
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [lastMovedId, setLastMovedId] = useState<string | null>(null);
+
+  const { containerRef: modalRef } = useDialog({
+    isOpen,
+    onClose
+  });
 
   // Initialize and sort products for this category
   useEffect(() => {
@@ -156,7 +162,13 @@ export const CategoryProductsOrderModal: React.FC<CategoryProductsOrderModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-900/80 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[92vh] max-h-[850px] flex flex-col overflow-hidden">
+      <div 
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-order-modal-title"
+        className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl h-[92vh] max-h-[850px] flex flex-col overflow-hidden"
+      >
         
         {/* Header */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between gap-4 shrink-0">
@@ -166,7 +178,7 @@ export const CategoryProductsOrderModal: React.FC<CategoryProductsOrderModalProp
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base sm:text-lg font-bold text-white">
+                <h3 id="category-order-modal-title" className="text-base sm:text-lg font-bold text-white">
                   Order Products: {category.nameEn}
                 </h3>
                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">

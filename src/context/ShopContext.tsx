@@ -12,7 +12,7 @@ import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
 import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
-import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail } from '../firebase';
+import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification } from '../firebase';
 import { 
   dbLogger, 
   sanitizeFirestorePayload, 
@@ -61,6 +61,8 @@ const safeGetDoc = async (docRef: any): Promise<any> => {
     throw err;
   }
 };
+
+export const MAX_ORDER_LINE_ITEMS = 8;
 
 export const ensureSellerItemCode = (p: Product): Product => {
   if (!p) return p;
@@ -125,6 +127,8 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   return `Database error during ${operationType} on ${path || 'unknown'}: ${errorMessage}`;
 }
 
+import { isSecretAdminUrl, isSecretSellerUrl } from '../config/portalSecurity';
+
 interface Toast {
   id: string;
   message: string;
@@ -135,14 +139,13 @@ export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'acco
 
 const getInitialNavTab = (): NavTab => {
   if (typeof window === 'undefined') return 'home';
-  const path = window.location.pathname.replace(/^\/+/, '');
-  const searchParams = new URLSearchParams(window.location.search);
-  if (searchParams.get('admin') === 'true' || searchParams.has('admin') || path === 'admin' || path === 'admin.html') {
+  if (isSecretAdminUrl()) {
     return 'admin';
   }
-  if (path === 'seller' || path === 'seller/' || path === 'seller.html' || searchParams.get('seller') === 'true') {
+  if (isSecretSellerUrl()) {
     return 'seller';
   }
+  const path = window.location.pathname.replace(/^\/+/, '');
   if (path.startsWith('product/')) {
     return 'product_detail';
   }
@@ -514,6 +517,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Site Content CMS state
   const [siteContent, setSiteContent] = useState<SiteContent>(() => {
     try {
+      if (typeof window !== 'undefined') {
+        const isCmsPreview = new URLSearchParams(window.location.search).get('cmsPreview') === '1';
+        if (isCmsPreview) {
+          const sessionDraft = sessionStorage.getItem('yalla_cms_preview');
+          if (sessionDraft) {
+            const parsedDraft = JSON.parse(sessionDraft);
+            return parsedDraft;
+          }
+        }
+      }
       const saved = localStorage.getItem('yallalb_site_content');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -822,32 +835,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [productBundles, setProductBundles] = useState<ProductBundle[]>(() => {
     try {
       const saved = localStorage.getItem('yallalb_product_bundles');
-      if (saved) return JSON.parse(saved);
+      if (saved !== null) return JSON.parse(saved);
     } catch {}
     return [
       {
         id: 'bundle-gourmet-breakfast',
         name: 'Lebanese Gourmet Breakfast Bundle',
         nameAr: 'باقة الفطور اللبناني الفاخر',
-        description: 'Authentic Koura Extra Virgin Olive Oil, Chouf Zaatar Blend, and Artisan Halloumi Cheese packaged together.',
-        descriptionAr: 'زيت زيتون كورة بكر ممتاز، خلطة زعتر الشوف البلدي، وجبنة حلوم حرفية ممتازة.',
+        description: 'Authentic Koura Extra Virgin Olive Oil, Chouf Zaatar Herb Mix, and Raw Mountain Honey packaged together.',
+        descriptionAr: 'زيت زيتون كورة بكر ممتاز، خلطة زعتر الشوف، وعسل جبلي بري نقي.',
         badgeText: 'COMBO DEAL - SAVE 20%',
         badgeTextAr: 'صفقة كومبو - خصم ٢٠٪',
-        productIds: ['prod-1', 'prod-2', 'prod-3'],
-        bundlePriceUSD: 24.99,
+        productIds: ['prod-2', 'prod-12', 'prod-15'],
+        bundlePriceUSD: 34.38,
         isActive: true,
         createdAt: new Date().toISOString()
       },
       {
-        id: 'bundle-student-study-set',
-        name: 'Student Study & Craft Combo',
-        nameAr: 'حزمة الدراسة والإبداع للطلاب',
-        description: 'Handcrafted Genuine Leather Backpack, Cedar Wood Notebook, and Brass Pencil Box.',
-        descriptionAr: 'حقيبة ظهر من الجلد الطبيعي المصنوعة يدوياً، دفتر خشب الأرز، ومقلمة نحاسية ممتازة.',
-        badgeText: 'BACK TO SCHOOL BUNDLE',
-        badgeTextAr: 'حزمة العودة للمدرسة',
-        productIds: ['prod-4', 'prod-5'],
-        bundlePriceUSD: 64.99,
+        id: 'bundle-coffee-ritual-set',
+        name: 'Artisan Morning Coffee Ritual Set',
+        nameAr: 'طقم طقوس القهوة الصباحية الحرفي',
+        description: 'Handmade Ceramic Pour-Over Dripper with Server and freshly roasted Lebanese Cardamom Coffee.',
+        descriptionAr: 'طقم تحضير القهوة السيراميكي اليدوي مع قهوة لبنانية محمصة بالهيل.',
+        badgeText: 'ARTISAN COFFEE COMBO',
+        badgeTextAr: 'كومبو القهوة الحرفية',
+        productIds: ['prod-4', 'prod-16'],
+        bundlePriceUSD: 64.79,
         isActive: true,
         createdAt: new Date().toISOString()
       }
@@ -868,19 +881,34 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onSnapshot(
       bundlesColRef,
       async (snapshot) => {
-        if (snapshot.empty && !hasSeededBundlesRef.current) {
+        const hasInitialized = localStorage.getItem('yallalb_bundles_initialized') === 'true';
+        if (snapshot.empty && !hasSeededBundlesRef.current && !hasInitialized) {
           hasSeededBundlesRef.current = true;
+          localStorage.setItem('yallalb_bundles_initialized', 'true');
           const initialBundles: ProductBundle[] = [
             {
               id: 'bundle-gourmet-breakfast',
               name: 'Lebanese Gourmet Breakfast Bundle',
               nameAr: 'باقة الفطور اللبناني الفاخر',
-              description: 'Authentic Koura Extra Virgin Olive Oil, Chouf Zaatar Blend, and Artisan Halloumi Cheese packaged together.',
-              descriptionAr: 'زيت زيتون كورة بكر ممتاز، خلطة زعتر الشوف البلدي، وجبنة حلوم حرفية ممتازة.',
+              description: 'Authentic Koura Extra Virgin Olive Oil, Chouf Zaatar Herb Mix, and Raw Mountain Honey packaged together.',
+              descriptionAr: 'زيت زيتون كورة بكر ممتاز، خلطة زعتر الشوف، وعسل جبلي بري نقي.',
               badgeText: 'COMBO DEAL - SAVE 20%',
               badgeTextAr: 'صفقة كومبو - خصم ٢٠٪',
-              productIds: ['prod-1', 'prod-2', 'prod-3'],
-              bundlePriceUSD: 24.99,
+              productIds: ['prod-2', 'prod-12', 'prod-15'],
+              bundlePriceUSD: 34.38,
+              isActive: true,
+              createdAt: new Date().toISOString()
+            },
+            {
+              id: 'bundle-coffee-ritual-set',
+              name: 'Artisan Morning Coffee Ritual Set',
+              nameAr: 'طقم طقوس القهوة الصباحية الحرفي',
+              description: 'Handmade Ceramic Pour-Over Dripper with Server and freshly roasted Lebanese Cardamom Coffee.',
+              descriptionAr: 'طقم تحضير القهوة السيراميكي اليدوي مع قهوة لبنانية محمصة بالهيل.',
+              badgeText: 'ARTISAN COFFEE COMBO',
+              badgeTextAr: 'كومبو القهوة الحرفية',
+              productIds: ['prod-4', 'prod-16'],
+              bundlePriceUSD: 64.79,
               isActive: true,
               createdAt: new Date().toISOString()
             }
@@ -889,11 +917,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await monitoredSetDoc(doc(db, 'product_bundles', b.id), sanitizeDocumentData(b), undefined, 'ShopContext:seedBundles');
           }
         } else if (!snapshot.empty) {
+          hasSeededBundlesRef.current = true;
+          localStorage.setItem('yallalb_bundles_initialized', 'true');
           const list: ProductBundle[] = [];
           snapshot.forEach(docSnap => {
             list.push({ id: docSnap.id, ...docSnap.data() } as ProductBundle);
           });
           setProductBundles(list);
+        } else if (snapshot.empty && (hasSeededBundlesRef.current || hasInitialized)) {
+          setProductBundles([]);
         }
       },
       (error) => {
@@ -911,11 +943,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+    localStorage.setItem('yallalb_bundles_initialized', 'true');
+    setProductBundles(prev => [newBundle, ...prev]);
+
     try {
       if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'product_bundles', id), sanitizeDocumentData(newBundle), undefined, 'ShopContext:addProductBundle');
       }
-      setProductBundles(prev => [newBundle, ...prev]);
     } catch (err) {
       console.error("[ShopContext] Error saving bundle to Firestore:", err);
       showToast('Failed to create combo deal in database', 'warning');
@@ -929,11 +963,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!target) return;
     const updatedBundle: ProductBundle = { ...target, ...updates, updatedAt: new Date().toISOString() };
 
+    setProductBundles(prev => prev.map(b => b.id === id ? updatedBundle : b));
+
     try {
       if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'product_bundles', id), sanitizeDocumentData(updatedBundle), { merge: true }, 'ShopContext:updateProductBundle');
       }
-      setProductBundles(prev => prev.map(b => b.id === id ? updatedBundle : b));
     } catch (err) {
       console.error("[ShopContext] Error updating bundle in Firestore:", err);
       showToast('Failed to update combo deal in database', 'warning');
@@ -943,15 +978,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteProductBundle = async (id: string) => {
+    setProductBundles(prev => {
+      const next = prev.filter(b => b.id !== id);
+      try {
+        localStorage.setItem('yallalb_product_bundles', JSON.stringify(next));
+        localStorage.setItem('yallalb_bundles_initialized', 'true');
+      } catch {}
+      return next;
+    });
+
     try {
       if (IS_FIREBASE_ENABLED) {
         await monitoredDeleteDoc(doc(db, 'product_bundles', id), 'ShopContext:deleteProductBundle');
       }
-      setProductBundles(prev => prev.filter(b => b.id !== id));
     } catch (err) {
       console.error("[ShopContext] Error deleting bundle from Firestore:", err);
-      showToast('Failed to delete combo deal from database', 'warning');
-      throw err;
     }
     await logAdminActivity('meta_change', 'Deleted Combo Deal', `Deleted bundle ID: ${id}`);
   };
@@ -1381,7 +1422,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (IS_FIREBASE_ENABLED) {
       try {
-        await monitoredSetDoc(doc(db, 'sellers', slug), sanitizeDocumentData(newSeller), undefined, 'ShopContext:addSeller');
+        const publicData = { ...newSeller } as any;
+        const privateData: any = {};
+        const privateKeys = ['accountEmail', 'accountUid', 'commissionPct', 'exactAddress'];
+        privateKeys.forEach(k => {
+          if (k in publicData) {
+            privateData[k] = publicData[k];
+            delete publicData[k];
+          }
+        });
+        
+        await monitoredSetDoc(doc(db, 'sellers', slug), sanitizeDocumentData(publicData), undefined, 'ShopContext:addSeller');
+        
+        if (isAdminUser || user?.role === 'seller') {
+          try {
+             await monitoredSetDoc(doc(db, 'seller_private', slug), sanitizeDocumentData(privateData), undefined, 'ShopContext:addSellerPrivate');
+          } catch (privErr) {
+             console.warn('Failed to write private seller data:', privErr);
+          }
+        }
       } catch (err) {
         setSellers(previous);
         throw err;
@@ -1397,7 +1456,31 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (IS_FIREBASE_ENABLED) {
       try {
-        await monitoredUpdateDoc(doc(db, 'sellers', id), sanitizeDocumentData({ ...updates, updatedAt: new Date().toISOString() }), 'ShopContext:updateSeller');
+        const publicUpdates = { ...updates, updatedAt: new Date().toISOString() } as any;
+        const privateUpdates: any = {};
+        const privateKeys = ['accountEmail', 'accountUid', 'commissionPct', 'exactAddress'];
+        let hasPrivateUpdates = false;
+        
+        privateKeys.forEach(k => {
+          if (k in publicUpdates) {
+            privateUpdates[k] = publicUpdates[k];
+            delete publicUpdates[k];
+            hasPrivateUpdates = true;
+          }
+        });
+
+        if (Object.keys(publicUpdates).filter(k => k !== 'updatedAt').length > 0 || !hasPrivateUpdates) {
+           await monitoredUpdateDoc(doc(db, 'sellers', id), sanitizeDocumentData(publicUpdates), 'ShopContext:updateSeller');
+        }
+        
+        if (hasPrivateUpdates && (isAdminUser || user?.role === 'seller')) {
+           try {
+             await monitoredUpdateDoc(doc(db, 'seller_private', id), sanitizeDocumentData(privateUpdates), 'ShopContext:updateSellerPrivate');
+           } catch (privErr) {
+             // Fallback to set if doc doesn't exist
+             await monitoredSetDoc(doc(db, 'seller_private', id), sanitizeDocumentData(privateUpdates), undefined, 'ShopContext:setSellerPrivate');
+           }
+        }
       } catch (err) {
         setSellers(previous);
         throw err;
@@ -1659,13 +1742,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Local storage persistence for CMS
   useEffect(() => {
     try {
+      const isCmsPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cmsPreview') === '1';
+      if (isCmsPreview) return; // Draft never leaks into the storefront localStorage cache
       localStorage.setItem('yallalb_site_content', JSON.stringify(siteContent));
     } catch {}
   }, [siteContent]);
 
+  // Live postMessage edits reach the preview in real time
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isCmsPreview = new URLSearchParams(window.location.search).get('cmsPreview') === '1';
+    if (!isCmsPreview) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.type === 'CMS_DRAFT_UPDATE' && event.data.payload) {
+        setSiteContent(event.data.payload);
+      } else if (event.data && event.data.type === 'CMS_LANG_UPDATE' && event.data.payload) {
+        setLanguage(event.data.payload);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
   // Real-time CMS Sync from Firestore Database
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
+    const isCmsPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cmsPreview') === '1';
+    if (isCmsPreview) return; // Preview draft takes precedence
     const cmsDocRef = doc(db, 'cms', 'main');
     const unsubscribe = onSnapshot(
       cmsDocRef,
@@ -2308,7 +2413,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultNotes
             };
 
-          console.log("[ShopContext] Merged profile:", mergedProfile);
             setUser(prev => ({ 
               ...prev, 
               ...mergedProfile
@@ -2669,6 +2773,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [language, setLanguageState] = useState<Language>(() => {
     try {
+      if (typeof window !== 'undefined') {
+        const urlLang = new URLSearchParams(window.location.search).get('lang');
+        if (urlLang === 'ar' || urlLang === 'en') {
+          return urlLang;
+        }
+      }
       const saved = localStorage.getItem('yallalb_language');
       return (saved === 'ar' || saved === 'en') ? saved : 'en';
     } catch {
@@ -2679,7 +2789,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setLanguage = (lang: Language) => {
     setLanguageState(lang);
     try {
-      localStorage.setItem('yallalb_language', lang);
+      const isCmsPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cmsPreview') === '1';
+      if (!isCmsPreview) {
+        localStorage.setItem('yallalb_language', lang);
+      }
     } catch {}
     document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
     document.documentElement.lang = lang;
@@ -3064,6 +3177,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
     const activeUserId = firebaseUser?.uid || auth?.currentUser?.uid || undefined;
 
+    if (cart.length > MAX_ORDER_LINE_ITEMS) {
+      const errMsg = language === 'ar'
+        ? `الحد الأقصى لعدد المنتجات المختلفة في الطلب الواحد هو ${MAX_ORDER_LINE_ITEMS}. يرجى تقسيم الطلب.`
+        : `Orders are limited to a maximum of ${MAX_ORDER_LINE_ITEMS} distinct items per checkout. Please split your order.`;
+      showToast(errMsg, 'warning');
+      throw new Error(errMsg);
+    }
+
     const orderDocRef = doc(collection(db, 'orders'));
     const orderId = orderDocRef.id;
 
@@ -3203,6 +3324,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           totalUSD,
           totalLBP: Math.round(totalUSD * LBP_USD_RATE),
           appliedCoupon: appliedCouponCode || undefined,
+          productIds: Array.from(new Set(validatedItems.map(item => item.product.id).filter(Boolean))),
           sellerIds: Array.from(new Set(validatedItems.map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
         };
 

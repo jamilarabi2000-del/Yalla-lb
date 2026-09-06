@@ -12,11 +12,41 @@ import { CartDrawer } from './components/CartDrawer';
 import { Footer } from './components/Footer';
 import { AdminQuickEditor } from './components/AdminQuickEditor';
 import { CustomBlockModal } from './components/CustomBlockModal';
+import { syncDomHead } from './utils/domHeadSync';
 import { CheckCircle2, AlertCircle, Info, Sparkles, Loader2 } from 'lucide-react';
 
-const CheckoutView = lazy(() => import('./components/CheckoutView').then(m => ({ default: m.CheckoutView })));
-const AdminView = lazy(() => import('./components/AdminView').then(m => ({ default: m.AdminView })));
-const SellerLoginView = lazy(() => import('./components/SellerLoginView').then(m => ({ default: m.SellerLoginView })));
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<any>
+) {
+  return lazy(async () => {
+    let attempts = 3;
+    while (attempts > 0) {
+      try {
+        const module = await factory();
+        sessionStorage.removeItem('chunk_reload_attempted');
+        return { default: module.default || module.AdminView || module.CheckoutView || module.SellerLoginView || Object.values(module)[0] };
+      } catch (error) {
+        attempts--;
+        console.warn(`Dynamic module import failed (${attempts} attempts left), retrying...`, error);
+        if (attempts === 0) {
+          if (typeof window !== 'undefined' && !sessionStorage.getItem('chunk_reload_attempted')) {
+            sessionStorage.setItem('chunk_reload_attempted', '1');
+            window.location.reload();
+          }
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+    throw new Error('Failed to load module');
+  });
+}
+
+const CheckoutView = lazyWithRetry(() => import('./components/CheckoutView'));
+const AdminView = lazyWithRetry(() => import('./components/AdminView'));
+const SellerLoginView = lazyWithRetry(() => import('./components/SellerLoginView'));
+
+import { isSecretAdminUrl, isSecretSellerUrl, SECRET_ADMIN_TOKEN, SECRET_SELLER_TOKEN } from './config/portalSecurity';
 
 const MainAppContent: React.FC = () => {
   const { 
@@ -34,39 +64,16 @@ const MainAppContent: React.FC = () => {
     setIsCustomBlockModalOpen,
     customBlockToEdit,
     setCustomBlockToEdit,
-    user
+    user,
+    language,
+    setLanguage
   } = useShop();
   const isPopStateRef = useRef(false);
 
-  // Dynamically update SEO metadata & Favicon Icon
+  // Dynamically update SEO metadata, Open Graph tags & Favicon Icon
   useEffect(() => {
-    if (siteContent?.seo) {
-      if (siteContent.seo.title) {
-        document.title = siteContent.seo.title;
-      }
-      if (siteContent.seo.description) {
-        let metaDescription = document.querySelector('meta[name="description"]');
-        if (!metaDescription) {
-          metaDescription = document.createElement('meta');
-          metaDescription.setAttribute('name', 'description');
-          document.head.appendChild(metaDescription);
-        }
-        metaDescription.setAttribute('content', siteContent.seo.description);
-      }
-    }
-
-    // Dynamic Favicon Icon handler
-    const faviconUrl = siteContent?.navbar?.faviconUrl || siteContent?.seo?.faviconUrl;
-    if (faviconUrl) {
-      let iconLink = document.querySelector<HTMLLinkElement>('link[rel="icon"]') || document.querySelector<HTMLLinkElement>('link[rel="shortcut icon"]');
-      if (!iconLink) {
-        iconLink = document.createElement('link');
-        iconLink.rel = 'icon';
-        document.head.appendChild(iconLink);
-      }
-      iconLink.href = faviconUrl;
-    }
-  }, [siteContent?.seo, siteContent?.navbar?.faviconUrl]);
+    syncDomHead(siteContent, language);
+  }, [siteContent, siteContent?.seo, siteContent?.navbar, language]);
 
   // Dynamically apply Theme CSS variables and classes
   useEffect(() => {
@@ -97,12 +104,18 @@ const MainAppContent: React.FC = () => {
     }
   }, [siteContent?.theme]);
 
-  // On initial mount, ensure current history entry has depth
+  // On initial mount, ensure current history entry has depth and preserve query parameters (e.g. ?cmsPreview=1&lang=ar)
   useEffect(() => {
     if (window.history && (!window.history.state || typeof window.history.state.depth !== 'number')) {
-      window.history.replaceState({ appNav: true, depth: 0 }, '', window.location.pathname);
+      const fullPath = window.location.pathname + (window.location.search || '');
+      window.history.replaceState({ appNav: true, depth: 0 }, '', fullPath);
     }
-  }, []);
+    const searchParams = new URLSearchParams(window.location.search);
+    const urlLang = searchParams.get('lang');
+    if (urlLang === 'ar' || urlLang === 'en') {
+      setLanguage(urlLang);
+    }
+  }, [setLanguage]);
 
   const productsRef = useRef(products);
   productsRef.current = products;
@@ -117,10 +130,15 @@ const MainAppContent: React.FC = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const isAdminQuery = searchParams.get('admin') === 'true' || searchParams.has('admin');
 
-      if (isAdminQuery || path === 'admin' || path.startsWith('admin/') || path === 'admin.html') {
+      const urlLang = searchParams.get('lang');
+      if (urlLang === 'ar' || urlLang === 'en') {
+        setLanguage(urlLang);
+      }
+
+      if (isSecretAdminUrl()) {
         setSelectedProductDetail(null);
         setActiveTab('admin');
-      } else if (path === 'seller' || path === 'seller/' || path === 'seller.html') {
+      } else if (isSecretSellerUrl()) {
         setSelectedProductDetail(null);
         setActiveTab('seller');
       } else if (path.startsWith('product/')) {
@@ -144,12 +162,16 @@ const MainAppContent: React.FC = () => {
           setSelectedProductDetail(null);
           setActiveTab(targetTab);
         }
+      } else {
+        // Safe fallback for any fuzzed or non-existent path
+        setSelectedProductDetail(null);
+        setActiveTab('home');
       }
     };
 
     window.addEventListener('popstate', syncRouteFromUrl);
     return () => window.removeEventListener('popstate', syncRouteFromUrl);
-  }, [openProductDetail, setActiveTab, setSelectedProductDetail, setSelectedCategory]);
+  }, [openProductDetail, setActiveTab, setSelectedProductDetail, setSelectedCategory, setLanguage]);
 
   // Sync browser URL when activeTab or selectedProductDetail changes
   useEffect(() => {
@@ -158,34 +180,35 @@ const MainAppContent: React.FC = () => {
       return;
     }
     let targetPath = activeTab === 'home' ? '' : activeTab;
-    if (activeTab === 'seller' || (activeTab === 'account' && user?.role === 'seller')) {
-      targetPath = 'seller';
+    if (activeTab === 'admin') {
+      targetPath = SECRET_ADMIN_TOKEN;
+    } else if (activeTab === 'seller' || (activeTab === 'account' && user?.role === 'seller')) {
+      targetPath = SECRET_SELLER_TOKEN;
     } else if (activeTab === 'product_detail' && selectedProductDetail) {
       targetPath = `product/${selectedProductDetail.id}`;
     } else if (activeTab === 'products' && selectedCategory && selectedCategory !== 'all') {
       targetPath = `products/${encodeURIComponent(selectedCategory)}`;
     }
-    // If active tab is admin and the current URL already has an admin path/sub-path, preserve it
-    if (activeTab === 'admin' && window.location.pathname.startsWith('/admin')) {
-      return;
-    }
     const targetUrl = targetPath === '' || targetPath === 'home' ? '/' : `/${targetPath}`;
+    const search = window.location.search || '';
+    const fullTarget = search ? `${targetUrl}${search}` : targetUrl;
 
     if (window.location.pathname !== targetUrl && window.history) {
       const currentDepth = (window.history.state && typeof window.history.state.depth === 'number')
         ? window.history.state.depth
         : 0;
-      window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', targetUrl);
+      window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', fullTarget);
     }
   }, [activeTab, selectedProductDetail, selectedCategory, user?.role]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1a1a2e] text-slate-100 selection:bg-[#c5a059] selection:text-[#1a1a2e] font-sans antialiased">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       
       {/* Hidden SEO Snapshot strictly preserving requested markup & links */}
       <div 
         data-seo-source="builder" 
-        id="seo-snapshot" 
+        id="seo-snapshot" aria-hidden="true" 
         style={{
           position: 'absolute',
           width: '1px',
@@ -198,7 +221,7 @@ const MainAppContent: React.FC = () => {
           border: 0
         }}
       >
-        <main>
+        <div>
           <header>
             <h1>Yalla.lb</h1>
             <p>
@@ -226,14 +249,14 @@ const MainAppContent: React.FC = () => {
               </li>
             </ul>
           </nav>
-        </main>
+        </div>
       </div>
 
       {/* Main Top Navigation Header */}
       {activeTab !== 'admin' && activeTab !== 'seller' && <Navbar />}
 
       {/* Dynamic View Display */}
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
         {activeTab === 'home' && <HomeView />}
         {activeTab === 'products' && <ProductsView />}
         {activeTab === 'product_detail' && <ProductDetailView />}

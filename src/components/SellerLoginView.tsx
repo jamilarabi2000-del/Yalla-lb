@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useShop } from '../context/ShopContext';
 import { SellerDashboard } from './SellerDashboard';
+import { OTPModal } from './OTPModal';
 import { 
   Store, 
   ShieldCheck, 
@@ -14,7 +15,7 @@ import {
   Sparkles, 
   Building2, 
   Phone, 
-  MapPin, 
+  User, 
   Send, 
   ArrowRight,
   LogOut,
@@ -22,11 +23,12 @@ import {
   ExternalLink,
   ChevronRight,
   Loader2,
-  Smartphone
+  Smartphone,
+  BadgeCheck
 } from 'lucide-react';
 import { LebanonFlag } from './LebanonFlag';
-import { collection, addDoc, doc, getDoc, setDoc } from 'firebase/firestore';
-import { db, auth, signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut } from '../firebase';
+import { collection, addDoc, doc, getDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
+import { db, auth, signInWithEmailAndPassword, signOut } from '../firebase';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
 
 export const SellerLoginView: React.FC = () => {
@@ -47,7 +49,7 @@ export const SellerLoginView: React.FC = () => {
 
   const isArabic = language === 'ar';
 
-  // Login form state - 3 required seller credentials: Gmail/Email, Mobile Phone, and Password
+  // Login form state - 3 required seller credentials: Email/Gmail, Mobile Phone, and Password
   const [authEmail, setAuthEmail] = useState('');
   const [authPhone, setAuthPhone] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -66,19 +68,24 @@ export const SellerLoginView: React.FC = () => {
   // Admin preview selector state
   const [adminSelectedSellerId, setAdminSelectedSellerId] = useState<string>('');
 
-  // Seller Application Form State
-  const [appWorkshopName, setAppWorkshopName] = useState('');
-  const [appWorkshopNameAr, setAppWorkshopNameAr] = useState('');
-  const [appCraftCategory, setAppCraftCategory] = useState('Pantry & Olive Oils');
-  const [appGovernorate, setAppGovernorate] = useState('mount_lebanon');
-  const [appVillage, setAppVillage] = useState('');
-  const [appContactName, setAppContactName] = useState('');
-  const [appPhone, setAppPhone] = useState('');
+  // Seller Signup Application Form State - STRICTLY the 6 required fields:
+  const [showSellerOtpModal, setShowSellerOtpModal] = useState(false);
+  // 1. Seller Company
+  // 2. First Name
+  // 3. Middle Name
+  // 4. Last Name
+  // 5. Email
+  // 6. Mobile Number
+  const [appSellerCompany, setAppSellerCompany] = useState('');
+  const [appFirstName, setAppFirstName] = useState('');
+  const [appMiddleName, setAppMiddleName] = useState('');
+  const [appLastName, setAppLastName] = useState('');
   const [appEmail, setAppEmail] = useState('');
-  const [appBio, setAppBio] = useState('');
-  const [appSocialLink, setAppSocialLink] = useState('');
+  const [appPhone, setAppPhone] = useState('');
   const [isSubmittingApp, setIsSubmittingApp] = useState(false);
   const [appSubmittedSuccess, setAppSubmittedSuccess] = useState(false);
+
+  const [pendingSellerLoginAction, setPendingSellerLoginAction] = useState<(() => Promise<void>) | null>(null);
 
   const handleSellerSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,198 +121,146 @@ export const SellerLoginView: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // 2. Authenticate against Firebase Auth with Email and Password
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
+    setPendingSellerLoginAction(() => async () => {
+      setIsLoading(true);
+      try {
+        // 2. Authenticate against Firebase Auth with Email and Password
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const uid = userCredential.user.uid;
 
-      // 3. Fetch User Profile from Firestore
-      const userDocRef = doc(db, 'users', uid);
-      const userSnap = await getDoc(userDocRef);
-      const userData = userSnap.exists() ? userSnap.data() : null;
+        // 3. Fetch User Profile from Firestore
+        const userDocRef = doc(db, 'users', uid);
+        const userSnap = await getDoc(userDocRef);
+        const userData = userSnap.exists() ? userSnap.data() : null;
 
-      const isUserAdmin = userData?.role === 'admin' || (email.toLowerCase() === 'jamilarabi2000@gmail.com' && userCredential.user.emailVerified) || isAdminUser;
+        const isUserAdmin = userData?.role === 'admin' || (email.toLowerCase() === 'jamilarabi2000@gmail.com' && userCredential.user.emailVerified) || isAdminUser;
 
-      // Email verification enforcement (OWASP / Enterprise Standard)
-      if (!userCredential.user.emailVerified && !isUserAdmin) {
-        await signOut(auth);
-        const unverifiedMsg = isArabic
-          ? 'يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل إلى بريدك قبل تسجيل الدخول إلى بوابة الحرفيين.'
-          : 'Please verify your email address via the link sent to your inbox before accessing the Artisan Merchant Portal.';
-        setErrorMessage(unverifiedMsg);
-        showToast(unverifiedMsg, 'warning');
-        setIsLoading(false);
-        return;
-      }
-
-      // 4. Find matching Seller exclusively via secure provisioned credentials (accountUid, accountEmail, or authorized user profile sellerId)
-      // SECURITY FIX: NEVER match against public contactEmail to prevent account takeover
-      const matchedSeller = sellers.find(s => 
-        s.accountUid === uid ||
-        (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase()) ||
-        (userData?.sellerId && s.id === userData.sellerId)
-      );
-
-      if (!matchedSeller && !isUserAdmin) {
-        await signOut(auth);
-        const noSellerMsg = isArabic
-          ? 'لم يتم العثور على ورشة أو حساب بائع معتمد مرتبط بهذا البريد الإلكتروني. يرجى التواصل مع إدارة منصة يلا.'
-          : 'No authorized artisan workshop account found matching this email. Please contact Yalla marketplace administration.';
-        setErrorMessage(noSellerMsg);
-        showToast(noSellerMsg, 'error');
-        setIsLoading(false);
-        return;
-      }
-
-      // 5. Gather registered candidate phone numbers for identity verification
-      const registeredPhones: string[] = [
-        userData?.phone,
-        matchedSeller?.contactPhone,
-        userCredential.user.phoneNumber
-      ].filter(Boolean) as string[];
-
-      // 6. Security Check: Mobile Phone Number Match
-      if (registeredPhones.length > 0) {
-        const isPhoneMatched = registeredPhones.some(p => {
-          const normReg = normalizeLebanesePhone(p);
-          return normReg.cleanDigits === normPhone.cleanDigits;
-        });
-
-        if (!isPhoneMatched && !isUserAdmin) {
-          // Reject authentication and sign out immediately
+        // Email verification enforcement (OWASP / Enterprise Standard)
+        if (!userCredential.user.emailVerified && !isUserAdmin) {
           await signOut(auth);
-          const failMsg = isArabic 
-            ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب. يرجى إدخال رقم هاتفك المعتمد.`
-            : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file for this account. Please enter your registered mobile number.`;
-          setErrorMessage(failMsg);
-          showToast(failMsg, 'error');
+          const unverifiedMsg = isArabic
+            ? 'يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل إلى بريدك قبل تسجيل الدخول إلى بوابة البائعين.'
+            : 'Please verify your email address via the link sent to your inbox before accessing the Seller Merchant Portal.';
+          setErrorMessage(unverifiedMsg);
+          showToast(unverifiedMsg, 'warning');
           setIsLoading(false);
           return;
         }
-      }
 
-      showToast(
-        isArabic 
-          ? `مرحباً بك في بوابة الحرفيين، ${matchedSeller?.nameAr || matchedSeller?.nameEn || userData?.name || 'أيها الحرفي'}!` 
-          : `Welcome to your Artisan Merchant Portal, ${matchedSeller?.nameEn || userData?.name || 'Artisan'}!`, 
-        'success'
-      );
-    } catch (err: any) {
-      console.error('[SellerLoginView] Sign-in error:', err);
-      const code = err?.code || '';
-      let msg = isArabic ? 'تعذر تسجيل الدخول. يرجى التحقق من بياناتك.' : 'Failed to sign in. Please verify your credentials.';
-      if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-        msg = isArabic ? 'البريد الإلكتروني (Gmail) أو كلمة المرور غير صحيحة.' : 'Invalid Gmail address or password. Please verify your credentials.';
-      } else if (code === 'auth/too-many-requests') {
-        msg = isArabic ? 'محاولات كثيرة خاطئة. يرجى الانتظار قليلاً أو إعادة تعيين كلمة المرور.' : 'Too many failed attempts. Please wait a moment or reset your password.';
-      } else if (code === 'auth/invalid-email') {
-        msg = isArabic ? 'صيغة البريد الإلكتروني غير صحيحة.' : 'Invalid email format.';
-      }
-      setErrorMessage(msg);
-      showToast(msg, 'error');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+        // 4. Find matching Seller exclusively via secure provisioned credentials (accountUid, accountEmail, or authorized user profile sellerId)
+        const matchedSeller = sellers.find(s => 
+          s.accountUid === uid ||
+          (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase()) ||
+          (userData?.sellerId && s.id === userData.sellerId)
+        );
 
-  const handleGoogleSellerSignIn = async () => {
-    setErrorMessage('');
-    const phone = authPhone.trim();
-    if (!phone) {
-      setErrorMessage(isArabic ? 'يرجى إدخال رقم الهاتف المحمول للبائع أولاً للتحقق من الهوية.' : 'Please enter your registered seller mobile phone number to verify identity.');
-      return;
-    }
-    const normPhone = normalizeLebanesePhone(phone);
-    if (!normPhone.isValid) {
-      setErrorMessage(isArabic ? 'يرجى إدخال رقم هاتف محمول لبناني صحيح من 8 أرقام.' : 'Please enter a valid 8-digit Lebanese mobile phone number.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      const userCredential = await signInWithPopup(auth, provider);
-      const email = userCredential.user.email || '';
-      const uid = userCredential.user.uid;
-
-      // Check Firestore user & sellers
-      const userDocRef = doc(db, 'users', uid);
-      const userSnap = await getDoc(userDocRef);
-      const userData = userSnap.exists() ? userSnap.data() : null;
-
-      const matchedSeller = sellers.find(s => 
-        s.accountUid === uid ||
-        (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase()) ||
-        (userData?.sellerId && s.id === userData.sellerId)
-      );
-
-      const isUserAdmin = userData?.role === 'admin' || (email.toLowerCase() === 'jamilarabi2000@gmail.com' && userCredential.user.emailVerified) || isAdminUser;
-
-      if (!matchedSeller && !isUserAdmin) {
-        await signOut(auth);
-        const noSellerMsg = isArabic
-          ? 'لم يتم العثور على ورشة أو حساب بائع معتمد مرتبط بهذا البريد الإلكتروني. يرجى التواصل مع إدارة منصة يلا.'
-          : 'No authorized artisan workshop account found matching this email. Please contact Yalla marketplace administration.';
-        setErrorMessage(noSellerMsg);
-        showToast(noSellerMsg, 'error');
-        setIsLoading(false);
-        return;
-      }
-
-      const registeredPhones: string[] = [
-        userData?.phone,
-        matchedSeller?.contactPhone,
-        userCredential.user.phoneNumber
-      ].filter(Boolean) as string[];
-
-      if (registeredPhones.length > 0) {
-        const isPhoneMatched = registeredPhones.some(p => normalizeLebanesePhone(p).cleanDigits === normPhone.cleanDigits);
-        if (!isPhoneMatched && !isUserAdmin) {
+        if (!matchedSeller && !isUserAdmin) {
           await signOut(auth);
-          const failMsg = isArabic 
-            ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب.`
-            : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file.`;
-          setErrorMessage(failMsg);
-          showToast(failMsg, 'error');
+          const noSellerMsg = isArabic
+            ? 'لم يتم العثور على شركة أو حساب بائع معتمد مرتبط بهذا البريد الإلكتروني. يرجى التواصل مع إدارة منصة يلا.'
+            : 'No authorized seller company account found matching this email. Please contact Yalla marketplace administration.';
+          setErrorMessage(noSellerMsg);
+          showToast(noSellerMsg, 'error');
           setIsLoading(false);
           return;
         }
-      } else if (isUserAdmin) {
-        await setDoc(userDocRef, {
-          phone: normPhone.formatted,
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      }
 
-      showToast(isArabic ? 'تم تسجيل الدخول بنجاح عبر حساب Gmail!' : 'Successfully authenticated with Seller Gmail!', 'success');
-    } catch (err: any) {
-      console.error('[SellerLoginView] Google sign-in error:', err);
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setErrorMessage(err.message || 'Failed to sign in with Google');
+        // 5. Gather registered candidate phone numbers for identity verification
+        const registeredPhones: string[] = [
+          userData?.phone,
+          matchedSeller?.contactPhone,
+          userCredential.user.phoneNumber
+        ].filter(Boolean) as string[];
+
+        // 6. Security Check: Mobile Phone Number Match
+        if (registeredPhones.length > 0) {
+          const isPhoneMatched = registeredPhones.some(p => {
+            const normReg = normalizeLebanesePhone(p);
+            return normReg.cleanDigits === normPhone.cleanDigits;
+          });
+
+          if (!isPhoneMatched && !isUserAdmin) {
+            // Reject authentication and sign out immediately
+            await signOut(auth);
+            const failMsg = isArabic 
+              ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب. يرجى إدخال رقم هاتفك المعتمد.`
+              : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file for this account. Please enter your registered mobile number.`;
+            setErrorMessage(failMsg);
+            showToast(failMsg, 'error');
+            setIsLoading(false);
+            return;
+          }
+        }
+
+        showToast(
+          isArabic 
+            ? `مرحباً بك في بوابة البائعين، ${matchedSeller?.nameAr || matchedSeller?.nameEn || userData?.name || 'أيها البائع'}!` 
+            : `Welcome to your Seller Merchant Portal, ${matchedSeller?.nameEn || userData?.name || 'Seller'}!`, 
+          'success'
+        );
+      } catch (err: any) {
+        console.error('[SellerLoginView] Sign-in error:', err);
+        const code = err?.code || '';
+        let msg = isArabic ? 'تعذر تسجيل الدخول. يرجى التحقق من بياناتك.' : 'Failed to sign in. Please verify your credentials.';
+        if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+          msg = isArabic ? 'البريد الإلكتروني (Gmail) أو كلمة المرور غير صحيحة.' : 'Invalid Gmail address or password. Please verify your credentials.';
+        } else if (code === 'auth/too-many-requests') {
+          msg = isArabic ? 'محاولات كثيرة خاطئة. يرجى الانتظار قليلاً أو إعادة تعيين كلمة المرور.' : 'Too many failed attempts. Please wait a moment or reset your password.';
+        } else if (code === 'auth/invalid-email') {
+          msg = isArabic ? 'صيغة البريد الإلكتروني غير صحيحة.' : 'Invalid email format.';
+        }
+        setErrorMessage(msg);
+        showToast(msg, 'error');
+        throw new Error(msg);
+      } finally {
+        setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
-    }
+    });
+    setShowSellerOtpModal(true);
   };
 
   const handlePasswordResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const target = (forgotEmail || authEmail).trim();
+    const target = (forgotEmail || authEmail).trim().toLowerCase();
     if (!target) {
       showToast(isArabic ? 'يرجى إدخال البريد الإلكتروني' : 'Please enter your email address', 'warning');
       return;
     }
     setIsSendingReset(true);
     try {
+      // 1. Verify if target is an approved seller in local memory
+      const isMatchedSeller = sellers.some(s => 
+        (s.accountEmail && s.accountEmail.toLowerCase() === target) ||
+        ((s as any).email && (s as any).email.toLowerCase() === target)
+      );
+
+      // 2. Query Firestore users collection for a registered seller document
+      let isMatchedSellerInDb = false;
+      try {
+        const qUsers = query(collection(db, 'users'), where('email', '==', target));
+        const qSnap = await getDocs(qUsers);
+        qSnap.forEach((d: any) => {
+          const u = d.data();
+          if (u?.role === 'seller' || u?.role === 'admin' || u?.sellerId) {
+            isMatchedSellerInDb = true;
+          }
+        });
+      } catch (checkErr) {
+        console.warn('[SellerLoginView] User check error:', checkErr);
+      }
+
+      const isAuthorizedSeller = isMatchedSeller || isMatchedSellerInDb || (target === 'jamilarabi2000@gmail.com');
+
+      if (!isAuthorizedSeller) {
+        const errorMsg = isArabic 
+          ? `عذراً، البريد الإلكتروني (${target}) غير مسجل كبائع معتمد في النظام. يرجى تقديم طلب انتساب كبائع.`
+          : `Access Denied: The email "${target}" is not registered as an authorized seller in our database. Please submit a seller signup request.`;
+        showToast(errorMsg, 'error');
+        return;
+      }
+
       await resetPassword(target);
       setShowForgotModal(false);
-      showToast(
-        isArabic
-          ? `تم إرسال رابط إعادة تعيين كلمة المرور إلى ${target}`
-          : `A password reset link has been dispatched to ${target}`,
-        'success'
-      );
     } catch (err: any) {
       showToast(err.message || 'Error sending password reset email', 'warning');
     } finally {
@@ -315,30 +270,73 @@ export const SellerLoginView: React.FC = () => {
 
   const handleApplicationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!appWorkshopName.trim() || !appContactName.trim() || !appPhone.trim() || !appEmail.trim()) {
-      showToast(isArabic ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required application fields', 'warning');
+    const company = appSellerCompany.trim();
+    const fName = appFirstName.trim();
+    const mName = appMiddleName.trim();
+    const lName = appLastName.trim();
+    const email = appEmail.trim().toLowerCase();
+    const phone = appPhone.trim();
+
+    if (!company) {
+      showToast(isArabic ? 'يرجى إدخال اسم شركة أو متجر البائع.' : 'Please enter the seller company name.', 'warning');
       return;
     }
+    if (!fName) {
+      showToast(isArabic ? 'يرجى إدخال الاسم الأول.' : 'Please enter your first name.', 'warning');
+      return;
+    }
+    if (!mName) {
+      showToast(isArabic ? 'يرجى إدخال اسم الأب (الاسم الأوسط).' : 'Please enter your middle name.', 'warning');
+      return;
+    }
+    if (!lName) {
+      showToast(isArabic ? 'يرجى إدخال الشهرة (اسم العائلة).' : 'Please enter your last name.', 'warning');
+      return;
+    }
+    if (!email) {
+      showToast(isArabic ? 'يرجى إدخال البريد الإلكتروني.' : 'Please enter your email address.', 'warning');
+      return;
+    }
+    if (!phone) {
+      showToast(isArabic ? 'يرجى إدخال رقم الهاتف المحمول.' : 'Please enter your mobile phone number.', 'warning');
+      return;
+    }
+
+    const normPhone = normalizeLebanesePhone(phone);
+    if (!normPhone.isValid) {
+      showToast(
+        isArabic 
+          ? 'يرجى إدخال رقم هاتف محمول لبناني صحيح من 8 أرقام (مثال: 70 123 456 أو 03 123 456).'
+          : 'Please enter a valid 8-digit Lebanese mobile phone number (e.g. 70 123 456 or 03 123 456).',
+        'warning'
+      );
+      return;
+    }
+
+    const fullName = `${fName} ${mName} ${lName}`.trim();
 
     setIsSubmittingApp(true);
     try {
       await addDoc(collection(db, 'seller_applications'), {
-        workshopName: appWorkshopName.trim(),
-        workshopNameAr: appWorkshopNameAr.trim(),
-        craftCategory: appCraftCategory,
-        governorate: appGovernorate,
-        village: appVillage.trim(),
-        contactName: appContactName.trim(),
-        phone: appPhone.trim().startsWith('+961') ? appPhone.trim() : `+961 ${appPhone.trim()}`,
-        email: appEmail.trim().toLowerCase(),
-        bio: appBio.trim(),
-        socialLink: appSocialLink.trim(),
+        sellerCompany: company,
+        workshopName: company, // backwards compatibility
+        firstName: fName,
+        middleName: mName,
+        lastName: lName,
+        contactName: fullName,
+        phone: normPhone.formatted,
+        email: email,
         status: 'pending',
         submittedAt: new Date().toISOString()
       });
 
       setAppSubmittedSuccess(true);
-      showToast(isArabic ? 'Mabrouk! تم استلام طلبك بنجاح وسيتواصل معك فريق يالا قريباً.' : 'Mabrouk! Your artisan application was submitted successfully.', 'success');
+      showToast(
+        isArabic 
+          ? 'Mabrouk! تم استلام طلب تسجيل البائع بنجاح وسيتواصل معك فريق يالا قريباً.' 
+          : 'Mabrouk! Your seller signup application was submitted successfully.', 
+        'success'
+      );
     } catch (err: any) {
       console.error('[SellerLoginView] Application error:', err);
       showToast(err.message || 'Failed to submit application. Please try again.', 'warning');
@@ -347,13 +345,13 @@ export const SellerLoginView: React.FC = () => {
     }
   };
 
-  // If user is logged in as a seller (or an admin impersonating/previewing), render the complete Seller Dashboard
+  // If user is logged in as a seller, render the complete Seller Dashboard
   const isSellerUser = user?.role === 'seller';
 
   if (isSellerUser) {
     return (
       <div className="min-h-screen bg-slate-50 pb-24">
-        {/* Artisan Portal Top Header */}
+        {/* Seller Portal Top Header */}
         <div className="bg-slate-900 text-white border-b border-slate-800 py-3.5 px-4 sm:px-6 lg:px-8 sticky top-0 z-40 shadow-md">
           <div className="max-w-screen-2xl mx-auto flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -366,7 +364,7 @@ export const SellerLoginView: React.FC = () => {
               </button>
               <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-bold">
                 <Store className="w-3.5 h-3.5 text-amber-400" />
-                <span>{user.name || 'Artisan Workshop'}</span>
+                <span>{user.name || 'Seller Store'}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-200 font-mono uppercase">
                   {user.sellerId || 'Seller Portal'}
                 </span>
@@ -378,7 +376,7 @@ export const SellerLoginView: React.FC = () => {
                 <p className="text-xs font-bold text-slate-200">{firebaseUser?.email}</p>
                 <p className="text-[10px] text-emerald-400 flex items-center justify-end gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>{isArabic ? 'حساب بائع موثق' : 'Verified Merchant Session'}</span>
+                  <span>{isArabic ? 'حساب بائع موثق' : 'Verified Seller Session'}</span>
                 </p>
               </div>
 
@@ -418,7 +416,7 @@ export const SellerLoginView: React.FC = () => {
         <div className="flex items-center gap-2">
           <LebanonFlag className="w-5 h-3.5" />
           <span className="text-[11px] font-bold text-amber-400/90 tracking-widest uppercase">
-            Yalla.lb Merchant Collective
+            Yalla.lb Seller Collective
           </span>
         </div>
       </div>
@@ -438,7 +436,7 @@ export const SellerLoginView: React.FC = () => {
                 <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                   {isArabic 
                     ? 'أنت مسجل حالياً بحساب المشرف. يمكنك الدخول مباشرة للوحة تحكم أي بائع مسجل لمعاينة متجره، أو الانتقال للوحة الإدارة العامة.'
-                    : 'You are signed in with Marketplace Administrator privileges. You can preview the merchant dashboard of any artisan below or jump to the main Admin Console.'}
+                    : 'You are signed in with Marketplace Administrator privileges. You can preview the merchant dashboard of any registered seller below or jump to the main Admin Console.'}
                 </p>
               </div>
             </div>
@@ -466,7 +464,7 @@ export const SellerLoginView: React.FC = () => {
                             sellerId: target.id,
                             name: target.nameEn
                           });
-                          showToast(`Emulating artisan portal for "${target.nameEn}"`, 'info');
+                          showToast(`Emulating seller portal for "${target.nameEn}"`, 'info');
                         }
                       }
                     }}
@@ -514,12 +512,12 @@ export const SellerLoginView: React.FC = () => {
               <Store className="w-7 h-7" />
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white font-serif">
-              {isArabic ? 'بوابة الحرفيين والتجار' : 'Artisan Merchant Portal'}
+              {isArabic ? 'بوابة البائعين والتجار' : 'Seller Merchant Portal'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-400 max-w-md mx-auto leading-relaxed">
               {isArabic
-                ? 'إدارة مخزون الورشة الحرفية، تحديث المنتجات اللبنانية، ومتابعة تجهيز الطلبات والشحن.'
-                : 'Manage your workshop inventory, publish authentic Lebanese creations, and track fulfillment dispatches.'}
+                ? 'إدارة مخزون متجر البائع، تحديث المنتجات والأسعار، ومتابعة تجهيز الطلبات والشحن في لبنان.'
+                : 'Manage your seller company inventory, publish authentic products, and track fulfillment dispatches across Lebanon.'}
             </p>
           </div>
 
@@ -536,7 +534,7 @@ export const SellerLoginView: React.FC = () => {
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>{isArabic ? 'تسجيل الدخول' : 'Artisan Sign In'}</span>
+              <span>{isArabic ? 'تسجيل دخول البائع' : 'Seller Sign In'}</span>
             </button>
             <button
               type="button"
@@ -549,11 +547,11 @@ export const SellerLoginView: React.FC = () => {
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>{isArabic ? 'انضم كحرفي جديد' : 'Apply to Sell'}</span>
+              <span>{isArabic ? 'تسجيل حساب بائع جديد' : 'Seller Sign Up'}</span>
             </button>
           </div>
 
-          {/* TAB 1: ARTISAN LOGIN FORM (GMAIL + MOBILE + PASSWORD) */}
+          {/* TAB 1: SELLER LOGIN FORM (GMAIL/EMAIL + MOBILE + PASSWORD) */}
           {activePortalTab === 'login' && (
             <form onSubmit={handleSellerSignIn} className="space-y-4 pt-2">
               
@@ -569,7 +567,7 @@ export const SellerLoginView: React.FC = () => {
                 <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
                 <span className="text-[11px] text-amber-200/90 font-medium">
                   {isArabic 
-                    ? 'تسجيل الدخول يتطلب: بريد Gmail للبائع، رقم الهاتف المحمول اللبناني المعتمد، وكلمة المرور.' 
+                    ? 'تسجيل الدخول يتطلب: بريد Gmail/الإيميل للبائع، رقم الهاتف المحمول اللبناني المعتمد، وكلمة المرور.' 
                     : 'Seller login requires: Your registered Gmail / Email, Lebanese mobile phone number, and password.'}
                 </span>
               </div>
@@ -589,7 +587,7 @@ export const SellerLoginView: React.FC = () => {
                     id="seller-login-email"
                     value={authEmail}
                     onChange={(e) => setAuthEmail(e.target.value)}
-                    placeholder="artisan@gmail.com"
+                    placeholder="seller@gmail.com"
                     required
                     className="w-full pl-10 pr-4 py-3 bg-slate-950/60 text-white placeholder-slate-600 text-sm rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all font-mono"
                   />
@@ -600,7 +598,7 @@ export const SellerLoginView: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    {isArabic ? '2. رقم الهاتف المحمول المعتمد للبائع *' : '2. Artisan Mobile Phone Number *'}
+                    {isArabic ? '2. رقم الهاتف المحمول المعتمد للبائع *' : '2. Seller Mobile Phone Number *'}
                   </label>
                   <span className="text-[10px] text-emerald-400 font-mono font-bold">+961 Lebanon</span>
                 </div>
@@ -678,58 +676,33 @@ export const SellerLoginView: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <span>{isArabic ? 'تسجيل الدخول لبوابة البائع' : 'Sign In to Artisan Portal'}</span>
+                    <span>{isArabic ? 'تسجيل الدخول لبوابة البائع' : 'Sign In to Seller Portal'}</span>
                     <ArrowRight className={`w-4 h-4 ${isArabic ? 'rotate-180' : ''}`} />
                   </>
                 )}
               </button>
 
-              {/* Google Sign-in with Gmail Alternative */}
-              <div className="relative py-2 text-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-800" />
+              {/* Strict Seller Access Policy Notice */}
+              <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 space-y-1.5 mt-2">
+                <div className="flex items-center gap-2 text-amber-400 font-bold">
+                  <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>{isArabic ? 'سياسة اعتماد حسابات البائعين' : 'Seller Account Policy'}</span>
                 </div>
-                <span className="relative px-3 bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                  {isArabic ? 'أو عبر حساب Google' : 'Or with Seller Google Account'}
-                </span>
+                <p className="leading-relaxed text-slate-300">
+                  {isArabic 
+                    ? 'تسجيل الدخول متاح حصرياً للشركات والبائعين المعتمدين والمُنشأة حساباتهم من قبل إدارة المنصة. إذا كنت بائعاً جديداً، يرجى تقديم طلبك عبر تبويب "تسجيل حساب بائع جديد" بالأعلى ليتم مراجعته وتزويدك ببيانات الدخول.'
+                    : 'Access is strictly limited to verified sellers approved or created by Yalla Lebanon administration. If you are a new seller, please submit a signup request under "Seller Sign Up" to receive your credentials upon review.'}
+                </p>
               </div>
-
-              <button
-                type="button"
-                id="seller-google-login-btn"
-                onClick={handleGoogleSellerSignIn}
-                disabled={isLoading}
-                className="w-full py-3 px-4 rounded-xl bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800 hover:border-slate-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-50"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                  />
-                </svg>
-                <span>{isArabic ? 'المتابعة عبر بريد Gmail للبائع' : 'Continue with Seller Gmail'}</span>
-              </button>
 
               {/* Support & Notice Footer */}
               <div className="pt-4 border-t border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
                 <div className="flex items-center gap-1.5 text-[11px]">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>{isArabic ? 'بوابة الحرفيين الرسمية المشفرة' : 'Encrypted Artisan Workspace'}</span>
+                  <span>{isArabic ? 'بوابة البائعين الرسمية المشفرة' : 'Encrypted Seller Workspace'}</span>
                 </div>
                 <a
-                  href="https://wa.me/96170889234?text=Hello%20Yalla%20Support,%20I%20need%20help%20with%20my%20Artisan%20Seller%20Account"
+                  href="https://wa.me/96170889234?text=Hello%20Yalla%20Support,%20I%20need%20help%20with%20my%20Seller%20Account"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[11px] font-bold text-amber-400 hover:text-amber-300 inline-flex items-center gap-1 transition-colors"
@@ -741,7 +714,7 @@ export const SellerLoginView: React.FC = () => {
             </form>
           )}
 
-          {/* TAB 2: APPLY TO BECOME A SELLER */}
+          {/* TAB 2: SELLER SIGN UP FORM (EXCLUSIVELY 6 REQUIRED FIELDS) */}
           {activePortalTab === 'apply' && (
             <div className="space-y-4 pt-2">
               {appSubmittedSuccess ? (
@@ -751,12 +724,12 @@ export const SellerLoginView: React.FC = () => {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-emerald-200">
-                      {isArabic ? 'ألف مبروك! تم استلام طلب الورشة الحرفية' : 'Mabrouk! Your Application is Received'}
+                      {isArabic ? 'ألف مبروك! تم استلام طلب تسجيل البائع' : 'Mabrouk! Your Seller Application is Received'}
                     </h3>
-                    <p className="text-xs text-emerald-300/80 mt-1 leading-relaxed">
+                    <p className="text-xs text-emerald-300/80 mt-1.5 leading-relaxed max-w-md mx-auto">
                       {isArabic
-                        ? 'شكراً لاهتمامك بالانضمام إلى عائلة يالا. سيقوم فريق المنسقين بالتواصل معك عبر واتساب لتفعيل حسابك وربط منتجاتك.'
-                        : 'Thank you for applying to join the Yalla Lebanon artisan collective. Our concierge will reach out via WhatsApp to activate your credentials.'}
+                        ? 'شكراً لتسجيلك كبائع على منصة يالا. سيقوم فريق الإدارة بمراجعة طلبك وإرسال بيانات تسجيل الدخول الخاصة بحسابك عبر واتساب والبريد الإلكتروني.'
+                        : 'Thank you for signing up to sell on Yalla Lebanon. Our administration will review your details and dispatch your portal login credentials via WhatsApp and Email.'}
                     </p>
                   </div>
                   <button
@@ -767,202 +740,190 @@ export const SellerLoginView: React.FC = () => {
                     }}
                     className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-md"
                   >
-                    {isArabic ? 'العودة لصفحة الدخول' : 'Return to Sign In'}
+                    {isArabic ? 'العودة لصفحة الدخول' : 'Return to Seller Sign In'}
                   </button>
                 </div>
               ) : (
                 <form onSubmit={handleApplicationSubmit} className="space-y-4">
-                  <p className="text-xs text-slate-300 leading-relaxed bg-amber-500/10 p-3 rounded-xl border border-amber-500/20">
-                    {isArabic
-                      ? 'هل تصنع منتجات مونة أصيلة، صابون غار تقليدي، حرف يدوية، أو نبيذ لبناني؟ قدم طلبك للانضمام إلى المتجر وتوصيل منتجاتك محلياً وعالمياً.'
-                      : 'Are you a Lebanese producer of cold-pressed oils, laurel soaps, wild herbs, textiles, or heritage crafts? Apply below to join our marketplace.'}
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Workshop Name EN */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'اسم الورشة / العلامة (English) *' : 'Workshop / Brand Name (English) *'}
-                      </label>
-                      <input
-                        type="text"
-                        value={appWorkshopName}
-                        onChange={(e) => setAppWorkshopName(e.target.value)}
-                        placeholder="e.g. Chouf Organic Honey"
-                        required
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500"
-                      />
+                  
+                  {/* Simplified Requirement Card */}
+                  <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-slate-300 text-xs space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <span>{isArabic ? 'تسجيل حساب بائع جديد مبسط' : 'Simplified Seller Sign Up'}</span>
                     </div>
-
-                    {/* Workshop Name AR */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'اسم الورشة (بالعربية)' : 'Workshop Name (Arabic)'}
-                      </label>
-                      <input
-                        type="text"
-                        value={appWorkshopNameAr}
-                        onChange={(e) => setAppWorkshopNameAr(e.target.value)}
-                        placeholder="مثال: عسل الشوف العضوي"
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500"
-                      />
-                    </div>
+                    <p className="text-[11px] leading-relaxed text-slate-300">
+                      {isArabic
+                        ? 'فقط اسم الشركة، الاسم الأول، اسم الأب، اسم العائلة، البريد الإلكتروني ورقم الهاتف مطلوبة للتسجيل.'
+                        : 'Only seller company, first name, middle name, last name, email, and mobile phone number are required.'}
+                    </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Craft Category */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'نوع المنتجات / الحرفة' : 'Craft Category'}
-                      </label>
-                      <select
-                        value={appCraftCategory}
-                        onChange={(e) => setAppCraftCategory(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 cursor-pointer"
-                      >
-                        <option value="Pantry & Olive Oils">🫒 Terroir Olive Oils & Wild Herbs</option>
-                        <option value="Soaps & Natural Skincare">🧼 Laurel Soaps & Natural Cosmetics</option>
-                        <option value="Handmade Ceramics & Glass">🏺 Hand-Blown Glass & Pottery</option>
-                        <option value="Woodcraft & Cedar Artifacts">🪵 Hand-Carved Cedar Wood</option>
-                        <option value="Jewelry & Embroidery">🪡 Levantine Textiles & Jewelry</option>
-                        <option value="Wines & Distillations">🍷 Lebanese Wines & Artisanal Arak</option>
-                        <option value="Artisanal Sweets & Jams">🍯 Mountain Jams & Sweets</option>
-                        <option value="Other Lebanese Craft">✨ Other Heritage Craft</option>
-                      </select>
-                    </div>
-
-                    {/* Governorate */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'المحافظة اللبنانية' : 'Lebanese Governorate'}
-                      </label>
-                      <select
-                        value={appGovernorate}
-                        onChange={(e) => setAppGovernorate(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 cursor-pointer"
-                      >
-                        <option value="mount_lebanon">Mount Lebanon (جبل لبنان / الشوف / المتن)</option>
-                        <option value="beirut">Beirut City (بيروت)</option>
-                        <option value="north">North Lebanon & Koura (الشمال والكورة وطرابلس)</option>
-                        <option value="keserwan_jbeil">Keserwan & Byblos (كسروان وجبيل)</option>
-                        <option value="bekaa">Beqaa & Zahlé (البقاع وزحلة وراشيا)</option>
-                        <option value="south">South Lebanon & Tyre (الجنوب وصيدا وصور)</option>
-                        <option value="nabatieh">Nabatieh (النبطية وبنت جبيل)</option>
-                        <option value="akkar">Akkar (عكار)</option>
-                        <option value="baalbek_hermel">Baalbek-Hermel (بعلبك الهرمل)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Village / City */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'البلدة / القرية' : 'Village / Town'}
-                      </label>
-                      <input
-                        type="text"
-                        value={appVillage}
-                        onChange={(e) => setAppVillage(e.target.value)}
-                        placeholder="e.g. Deir El Qamar, Baskinta, Tripoli"
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500"
-                      />
-                    </div>
-
-                    {/* Contact Person Name */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'اسم المسؤول / الحرفي *' : 'Contact Person Full Name *'}
-                      </label>
-                      <input
-                        type="text"
-                        value={appContactName}
-                        onChange={(e) => setAppContactName(e.target.value)}
-                        placeholder="e.g. Tony Khoury"
-                        required
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* WhatsApp Phone */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'رقم الهاتف / واتساب *' : 'WhatsApp Number *'}
-                      </label>
-                      <input
-                        type="tel"
-                        value={appPhone}
-                        onChange={(e) => setAppPhone(e.target.value)}
-                        placeholder="e.g. 70 123 456"
-                        required
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-mono"
-                      />
-                    </div>
-
-                    {/* Contact Email */}
-                    <div>
-                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                        {isArabic ? 'البريد الإلكتروني *' : 'Contact Email *'}
-                      </label>
-                      <input
-                        type="email"
-                        value={appEmail}
-                        onChange={(e) => setAppEmail(e.target.value)}
-                        placeholder="contact@workshop.lb"
-                        required
-                        className="w-full px-3 py-2.5 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Workshop Bio / Products */}
+                  {/* 1. Seller Company (Required) */}
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      {isArabic ? 'نبذة عن الورشة الحرفية والمنتجات' : 'Short Story / Workshop Overview'}
-                    </label>
-                    <textarea
-                      value={appBio}
-                      onChange={(e) => setAppBio(e.target.value)}
-                      rows={2}
-                      placeholder={isArabic ? 'أخبرنا عن طريقة الإنتاج التقليدية والمكونات الطبيعية المستخدمة...' : 'Tell us about your artisanal methods, ingredients, and heritage story...'}
-                      className="w-full px-3 py-2 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 resize-none"
-                    />
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                        {isArabic ? '1. اسم شركة / متجر البائع *' : '1. Seller Company Name *'}
+                      </label>
+                      <span className="text-[10px] text-amber-400 font-bold uppercase">Required</span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <Building2 className="absolute left-3.5 w-4 h-4 text-slate-500 pointer-events-none" />
+                      <input
+                        type="text"
+                        id="seller-signup-company"
+                        value={appSellerCompany}
+                        onChange={(e) => setAppSellerCompany(e.target.value)}
+                        placeholder="e.g. Cedar Peak Trading SAL / Al-Koura Organics"
+                        required
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-950/60 text-white placeholder-slate-600 text-xs sm:text-sm rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all font-medium"
+                      />
+                    </div>
                   </div>
 
-                  {/* Social / Instagram Link */}
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                      {isArabic ? 'رابط إنستغرام أو الموقع الإلكتروني (اختياري)' : 'Instagram Handle or Website (Optional)'}
-                    </label>
-                    <input
-                      type="text"
-                      value={appSocialLink}
-                      onChange={(e) => setAppSocialLink(e.target.value)}
-                      placeholder="e.g. @chouf_crafts"
-                      className="w-full px-3 py-2 bg-slate-950/60 text-white text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 text-xs"
-                    />
+                  {/* 2, 3, 4: First Name, Middle Name, Last Name */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* First Name */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                        {isArabic ? '2. الاسم الأول *' : '2. First Name *'}
+                      </label>
+                      <div className="relative flex items-center">
+                        <User className="absolute left-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          id="seller-signup-firstname"
+                          value={appFirstName}
+                          onChange={(e) => setAppFirstName(e.target.value)}
+                          placeholder="e.g. Jamil"
+                          required
+                          className="w-full pl-9 pr-3 py-2.5 bg-slate-950/60 text-white placeholder-slate-600 text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Middle Name */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                        {isArabic ? '3. اسم الأب (الأوسط) *' : '3. Middle Name *'}
+                      </label>
+                      <div className="relative flex items-center">
+                        <User className="absolute left-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          id="seller-signup-middlename"
+                          value={appMiddleName}
+                          onChange={(e) => setAppMiddleName(e.target.value)}
+                          placeholder="e.g. Kamal"
+                          required
+                          className="w-full pl-9 pr-3 py-2.5 bg-slate-950/60 text-white placeholder-slate-600 text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-medium"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Last Name */}
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300 mb-1.5">
+                        {isArabic ? '4. الشهرة (العائلة) *' : '4. Last Name *'}
+                      </label>
+                      <div className="relative flex items-center">
+                        <User className="absolute left-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                        <input
+                          type="text"
+                          id="seller-signup-lastname"
+                          value={appLastName}
+                          onChange={(e) => setAppLastName(e.target.value)}
+                          placeholder="e.g. Arabi"
+                          required
+                          className="w-full pl-9 pr-3 py-2.5 bg-slate-950/60 text-white placeholder-slate-600 text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-medium"
+                        />
+                      </div>
+                    </div>
                   </div>
 
+                  {/* 5 & 6: Email & Mobile Number */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Email */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                          {isArabic ? '5. البريد الإلكتروني *' : '5. Email Address *'}
+                        </label>
+                      </div>
+                      <div className="relative flex items-center">
+                        <Mail className="absolute left-3 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+                        <input
+                          type="email"
+                          id="seller-signup-email"
+                          value={appEmail}
+                          onChange={(e) => setAppEmail(e.target.value)}
+                          placeholder="seller@gmail.com"
+                          required
+                          className="w-full pl-9 pr-3 py-2.5 bg-slate-950/60 text-white placeholder-slate-600 text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Mobile Phone Number */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                          {isArabic ? '6. رقم الهاتف المحمول *' : '6. Mobile Number *'}
+                        </label>
+                        <span className="text-[10px] text-emerald-400 font-mono font-bold">+961</span>
+                      </div>
+                      <div className="relative flex items-center">
+                        <div className="absolute left-2.5 flex items-center gap-1 text-[11px] text-slate-400 font-bold font-mono pointer-events-none border-r border-slate-800 pr-2">
+                          <LebanonFlag className="w-3.5 h-2.5 rounded-xs" />
+                          <span>+961</span>
+                        </div>
+                        <input
+                          type="tel"
+                          id="seller-signup-phone"
+                          value={appPhone}
+                          onChange={(e) => setAppPhone(e.target.value)}
+                          placeholder="70 123 456"
+                          required
+                          className="w-full pl-20 pr-3 py-2.5 bg-slate-950/60 text-white placeholder-slate-600 text-xs rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-mono tracking-wide"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submission Action */}
                   <button
                     type="submit"
                     id="seller-apply-submit-btn"
                     disabled={isSubmittingApp}
-                    className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-amber-500/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
+                    className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-amber-500/30 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
                   >
                     {isSubmittingApp ? (
                       <>
                         <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                        <span>{isArabic ? 'جاري إرسال الطلب...' : 'Submitting Application...'}</span>
+                        <span>{isArabic ? 'جاري إرسال طلب البائع...' : 'Submitting Seller Application...'}</span>
                       </>
                     ) : (
                       <>
                         <Send className="w-4 h-4" />
-                        <span>{isArabic ? 'إرسال طلب الانضمام للحرفيين' : 'Submit Artisan Application'}</span>
+                        <span>{isArabic ? 'إرسال طلب تسجيل البائع' : 'Submit Seller Application'}</span>
                       </>
                     )}
                   </button>
+
+                  <div className="text-center pt-2">
+                    <p className="text-[11px] text-slate-500">
+                      {isArabic
+                        ? 'هل تملك حساب بائع معتمد بالفعل؟'
+                        : 'Already have an approved seller account?'}{' '}
+                      <button
+                        type="button"
+                        onClick={() => setActivePortalTab('login')}
+                        className="text-amber-400 font-bold hover:underline cursor-pointer"
+                      >
+                        {isArabic ? 'تسجيل الدخول' : 'Sign In'}
+                      </button>
+                    </p>
+                  </div>
                 </form>
               )}
             </div>
@@ -979,7 +940,7 @@ export const SellerLoginView: React.FC = () => {
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Lock className="w-4 h-4 text-amber-400" />
-                <span>{isArabic ? 'استعادة كلمة مرور الحرفي' : 'Reset Merchant Password'}</span>
+                <span>{isArabic ? 'استعادة كلمة مرور البائع' : 'Reset Seller Password'}</span>
               </h3>
               <button
                 onClick={() => setShowForgotModal(false)}
@@ -992,7 +953,7 @@ export const SellerLoginView: React.FC = () => {
             <p className="text-xs text-slate-400 leading-relaxed">
               {isArabic
                 ? 'أدخل البريد الإلكتروني المسجل لحساب البائع وسنرسل لك رابطاً آمناً لإعادة تعيين كلمة المرور فوراً.'
-                : 'Enter your registered merchant account email. We will send an official, secure password reset link.'}
+                : 'Enter your registered seller account email. We will send an official, secure password reset link.'}
             </p>
 
             <form onSubmit={handlePasswordResetSubmit} className="space-y-4">
@@ -1004,7 +965,7 @@ export const SellerLoginView: React.FC = () => {
                   type="email"
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="artisan@yalla.lb"
+                  placeholder="seller@yalla.lb"
                   required
                   className="w-full px-4 py-2.5 bg-slate-950 text-white text-sm rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 font-mono"
                 />
@@ -1033,9 +994,22 @@ export const SellerLoginView: React.FC = () => {
 
       {/* Bottom Footer Note */}
       <div className="max-w-5xl w-full mx-auto text-center z-10 text-[11px] text-slate-500 pt-6">
-        <span>© {new Date().getFullYear()} Yalla.lb • Lebanese Artisan Merchant Network & Terroir Collective</span>
+        <span>© {new Date().getFullYear()} Yalla.lb • Lebanese Seller Merchant Network & Terroir Collective</span>
       </div>
 
+      {/* Security OTP Modal */}
+      <OTPModal
+        isOpen={showSellerOtpModal}
+        onClose={() => setShowSellerOtpModal(false)}
+        targetContact={authPhone ? `+961 ${authPhone}` : authEmail}
+        actionType="seller"
+        language={isArabic ? 'ar' : 'en'}
+        onVerifySuccess={async () => {
+          if (pendingSellerLoginAction) {
+            await pendingSellerLoginAction();
+          }
+        }}
+      />
     </div>
   );
 };

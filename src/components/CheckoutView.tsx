@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { PaymentMethod } from '../types';
 import { LEBANON_REGIONS, GovernorateOption, LBP_USD_RATE } from '../data/regions';
 import { calcDeliveryFeeUSD } from '../lib/delivery';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
+import { OTPModal } from './OTPModal';
 import { 
   ShieldCheck, 
   Truck, 
@@ -85,6 +87,11 @@ export const CheckoutView: React.FC = () => {
   const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [isSendingReset, setIsSendingReset] = useState(false);
+
+  const { containerRef: forgotPasswordModalRef } = useDialog({
+    isOpen: showForgotPasswordModal,
+    onClose: () => setShowForgotPasswordModal(false)
+  });
 
   const handleResetPassword = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -290,6 +297,11 @@ export const CheckoutView: React.FC = () => {
 
   const finalTotalUSD = cartTotalUSD + (cart.length > 0 ? deliveryFeeUSD : 0);
 
+  const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
+  const [otpTargetContact, setOtpTargetContact] = useState<string>('');
+  const [otpActionType, setOtpActionType] = useState<'login' | 'signup'>('login');
+  const [pendingAuthAction, setPendingAuthAction] = useState<(() => Promise<void>) | null>(null);
+
   // Sign In Handler from Checkout
   const handleCheckoutSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,15 +309,19 @@ export const CheckoutView: React.FC = () => {
       showToast(isArabic ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور' : 'Please enter both email and password', 'warning');
       return;
     }
-    setIsAuthLoading(true);
-    try {
-      await signInWithEmail(authEmail, authPassword);
-      showToast(isArabic ? 'تم تسجيل الدخول بنجاح! يمكنك الآن إتمام الطلب.' : 'Logged in successfully! You can now complete your order.', 'success');
-    } catch {
-      // Handled in context
-    } finally {
-      setIsAuthLoading(false);
-    }
+    
+    setOtpTargetContact(authEmail);
+    setOtpActionType('login');
+    setPendingAuthAction(() => async () => {
+      setIsAuthLoading(true);
+      try {
+        await signInWithEmail(authEmail, authPassword);
+        showToast(isArabic ? 'تم تسجيل الدخول بنجاح! يمكنك الآن إتمام الطلب.' : 'Logged in successfully! You can now complete your order.', 'success');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    });
+    setShowOtpModal(true);
   };
 
   // Sign Up Handler from Checkout
@@ -342,48 +358,54 @@ export const CheckoutView: React.FC = () => {
       setIsAuthLoading(false);
       return;
     }
+    setIsAuthLoading(false);
 
     const fullName = `${signupFirstName.trim()} ${signupLastName.trim()}`;
     const formattedPhone = `+961 ${cleanPhone}`;
+    const contactInfo = authEmail || formattedPhone;
 
-    try {
+    setOtpTargetContact(contactInfo);
+    setOtpActionType('signup');
+    setPendingAuthAction(() => async () => {
+      setIsAuthLoading(true);
       try {
-        localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
+        try {
+          localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
+            firstName: signupFirstName.trim(),
+            lastName: signupLastName.trim(),
+            phone: formattedPhone,
+            defaultCity: formData.city || 'Achrafieh, Beirut',
+            defaultAddress: formData.street || '',
+            defaultBuilding: formData.building || '',
+            defaultNotes: formData.notes || ''
+          }));
+        } catch {}
+        await signUpWithEmail(authEmail, authPassword, cleanPhone);
+        await updateUser({
+          name: fullName,
           firstName: signupFirstName.trim(),
           lastName: signupLastName.trim(),
+          email: authEmail,
           phone: formattedPhone,
           defaultCity: formData.city || 'Achrafieh, Beirut',
           defaultAddress: formData.street || '',
           defaultBuilding: formData.building || '',
           defaultNotes: formData.notes || ''
+        });
+        // Auto fill form data
+        setFormData(prev => ({
+          ...prev,
+          firstName: signupFirstName.trim(),
+          lastName: signupLastName.trim(),
+          phone: formattedPhone,
+          email: authEmail
         }));
-      } catch {}
-      await signUpWithEmail(authEmail, authPassword, cleanPhone);
-      await updateUser({
-        name: fullName,
-        firstName: signupFirstName.trim(),
-        lastName: signupLastName.trim(),
-        email: authEmail,
-        phone: formattedPhone,
-        defaultCity: formData.city || 'Achrafieh, Beirut',
-        defaultAddress: formData.street || '',
-        defaultBuilding: formData.building || '',
-        defaultNotes: formData.notes || ''
-      });
-      // Auto fill form data
-      setFormData(prev => ({
-        ...prev,
-        firstName: signupFirstName.trim(),
-        lastName: signupLastName.trim(),
-        phone: formattedPhone,
-        email: authEmail
-      }));
-      showToast(isArabic ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' : 'Account created and signed in successfully!', 'success');
-    } catch {
-      // Handled in context
-    } finally {
-      setIsAuthLoading(false);
-    }
+        showToast(isArabic ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' : 'Account created and signed in successfully!', 'success');
+      } finally {
+        setIsAuthLoading(false);
+      }
+    });
+    setShowOtpModal(true);
   };
 
   // Google Sign In Handler
@@ -1403,7 +1425,13 @@ export const CheckoutView: React.FC = () => {
       {/* Forgot Password Modal */}
       {showForgotPasswordModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative">
+          <div 
+            ref={forgotPasswordModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-password-modal-title"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative"
+          >
             <button
               type="button"
               onClick={() => setShowForgotPasswordModal(false)}
@@ -1417,7 +1445,7 @@ export const CheckoutView: React.FC = () => {
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">
+                <h3 id="reset-password-modal-title" className="font-bold text-slate-900 text-base">
                   {isArabic ? 'إعادة تعيين كلمة المرور' : 'Reset Your Password'}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -1471,6 +1499,19 @@ export const CheckoutView: React.FC = () => {
         </div>
       )}
 
+      {/* Security OTP Modal */}
+      <OTPModal
+        isOpen={showOtpModal}
+        onClose={() => setShowOtpModal(false)}
+        targetContact={otpTargetContact}
+        actionType={otpActionType}
+        language={isArabic ? 'ar' : 'en'}
+        onVerifySuccess={async () => {
+          if (pendingAuthAction) {
+            await pendingAuthAction();
+          }
+        }}
+      />
     </div>
   );
 };

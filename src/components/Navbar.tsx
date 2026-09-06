@@ -229,7 +229,7 @@ export const Navbar: React.FC = () => {
               }`}
             >
               <Store className="w-3.5 h-3.5 text-amber-600" />
-              <span>{language === 'ar' ? 'بوابة التجار' : 'Artisan Portal'}</span>
+              <span>{language === 'ar' ? 'بوابة البائعين' : 'Seller Portal'}</span>
             </button>
 
             {showAdminTab && (
@@ -440,7 +440,7 @@ export const Navbar: React.FC = () => {
                 activeTab === 'seller' ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'text-amber-800 hover:bg-slate-50'
               }`}
             >
-              <span>{language === 'ar' ? 'بوابة الحرفيين والتجار' : 'Artisan & Merchant Portal'}</span>
+              <span>{language === 'ar' ? 'بوابة البائعين والتجار' : 'Seller & Merchant Portal'}</span>
               <Store className="w-4 h-4 text-amber-600" />
             </button>
 

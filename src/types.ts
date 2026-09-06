@@ -61,6 +61,7 @@ export interface Seller {
   region?: string;             // matches LEBANON_REGIONS ids
   contactPhone?: string;       // WhatsApp coordination
   contactEmail?: string;
+  craftCategory?: string;
   commissionPct?: number;      // if you take a cut
   isActive: boolean;           // master switch — hides ALL their products
   hasAccount?: boolean;        // linked access credential flag
@@ -126,6 +127,7 @@ export interface Order {
   id: string;
   userId?: string;
   sellerIds?: string[]; // linked sellers for access control
+  productIds?: string[]; // denormalized product identifiers for review authorization
   date: string;
   items: CartItem[];
   shipping: ShippingDetails;
@@ -184,9 +186,20 @@ export interface CMSOfferSlide {
   isCustomCrayolaLayout?: boolean;
   isCustomGlobalLayout?: boolean;
   imageZoom?: number;
+  desktopImageZoom?: number;
+  mobileImageZoom?: number;
   objectPosition?: string;
+  desktopObjectPosition?: string;
+  mobileObjectPosition?: string;
   imageFit?: 'cover' | 'contain' | 'fill';
+  desktopImageFit?: 'cover' | 'contain' | 'fill';
+  mobileImageFit?: 'cover' | 'contain' | 'fill';
+  desktopAspectRatio?: '16:9' | '21:9' | '4:3' | 'auto';
+  mobileAspectRatio?: '16:9' | '9:16' | '3:4' | '1:1' | 'auto';
   isPublished?: boolean;
+  scheduleActive?: boolean;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface CMSNewsArticle {
@@ -216,17 +229,32 @@ export interface CMSNavTab {
 
 export interface CMSHeroMediaItem {
   id: string;
-  url: string;
+  url: string; // Desktop / Default media URL
+  mobileUrl?: string; // Dedicated Mobile (Vertical / Portrait) media URL
   type: 'image' | 'video';
+  mobileType?: 'image' | 'video';
   title?: string;
   customTitle?: string;
   customTitleArabic?: string;
   customSubtitle?: string;
   customSubtitleArabic?: string;
+  
+  // Desktop View Controls (Widescreen 16:9 / 21:9)
   imageZoom?: number;
   objectPosition?: string;
-  imageFit?: 'cover' | 'contain';
+  imageFit?: 'cover' | 'contain' | 'fill';
+  desktopAspectRatio?: '16:9' | '21:9' | '4:3' | 'auto';
+
+  // Mobile View Controls (Vertical / Portrait 9:16 / 3:4)
+  mobileImageZoom?: number;
+  mobileObjectPosition?: string;
+  mobileImageFit?: 'cover' | 'contain' | 'fill';
+  mobileAspectRatio?: '16:9' | '9:16' | '3:4' | '1:1' | 'auto';
+
   isPublished?: boolean;
+  scheduleActive?: boolean;
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface CMSThemeConfig {
@@ -334,6 +362,7 @@ export interface SiteContent {
     keywords?: string[];
     arabicKeywords?: string[];
     faviconUrl?: string;
+    ogImageUrl?: string;
   };
   visibility: SectionVisibilityConfig;
   customBlocks: CMSCustomBlock[];
@@ -364,10 +393,17 @@ export interface SiteContent {
     secondaryBtnTextArabic?: string;
     targetUrl?: string;
     bgImageUrl?: string;
+    mobileBgImageUrl?: string;
     bgImageUrls?: string[];
     bgVideoUrl?: string;
+    mobileBgVideoUrl?: string;
     bgVideoUrls?: string[];
     bgMediaItems?: CMSHeroMediaItem[];
+    defaultImageFit?: 'contain' | 'cover' | 'fill';
+    desktopAspectRatio?: '16:9' | '21:9' | '4:3' | 'auto';
+    mobileAspectRatio?: '16:9' | '9:16' | '3:4' | '1:1' | 'auto';
+    desktopHeroHeight?: string;
+    mobileHeroHeight?: string;
     slideInterval?: number;
     overlayOpacity?: number;
     stats: CMSHeroStat[];
@@ -426,6 +462,18 @@ export interface SiteContent {
     newsletterSubtitleArabic?: string;
     newsletterButtonText: string;
     newsletterButtonTextArabic?: string;
+    bundlesTitle?: string;
+    bundlesTitleArabic?: string;
+    bundlesSubtitle?: string;
+    bundlesSubtitleArabic?: string;
+    bundlesBadge?: string;
+    bundlesBadgeArabic?: string;
+    bundlesDescription?: string;
+    bundlesDescriptionArabic?: string;
+    trustBadgesTitle?: string;
+    trustBadgesTitleArabic?: string;
+    trustBadgesSubtitle?: string;
+    trustBadgesSubtitleArabic?: string;
     sectionOrder?: string[];
   };
   productsPage: {
@@ -566,8 +614,8 @@ export interface DiscountRule {
   id: string;
   name: string;
   nameAr?: string;
-  type: 'percentage' | 'fixed';
-  value: number; // e.g. 15 for 15% or 5 for $5
+  type: 'percentage' | 'fixed' | 'bogo';
+  value: number; // e.g. 15 for 15%, 5 for $5, or 100 for 100% free BOGO / 50 for 50% off second item
   target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
   targetValue?: string; // specific product id, category id/name, artisan/seller name, or origin/brand name
   couponCode?: string; // optional coupon code e.g. SUMMER20
@@ -576,6 +624,10 @@ export interface DiscountRule {
   startDate?: string; // ISO date-time string e.g. "2026-08-20T00:00"
   endDate?: string;   // ISO date-time string e.g. "2026-08-31T23:59"
   isNewUserOnly?: boolean; // True if rule applies only to new users
+  // BOGO / Buy X Get Y specific parameters
+  buyQty?: number; // e.g. 1 in Buy 1 Get 1, or 2 in Buy 2 Get 1
+  getQty?: number; // e.g. 1 in Buy 1 Get 1 or Buy 2 Get 1
+  getDiscountPercent?: number; // discount on the Y items (e.g. 100 for 100% Free, or 50 for 50% off)
 }
 
 export interface SearchLog {
@@ -600,11 +652,40 @@ export interface ProductBundle {
   productIds: string[];
   bundlePriceUSD: number;
   isActive: boolean;
+  showInSlider?: boolean;
+  showButtonInSlider?: boolean;
+  sliderButtonText?: string;
+  sliderButtonTextAr?: string;
   startDate?: string;
   endDate?: string;
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface SellerApplication {
+  id: string;
+  sellerCompany: string;
+  workshopName?: string; // backwards compatibility alias for sellerCompany
+  workshopNameAr?: string;
+  firstName: string;
+  middleName: string;
+  lastName: string;
+  contactName?: string;
+  phone: string;
+  email: string;
+  craftCategory?: string;
+  governorate?: string;
+  village?: string;
+  bio?: string;
+  socialLink?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  submittedAt: string;
+  approvedAt?: string;
+  reviewedAt?: string;
+  createdSellerId?: string;
+}
+
 
 
 

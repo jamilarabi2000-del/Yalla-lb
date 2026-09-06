@@ -166,7 +166,7 @@ export const CMSGlobalSearch: React.FC<CMSGlobalSearchProps> = ({
   };
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${className || ''}`}>
       {/* Search Input Button / Trigger */}
       <div className="relative">
         <button
@@ -175,13 +175,13 @@ export const CMSGlobalSearch: React.FC<CMSGlobalSearchProps> = ({
             setIsOpen(true);
             setTimeout(() => inputRef.current?.focus(), 50);
           }}
-          className="w-full sm:w-64 md:w-80 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-900 border border-white/15 hover:border-amber-400/50 text-slate-400 hover:text-slate-200 text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-xs"
+          className="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-900 border border-white/15 hover:border-amber-400/50 text-slate-400 hover:text-slate-200 text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-xs"
         >
-          <div className="flex items-center gap-2 truncate">
-            <Search className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+          <div className="flex items-center gap-2 min-w-0 truncate">
+            <Search className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <span className="truncate">Search CMS fields, texts, tabs...</span>
           </div>
-          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-800 border border-white/10 text-[10px] font-mono text-slate-400">
+          <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-800 border border-white/10 text-[10px] font-mono text-slate-400 shrink-0">
             <span>⌘</span>K
           </kbd>
         </button>
@@ -189,10 +189,10 @@ export const CMSGlobalSearch: React.FC<CMSGlobalSearchProps> = ({
 
       {/* Search Results Dropdown Overlay */}
       {isOpen && (
-        <div className="absolute left-0 right-0 sm:right-auto sm:w-[480px] top-full mt-2 rounded-2xl bg-slate-900 border border-amber-500/30 shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-fadeIn">
+        <div className="absolute left-0 sm:left-0 sm:right-auto w-[calc(100vw-2rem)] sm:w-[460px] max-w-[90vw] top-full mt-2 rounded-2xl bg-slate-900 border border-amber-500/30 shadow-2xl z-50 overflow-hidden backdrop-blur-xl animate-fadeIn">
           {/* Top Search Bar */}
           <div className="p-3 border-b border-white/10 flex items-center gap-2.5 bg-slate-950/60">
-            <Search className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <Search className="w-4 h-4 text-amber-400 shrink-0" />
             <input
               ref={inputRef}
               type="text"

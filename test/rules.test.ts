@@ -23,13 +23,13 @@ const admin = () => env.authenticatedContext('admin-1', {
 // ── Regression 1: v3 — status mismatch silently rejected every order ──────────
 test('customer can create an order with status pending', async () => {
   await assertSucceeds(setDoc(doc(customer(), 'orders', 'o1'), {
-    userId: 'cust-1', status: 'pending', totalUSD: 42, items: [], shipping: {},
+    userId: 'cust-1', status: 'pending', subtotalUSD: 42, deliveryFeeUSD: 0, totalUSD: 42, items: [], shipping: {},
   }));
 });
 
 test('customer cannot create a pre-advanced order', async () => {
   await assertFails(setDoc(doc(customer(), 'orders', 'o2'), {
-    userId: 'cust-1', status: 'crafting', totalUSD: 42, items: [], shipping: {},
+    userId: 'cust-1', status: 'crafting', subtotalUSD: 42, deliveryFeeUSD: 0, totalUSD: 42, items: [], shipping: {},
   }));
 });
 
@@ -47,7 +47,7 @@ test('customer cannot decrement product stock', async () => {
 test('customer order path performs no product writes', async () => {
   await assertFails(setDoc(doc(customer(), 'products', 'p1'), { stock: 4 }, { merge: true }));
   await assertSucceeds(setDoc(doc(customer(), 'orders', 'o3'), {
-    userId: 'cust-1', status: 'pending', totalUSD: 10, items: [], shipping: {},
+    userId: 'cust-1', status: 'pending', subtotalUSD: 10, deliveryFeeUSD: 0, totalUSD: 10, items: [], shipping: {},
   }));
 });
 
@@ -62,7 +62,7 @@ test('customer cannot read another customer order', async () => {
 test('unverified email cannot order', async () => {
   const unverified = env.authenticatedContext('cust-3', { email_verified: false }).firestore();
   await assertFails(setDoc(doc(unverified, 'orders', 'o4'), {
-    userId: 'cust-3', status: 'pending', totalUSD: 5, items: [], shipping: {},
+    userId: 'cust-3', status: 'pending', subtotalUSD: 5, deliveryFeeUSD: 0, totalUSD: 5, items: [], shipping: {},
   }));
 });
 
@@ -79,7 +79,7 @@ const unauthenticated = () => env.unauthenticatedContext().firestore();
 
 test('unauthenticated user cannot create order', async () => {
   await assertFails(setDoc(doc(unauthenticated(), 'orders', 'o-unauth'), {
-    userId: 'cust-1', status: 'pending', totalUSD: 10, items: [], shipping: {},
+    userId: 'cust-1', status: 'pending', subtotalUSD: 10, deliveryFeeUSD: 0, totalUSD: 10, items: [], shipping: {},
   }));
 });
 

@@ -15,10 +15,18 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail,
   sendEmailVerification,
-  fetchSignInMethodsForEmail,
+  // Note: fetchSignInMethodsForEmail intentionally omitted to prevent account-enumeration attacks
   Auth
 } from 'firebase/auth';
-import { getFirestore, setLogLevel, Firestore } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
+  setLogLevel, 
+  Firestore 
+} from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -32,7 +40,7 @@ export { firebaseConfig };
 // Toggle switch to decouple active database calls to bypass project locked / billing requirements
 export const IS_FIREBASE_ENABLED = import.meta.env.PROD ? true : (import.meta.env.VITE_USE_FIREBASE !== 'false');
 
-const app = initializeApp(firebaseConfig);
+export const app = initializeApp(firebaseConfig);
 
 // Initialize App Check if configured
 if (typeof window !== 'undefined') {
@@ -52,13 +60,33 @@ if (typeof window !== 'undefined') {
 
 let firestoreInstance: Firestore;
 try {
-  firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+  // Use initializeFirestore with multi-tab persistent cache or memory fallback
+  // This explicitly prevents "Database is closing/hidden" IndexedDB errors in iframes and background tabs
+  const cacheConfig = typeof window !== 'undefined'
+    ? persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    : memoryLocalCache();
+
+  firestoreInstance = initializeFirestore(app, {
+    localCache: cacheConfig
+  }, firebaseConfig.firestoreDatabaseId);
 } catch (err) {
   try {
-    firestoreInstance = getFirestore(app);
-  } catch (e) {
-    console.error("[Firebase] Firestore initialization fallback error:", e);
-    firestoreInstance = getFirestore();
+    firestoreInstance = initializeFirestore(app, {
+      localCache: memoryLocalCache()
+    }, firebaseConfig.firestoreDatabaseId);
+  } catch (e2) {
+    try {
+      firestoreInstance = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    } catch (e3) {
+      try {
+        firestoreInstance = getFirestore(app);
+      } catch (e4) {
+        console.warn("[Firebase] Firestore initialization fallback warning:", e4);
+        firestoreInstance = getFirestore();
+      }
+    }
   }
 }
 
@@ -81,6 +109,6 @@ export const auth = authInstance;
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
 
-export { GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification, fetchSignInMethodsForEmail };
+export { GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification };
 export type { FirebaseUser };
 

@@ -25,6 +25,7 @@ import {
   Flame
 } from 'lucide-react';
 import { useShop } from '../../context/ShopContext';
+import { useDialog } from '../../hooks/useDialog';
 import { SearchLog } from '../../types';
 
 type TimeRangeFilter = 'all' | '24h' | '7d' | '30d';
@@ -41,6 +42,11 @@ export const SearchAnalyticsView: React.FC = () => {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [simulatedInput, setSimulatedInput] = useState('');
   const [isSimulating, setIsSimulating] = useState(false);
+
+  const { containerRef: clearConfirmModalRef } = useDialog({
+    isOpen: showClearConfirm,
+    onClose: () => setShowClearConfirm(false)
+  });
 
   // Load from local storage cache initially
   useEffect(() => {
@@ -360,12 +366,18 @@ export const SearchAnalyticsView: React.FC = () => {
       {/* Confirmation Modal for Clearing Logs */}
       {showClearConfirm && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl space-y-4">
+          <div 
+            ref={clearConfirmModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-search-modal-title"
+            className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full border border-slate-200 shadow-2xl space-y-4"
+          >
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
               <AlertCircle className="w-6 h-6" />
             </div>
             <div className="text-center space-y-1.5">
-              <h3 className="text-base font-extrabold text-slate-900">Clear All Search Analytics Logs?</h3>
+              <h3 id="clear-search-modal-title" className="text-base font-extrabold text-slate-900">Clear All Search Analytics Logs?</h3>
               <p className="text-xs text-slate-500 leading-relaxed">
                 This will permanently delete all {totalSearches} recorded search queries and reset trend leaderboards. This action cannot be undone.
               </p>

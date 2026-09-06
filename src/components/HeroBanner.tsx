@@ -38,10 +38,19 @@ interface ConsolidatedSlide {
   targetCategory?: string;
   targetUrl?: string;
   imageZoom?: number;
+  desktopImageZoom?: number;
+  mobileImageZoom?: number;
   objectPosition?: string;
+  desktopObjectPosition?: string;
+  mobileObjectPosition?: string;
   imageFit?: 'cover' | 'contain' | 'fill';
+  desktopImageFit?: 'cover' | 'contain' | 'fill';
+  mobileImageFit?: 'cover' | 'contain' | 'fill';
+  desktopAspectRatio?: string;
+  mobileAspectRatio?: string;
   isCustomSchoolLayout?: boolean;
   bundleId?: string;
+  showButton?: boolean;
 }
 
 export const HeroBanner: React.FC = () => {
@@ -164,11 +173,30 @@ export const HeroBanner: React.FC = () => {
     }
   ];
 
+  // Helper to check if a slide is currently visible based on published status and optional schedule
+  const isSlideActive = (item: { isPublished?: boolean; scheduleActive?: boolean; startDate?: string; endDate?: string }) => {
+    if (item.isPublished === false) return false;
+    if (item.scheduleActive) {
+      const now = new Date();
+      if (item.startDate) {
+        const start = new Date(item.startDate);
+        if (!isNaN(start.getTime()) && now < start) return false;
+      }
+      if (item.endDate) {
+        const end = new Date(item.endDate);
+        if (!isNaN(end.getTime()) && now > end) return false;
+      }
+    }
+    return true;
+  };
+
   // Map CMS custom offers and hero items into consolidated list if configured
   const cmsConsolidatedSlides: ConsolidatedSlide[] = [];
   
   if (cmsOfferSlides.length > 0) {
-    cmsOfferSlides.forEach((slide: any, idx: number) => {
+    cmsOfferSlides
+      .filter((slide: any) => isSlideActive(slide))
+      .forEach((slide: any, idx: number) => {
       cmsConsolidatedSlides.push({
         id: slide.id || `offer-${idx}`,
         type: slide.bgVideoUrl ? 'video' : 'image',
@@ -188,19 +216,31 @@ export const HeroBanner: React.FC = () => {
         buttonTextAr: slide.buttonTextArabic || slide.buttonText || 'تسوق العرض',
         targetCategory: slide.targetUrl || 'all',
         imageZoom: slide.imageZoom,
+        desktopImageZoom: slide.desktopImageZoom,
+        mobileImageZoom: slide.mobileImageZoom,
         objectPosition: slide.objectPosition,
+        desktopObjectPosition: slide.desktopObjectPosition,
+        mobileObjectPosition: slide.mobileObjectPosition,
         imageFit: slide.imageFit,
+        desktopImageFit: slide.desktopImageFit,
+        mobileImageFit: slide.mobileImageFit,
+        desktopAspectRatio: slide.desktopAspectRatio,
+        mobileAspectRatio: slide.mobileAspectRatio,
         isCustomSchoolLayout: slide.isCustomSchoolLayout
       });
     });
   }
 
   if (cmsMediaItems.length > 0) {
-    cmsMediaItems.forEach((item: any, idx: number) => {
+    cmsMediaItems
+      .filter((item: any) => isSlideActive(item))
+      .forEach((item: any, idx: number) => {
       cmsConsolidatedSlides.push({
         id: item.id || `media-${idx}`,
         type: item.type || 'image',
         url: item.url,
+        desktopImageUrl: item.url,
+        mobileImageUrl: item.mobileUrl || item.url,
         badgeEn: item.badgeText || (heroData as any).badgeText,
         badgeAr: item.badgeTextArabic || (heroData as any).badgeTextArabic,
         titleEn: item.customTitle || item.title || (heroData as any).title,
@@ -210,23 +250,31 @@ export const HeroBanner: React.FC = () => {
         buttonTextEn: (heroData as any).primaryBtnText || 'Explore Collection',
         buttonTextAr: (heroData as any).primaryBtnTextArabic || 'تصفح التشكيلة',
         imageZoom: item.imageZoom,
+        desktopImageZoom: item.imageZoom,
+        mobileImageZoom: item.mobileImageZoom || item.imageZoom,
         objectPosition: item.objectPosition,
+        desktopObjectPosition: item.objectPosition,
+        mobileObjectPosition: item.mobileObjectPosition || item.objectPosition,
         imageFit: item.imageFit,
+        desktopImageFit: item.imageFit,
+        mobileImageFit: item.mobileImageFit || item.imageFit,
+        desktopAspectRatio: item.desktopAspectRatio,
+        mobileAspectRatio: item.mobileAspectRatio,
         targetCategory: 'all'
       });
     });
   }
   
   // Map active product bundles into slide formats
-  const activeBundles = productBundles.filter((b: any) => b.isActive !== false);
+  const activeBundles = productBundles.filter((b: any) => b.isActive !== false && b.showInSlider !== false);
   const bundleSlides: ConsolidatedSlide[] = activeBundles.map((bundle: any) => {
     const bundledProducts = products.filter((p: any) => bundle.productIds.includes(p.id));
     const originalSum = bundledProducts.reduce((sum: number, p: any) => sum + p.priceUSD, 0);
     const savedUSD = Math.max(0, originalSum - bundle.bundlePriceUSD);
     const savedPercent = originalSum > 0 ? Math.round((savedUSD / originalSum) * 100) : 0;
     
-    // Use first product's image or fallback
-    const bgUrl = bundledProducts[0]?.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=80';
+    // Use custom bundle banner image if provided, otherwise first product's image or fallback
+    const bgUrl = bundle.imageUrl?.trim() || bundledProducts[0]?.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=80';
 
     // Build lists of products
     const itemsEn = bundledProducts.map((p: any) => p.name).join(', ');
@@ -235,10 +283,14 @@ export const HeroBanner: React.FC = () => {
     const bundleDescEn = bundle.description || '';
     const bundleDescAr = bundle.descriptionAr || bundle.description || '';
 
+    const showButton = bundle.showButtonInSlider !== false;
+
     return {
       id: `bundle-${bundle.id}`,
       type: 'image',
       url: bgUrl,
+      desktopImageUrl: bgUrl,
+      mobileImageUrl: bgUrl,
       badgeEn: bundle.badgeText || 'SPECIAL BUNDLE DEAL',
       badgeAr: bundle.badgeTextAr || bundle.badgeText || 'صفقة حزمة خاصة',
       titleEn: bundle.name,
@@ -247,8 +299,9 @@ export const HeroBanner: React.FC = () => {
       subtitleAr: `${bundleDescAr}${bundleDescAr ? ' • ' : ''}يشمل: ${itemsAr}`,
       discountBadgeEn: savedUSD > 0 ? `SAVE $${savedUSD.toFixed(2)} (${savedPercent}% OFF)` : 'BUNDLE DEAL',
       discountBadgeAr: savedUSD > 0 ? `وفر $${savedUSD.toFixed(2)} (خصم ${savedPercent}٪)` : 'صفقة حزمة',
-      buttonTextEn: 'Add Entire Combo to Cart',
-      buttonTextAr: 'إضافة الكومبو كاملاً للسلة',
+      buttonTextEn: showButton ? (bundle.sliderButtonText || 'Add Entire Combo to Cart') : '',
+      buttonTextAr: showButton ? (bundle.sliderButtonTextAr || bundle.sliderButtonText || 'إضافة الكومبو كاملاً للسلة') : '',
+      showButton: showButton,
       imageFit: 'cover' as const,
       bundleId: bundle.id
     };
@@ -288,13 +341,40 @@ export const HeroBanner: React.FC = () => {
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  const handleActionClick = (targetCat?: string) => {
+  const handleActionClick = (targetOverride?: string) => {
     if (currentSlide.bundleId) {
       addBundleToCart(currentSlide.bundleId);
       return;
     }
-    const cat = targetCat || currentSlide.targetCategory || 'all';
-    setSelectedCategory(cat);
+    const customTarget = targetOverride || (heroData as any)?.targetUrl || currentSlide.targetCategory || 'all';
+    
+    if (customTarget.startsWith('/')) {
+      if (customTarget === '/checkout') {
+        setActiveTab('checkout');
+      } else if (customTarget === '/account') {
+        setActiveTab('account');
+      } else if (customTarget === '/products') {
+        setActiveTab('products');
+        setSelectedCategory('all');
+      } else {
+        window.location.href = customTarget;
+        return;
+      }
+    } else {
+      setSelectedCategory(customTarget);
+      setSearchQuery('');
+      setActiveTab('products');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSecondaryActionClick = () => {
+    const secondaryTarget = (heroData as any)?.secondaryTargetUrl || 'artisans';
+    if (secondaryTarget.startsWith('/')) {
+      window.location.href = secondaryTarget;
+      return;
+    }
+    setSelectedCategory(secondaryTarget);
     setSearchQuery('');
     setActiveTab('products');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -346,17 +426,57 @@ export const HeroBanner: React.FC = () => {
   const activeDiscount = language === 'ar' ? (currentSlide.discountBadgeAr || currentSlide.discountBadgeEn) : currentSlide.discountBadgeEn;
   const activeBtnText = language === 'ar' ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn) : currentSlide.buttonTextEn;
 
+  // Stable Global Banner Height locked to global CMS settings (never changes between slides)
+  const desktopRatio = (heroData as any)?.desktopAspectRatio || '16:9';
+  const mobileRatio = (heroData as any)?.mobileAspectRatio || 'standard';
+
+  // Base container classes: strict locked dimensions across all slides regardless of slide contents
+  let containerHeightClass = 'w-full relative overflow-hidden bg-slate-950 border-b md:border-b-0 border-slate-200 md:border md:border-slate-800/80 md:rounded-2xl lg:rounded-3xl md:shadow-2xl md:ring-1 md:ring-white/10 group/hero flex flex-col justify-between py-4 sm:py-6 md:py-8 ';
+  
+  if (mobileRatio === '16:9') {
+    containerHeightClass += 'portrait:aspect-[16/9] portrait:min-h-[380px] portrait:max-h-[460px] ';
+  } else if (mobileRatio === '9:16') {
+    containerHeightClass += 'portrait:aspect-[9/16] portrait:min-h-[500px] portrait:max-h-[640px] ';
+  } else if (mobileRatio === '3:4') {
+    containerHeightClass += 'portrait:aspect-[3/4] portrait:min-h-[480px] portrait:max-h-[600px] ';
+  } else if (mobileRatio === '1:1') {
+    containerHeightClass += 'portrait:aspect-square portrait:min-h-[420px] portrait:max-h-[520px] ';
+  } else {
+    // Standard stable mobile portrait height
+    containerHeightClass += 'portrait:h-[520px] sm:portrait:h-[560px] ';
+  }
+
+  // Mobile Landscape: when a phone is rotated horizontally
+  containerHeightClass += 'landscape:h-[350px] sm:landscape:h-[380px] ';
+
+  // Desktop & Tablets (min-width: 768px): Strictly locked height
+  if (desktopRatio === '21:9') {
+    containerHeightClass += 'md:w-full md:aspect-[21/9] md:min-h-[440px] md:max-h-[680px] ';
+  } else if (desktopRatio === '4:3') {
+    containerHeightClass += 'md:w-full md:aspect-[4/3] md:min-h-[550px] md:max-h-[750px] ';
+  } else if (desktopRatio === 'auto' || desktopRatio === 'fixed') {
+    containerHeightClass += 'md:w-full md:h-[580px] lg:h-[620px] ';
+  } else {
+    // Standard 16:9 desktop ratio with reliable min/fixed height
+    containerHeightClass += 'md:w-full md:h-[580px] lg:h-[620px] ';
+  }
+
   return (
-    <div 
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-      className="relative overflow-hidden bg-slate-950 h-[520px] sm:h-[560px] lg:h-[600px] border-b border-slate-200 group/hero flex flex-col justify-between py-6 sm:py-8"
-    >
+    <div className="w-full max-w-full md:max-w-screen-2xl md:mx-auto md:px-4 sm:md:px-6 lg:px-8 md:pt-4 md:pb-2">
+      <div 
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        className={containerHeightClass}
+        style={{ width: '100%' }}
+      >
       
-      {/* Background Images / Videos with Smooth Fades */}
+      {/* Background Images / Videos with Smooth Fades & Dual Orientation Support */}
       {slides.map((slide, idx) => {
-        const fitMode = slide.imageFit || 'cover';
+        const globalDefaultFit = (heroData as any)?.defaultImageFit || 'contain';
+        const desktopFitMode = slide.desktopImageFit || slide.imageFit || globalDefaultFit;
+        const mobileFitMode = slide.mobileImageFit || slide.imageFit || globalDefaultFit;
+        const fitMode = slide.imageFit || globalDefaultFit;
         const isActive = idx === currentSlideIndex;
 
         return slide.type === 'video' ? (
@@ -380,53 +500,64 @@ export const HeroBanner: React.FC = () => {
           />
         ) : (
           <React.Fragment key={slide.id}>
-            {/* If contain mode is active, render a soft blurred backdrop copy so sides aren't pitch black */}
-            {fitMode === 'contain' && isActive && (
-              <img
-                src={slide.url}
-                alt=""
-                referrerPolicy="no-referrer"
-                className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-40 pointer-events-none transition-opacity duration-1000"
-              />
-            )}
-            
-            {slide.mobileImageUrl ? (
-              <picture className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
-                isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
-              }`}>
-                <source media="(max-width: 640px)" srcSet={slide.mobileImageUrl} />
-                <source media="(min-width: 641px)" srcSet={slide.desktopImageUrl || slide.url} />
+            {/* Mobile Portrait View Image (Active in Portrait orientation on mobile/tablet screens) */}
+            <div className={`absolute inset-0 w-full h-full z-0 portrait:block landscape:hidden md:portrait:hidden transition-opacity duration-1000 ease-in-out ${
+              isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}>
+              {/* Blurred Ambient Backdrop if Mobile Fit Mode is contain OR slide is set to 16:9 Landscape on mobile */}
+              {(mobileFitMode === 'contain' || slide.mobileAspectRatio === '16:9') && (
                 <img
-                  src={slide.desktopImageUrl || slide.url}
-                  alt={slide.titleEn}
+                  src={slide.mobileImageUrl || slide.desktopImageUrl || slide.url}
+                  alt=""
                   referrerPolicy="no-referrer"
-                  className={`w-full h-full ${
-                    fitMode === 'contain' ? 'object-contain' : fitMode === 'fill' ? 'object-fill' : 'object-cover'
-                  }`}
-                  style={{
-                    objectPosition: slide.objectPosition || 'center',
-                    transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
-                    transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
-                  }}
+                  className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-50 pointer-events-none transition-opacity duration-1000 scale-110"
                 />
-              </picture>
-            ) : (
+              )}
               <img
-                src={slide.url}
+                src={slide.mobileImageUrl || slide.desktopImageUrl || slide.url}
                 alt={slide.titleEn}
                 referrerPolicy="no-referrer"
-                className={`absolute inset-0 w-full h-full z-0 transition-opacity duration-1000 ease-in-out ${
-                  fitMode === 'contain' ? 'object-contain' : fitMode === 'fill' ? 'object-fill' : 'object-cover'
-                } ${
-                  isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                className={`w-full h-full relative z-10 ${
+                  slide.mobileAspectRatio === '16:9' ? 'object-contain' :
+                  mobileFitMode === 'contain' ? 'object-contain' : 
+                  mobileFitMode === 'fill' ? 'object-fill' : 'object-cover'
                 }`}
                 style={{
-                  objectPosition: slide.objectPosition || 'center',
-                  transform: slide.imageZoom && slide.imageZoom !== 100 ? `scale(${ slide.imageZoom / 100 })` : undefined,
+                  objectPosition: slide.mobileObjectPosition || slide.objectPosition || 'center',
+                  transform: (slide.mobileImageZoom ?? slide.imageZoom ?? 100) !== 100 ? `scale(${ (slide.mobileImageZoom ?? slide.imageZoom ?? 100) / 100 })` : undefined,
                   transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
                 }}
               />
-            )}
+            </div>
+
+            {/* Landscape & Desktop View Image (Active when rotated to Landscape OR on Desktop/Laptop screens) */}
+            <div className={`absolute inset-0 w-full h-full z-0 hidden landscape:block md:portrait:block md:landscape:block transition-opacity duration-1000 ease-in-out ${
+              isActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}>
+              {/* Blurred Ambient Backdrop if Desktop Fit Mode is contain (Auto-Fit uncropped) */}
+              {desktopFitMode === 'contain' && (
+                <img
+                  src={slide.desktopImageUrl || slide.url}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-40 pointer-events-none transition-opacity duration-1000 scale-105"
+                />
+              )}
+              <img
+                src={slide.desktopImageUrl || slide.url}
+                alt={slide.titleEn}
+                referrerPolicy="no-referrer"
+                className={`w-full h-full relative z-10 ${
+                  desktopFitMode === 'contain' ? 'object-contain' : 
+                  desktopFitMode === 'fill' ? 'object-fill' : 'object-cover'
+                }`}
+                style={{
+                  objectPosition: slide.desktopObjectPosition || slide.objectPosition || 'center',
+                  transform: (slide.desktopImageZoom ?? slide.imageZoom ?? 100) !== 100 ? `scale(${ (slide.desktopImageZoom ?? slide.imageZoom ?? 100) / 100 })` : undefined,
+                  transition: 'opacity 1s ease-in-out, transform 0.5s ease-out'
+                }}
+              />
+            </div>
           </React.Fragment>
         );
       })}
@@ -439,87 +570,98 @@ export const HeroBanner: React.FC = () => {
         />
       )}
 
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 w-full flex-1 flex flex-col justify-between">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20 w-full h-full min-h-0 flex-1 flex flex-col justify-between">
         
-        {/* Dynamic-Height Content Container to Prevent Layout Overlaps */}
-        <div className="max-w-3xl mx-auto text-center space-y-3 sm:space-y-4 p-1 sm:p-2 flex-1 flex flex-col justify-center items-center">
+        {/* Centered Content Container with strict min-h-0 to guarantee locked container height */}
+        <div className="max-w-3xl mx-auto text-center space-y-1.5 sm:space-y-2.5 landscape:space-y-1 md:landscape:space-y-2 p-1 sm:p-2 flex-1 min-h-0 flex flex-col justify-center items-center">
           
           {/* Top Eyebrow Badge & Promo Discount Pill */}
-          <div className="flex flex-wrap items-center justify-center gap-2 min-h-[32px] h-auto py-1 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 py-0.5 flex-shrink-0">
             {activeBadge && (
-              <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-widest bg-slate-900/80 text-amber-300 border border-amber-400/50 backdrop-blur-md shadow-xl">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span className="truncate max-w-[280px] sm:max-w-none">{activeBadge}</span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-0.5 sm:px-3.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-extrabold uppercase tracking-widest bg-slate-900/80 text-amber-300 border border-amber-400/50 backdrop-blur-md shadow-xl">
+                <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
+                <span className="truncate max-w-[240px] sm:max-w-none">{activeBadge}</span>
               </span>
             )}
 
             {activeDiscount && (
-              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider bg-rose-600 text-white shadow-xl animate-pulse border border-rose-400">
-                <Award className="w-3.5 h-3.5" />
-                <span className="truncate max-w-[200px] sm:max-w-none">{activeDiscount}</span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-extrabold uppercase tracking-wider bg-rose-600 text-white shadow-xl animate-pulse border border-rose-400">
+                <Award className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                <span className="truncate max-w-[180px] sm:max-w-none">{activeDiscount}</span>
               </span>
             )}
           </div>
 
-          {/* Headline Title - Auto-adjusting Height with min-h */}
-          <div className="min-h-[64px] sm:min-h-[84px] lg:min-h-[96px] h-auto py-1.5 flex items-center justify-center w-full flex-shrink-0">
-            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)] transition-all duration-500 line-clamp-2">
+          {/* Headline Title */}
+          <div className="py-0.5 flex items-center justify-center w-full flex-shrink-0">
+            <h1 className="text-xl sm:text-3xl lg:text-4xl xl:text-5xl landscape:text-lg sm:landscape:text-xl md:landscape:text-3xl font-extrabold text-white tracking-tight leading-[1.15] drop-shadow-[0_2px_12px_rgba(0,0,0,0.95)] transition-all duration-500 line-clamp-2">
               {activeTitle}
             </h1>
           </div>
 
-          {/* Subtitle / Description - Auto-adjusting Height with min-h */}
-          <div className="min-h-[36px] sm:min-h-[48px] h-auto py-1 flex items-center justify-center w-full flex-shrink-0">
-            {activeSubtitle ? (
-              <p className="text-xs sm:text-sm text-slate-100 max-w-2xl mx-auto leading-relaxed drop-shadow-[0_1px_8px_rgba(0,0,0,0.95)] font-medium line-clamp-2">
+          {/* Subtitle / Description */}
+          {activeSubtitle && (
+            <div className="py-0.5 flex items-center justify-center w-full flex-shrink-0">
+              <p className="text-xs sm:text-sm landscape:text-[11px] sm:landscape:text-xs md:landscape:text-sm text-slate-100 max-w-2xl mx-auto leading-relaxed drop-shadow-[0_1px_8px_rgba(0,0,0,0.95)] font-medium line-clamp-2 landscape:line-clamp-1 md:landscape:line-clamp-2">
                 {activeSubtitle}
               </p>
-            ) : null}
-          </div>
+            </div>
+          )}
 
-          {/* Optional Promo Code Box with One-Click Copy - Auto-adjusting Height */}
-          <div className="min-h-[42px] h-auto py-1 flex items-center justify-center flex-shrink-0">
-            {currentSlide.promoCode ? (
-              <div className="inline-flex items-center bg-slate-900/90 border border-amber-400/40 rounded-2xl p-1 shadow-2xl backdrop-blur-md">
-                <span className="px-3 py-1 text-[10px] sm:text-xs font-black uppercase text-amber-400 tracking-wider">
+          {/* Optional Promo Code Box with One-Click Copy */}
+          {currentSlide.promoCode && (
+            <div className="py-0.5 flex items-center justify-center flex-shrink-0">
+              <div className="inline-flex items-center bg-slate-900/90 border border-amber-400/40 rounded-2xl p-0.5 sm:p-1 shadow-2xl backdrop-blur-md">
+                <span className="px-2 sm:px-3 py-0.5 text-[9px] sm:text-xs font-black uppercase text-amber-400 tracking-wider">
                   {language === 'ar' ? 'كود الخصم:' : 'PROMO CODE:'}
                 </span>
-                <span className="px-3 font-mono font-bold text-xs sm:text-sm text-white tracking-widest select-all">
+                <span className="px-2 sm:px-3 font-mono font-bold text-[11px] sm:text-sm text-white tracking-widest select-all">
                   {currentSlide.promoCode}
                 </span>
                 <button
                   onClick={(e) => handleCopyCode(e, currentSlide.promoCode!)}
-                  className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition-colors cursor-pointer shadow"
+                  className="flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-[10px] sm:text-xs transition-colors cursor-pointer shadow"
                 >
                   {copiedCode === currentSlide.promoCode ? (
                     <>
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
                       <span>{language === 'ar' ? 'تم النسخ!' : 'Copied!'}</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       <span>{language === 'ar' ? 'نسخ' : 'Copy'}</span>
                     </>
                   )}
                 </button>
               </div>
-            ) : null}
-          </div>
+            </div>
+          )}
 
         </div>
 
         {/* Bottom Hero Controls: Action Button & Pagination Dots */}
-        <div className="max-w-2xl mx-auto w-full space-y-3 pt-2 pb-1 relative z-30">
+        <div className="max-w-2xl mx-auto w-full space-y-2 sm:space-y-3 pt-1 pb-1 relative z-30">
           
-          <div className="flex justify-center pt-1">
-            <button
-              onClick={() => handleActionClick()}
-              className="w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-widest rounded-full shadow-2xl transition-all flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer border border-amber-400 hover:shadow-amber-500/30"
-            >
-              <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
-              <span>{activeBtnText || (language === 'ar' ? 'تسوق الآن' : 'Shop Now')}</span>
-            </button>
+          <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 pt-0.5">
+            {currentSlide.showButton !== false && activeBtnText && (
+              <button
+                onClick={() => handleActionClick()}
+                className="w-full sm:w-auto px-6 sm:px-10 landscape:px-6 py-2.5 sm:py-4 landscape:py-2 md:landscape:py-4 bg-gradient-to-r from-amber-500 via-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm uppercase tracking-widest rounded-full shadow-2xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer border border-amber-400 hover:shadow-amber-500/30"
+              >
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+                <span>{activeBtnText}</span>
+              </button>
+            )}
+
+            {((heroData as any)?.secondaryBtnText || (heroData as any)?.secondaryBtnTextArabic) && (
+              <button
+                onClick={() => handleSecondaryActionClick()}
+                className="w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 bg-slate-900/80 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm uppercase tracking-widest rounded-full shadow-xl transition-all flex items-center justify-center gap-2.5 active:scale-95 cursor-pointer border border-white/20 hover:border-amber-400/50 backdrop-blur-md"
+              >
+                <span>{language === 'ar' ? ((heroData as any).secondaryBtnTextArabic || (heroData as any).secondaryBtnText) : ((heroData as any).secondaryBtnText || (heroData as any).secondaryBtnTextArabic)}</span>
+              </button>
+            )}
           </div>
 
           {/* Carousel Indicators & Controls */}
@@ -584,6 +726,7 @@ export const HeroBanner: React.FC = () => {
         </button>
       )}
 
+      </div>
     </div>
   );
 };

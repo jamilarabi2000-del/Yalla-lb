@@ -1,7 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { History, RotateCcw, Download, Upload, Trash2, X, Check, Clock, User, Sparkles } from 'lucide-react';
+import { History, RotateCcw, Download, Upload, Trash2, X, Clock, User, Cloud, HardDrive } from 'lucide-react';
 import { SiteContent } from '../../../types';
-import { getCmsSnapshots, deleteCmsSnapshot, clearAllCmsSnapshots, CmsSnapshot } from '../../../utils/cmsSnapshots';
+import { 
+  getCmsSnapshots, 
+  getCmsSnapshotsRemote, 
+  deleteCmsSnapshot, 
+  clearAllCmsSnapshots, 
+  CmsSnapshot 
+} from '../../../utils/cmsSnapshots';
 
 interface CMSVersionHistoryModalProps {
   onClose: () => void;
@@ -16,19 +22,32 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
 }) => {
   const [snapshots, setSnapshots] = useState<CmsSnapshot[]>([]);
   const [selectedSnapshot, setSelectedSnapshot] = useState<CmsSnapshot | null>(null);
+  const [isSharedHistory, setIsSharedHistory] = useState(false);
+  const [pendingRollback, setPendingRollback] = useState<CmsSnapshot | null>(null);
 
   useEffect(() => {
+    // 1. Immediate local cache load
     setSnapshots(getCmsSnapshots());
+
+    // 2. Asynchronous remote Firestore upgrade
+    let cancelled = false;
+    void getCmsSnapshotsRemote().then(remote => {
+      if (cancelled || !remote || remote.length === 0) return;
+      setSnapshots(remote);
+      setIsSharedHistory(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleDelete = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Delete this historical revision?')) {
-      const updated = deleteCmsSnapshot(id);
-      setSnapshots(updated);
-      if (selectedSnapshot?.id === id) {
-        setSelectedSnapshot(null);
-      }
+    const updated = deleteCmsSnapshot(id);
+    setSnapshots(updated);
+    if (selectedSnapshot?.id === id) {
+      setSelectedSnapshot(null);
     }
   };
 
@@ -50,11 +69,9 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
       reader.onload = (event) => {
         try {
           const parsed = JSON.parse(event.target?.result as string);
-          if (confirm('Apply this imported JSON backup to current CMS draft?')) {
-            onRollback(parsed);
-            onClose();
-          }
-        } catch (err) {
+          onRollback(parsed);
+          onClose();
+        } catch {
           alert('Invalid JSON file format.');
         }
       };
@@ -79,22 +96,40 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[120] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-white/15 rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn">
+      <div 
+        role="dialog" 
+        aria-modal="true" 
+        aria-labelledby="history-modal-title"
+        className="bg-slate-900 border border-white/15 rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn"
+      >
         {/* Header */}
         <div className="p-5 border-b border-white/10 flex items-center justify-between bg-slate-950/60">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center border border-amber-500/30">
-              <History className="w-5 h-5" />
+              <History className="w-5 h-5" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span>CMS Version History & Rollback</span>
+              <div className="flex items-center gap-2">
+                <h3 id="history-modal-title" className="text-base font-bold text-white">
+                  CMS Version History & Rollback
+                </h3>
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300 text-xs font-bold border border-white/10">
                   {snapshots.length} Snapshots
                 </span>
-              </h3>
+                {isSharedHistory ? (
+                  <span className="px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-400 text-[10px] font-bold border border-sky-500/30 flex items-center gap-1">
+                    <Cloud className="w-3 h-3" />
+                    Cloud Shared
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 text-[10px] font-bold border border-white/10 flex items-center gap-1">
+                    <HardDrive className="w-3 h-3" />
+                    Local
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Automatically saved snapshots from every publish event. Restore any revision in one click.
+                Automatically saved snapshots from publish events. Restore any revision directly to your draft.
               </p>
             </div>
           </div>
@@ -103,6 +138,7 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
             type="button"
             onClick={onClose}
             className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Close version history"
           >
             <X className="w-4 h-4" />
           </button>
@@ -131,15 +167,13 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
             <button
               type="button"
               onClick={() => {
-                if (confirm('Clear all snapshot history records?')) {
-                  clearAllCmsSnapshots();
-                  setSnapshots([]);
-                }
+                clearAllCmsSnapshots();
+                setSnapshots([]);
               }}
               className="text-slate-500 hover:text-rose-400 text-xs flex items-center gap-1 cursor-pointer transition-colors"
             >
               <Trash2 className="w-3 h-3" />
-              <span>Clear History</span>
+              <span>Clear Local History</span>
             </button>
           )}
         </div>
@@ -151,7 +185,7 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
               <Clock className="w-10 h-10 text-slate-600 mx-auto" />
               <h4 className="text-sm font-bold text-white">No Published Snapshots Yet</h4>
               <p className="text-xs text-slate-400">
-                Snapshots will be automatically created each time you click "Publish Live Storefront".
+                Snapshots are automatically recorded in Firestore every time you publish CMS changes.
               </p>
             </div>
           ) : (
@@ -173,6 +207,11 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
                     <span className="px-2 py-0.5 rounded-md bg-slate-800 text-[10px] font-bold text-amber-300 border border-white/5">
                       {snap.changesCount} {snap.changesCount === 1 ? 'change' : 'changes'}
                     </span>
+                    {snap.isRemote && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-sky-500/20 text-sky-300">
+                        Cloud
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-xs text-slate-400">
@@ -196,15 +235,12 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (confirm(`Restore snapshot from ${formatTimestamp(snap.timestamp)}?`)) {
-                        onRollback(snap.data);
-                        onClose();
-                      }
+                      setPendingRollback(snap);
                     }}
                     className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Rollback to this Version</span>
+                    <span>Rollback</span>
                   </button>
 
                   <button
@@ -212,6 +248,7 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
                     onClick={(e) => handleDelete(snap.id, e)}
                     className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer"
                     title="Delete snapshot"
+                    aria-label="Delete snapshot"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -224,7 +261,7 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
         {/* Footer */}
         <div className="p-4 bg-slate-950 border-t border-white/10 flex items-center justify-between">
           <span className="text-xs text-slate-400">
-            Reverting to a snapshot will load all its values into your draft editor.
+            Reverting to a snapshot loads all values into your draft editor without immediately affecting live shoppers.
           </span>
           <button
             type="button"
@@ -234,6 +271,47 @@ export const CMSVersionHistoryModal: React.FC<CMSVersionHistoryModalProps> = ({
             Close
           </button>
         </div>
+
+        {/* Confirmation Modal for Rollback */}
+        {pendingRollback && (
+          <div className="fixed inset-0 z-[130] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div 
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="rollback-dialog-title"
+              className="bg-slate-900 border border-amber-500/30 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl animate-fadeIn"
+            >
+              <h4 id="rollback-dialog-title" className="text-sm font-bold text-white flex items-center gap-2">
+                <RotateCcw className="w-4 h-4 text-amber-400" />
+                <span>Confirm Snapshot Rollback</span>
+              </h4>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Restore snapshot from <strong className="text-white">{formatTimestamp(pendingRollback.timestamp)}</strong>? This will replace your current draft in the editor.
+              </p>
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setPendingRollback(null)}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onRollback(pendingRollback.data);
+                    setPendingRollback(null);
+                    onClose();
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black cursor-pointer"
+                >
+                  Confirm Rollback
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

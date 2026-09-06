@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { sanitizeRowForCsv } from '../../utils/csvSafe';
 import { useShop } from '../../context/ShopContext';
-import { Seller, Product } from '../../types';
+import { Seller, Product, SellerApplication } from '../../types';
 import { 
   Store, 
   Plus, 
@@ -16,7 +16,23 @@ import {
   FileText,
   Search,
   Check,
-  FileSpreadsheet
+  FileSpreadsheet,
+  MessageSquare,
+  Phone,
+  Mail,
+  ExternalLink,
+  Clock,
+  Sparkles,
+  UserCheck,
+  UserX,
+  Copy,
+  Send,
+  Share2,
+  Key,
+  RefreshCw,
+  AlertCircle,
+  Filter,
+  Eye
 } from 'lucide-react';
 import { 
   downloadFullMasterReport, 
@@ -25,14 +41,93 @@ import {
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../../utils/importerResolvers';
 import { checkDuplicateSellerItemCode } from '../../lib/productValidation';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../../utils/phoneUtils';
+import { generateSecurePassword } from '../../lib/passwordPolicy';
 import { initializeApp, deleteApp } from 'firebase/app';
 import { 
   getAuth as getSecondaryAuth, 
   createUserWithEmailAndPassword as createSecondaryUser,
   sendPasswordResetEmail
 } from 'firebase/auth';
-import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, onSnapshot, updateDoc, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db, auth, firebaseConfig } from '../../firebase';
+
+const buildSellerWelcomeNotification = (data: {
+  sellerName: string;
+  contactName?: string;
+  email: string;
+  phone: string;
+  tempPassword?: string;
+}) => {
+  const portalUrl = window.location.origin;
+  const norm = normalizeLebanesePhone(data.phone);
+  const waPhone = norm.cleanDigits ? `961${norm.cleanDigits}` : data.phone.replace(/[^0-9]/g, '');
+  
+  const arText = `أهلاً وسهلاً ${data.contactName || data.sellerName}،
+مبروك! تم اعتماد وتفعيل حساب متجركم / شركتكم "${data.sellerName}" على منصة يلا لبنان (Yalla.lb).
+
+تم إرسال رابط آمن إلى بريدك الإلكتروني لإعداد كلمة المرور الخاصة بك. يرجى مراجعة بريدك الإلكتروني.
+
+بيانات تسجيل الدخول لبوابة البائعين:
+- البريد الإلكتروني: ${data.email}
+- رقم الهاتف المسجل: ${data.phone}
+
+رابط الدخول للبوابة:
+${portalUrl}
+
+نتمنى لكم دوام التوفيق والازدهار في تسويق منتجاتكم على منصة يلا!
+إدارة منصة يلا لبنان`;
+
+  const enText = `Hello ${data.contactName || data.sellerName},
+Congratulations! Your seller company account "${data.sellerName}" has been approved and activated on Yalla Lebanon (Yalla.lb).
+
+A secure password setup link has been sent to your email address. Please check your inbox.
+
+Seller Portal Credentials:
+- Email: ${data.email}
+- Registered Phone: ${data.phone}
+
+Login Portal:
+${portalUrl}
+
+Welcome to the Lebanese Seller Collective!
+Yalla Lebanon Team`;
+
+  const fullText = `${arText}\n\n━━━━━━━━━━━━━━━━━━━━\n\n${enText}`;
+  const whatsappLink = `https://wa.me/${waPhone}?text=${encodeURIComponent(fullText)}`;
+  const mailtoLink = `mailto:${data.email}?subject=${encodeURIComponent(`Welcome to Yalla Lebanon Seller Portal - ${data.sellerName}`)}&body=${encodeURIComponent(fullText)}`;
+  const smsLink = `sms:+961${norm.cleanDigits || ''}?body=${encodeURIComponent(fullText)}`;
+
+  return { whatsappLink, mailtoLink, smsLink, fullText, arText, enText, waPhone };
+};
+
+const buildSellerRejectionNotification = (data: {
+  sellerName: string;
+  contactName?: string;
+  email: string;
+  phone: string;
+  rejectionReason?: string;
+}) => {
+  const norm = normalizeLebanesePhone(data.phone);
+  const waPhone = norm.cleanDigits ? `961${norm.cleanDigits}` : data.phone.replace(/[^0-9]/g, '');
+  const reasonText = data.rejectionReason?.trim()
+    ? `ملاحظات الإدارة: ${data.rejectionReason.trim()}`
+    : 'نعتذر عن عدم قبول الطلب في الوقت الحالي لعدم اكتمال المتطلبات والشروط.';
+
+  const fullText = `أهلاً وسهلاً ${data.contactName || data.sellerName}،
+تحية طيبة من فريق منصة يلا لبنان (Yalla.lb).
+
+بخصوص طلب تسجيل البائع "${data.sellerName}":
+${reasonText}
+
+نشكر اهتمامكم، ويمكنكم إعادة التواصل معنا عند استيفاء المتطلبات.
+فريق يلا لبنان`;
+
+  const whatsappLink = `https://wa.me/${waPhone}?text=${encodeURIComponent(fullText)}`;
+  const mailtoLink = `mailto:${data.email}?subject=${encodeURIComponent(`Yalla Lebanon Seller Application Status - ${data.sellerName}`)}&body=${encodeURIComponent(fullText)}`;
+  const smsLink = `sms:+961${norm.cleanDigits || ''}?body=${encodeURIComponent(fullText)}`;
+
+  return { whatsappLink, mailtoLink, smsLink, fullText, waPhone };
+};
 
 const LEBANON_GOVERNORATES_DATA: Record<string, { nameEn: string; districts: string[] }> = {
   akkar: {
@@ -84,11 +179,38 @@ const isProductLinkedToSeller = (p: Product, seller: Seller) => {
 export const SellersView: React.FC = () => {
   const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
 
-  const [activeSubTab, setActiveSubTab] = useState<'sellers' | 'import'>('sellers');
+  const [activeSubTab, setActiveSubTab] = useState<'sellers' | 'applications' | 'import'>('sellers');
   const [searchQuery, setSearchQuery] = useState('');
   const [sellerStatusFilter, setSellerStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSeller, setEditingSeller] = useState<Seller | null>(null);
+
+  // Applications state
+  const [applications, setApplications] = useState<SellerApplication[]>([]);
+  const [appStatusFilter, setAppStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [appSearchQuery, setAppSearchQuery] = useState('');
+  
+  // Realtime subscribe to seller_applications
+  useEffect(() => {
+    const appsCol = query(
+      collection(db, 'seller_applications'),
+      orderBy('submittedAt', 'desc'),
+      limit(300)
+    );
+    const unsub = onSnapshot(appsCol, (snapshot) => {
+      const list: SellerApplication[] = snapshot.docs.map(d => ({
+        id: d.id,
+        ...(d.data() as any)
+      }));
+      list.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      setApplications(list);
+    }, (err) => {
+      console.warn('[SellersView] Failed to subscribe to seller_applications:', err);
+    });
+    return () => unsub();
+  }, []);
+
+  const pendingAppsCount = applications.filter(a => a.status === 'pending').length;
 
   // Form state
   const [formSellerCode, setFormSellerCode] = useState('');
@@ -132,6 +254,38 @@ export const SellersView: React.FC = () => {
   const [accountPhoneInput, setAccountPhoneInput] = useState('');
   const [accountPasswordInput, setAccountPasswordInput] = useState('');
   const [isAccountActionLoading, setIsAccountActionLoading] = useState(false);
+
+  // Approval Modal State
+  const [selectedAppForApproval, setSelectedAppForApproval] = useState<SellerApplication | null>(null);
+  const [approveSellerCode, setApproveSellerCode] = useState('');
+  const [approveWorkshopName, setApproveWorkshopName] = useState('');
+  const [approveWorkshopNameAr, setApproveWorkshopNameAr] = useState('');
+  const [approveGovernorate, setApproveGovernorate] = useState('mount_lebanon');
+  const [approveDistrict, setApproveDistrict] = useState('Chouf');
+  const [approveVillage, setApproveVillage] = useState('');
+  const [approveEmail, setApproveEmail] = useState('');
+  const [approvePhone, setApprovePhone] = useState('');
+  const [approvePassword, setApprovePassword] = useState('');
+  const [isApproving, setIsApproving] = useState(false);
+
+  // Rejection Modal State
+  const [selectedAppForRejection, setSelectedAppForRejection] = useState<SellerApplication | null>(null);
+  const [rejectionReasonInput, setRejectionReasonInput] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  // Unified Notification Dispatch Modal State
+  const [notificationModalData, setNotificationModalData] = useState<{
+    isOpen: boolean;
+    type: 'approved' | 'created' | 'rejected';
+    sellerName: string;
+    contactName?: string;
+    email: string;
+    phone: string;
+    tempPassword?: string;
+    rejectionReason?: string;
+  } | null>(null);
+
+  const [copiedNotificationText, setCopiedNotificationText] = useState(false);
 
   const handleOpenAccountModal = (seller: Seller) => {
     setAccountTargetSeller(seller);
@@ -194,8 +348,24 @@ export const SellersView: React.FC = () => {
         accountUid: uid
       });
 
+      try {
+        await sendPasswordResetEmail(auth, accountEmailInput.trim().toLowerCase());
+      } catch (pwErr) {
+        console.warn('Failed to send password reset email automatically:', pwErr);
+      }
+
       showToast(`Successfully created login account for "${accountTargetSeller.nameEn}"!`, 'success');
       setIsAccountModalOpen(false);
+
+      // Open instant WhatsApp & Email Notification Dispatch Modal
+      setNotificationModalData({
+        isOpen: true,
+        type: 'created',
+        sellerName: accountTargetSeller.nameEn,
+        contactName: accountTargetSeller.nameEn,
+        email: accountEmailInput.trim(),
+        phone: formattedPhone
+      });
     } catch (err: any) {
       showToast(err.message || 'Failed to create seller login account.', 'warning');
     } finally {
@@ -206,10 +376,172 @@ export const SellersView: React.FC = () => {
     }
   };
 
+  const handleOpenApproveModal = (app: SellerApplication) => {
+    setSelectedAppForApproval(app);
+    setApproveSellerCode(`SLR-${sellers.length + 101}`);
+    const company = app.sellerCompany || app.workshopName || '';
+    setApproveWorkshopName(company);
+    setApproveWorkshopNameAr(app.workshopNameAr || company);
+    const defaultGov = app.governorate || 'mount_lebanon';
+    setApproveGovernorate(defaultGov);
+    const dists = LEBANON_GOVERNORATES_DATA[defaultGov]?.districts || ['Chouf'];
+    setApproveDistrict(dists[0] || 'Chouf');
+    setApproveVillage(app.village || '');
+    setApproveEmail(app.email || '');
+    setApprovePhone(app.phone || '');
+    setApprovePassword(generateSecurePassword(12));
+  };
+
+  const handleConfirmApprovalSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAppForApproval) return;
+    if (!approveEmail.trim() || !approvePhone.trim() || approvePassword.length < 6) {
+      showToast('Please fill all required fields (Password min 6 characters).', 'warning');
+      return;
+    }
+    setIsApproving(true);
+    const tempAppName = `TempApp_Approve_${selectedAppForApproval.id}_${Date.now()}`;
+    const tempApp = initializeApp(firebaseConfig, tempAppName);
+    const tempAuth = getSecondaryAuth(tempApp);
+
+    try {
+      const userCredential = await createSecondaryUser(tempAuth, approveEmail.trim(), approvePassword);
+      const uid = userCredential.user.uid;
+      const normPhone = normalizeLebanesePhone(approvePhone.trim());
+      const formattedPhone = normPhone.isValid ? normPhone.formatted : approvePhone.trim();
+
+      const newSellerId = `seller-${Date.now()}`;
+      await addSeller({
+        id: newSellerId,
+        sellerCode: approveSellerCode.trim() || undefined,
+        nameEn: approveWorkshopName.trim(),
+        nameAr: approveWorkshopNameAr.trim() || approveWorkshopName.trim(),
+        governorate: approveGovernorate,
+        district: approveDistrict,
+        village: approveVillage.trim(),
+        region: approveGovernorate,
+        contactPhone: formattedPhone,
+        contactEmail: approveEmail.trim().toLowerCase(),
+        accountEmail: approveEmail.trim().toLowerCase(),
+        accountUid: uid,
+        hasAccount: true,
+        isActive: true,
+        bioEn: selectedAppForApproval.bio || '',
+        craftCategory: selectedAppForApproval.craftCategory || ''
+      });
+
+      const applicantFullName = `${selectedAppForApproval.firstName || ''} ${selectedAppForApproval.middleName || ''} ${selectedAppForApproval.lastName || ''}`.trim() || selectedAppForApproval.contactName || approveWorkshopName.trim();
+
+      const userProfileRef = doc(db, 'users', uid);
+      await setDoc(userProfileRef, {
+        uid,
+        name: approveWorkshopName.trim(),
+        firstName: selectedAppForApproval.firstName || applicantFullName.split(' ')[0] || approveWorkshopName.trim(),
+        lastName: selectedAppForApproval.lastName || applicantFullName.split(' ').slice(1).join(' ') || '',
+        email: approveEmail.trim().toLowerCase(),
+        phone: formattedPhone,
+        role: 'seller',
+        sellerId: newSellerId,
+        defaultGovernorate: approveGovernorate,
+        defaultCity: approveVillage.trim(),
+        createdAt: new Date().toISOString()
+      });
+
+      const appRef = doc(db, 'seller_applications', selectedAppForApproval.id);
+      await updateDoc(appRef, {
+        status: 'approved',
+        approvedAt: new Date().toISOString(),
+        createdSellerId: newSellerId
+      });
+
+      try {
+        await sendPasswordResetEmail(auth, approveEmail.trim().toLowerCase());
+      } catch (pwErr) {
+        console.warn('Failed to send password reset email automatically:', pwErr);
+      }
+
+      showToast(`Approved "${approveWorkshopName}" and provisioned seller portal access!`, 'success');
+
+      setNotificationModalData({
+        isOpen: true,
+        type: 'approved',
+        sellerName: approveWorkshopName.trim(),
+        contactName: applicantFullName,
+        email: approveEmail.trim().toLowerCase(),
+        phone: formattedPhone
+      });
+
+      setSelectedAppForApproval(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to approve seller application', 'warning');
+    } finally {
+      setIsApproving(false);
+      try {
+        await deleteApp(tempApp);
+      } catch {}
+    }
+  };
+
+  const handleOpenRejectModal = (app: SellerApplication) => {
+    setSelectedAppForRejection(app);
+    setRejectionReasonInput('');
+  };
+
+  const handleConfirmRejectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedAppForRejection) return;
+    setIsRejecting(true);
+    try {
+      const appRef = doc(db, 'seller_applications', selectedAppForRejection.id);
+      await updateDoc(appRef, {
+        status: 'rejected',
+        rejectionReason: rejectionReasonInput.trim(),
+        reviewedAt: new Date().toISOString()
+      });
+
+      showToast(`Application for "${selectedAppForRejection.sellerCompany || selectedAppForRejection.workshopName || 'Seller'}" marked as rejected.`, 'info');
+
+      const appCompanyName = selectedAppForRejection.sellerCompany || selectedAppForRejection.workshopName || 'Seller';
+      const appContactName = `${selectedAppForRejection.firstName || ''} ${selectedAppForRejection.middleName || ''} ${selectedAppForRejection.lastName || ''}`.trim() || selectedAppForRejection.contactName || appCompanyName;
+
+      setNotificationModalData({
+        isOpen: true,
+        type: 'rejected',
+        sellerName: appCompanyName,
+        contactName: appContactName,
+        email: selectedAppForRejection.email,
+        phone: selectedAppForRejection.phone,
+        rejectionReason: rejectionReasonInput.trim()
+      });
+
+      setSelectedAppForRejection(null);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update application status', 'warning');
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
   const handleSendPasswordReset = async (email: string) => {
     try {
-      await sendPasswordResetEmail(auth, email);
-      showToast(`A secure password reset link has been dispatched to ${email}`, 'success');
+      if (!email) return;
+      const target = email.trim().toLowerCase();
+      // Check if this email is in our users collection
+      const qUsers = query(collection(db, 'users'), where('email', '==', target));
+      const qSnap = await getDocs(qUsers);
+      
+      let isRegistered = false;
+      qSnap.forEach((d) => {
+        if (d.data().role === 'seller' || d.data().role === 'admin') isRegistered = true;
+      });
+
+      if (!isRegistered && target !== 'jamilarabi2000@gmail.com') {
+        showToast(`The email ${target} is not registered and saved in the database as a seller.`, 'error');
+        return;
+      }
+
+      await sendPasswordResetEmail(auth, target);
+      showToast(`A secure password reset link has been dispatched to ${target}`, 'success');
     } catch (err: any) {
       showToast(err.message || 'Failed to send password reset email.', 'warning');
     }
@@ -259,6 +591,20 @@ export const SellersView: React.FC = () => {
     if (sellerStatusFilter === 'active') return matchesSearch && s.isActive;
     if (sellerStatusFilter === 'inactive') return matchesSearch && !s.isActive;
     return matchesSearch;
+  });
+
+  const filteredApplications = applications.filter(app => {
+    const q = appSearchQuery.toLowerCase().trim();
+    const matchesSearch = !q || 
+      app.workshopName?.toLowerCase().includes(q) ||
+      (app.workshopNameAr && app.workshopNameAr.includes(q)) ||
+      app.contactName?.toLowerCase().includes(q) ||
+      app.email?.toLowerCase().includes(q) ||
+      app.phone?.toLowerCase().includes(q) ||
+      app.village?.toLowerCase().includes(q);
+
+    if (appStatusFilter === 'all') return matchesSearch;
+    return matchesSearch && app.status === appStatusFilter;
   });
 
   const handleOpenAdd = () => {
@@ -616,6 +962,25 @@ export const SellersView: React.FC = () => {
             Registered Sellers ({sellers.length})
           </button>
           <button
+            onClick={() => setActiveSubTab('applications')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center gap-2 ${
+              activeSubTab === 'applications'
+                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            <span>Seller Signups</span>
+            {pendingAppsCount > 0 ? (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black uppercase tracking-wider animate-pulse">
+                {pendingAppsCount} New
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black">
+                {applications.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setActiveSubTab('import')}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
               activeSubTab === 'import'
@@ -677,7 +1042,7 @@ export const SellersView: React.FC = () => {
                   showToast('Seller Performance & Sales report downloaded successfully.', 'success');
                 }}
                 className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-2xs shrink-0"
-                title="Download Artisan Sales, Revenue & Payout Ledger"
+                title="Download Seller Sales, Revenue & Payout Ledger"
               >
                 <Download className="w-4 h-4 text-emerald-600" />
                 <span>Sales & Performance</span>
@@ -839,6 +1204,249 @@ export const SellersView: React.FC = () => {
               );
             })}
           </div>
+        </div>
+      ) : activeSubTab === 'applications' ? (
+        <div className="space-y-6">
+          {/* Applications Filter & Search Header */}
+          <div className="flex flex-col xl:flex-row items-stretch xl:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-2xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search applicants, workshop, village..."
+                  value={appSearchQuery}
+                  onChange={(e) => setAppSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto scrollbar-none">
+                <button
+                  onClick={() => setAppStatusFilter('pending')}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
+                    appStatusFilter === 'pending' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Pending ({applications.filter(a => a.status === 'pending').length})
+                </button>
+                <button
+                  onClick={() => setAppStatusFilter('all')}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
+                    appStatusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All ({applications.length})
+                </button>
+                <button
+                  onClick={() => setAppStatusFilter('approved')}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
+                    appStatusFilter === 'approved' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Approved ({applications.filter(a => a.status === 'approved').length})
+                </button>
+                <button
+                  onClick={() => setAppStatusFilter('rejected')}
+                  className={`flex-1 sm:flex-initial px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap text-center ${
+                    appStatusFilter === 'rejected' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Rejected ({applications.filter(a => a.status === 'rejected').length})
+                </button>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-500 font-medium self-end xl:self-center">
+              Showing {filteredApplications.length} applications
+            </div>
+          </div>
+
+          {/* Applications Grid */}
+          {filteredApplications.length === 0 ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-xs space-y-3">
+              <Store className="w-12 h-12 text-slate-300 mx-auto" />
+              <h3 className="text-base font-black text-slate-800">No Applications Found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                {appStatusFilter === 'pending'
+                  ? 'There are no pending seller signups awaiting review.'
+                  : 'No seller applications match your active search filters.'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {filteredApplications.map((app) => {
+                const isPending = app.status === 'pending';
+                const isApproved = app.status === 'approved';
+                const isRejected = app.status === 'rejected';
+                const companyName = app.sellerCompany || app.workshopName || 'Seller Workshop';
+                const contactFullName = `${app.firstName || ''} ${app.middleName || ''} ${app.lastName || ''}`.trim() || app.contactName || companyName;
+
+                const notifData = buildSellerWelcomeNotification({
+                  sellerName: companyName,
+                  contactName: contactFullName,
+                  email: app.email,
+                  phone: app.phone
+                });
+
+                return (
+                  <div 
+                    key={app.id} 
+                    className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-100 shadow-xs hover:border-slate-200 transition-all flex flex-col justify-between gap-4"
+                  >
+                    <div className="space-y-3">
+                      {/* Card Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              isPending ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                              isApproved ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                              'bg-rose-100 text-rose-800 border border-rose-200'
+                            }`}>
+                              {app.status}
+                            </span>
+                            {app.craftCategory && (
+                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                                {app.craftCategory}
+                              </span>
+                            )}
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                          <h3 className="text-base font-black text-slate-900 mt-1">
+                            {companyName}
+                          </h3>
+                          {app.workshopNameAr && (
+                            <p className="text-xs font-bold text-slate-500 font-arabic">
+                              {app.workshopNameAr}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Quick WhatsApp Link Button */}
+                        <a
+                          href={notifData.whatsappLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-2xl transition-all cursor-pointer inline-flex items-center gap-1.5 text-xs font-bold shadow-2xs"
+                          title="Chat with applicant on WhatsApp"
+                        >
+                          <MessageSquare className="w-4 h-4 text-emerald-600" />
+                          <span className="hidden sm:inline">WhatsApp</span>
+                        </a>
+                      </div>
+
+                      {/* Contact & Location Info */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-100 text-xs">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Seller / Contact</span>
+                          <span className="font-bold text-slate-800">{contactFullName}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Phone</span>
+                          <span className="font-mono font-bold text-slate-800">{app.phone}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Email</span>
+                          <span className="font-mono text-slate-700 truncate block">{app.email}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Location</span>
+                          <span className="font-medium text-slate-700">
+                            {app.village ? `${app.village}, ` : ''}{app.governorate ? LEBANON_GOVERNORATES_DATA[app.governorate]?.nameEn || app.governorate : ''}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Bio & Craft Story */}
+                      {app.bio && (
+                        <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Craft & Heritage Story</span>
+                          <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">{app.bio}</p>
+                        </div>
+                      )}
+
+                      {/* Social Portfolio Links */}
+                      {app.socialLink && (
+                        <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-semibold">
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          <a href={app.socialLink} target="_blank" rel="noreferrer" className="hover:underline truncate max-w-xs">
+                            {app.socialLink}
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Rejection Note if any */}
+                      {isRejected && app.rejectionReason && (
+                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 text-xs text-rose-800 space-y-0.5">
+                          <span className="font-black text-[10px] uppercase tracking-wider block text-rose-600">Rejection Feedback</span>
+                          <p>{app.rejectionReason}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                      {isPending ? (
+                        <>
+                          <button
+                            onClick={() => handleOpenRejectModal(app)}
+                            className="px-3.5 py-2 bg-slate-100 hover:bg-rose-50 hover:text-rose-700 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <UserX className="w-4 h-4" />
+                            <span>Reject</span>
+                          </button>
+                          <button
+                            onClick={() => handleOpenApproveModal(app)}
+                            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer inline-flex items-center gap-1.5 ml-auto"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                            <span>Approve & Create Account</span>
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex items-center justify-between w-full gap-2">
+                          <span className="text-xs text-slate-500 font-medium">
+                            {isApproved ? 'Account active and provisioned.' : 'Application marked as rejected.'}
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (isApproved) {
+                                setNotificationModalData({
+                                  isOpen: true,
+                                  type: 'approved',
+                                  sellerName: companyName,
+                                  contactName: contactFullName,
+                                  email: app.email,
+                                  phone: app.phone
+                                });
+                              } else {
+                                setNotificationModalData({
+                                  isOpen: true,
+                                  type: 'rejected',
+                                  sellerName: companyName,
+                                  contactName: contactFullName,
+                                  email: app.email,
+                                  phone: app.phone,
+                                  rejectionReason: app.rejectionReason
+                                });
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Dispatch Message</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : (
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-100 space-y-6 shadow-xs">
@@ -1262,7 +1870,7 @@ export const SellersView: React.FC = () => {
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/50 space-y-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600">{accountTargetSeller.sellerCode || 'Supplier'}</span>
               <h4 className="text-sm font-black text-slate-900">{accountTargetSeller.nameEn}</h4>
-              <p className="text-xs text-slate-500">Creating login credentials grants the artisan direct portal access to modify their stock, update pricing, write craft stories, and track their dispatches.</p>
+              <p className="text-xs text-slate-500">Creating login credentials grants the seller direct portal access to modify their stock, update pricing, write craft stories, and track their dispatches.</p>
             </div>
 
             <form onSubmit={handleCreateAccountSubmit} className="space-y-4">
@@ -1273,7 +1881,7 @@ export const SellersView: React.FC = () => {
                   required
                   value={accountEmailInput}
                   onChange={(e) => setAccountEmailInput(e.target.value)}
-                  placeholder="e.g. artisan@gmail.com"
+                  placeholder="e.g. seller@gmail.com"
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
                 />
               </div>
@@ -1324,6 +1932,384 @@ export const SellersView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Approve Application & Provision Credentials Modal */}
+      {selectedAppForApproval && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-950">Approve Seller Signup</h3>
+                  <p className="text-xs text-slate-500">Confirm details & create merchant portal credentials</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedAppForApproval(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmApprovalSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Seller Code *</label>
+                  <input
+                    type="text"
+                    required
+                    value={approveSellerCode}
+                    onChange={(e) => setApproveSellerCode(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono uppercase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Seller Company Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={approveWorkshopName}
+                    onChange={(e) => setApproveWorkshopName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Seller Arabic Name</label>
+                <input
+                  type="text"
+                  value={approveWorkshopNameAr}
+                  onChange={(e) => setApproveWorkshopNameAr(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 text-right"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Governorate *</label>
+                  <select
+                    value={approveGovernorate}
+                    onChange={(e) => {
+                      setApproveGovernorate(e.target.value);
+                      const dists = LEBANON_GOVERNORATES_DATA[e.target.value]?.districts || [];
+                      setApproveDistrict(dists[0] || '');
+                    }}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {Object.entries(LEBANON_GOVERNORATES_DATA).map(([key, g]) => (
+                      <option key={key} value={key}>{g.nameEn}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">District (Qada) *</label>
+                  <select
+                    value={approveDistrict}
+                    onChange={(e) => setApproveDistrict(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 cursor-pointer"
+                  >
+                    {(LEBANON_GOVERNORATES_DATA[approveGovernorate]?.districts || []).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Village / Town *</label>
+                <input
+                  type="text"
+                  required
+                  value={approveVillage}
+                  onChange={(e) => setApproveVillage(e.target.value)}
+                  placeholder="e.g. Deir El Qamar, Jezzine, Tripoli..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Login Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={approveEmail}
+                    onChange={(e) => setApproveEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Mobile Phone (WhatsApp) *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={approvePhone}
+                    onChange={(e) => setApprovePhone(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Temporary Password *</label>
+                <input
+                  type="text"
+                  required
+                  minLength={6}
+                  value={approvePassword}
+                  onChange={(e) => setApprovePassword(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 font-mono"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">This temporary password will be sent to the seller via WhatsApp/Email immediately.</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppForApproval(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isApproving}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {isApproving ? 'Provisioning...' : 'Approve & Activate Seller'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Application Modal */}
+      {selectedAppForRejection && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 space-y-5 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-rose-100 text-rose-700 rounded-xl">
+                  <UserX className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-black text-slate-950">Decline Application</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedAppForRejection(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              You are rejecting the signup request from <strong className="text-slate-900">"{selectedAppForRejection.sellerCompany || selectedAppForRejection.workshopName}"</strong> ({`${selectedAppForRejection.firstName || ''} ${selectedAppForRejection.middleName || ''} ${selectedAppForRejection.lastName || ''}`.trim() || selectedAppForRejection.contactName}).
+            </p>
+
+            <form onSubmit={handleConfirmRejectionSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Reason / Feedback for Seller (Optional)</label>
+                <textarea
+                  rows={3}
+                  value={rejectionReasonInput}
+                  onChange={(e) => setRejectionReasonInput(e.target.value)}
+                  placeholder="e.g. Please provide photos of your handcrafted goods, or your workshop is located outside our current courier pickup route..."
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-rose-500"
+                />
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Quick Presets:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRejectionReasonInput('يرجى تزويدنا بصور إضافية للمنتجات وتفاصيل الأسعار.')}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium"
+                  >
+                    صور إضافية للمنتجات
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRejectionReasonInput('نعتذر، فئة المنتجات مكتملة حالياً في منطقتكم وسنتواصل معكم فور فتح الشواغر.')}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium"
+                  >
+                    الفئة مكتملة
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRejectionReasonInput('المنطقة الجغرافية الحالية خارج نطاق شبكة التوصيل والاستلام المباشر.')}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium"
+                  >
+                    خارج نطاق التوصيل
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppForRejection(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRejecting}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  {isRejecting ? 'Rejecting...' : 'Confirm Rejection'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Unified Notification Dispatch Modal (WhatsApp / Email / SMS) */}
+      {notificationModalData && notificationModalData.isOpen && (() => {
+        const isApproveOrCreated = notificationModalData.type === 'approved' || notificationModalData.type === 'created';
+        const notif = isApproveOrCreated 
+          ? buildSellerWelcomeNotification({
+              sellerName: notificationModalData.sellerName,
+              contactName: notificationModalData.contactName,
+              email: notificationModalData.email,
+              phone: notificationModalData.phone,
+              tempPassword: notificationModalData.tempPassword
+            })
+          : buildSellerRejectionNotification({
+              sellerName: notificationModalData.sellerName,
+              contactName: notificationModalData.contactName,
+              email: notificationModalData.email,
+              phone: notificationModalData.phone,
+              rejectionReason: notificationModalData.rejectionReason
+            });
+
+        const handleCopyText = () => {
+          navigator.clipboard.writeText(notif.fullText);
+          setCopiedNotificationText(true);
+          setTimeout(() => setCopiedNotificationText(false), 2500);
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-6 shadow-xl animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className={`p-2 rounded-xl ${isApproveOrCreated ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                    <Send className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-slate-950">
+                      {isApproveOrCreated ? 'Notify Seller: Account Ready' : 'Notify Applicant: Status Update'}
+                    </h3>
+                    <p className="text-xs text-slate-500">Send confirmation via WhatsApp, Email, or SMS</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setNotificationModalData(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-full cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Recipient summary */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/60 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-600">Seller / Company:</span>
+                  <span className="font-black text-slate-900">{notificationModalData.sellerName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-600">Mobile WhatsApp:</span>
+                  <span className="font-mono font-bold text-slate-900">{notificationModalData.phone}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-600">Email Address:</span>
+                  <span className="font-mono font-bold text-slate-900">{notificationModalData.email}</span>
+                </div>
+                {notificationModalData.tempPassword && (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-indigo-700">
+                    <span className="font-bold">Generated Password:</span>
+                    <span className="font-mono font-black">{notificationModalData.tempPassword}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Notification Message Preview */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">Message Content Preview:</span>
+                  <button
+                    onClick={handleCopyText}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 cursor-pointer inline-flex items-center gap-1"
+                  >
+                    {copiedNotificationText ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-600">Copied to Clipboard!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Text</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="bg-slate-900 text-slate-100 p-4 rounded-2xl text-xs font-mono whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto border border-slate-800">
+                  {notif.fullText}
+                </div>
+              </div>
+
+              {/* Action Buttons: WhatsApp / Email / SMS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <a
+                  href={notif.whatsappLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span>Send on WhatsApp</span>
+                </a>
+
+                <a
+                  href={notif.mailtoLink}
+                  className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer inline-flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Send Email</span>
+                </a>
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <a
+                  href={notif.smsLink}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 cursor-pointer inline-flex items-center gap-1"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Trigger Mobile SMS</span>
+                </a>
+
+                <button
+                  onClick={() => setNotificationModalData(null)}
+                  className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

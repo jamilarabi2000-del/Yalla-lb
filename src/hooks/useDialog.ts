@@ -9,6 +9,8 @@ interface UseDialogOptions {
 export function useDialog({ isOpen, onClose, initialFocusRef }: UseDialogOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -20,16 +22,29 @@ export function useDialog({ isOpen, onClose, initialFocusRef }: UseDialogOptions
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Focus initial element or container
+    // Focus initial element or container ONCE on opening dialog
     const timer = setTimeout(() => {
+      // Don't shift focus if active element is already inside the modal
+      if (containerRef.current && containerRef.current.contains(document.activeElement)) {
+        return;
+      }
+
       if (initialFocusRef?.current) {
         initialFocusRef.current.focus();
       } else if (containerRef.current) {
-        const focusable = containerRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        // Prefer focusing the first interactive text input if available
+        const inputs = containerRef.current.querySelectorAll<HTMLElement>(
+          'input:not([type="hidden"]), select, textarea'
         );
-        if (focusable.length > 0) {
-          focusable[0].focus();
+        if (inputs.length > 0) {
+          inputs[0].focus();
+        } else {
+          const focusable = containerRef.current.querySelectorAll<HTMLElement>(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable.length > 0) {
+            focusable[0].focus();
+          }
         }
       }
     }, 50);
@@ -38,7 +53,7 @@ export function useDialog({ isOpen, onClose, initialFocusRef }: UseDialogOptions
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
     };
 
@@ -52,7 +67,7 @@ export function useDialog({ isOpen, onClose, initialFocusRef }: UseDialogOptions
         previousActiveElement.current.focus();
       }
     };
-  }, [isOpen, onClose, initialFocusRef]);
+  }, [isOpen]);
 
   return { containerRef };
 }

@@ -487,6 +487,34 @@ export function downloadStockInventoryReport(
   triggerDownload(csv, `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
+export function downloadOrdersReport(
+  orders: Order[],
+  filenamePrefix = 'yalla_lebanon_orders_dispatch_report'
+) {
+  const dataToExport = orders.map((ord) => ({
+    'Order ID': ord.id,
+    'Date Placed': ord.date,
+    'Fulfillment Status': ord.status,
+    'Customer Full Name': ord.shipping?.fullName || '',
+    'Customer Phone': ord.shipping?.phone || '',
+    'Customer Email': ord.shipping?.email || '',
+    'Delivery Governorate': ord.shipping?.governorate || '',
+    'Delivery City': ord.shipping?.city || '',
+    'Street / Building': `${ord.shipping?.street || ''} ${ord.shipping?.building || ''}`.trim(),
+    'Delivery Notes': ord.shipping?.deliveryNotes || '',
+    'Payment Method': ord.paymentMethod,
+    'Subtotal (USD)': ord.subtotalUSD?.toFixed(2) || '0.00',
+    'Delivery Fee (USD)': ord.deliveryFeeUSD?.toFixed(2) || '0.00',
+    'Discount (USD)': ord.discountUSD?.toFixed(2) || '0.00',
+    'Total Amount (USD)': ord.totalUSD?.toFixed(2) || '0.00',
+    'Total Items Count': ord.items.reduce((s, i) => s + i.quantity, 0),
+    'Order Line Items': ord.items.map(i => `${i.quantity}x ${i.product.name} ($${i.product.priceUSD})`).join('; ')
+  }));
+
+  const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
+  triggerDownload(csv, `${filenamePrefix}_${new Date().toISOString().slice(0, 10)}.csv`);
+}
+
 function triggerDownload(content: string, filename: string) {
   const blob = new Blob(['\uFEFF' + content], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

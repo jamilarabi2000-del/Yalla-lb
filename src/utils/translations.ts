@@ -11,7 +11,7 @@ export const translations = {
     admin: 'Admin',
     cart: 'Basket',
     wishlist: 'Wishlist',
-    searchPlaceholder: 'Search products, artisans, pantry...',
+    searchPlaceholder: 'Search products, sellers, pantry...',
     clear: 'Clear',
     back: 'Back',
     backToHome: 'Back to Home',
@@ -28,7 +28,7 @@ export const translations = {
     freshUsdOnly: '$ Fresh USD (Dollar Only)',
     checkoutAndDelivery: 'Checkout & Delivery',
     myAccountAndOrders: 'My Account & Orders',
-    adminAndArtisanPortal: 'Admin & Artisan Portal',
+    adminAndArtisanPortal: 'Admin & Seller Portal',
     
     // Categories
     cat_all: 'All Products',
@@ -187,7 +187,7 @@ export const translations = {
     profileInfo: 'Profile Information',
 
     // Admin
-    adminDashboard: 'Artisan Store Admin',
+    adminDashboard: 'Seller Store Admin',
     manageProducts: 'Manage Products',
     ordersList: 'Orders List',
     addNewProduct: 'Add New Product'
@@ -202,7 +202,7 @@ export const translations = {
     admin: 'الإدارة',
     cart: 'السلة',
     wishlist: 'المفضلة',
-    searchPlaceholder: 'ابحث عن المنتجات، الحرف، المونة...',
+    searchPlaceholder: 'ابحث عن المنتجات، البائعين، المونة...',
     clear: 'مسح',
     back: 'رجوع',
     backToHome: 'العودة للرئيسية',
@@ -219,7 +219,7 @@ export const translations = {
     freshUsdOnly: '$ دولار فريش (دولار فقط)',
     checkoutAndDelivery: 'إتمام الطلب والتوصيل',
     myAccountAndOrders: 'حسابي والطلبات',
-    adminAndArtisanPortal: 'بوابة الإدارة والحرفيين',
+    adminAndArtisanPortal: 'بوابة الإدارة والبائعين',
 
     // Categories
     cat_all: 'جميع المنتجات',
@@ -378,7 +378,7 @@ export const translations = {
     profileInfo: 'معلومات الملف الشخصي',
 
     // Admin
-    adminDashboard: 'إدارة المتجر الحرفي',
+    adminDashboard: 'إدارة متجر البائعين',
     manageProducts: 'إدارة المنتجات',
     ordersList: 'قائمة الطلبات',
     addNewProduct: 'إضافة منتج جديد'

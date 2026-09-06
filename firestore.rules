@@ -1,7 +1,28 @@
 rules_version = '2';
+
+// =============================================================================
+// Yalla Lebanon - Cloud Firestore Security Rules
+//
+// THREAT MODEL
+// This application has no trusted backend: the React client talks straight to
+// Firestore with the (public) Web API key. Every check written in TypeScript is
+// therefore a user-experience affordance, not a control - an attacker calls the
+// Firestore REST/gRPC API with their own ID token and never runs your code.
+// THIS FILE IS THE ONLY SECURITY BOUNDARY. Assume every field of every write is
+// attacker-chosen.
+//
+// Every hasOnly() list below is pinned to what the application actually writes.
+// If you add a field to a payload, add it here too or the write will be denied.
+// `npm run test:rules` covers both directions: attacks must fail, and the real
+// client payloads must succeed.
+// =============================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ---------------------------------------------------------------------
+    // Identity
+    // ---------------------------------------------------------------------
     function isSignedIn() {
       return request.auth != null;
     }
@@ -10,6 +31,13 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Ordered cheapest-first: the custom claim short-circuits before the
+    // exists() lookup, which keeps us inside the per-request document-access
+    // budget (10 reads for a single write, 20 inside a transaction or batch).
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.admin == true ||
@@ -19,7 +47,7 @@ service cloud.firestore {
     }
 
     function isSeller() {
-      return isSignedIn() && 
+      return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'seller';
     }
@@ -28,25 +56,47 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.sellerId;
     }
 
+    // ---------------------------------------------------------------------
+    // Value guards
+    // ---------------------------------------------------------------------
+    function isMoney(v, maxValue) {
+      return v is number && v >= 0 && v <= maxValue;
+    }
+
+    function boundedString(v, maxLen) {
+      return v is string && v.size() <= maxLen;
+    }
+
     // Health / probe ping document used by connection testing
     match /test/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Public catalog & content
+    // ---------------------------------------------------------------------
+    // Catalogue
+    // ---------------------------------------------------------------------
+    function productShapeOk() {
+      return request.resource.data.priceUSD is number
+        && request.resource.data.priceUSD >= 0
+        && request.resource.data.priceUSD <= 1000000
+        && request.resource.data.stock is number
+        && request.resource.data.stock >= 0
+        && request.resource.data.stock <= 1000000
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 250;
+    }
+
     match /products/{productId} {
       allow read: if true;
       allow create: if isAdmin() || (isSeller()
         && request.resource.data.sellerId == getSellerId()
-        && request.resource.data.priceUSD is number && request.resource.data.priceUSD >= 0
-        && request.resource.data.stock is number && request.resource.data.stock >= 0
-        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 250);
+        && productShapeOk());
       allow update: if isAdmin() || (isSeller()
-        && resource.data.sellerId == getSellerId() && request.resource.data.sellerId == getSellerId()
-        && request.resource.data.priceUSD is number && request.resource.data.priceUSD >= 0
-        && request.resource.data.stock is number && request.resource.data.stock >= 0
-        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 250);
+        && resource.data.sellerId == getSellerId()
+        && request.resource.data.sellerId == getSellerId()
+        && productShapeOk());
       allow delete: if isAdmin() || (isSeller() && resource.data.sellerId == getSellerId());
     }
 
@@ -60,15 +110,107 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------------------------------------------------------------------
+    // Seller company profile
+    //
+    // /sellers is world-readable: the storefront renders seller profiles for
+    // anonymous visitors. Login identifiers, the commission the platform
+    // charges, and the exact pickup address therefore live in /seller_private
+    // and are rejected here - for admins too, so a UI mistake cannot leak them.
+    // ---------------------------------------------------------------------
+    function noPrivateSellerFields() {
+      return !request.resource.data.keys().hasAny(['accountEmail', 'accountUid', 'commissionPct', 'exactAddress']);
+    }
+
+    // Fields a seller may maintain on their own public storefront profile.
+    function sellerSelfEditableKeys() {
+      return [
+        'nameEn', 'nameAr', 'bio', 'bioEn', 'bioAr', 'village', 'district',
+        'governorate', 'region', 'phone', 'contactPhone', 'whatsapp', 'contactEmail',
+        'logoUrl', 'bannerImage', 'profileImage', 'craftCategory', 'updatedAt'
+      ];
+    }
+
     match /sellers/{sellerId} {
       allow read: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin()
-        || (isSeller() && sellerId == getSellerId() && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isActive', 'active', 'sellerCode', 'id', 'accountEmail', 'accountUid', 'commissionPct', 'hasAccount']));
+      allow create: if isAdmin() && noPrivateSellerFields();
+      allow update: if (isAdmin() && noPrivateSellerFields())
+        || (isSeller() && sellerId == getSellerId()
+            && noPrivateSellerFields()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(sellerSelfEditableKeys()));
       allow delete: if isAdmin();
     }
 
+    // Restricted seller record: login identifier, commission, exact address.
+    // Readable only by platform admins and by the seller it belongs to. The
+    // seller may maintain their own pickup address, never their login
+    // identifier and never the commission the platform charges them.
+    match /seller_private/{sellerId} {
+      allow read: if isAdmin() || (isSeller() && sellerId == getSellerId());
+      allow create: if isAdmin()
+        || (isSeller() && sellerId == getSellerId()
+            && request.resource.data.keys().hasOnly(['exactAddress', 'updatedAt']));
+      allow update: if isAdmin()
+        || (isSeller() && sellerId == getSellerId()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['exactAddress', 'updatedAt']));
+      allow delete: if isAdmin();
+    }
+
+    // ---------------------------------------------------------------------
+    // Seller applications
+    // The "apply to sell" form is on the public portal, so creation is
+    // deliberately unauthenticated. Every field is therefore pinned and length
+    // capped so the collection cannot be used as free storage, and only admins
+    // can ever read an application back.
+    // ---------------------------------------------------------------------
+    match /seller_applications/{appId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly([
+          'id', 'sellerCompany', 'workshopName', 'workshopNameAr', 'nameEn', 'nameAr',
+          'firstName', 'middleName', 'lastName', 'contactName', 'email', 'phone',
+          'village', 'governorate', 'craftType', 'craftCategory', 'story', 'bio',
+          'socialLink', 'status', 'createdAt', 'submittedAt'
+        ])
+        && request.resource.data.status == 'pending'
+        && boundedString(request.resource.data.sellerCompany, 200)
+        && request.resource.data.sellerCompany.size() > 0
+        && boundedString(request.resource.data.email, 200)
+        && request.resource.data.email.size() > 0
+        && boundedString(request.resource.data.phone, 60)
+        && request.resource.data.phone.size() > 0
+        && boundedString(request.resource.data.get('workshopName', ''), 200)
+        && boundedString(request.resource.data.get('workshopNameAr', ''), 200)
+        && boundedString(request.resource.data.get('nameEn', ''), 200)
+        && boundedString(request.resource.data.get('nameAr', ''), 200)
+        && boundedString(request.resource.data.get('firstName', ''), 100)
+        && boundedString(request.resource.data.get('middleName', ''), 100)
+        && boundedString(request.resource.data.get('lastName', ''), 100)
+        && boundedString(request.resource.data.get('contactName', ''), 300)
+        && boundedString(request.resource.data.get('village', ''), 120)
+        && boundedString(request.resource.data.get('governorate', ''), 120)
+        && boundedString(request.resource.data.get('craftType', ''), 120)
+        && boundedString(request.resource.data.get('craftCategory', ''), 120)
+        && boundedString(request.resource.data.get('story', ''), 2000)
+        && boundedString(request.resource.data.get('bio', ''), 2000)
+        && boundedString(request.resource.data.get('socialLink', ''), 500)
+        && boundedString(request.resource.data.get('submittedAt', ''), 40)
+        && boundedString(request.resource.data.get('createdAt', ''), 40);
+    }
+
+    // ---------------------------------------------------------------------
+    // CMS / configuration
+    // ---------------------------------------------------------------------
     match /discounts/{discountId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /shipping_rules/{ruleId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -78,44 +220,74 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /cms_versions/{versionId} {
+      allow read, write: if isAdmin();
+    }
+
     match /site_settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Admins registry - read if admin, write disabled to prevent self-escalation
+    // Admins registry - readable by admins, never client-writable, so it can
+    // never be used as a self-escalation path.
     match /admins/{adminId} {
       allow read: if isAdmin();
       allow write: if false;
     }
 
-    // User Accounts & Profiles: users cannot modify role, sellerId, or isBanned
+    // ---------------------------------------------------------------------
+    // User accounts and profiles
+    // A user may never grant themselves a role, attach themselves to a seller
+    // company, un-ban themselves, or rewrite their own uid. ordersPlaced is
+    // incremented by the checkout transaction, so it may only hold still or
+    // move by exactly +1 - it can never be reset to farm new-customer offers.
+    // ---------------------------------------------------------------------
+    function ordersPlacedMoveOk() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ordersPlaced'])
+        || request.resource.data.ordersPlaced == resource.data.get('ordersPlaced', 0)
+        || request.resource.data.ordersPlaced == resource.data.get('ordersPlaced', 0) + 1;
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAdmin() || (isOwner(userId) && !request.resource.data.keys().hasAny(['role', 'sellerId', 'isBanned']));
-      allow update: if isAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'sellerId', 'isBanned']));
+      allow create: if (isOwner(userId)
+          && request.resource.data.uid == userId
+          && !request.resource.data.keys().hasAny(['role', 'sellerId', 'isBanned'])
+          && request.resource.data.get('ordersPlaced', 0) == 0)
+        || isAdmin();
+      allow update: if (isOwner(userId)
+          && !request.resource.data.diff(resource.data).affectedKeys()
+               .hasAny(['role', 'sellerId', 'isBanned', 'uid'])
+          && ordersPlacedMoveOk())
+        || isAdmin();
       allow delete: if isAdmin();
     }
 
-    // Phone registry index for registration/lookup - prevents harvesting by restricting list to admin
+    // Phone uniqueness index. `list` is admin-only so the collection cannot be
+    // dumped; a single `get` is what powers the "is this number taken?" check.
+    function phoneRegistryPayloadOk(phoneKey) {
+      return request.resource.data.keys().hasOnly(['uid', 'phone', 'formatted', 'cleanDigits', 'createdAt', 'updatedAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.cleanDigits is string
+        && request.resource.data.cleanDigits.size() == 8
+        && boundedString(request.resource.data.get('phone', ''), 32)
+        && boundedString(request.resource.data.get('formatted', ''), 32)
+        && (phoneKey == 'phone_' + request.resource.data.cleanDigits
+            || phoneKey == '961' + request.resource.data.cleanDigits);
+    }
+
     match /phone_registry/{phoneKey} {
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create: if isAdmin() || (isSignedIn()
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.cleanDigits is string
-        && request.resource.data.cleanDigits.size() == 8
-        && (phoneKey == 'phone_' + request.resource.data.cleanDigits || phoneKey == '961' + request.resource.data.cleanDigits));
+      allow create: if isAdmin() || (isSignedIn() && phoneRegistryPayloadOk(phoneKey));
       allow update: if isAdmin() || (isSignedIn()
         && resource.data.uid == request.auth.uid
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.cleanDigits is string
-        && request.resource.data.cleanDigits.size() == 8
-        && (phoneKey == 'phone_' + request.resource.data.cleanDigits || phoneKey == '961' + request.resource.data.cleanDigits));
+        && phoneRegistryPayloadOk(phoneKey));
       allow delete: if isAdmin() || (isSignedIn() && resource.data.uid == request.auth.uid);
     }
 
-    // Carts & Wishlists (owner or admin)
+    // Carts and wishlists (owner or admin)
     match /carts/{userId} {
       allow read, write: if isOwner(userId) || isAdmin();
     }
@@ -124,54 +296,191 @@ service cloud.firestore {
       allow read, write: if isOwner(userId) || isAdmin();
     }
 
-    // Orders: only customer with verified email can create; sellers cannot delete or modify financial fields; list is restricted to user or seller
+    // ---------------------------------------------------------------------
+    // ORDERS - authoritative pricing
+    //
+    // The "authoritative recalculation" inside placeOrder() runs on the
+    // attacker's machine and proves nothing. These rules re-derive the money
+    // from data the client does NOT control:
+    //   * every line item's unit price must equal the live /products price
+    //   * subtotal must equal the sum of price x quantity over the whole cart
+    //   * total must equal subtotal - discount + delivery
+    //
+    // Cart size is capped at 8 distinct line items. That ceiling is set by the
+    // rules engine's 1000-expression evaluation budget per request (measured
+    // against the emulator - see the canary test in test/rules.test.ts), not by
+    // taste. It is mirrored client-side in ShopContext.MAX_ORDER_LINE_ITEMS so
+    // shoppers get an explanation instead of a permission error.
+    // ---------------------------------------------------------------------
+    function orderItemOk(i) {
+      let it = request.resource.data.items[i];
+      return it.quantity is number
+        && it.quantity > 0
+        && it.quantity <= 99
+        && it.quantity == math.floor(it.quantity)
+        && it.product.priceUSD ==
+             get(/databases/$(database)/documents/products/$(it.product.id)).data.priceUSD;
+    }
+
+    function orderLineTotal(i) {
+      let items = request.resource.data.items;
+      return items.size() > i ? items[i].product.priceUSD * items[i].quantity : 0;
+    }
+
+    function orderComputedSubtotal() {
+      return orderLineTotal(0) + orderLineTotal(1) + orderLineTotal(2) + orderLineTotal(3)
+           + orderLineTotal(4) + orderLineTotal(5) + orderLineTotal(6) + orderLineTotal(7);
+    }
+
+    // Boolean OR short-circuits, so exactly items.size() get() calls are issued.
+    function orderItemsOk() {
+      let n = request.resource.data.items.size();
+      return request.resource.data.items is list
+        && n >= 1
+        && n <= 8
+        && orderItemOk(0)
+        && (n < 2 || orderItemOk(1))
+        && (n < 3 || orderItemOk(2))
+        && (n < 4 || orderItemOk(3))
+        && (n < 5 || orderItemOk(4))
+        && (n < 6 || orderItemOk(5))
+        && (n < 7 || orderItemOk(6))
+        && (n < 8 || orderItemOk(7));
+    }
+
+    // Only the free-text fields that could be abused to bloat the document are
+    // length-checked; the evaluation budget is spent on the money instead.
+    function orderShippingOk() {
+      let s = request.resource.data.shipping;
+      return s is map
+        && s.get('fullName', '').size() <= 200
+        && s.get('deliveryNotes', '').size() <= 1000;
+    }
+
+    // Money must reconcile to the cent; 0.02 absorbs the client's per-step
+    // rounding plus floating-point representation drift.
+    function orderMoneyOk() {
+      let d = request.resource.data;
+      let discount = d.get('discountUSD', 0);
+      return isMoney(d.subtotalUSD, 1000000)
+        && isMoney(d.deliveryFeeUSD, 50)
+        && isMoney(d.totalUSD, 1000000)
+        && isMoney(discount, 1000000)
+        && math.abs(d.subtotalUSD - orderComputedSubtotal()) <= 0.02
+        // The discount total itself cannot be re-derived here (it depends on
+        // the coupon + bundle engine), so it is bounded rather than verified:
+        // never negative, and never a free order. See SECURITY.md "R-1".
+        && discount <= d.subtotalUSD * 0.95
+        && math.abs(d.totalUSD - (d.subtotalUSD - discount + d.deliveryFeeUSD)) <= 0.02;
+    }
+
+    function orderShapeOk() {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          'id', 'userId', 'sellerIds', 'productIds', 'date', 'items', 'shipping',
+          'paymentMethod', 'currency', 'subtotalUSD', 'deliveryFeeUSD', 'totalUSD',
+          'totalLBP', 'status', 'estimatedDelivery', 'trackingNumber', 'discountUSD',
+          'appliedCoupon', 'notes', 'customerNote', 'adminNotes', 'createdAt', 'updatedAt'
+        ])
+        && d.status == 'pending'
+        && d.userId == request.auth.uid
+        && d.trackingNumber is string
+        && d.get('totalLBP', 0) is number
+        && d.get('totalLBP', 0) >= 0
+        && d.paymentMethod in ['cod_usd', 'cod_lbp', 'whish_pay', 'omt_pay'];
+    }
+
+    // Sellers fulfil orders; they may move the status and nothing else. The
+    // list mirrors OrderStatus in src/types.ts.
+    function sellerOrderPatchOk() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status in [
+             'pending', 'confirmed', 'crafting', 'courier_assigned',
+             'in_transit', 'delivered', 'cancelled', 'returned'
+           ];
+    }
+
     match /orders/{orderId} {
-      allow get: if isAdmin() || (isSignedIn() && (resource.data.userId == request.auth.uid || (isSeller() && resource.data.sellerIds.hasAny([getSellerId()]))));
+      allow get: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid)
+        || (isSeller() && resource.data.get('sellerIds', []).hasAny([getSellerId()]));
       allow list: if isAdmin()
         || (isSignedIn() && resource.data.userId == request.auth.uid)
-        || (isSeller() && resource.data.sellerIds.hasAny([getSellerId()]));
-      allow create: if isSignedIn()
-        && request.auth.token.email_verified == true
-        && request.resource.data.userId == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.subtotalUSD is number && request.resource.data.subtotalUSD >= 0
-        && request.resource.data.deliveryFeeUSD is number && request.resource.data.deliveryFeeUSD >= 0
-        && request.resource.data.totalUSD is number && request.resource.data.totalUSD >= 0
-        && request.resource.data.items is list
-        && request.resource.data.items.size() > 0
-        && request.resource.data.items.size() <= 100
-        && request.resource.data.shipping is map
-        && request.resource.data.trackingNumber is string
-        && request.resource.data.paymentMethod in ['cod_usd', 'cod_lbp', 'whish_pay', 'omt_pay'];
-      allow update: if isAdmin() || (isSeller() && resource.data.sellerIds.hasAny([getSellerId()]) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'items', 'totalUSD', 'subtotalUSD', 'deliveryFeeUSD', 'currency', 'paymentMethod', 'appliedCoupon', 'date']));
+        || (isSeller() && resource.data.get('sellerIds', []).hasAny([getSellerId()]));
+
+      allow create: if isVerified()
+        && orderShapeOk()
+        && orderShippingOk()
+        && orderItemsOk()
+        && orderMoneyOk();
+
+      allow update: if isAdmin()
+        || (isSeller()
+            && resource.data.get('sellerIds', []).hasAny([getSellerId()])
+            && sellerOrderPatchOk());
       allow delete: if isAdmin();
     }
 
-    // Product Reviews - read public, signed-in users can only post for themselves with valid rating
+    // ---------------------------------------------------------------------
+    // Product reviews
+    // The document id is pinned to "<uid>_<productId>", which makes "one review
+    // per customer per product" a structural property rather than a client-side
+    // convention, and the review must cite an order that belongs to the author
+    // and contains the product being reviewed.
+    // ---------------------------------------------------------------------
+    function reviewOrderProvesPurchase(orderId, productId) {
+      let order = get(/databases/$(database)/documents/orders/$(orderId)).data;
+      return order.userId == request.auth.uid
+        && (!('productIds' in order) || order.productIds.hasAny([productId]));
+    }
+
+    function reviewBodyOk() {
+      return request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.rating == math.floor(request.resource.data.rating)
+        && boundedString(request.resource.data.comment, 2000)
+        && boundedString(request.resource.data.get('userName', ''), 120)
+        && boundedString(request.resource.data.get('createdAt', ''), 40)
+        && boundedString(request.resource.data.get('date', ''), 40);
+    }
+
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+             'id', 'userId', 'userName', 'productId', 'orderId',
+             'rating', 'comment', 'date', 'createdAt', 'updatedAt'
+           ])
         && request.resource.data.userId == request.auth.uid
-        && request.resource.data.rating is number
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5
         && request.resource.data.productId is string
-        && request.resource.data.comment is string
-        && request.resource.data.comment.size() <= 2000;
+        && reviewId == request.auth.uid + '_' + request.resource.data.productId
+        && reviewBodyOk()
+        // Purchase binding: the cited order must exist, belong to the author,
+        // and (for orders written since the productIds denormalisation) contain
+        // the product being reviewed.
+        && request.resource.data.orderId is string
+        && reviewOrderProvesPurchase(request.resource.data.orderId, request.resource.data.productId);
       allow update: if isAdmin() || (isSignedIn()
         && resource.data.userId == request.auth.uid
-        && request.resource.data.userId == request.auth.uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['userId', 'productId'])
-        && request.resource.data.rating is number
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5
-        && request.resource.data.comment is string
-        && request.resource.data.comment.size() <= 2000);
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['rating', 'comment', 'updatedAt'])
+        && reviewBodyOk());
       allow delete: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
-    // Admin Activity & Config
+    // ---------------------------------------------------------------------
+    // Admin activity, audit logs and system config
+    // ---------------------------------------------------------------------
     match /recent_activity/{activityId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /inventory_logs/{logId} {
       allow read, write: if isAdmin();
     }
 
@@ -179,12 +488,25 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
-    // Search analytics logs
+    // Search analytics. Attribution is taken from the token, never from the
+    // body, so a log can never be forged against another customer, and only
+    // signed-in shoppers can write at all so the collection cannot be flooded
+    // anonymously.
     match /search_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly([
+             'id', 'query', 'timestamp', 'userId', 'userEmail', 'userName',
+             'origin', 'resultsCount', 'language', 'filterCategory', 'filterRegion', 'createdAt'
+           ])
         && request.resource.data.query is string
-        && request.resource.data.query.size() <= 200;
+        && request.resource.data.query.size() > 0
+        && request.resource.data.query.size() <= 200
+        && request.resource.data.userId == request.auth.uid
+        && boundedString(request.resource.data.get('userEmail', ''), 254)
+        && boundedString(request.resource.data.get('userName', ''), 120)
+        && boundedString(request.resource.data.get('timestamp', ''), 40)
+        && request.resource.data.get('origin', 'direct') in ['navbar', 'products_page', 'mobile_menu', 'direct'];
       allow update, delete: if isAdmin();
     }
   }

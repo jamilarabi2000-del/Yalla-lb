@@ -24,5 +24,15 @@
     "strict": true,
     "noImplicitAny": true,
     "noEmit": true
-  }
+  },
+  "include": [
+    "src",
+    "test",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "functions",
+    "node_modules",
+    "dist"
+  ]
 }

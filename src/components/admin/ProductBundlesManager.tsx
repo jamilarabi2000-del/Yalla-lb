@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useShop } from '../../context/ShopContext';
+import { useDialog } from '../../hooks/useDialog';
 import { ProductBundle, Product } from '../../types';
+import { MediaAssetPicker } from './cms/MediaAssetPicker';
 import { 
   PackageCheck, 
   Plus, 
@@ -15,7 +17,11 @@ import {
   ShoppingBag,
   Percent,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Image as ImageIcon,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export const ProductBundlesManager: React.FC = () => {
@@ -31,6 +37,18 @@ export const ProductBundlesManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [productSearch, setProductSearch] = useState('');
+  const [bundleToDelete, setBundleToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { containerRef: bundleModalRef } = useDialog({
+    isOpen: isModalOpen,
+    onClose: () => setIsModalOpen(false)
+  });
+
+  const { containerRef: deleteConfirmModalRef } = useDialog({
+    isOpen: Boolean(bundleToDelete),
+    onClose: () => setBundleToDelete(null)
+  });
 
   const [form, setForm] = useState<{
     name: string;
@@ -43,6 +61,10 @@ export const ProductBundlesManager: React.FC = () => {
     productIds: string[];
     bundlePriceUSD: number;
     isActive: boolean;
+    showInSlider: boolean;
+    showButtonInSlider: boolean;
+    sliderButtonText: string;
+    sliderButtonTextAr: string;
   }>({
     name: '',
     nameAr: '',
@@ -53,7 +75,11 @@ export const ProductBundlesManager: React.FC = () => {
     imageUrl: '',
     productIds: [],
     bundlePriceUSD: 0,
-    isActive: true
+    isActive: true,
+    showInSlider: true,
+    showButtonInSlider: true,
+    sliderButtonText: 'Add Entire Combo to Cart',
+    sliderButtonTextAr: 'إضافة الكومبو كاملاً للسلة'
   });
 
   const handleOpenCreate = () => {
@@ -68,7 +94,11 @@ export const ProductBundlesManager: React.FC = () => {
       imageUrl: '',
       productIds: [],
       bundlePriceUSD: 0,
-      isActive: true
+      isActive: true,
+      showInSlider: true,
+      showButtonInSlider: true,
+      sliderButtonText: 'Add Entire Combo to Cart',
+      sliderButtonTextAr: 'إضافة الكومبو كاملاً للسلة'
     });
     setProductSearch('');
     setIsModalOpen(true);
@@ -86,10 +116,25 @@ export const ProductBundlesManager: React.FC = () => {
       imageUrl: bundle.imageUrl || '',
       productIds: bundle.productIds || [],
       bundlePriceUSD: bundle.bundlePriceUSD || 0,
-      isActive: bundle.isActive
+      isActive: bundle.isActive,
+      showInSlider: bundle.showInSlider !== false,
+      showButtonInSlider: bundle.showButtonInSlider !== false,
+      sliderButtonText: bundle.sliderButtonText || 'Add Entire Combo to Cart',
+      sliderButtonTextAr: bundle.sliderButtonTextAr || 'إضافة الكومبو كاملاً للسلة'
     });
     setProductSearch('');
     setIsModalOpen(true);
+  };
+
+  const handleToggleActive = async (bundle: ProductBundle) => {
+    await updateProductBundle(bundle.id, { isActive: !bundle.isActive });
+    showToast(bundle.isActive ? 'Combo deal deactivated' : 'Combo deal published live!', 'info');
+  };
+
+  const handleToggleSlider = async (bundle: ProductBundle) => {
+    const nextVal = !(bundle.showInSlider !== false);
+    await updateProductBundle(bundle.id, { showInSlider: nextVal });
+    showToast(nextVal ? 'Combo deal will appear in hero slider' : 'Combo deal hidden from hero slider', 'info');
   };
 
   const handleToggleProduct = (productId: string) => {
@@ -137,15 +182,21 @@ export const ProductBundlesManager: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const handleToggleActive = async (bundle: ProductBundle) => {
-    await updateProductBundle(bundle.id, { isActive: !bundle.isActive });
-    showToast(bundle.isActive ? 'Combo deal deactivated' : 'Combo deal published live!', 'info');
+  const handleDelete = (id: string, name: string) => {
+    setBundleToDelete({ id, name });
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
-      await deleteProductBundle(id);
-      showToast('Combo deal deleted', 'info');
+  const handleConfirmDelete = async () => {
+    if (!bundleToDelete) return;
+    setIsDeleting(true);
+    try {
+      await deleteProductBundle(bundleToDelete.id);
+      showToast(`Combo deal "${bundleToDelete.name}" deleted`, 'info');
+      setBundleToDelete(null);
+    } catch {
+      showToast('Failed to delete combo deal', 'error');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -233,6 +284,17 @@ export const ProductBundlesManager: React.FC = () => {
 
                     <div className="flex items-center gap-1.5">
                       <button
+                        onClick={() => handleToggleSlider(bundle)}
+                        className={`p-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          bundle.showInSlider !== false 
+                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20' 
+                            : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                        }`}
+                        title={bundle.showInSlider !== false ? 'Hide from hero slider' : 'Show in hero slider'}
+                      >
+                        {bundle.showInSlider !== false ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                      </button>
+                      <button
                         onClick={() => handleToggleActive(bundle)}
                         className={`p-1.5 rounded-lg text-xs font-medium border transition-colors ${
                           bundle.isActive 
@@ -263,7 +325,36 @@ export const ProductBundlesManager: React.FC = () => {
                   {/* Title & Description */}
                   <h3 className="text-lg font-bold text-white mb-1">{bundle.name}</h3>
                   {bundle.nameAr && <p className="text-xs text-amber-400/80 mb-2 font-arabic" dir="rtl">{bundle.nameAr}</p>}
-                  {bundle.description && <p className="text-xs text-slate-400 mb-4 line-clamp-2">{bundle.description}</p>}
+                  {bundle.description && <p className="text-xs text-slate-400 mb-3 line-clamp-2">{bundle.description}</p>}
+
+                  {/* Slider & Cover Status Pills */}
+                  <div className="flex items-center gap-2 flex-wrap mb-3">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      bundle.showInSlider !== false 
+                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30' 
+                        : 'bg-slate-800/80 text-slate-400 border border-slate-750'
+                    }`}>
+                      {bundle.showInSlider !== false ? <Eye className="w-3 h-3 text-amber-400" /> : <EyeOff className="w-3 h-3 text-slate-500" />}
+                      <span>{bundle.showInSlider !== false ? 'Hero Slider: Visible' : 'Hero Slider: Hidden'}</span>
+                    </span>
+
+                    {bundle.imageUrl ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
+                        <ImageIcon className="w-3 h-3" />
+                        <span>Custom Cover Image</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400">
+                        <span>Auto 1st Product Photo</span>
+                      </span>
+                    )}
+
+                    {bundle.showButtonInSlider === false && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30">
+                        <span>Slide Button: Hidden</span>
+                      </span>
+                    )}
+                  </div>
 
                   {/* Bundled Items Thumbnails */}
                   <div className="bg-slate-950/60 p-3 rounded-xl border border-white/5 mb-4">
@@ -313,12 +404,18 @@ export const ProductBundlesManager: React.FC = () => {
       {/* Modal / Drawer for Create & Edit */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6">
+          <div 
+            ref={bundleModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bundle-modal-title"
+            className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-6 space-y-6"
+          >
             
             <div className="flex justify-between items-center border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-400" />
-                <h3 className="text-lg font-bold text-white">
+                <h3 id="bundle-modal-title" className="text-lg font-bold text-white">
                   {editingId ? 'Edit Combo Deal' : 'Create New Combo Deal'}
                 </h3>
               </div>
@@ -483,6 +580,100 @@ export const ProductBundlesManager: React.FC = () => {
                 </div>
               )}
 
+              {/* Homepage Slider & Presentation Settings */}
+              <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                    <div>
+                      <h4 className="text-xs font-bold uppercase text-white">Homepage Slider Presentation</h4>
+                      <p className="text-[11px] text-slate-400">Control if and how this combo deal appears in the hero carousel</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox"
+                      checked={form.showInSlider}
+                      onChange={e => setForm({ ...form, showInSlider: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    <span className="ml-2 text-xs font-semibold text-slate-300">
+                      {form.showInSlider ? 'Show in Slider' : 'Hidden from Slider'}
+                    </span>
+                  </label>
+                </div>
+
+                {form.showInSlider && (
+                  <div className="space-y-4 pt-1">
+                    {/* Custom Banner / Cover Image */}
+                    <div>
+                      <MediaAssetPicker
+                        label="Custom Combo Banner / Cover Graphic (Optional)"
+                        subLabel="Leave empty to use 1st product photo automatically, or select/upload your custom graphic design."
+                        value={form.imageUrl}
+                        onChange={(url: string) => setForm(prev => ({ ...prev, imageUrl: url }))}
+                        recommendedRatio="16:9"
+                        recommendedDimensions="1920×800px"
+                      />
+                    </div>
+
+                    {/* Show Direct Add to Cart Button */}
+                    <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <label className="text-xs font-bold text-white block">
+                            Show "Add Entire Combo to Cart" Button on Slide
+                          </label>
+                          <p className="text-[10px] text-slate-400">
+                            When enabled, customers can instantly add all products in this bundle to their cart from the homepage hero slide.
+                          </p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={form.showButtonInSlider}
+                            onChange={e => setForm({ ...form, showButtonInSlider: e.target.checked })}
+                            className="sr-only peer"
+                          />
+                          <div className="w-8 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-500"></div>
+                        </label>
+                      </div>
+
+                      {form.showButtonInSlider && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                              Slide Button Text (English)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Add Entire Combo to Cart"
+                              value={form.sliderButtonText}
+                              onChange={e => setForm({ ...form, sliderButtonText: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:border-amber-400 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold uppercase text-slate-400 mb-1">
+                              Slide Button Text (Arabic)
+                            </label>
+                            <input
+                              type="text"
+                              dir="rtl"
+                              placeholder="إضافة الكومبو كاملاً للسلة"
+                              value={form.sliderButtonTextAr}
+                              onChange={e => setForm({ ...form, sliderButtonTextAr: e.target.value })}
+                              className="w-full px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white focus:border-amber-400 focus:outline-none font-arabic"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Submit Buttons */}
               <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
                 <button
@@ -502,6 +693,59 @@ export const ProductBundlesManager: React.FC = () => {
 
             </form>
 
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {bundleToDelete && (
+        <div 
+          id="modal-delete-bundle-confirm"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+        >
+          <div 
+            ref={deleteConfirmModalRef}
+            className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400 flex-shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">Delete Combo Deal</h3>
+                <p className="text-xs text-slate-400">This action cannot be undone</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-xl border border-white/5">
+              Are you sure you want to permanently delete <strong className="text-white">"{bundleToDelete.name}"</strong>? This will immediately remove it from your store, promotions, and home slider.
+            </p>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setBundleToDelete(null)}
+                disabled={isDeleting}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg cursor-pointer disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <span>Deleting...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Combo Deal</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

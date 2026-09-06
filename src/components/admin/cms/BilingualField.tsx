@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
-import { Sparkles, Check, Globe, Copy } from 'lucide-react';
+import React, { useState, useRef, useEffect, useId } from 'react';
+import { Check, Copy, Sparkles, ChevronDown } from 'lucide-react';
 
-interface SuggestionItem {
+export interface SuggestionItem {
   en: string;
   ar: string;
   category?: string;
 }
 
-interface BilingualFieldProps {
+export interface BilingualFieldProps {
   label?: string;
   labelEn?: string;
   labelAr?: string;
@@ -84,12 +84,81 @@ export const BilingualField: React.FC<BilingualFieldProps> = ({
   className = '',
   id
 }) => {
-  const [showSuggestions, setShowSuggestions] = useState(false);
   const [copiedField, setCopiedField] = useState<'en' | 'ar' | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+  const presetsTriggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-  const activeSuggestions = presetSuggestions || suggestions || LEBANESE_ARTISANAL_SUGGESTIONS;
-  const isMultiLine = isTextarea || type === 'textarea';
+  const reactId = useId();
+  const safeReactId = reactId.replace(/:/g, '_');
+  const fieldId = id || `bilingual-${safeReactId}`;
+  const enId = `${fieldId}-en`;
+  const arId = `${fieldId}-ar`;
+  const hintId = subLabel ? `${fieldId}-hint` : undefined;
+  const presetsId = `${fieldId}-presets`;
+
+  const isMultiLine = Boolean(isTextarea || type === 'textarea');
   const displayLabel = label || labelEn || 'Field';
+  const availableSuggestions = presetSuggestions || suggestions;
+
+  useEffect(() => {
+    if (!showSuggestions) {
+      setActiveIndex(-1);
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!availableSuggestions || availableSuggestions.length === 0) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+        presetsTriggerRef.current?.focus();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveIndex(prev => {
+          const next = prev < availableSuggestions.length - 1 ? prev + 1 : 0;
+          itemRefs.current[next]?.scrollIntoView({ block: 'nearest' });
+          return next;
+        });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveIndex(prev => {
+          const next = prev > 0 ? prev - 1 : availableSuggestions.length - 1;
+          itemRefs.current[next]?.scrollIntoView({ block: 'nearest' });
+          return next;
+        });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        setActiveIndex(0);
+        itemRefs.current[0]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        const last = availableSuggestions.length - 1;
+        setActiveIndex(last);
+        itemRefs.current[last]?.scrollIntoView({ block: 'nearest' });
+      } else if ((e.key === 'Enter' || e.key === ' ') && activeIndex >= 0 && activeIndex < availableSuggestions.length) {
+        e.preventDefault();
+        applySuggestion(availableSuggestions[activeIndex]);
+      }
+    };
+    const onPointerDown = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        !presetsTriggerRef.current?.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [showSuggestions, activeIndex, availableSuggestions]);
 
   const handleCopy = (field: 'en' | 'ar', text: string) => {
     if (!text) return;
@@ -98,78 +167,94 @@ export const BilingualField: React.FC<BilingualFieldProps> = ({
     setTimeout(() => setCopiedField(null), 1500);
   };
 
-  const applySuggestion = (s: SuggestionItem) => {
-    onChangeEn(s.en);
-    onChangeAr(s.ar);
+  const applySuggestion = (item: SuggestionItem) => {
+    onChangeEn(item.en);
+    onChangeAr(item.ar);
     setShowSuggestions(false);
+    presetsTriggerRef.current?.focus();
   };
 
   return (
-    <div id={id} className={`space-y-2 ${className}`}>
-      {/* Header with Title & Lebanese Preset helper */}
+    <div id={id} className={`space-y-2 relative ${className}`}>
+      {/* Header with Title & Optional Presets Dropdown */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <label className="block text-xs font-bold text-slate-200 uppercase tracking-wide">
+          <span className="block text-xs font-bold text-slate-200 uppercase tracking-wide">
             {displayLabel}
-            {labelAr && <span className="ml-2 text-amber-400/80 font-normal normal-case">({labelAr})</span>}
-          </label>
+            {labelAr && <span className="ml-2 text-amber-400/80 font-normal normal-case font-arabic">({labelAr})</span>}
+          </span>
           {subLabel && (
-            <p className="text-[11px] text-slate-400 mt-0.5">{subLabel}</p>
+            <p id={hintId} className="text-[11px] text-slate-400 mt-0.5">{subLabel}</p>
           )}
         </div>
 
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowSuggestions(!showSuggestions)}
-            className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-            title="Lebanese Artisanal Copywriting Suggestions"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Lebanese Copy Presets</span>
-          </button>
+        {availableSuggestions && availableSuggestions.length > 0 && (
+          <div className="relative">
+            <button
+              ref={presetsTriggerRef}
+              type="button"
+              id={`${presetsId}-trigger`}
+              aria-haspopup="listbox"
+              aria-expanded={showSuggestions}
+              aria-controls={presetsId}
+              onClick={() => setShowSuggestions(prev => !prev)}
+              className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <Sparkles className="w-3 h-3" aria-hidden="true" />
+              <span>Presets</span>
+              <ChevronDown className={`w-3 h-3 transition-transform ${showSuggestions ? 'rotate-180' : ''}`} aria-hidden="true" />
+            </button>
 
-          {/* Suggestions Dropdown */}
-          {showSuggestions && (
-            <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 p-3 rounded-2xl bg-slate-900 border border-amber-500/30 shadow-2xl z-50 space-y-2.5 backdrop-blur-md">
-              <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <Globe className="w-3.5 h-3.5" />
-                  Lebanese Artisanal Presets
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowSuggestions(false)}
-                  className="text-slate-400 hover:text-white text-xs cursor-pointer"
-                >
-                  ✕
-                </button>
+            {showSuggestions && (
+              <div
+                ref={dropdownRef}
+                id={presetsId}
+                role="listbox"
+                aria-labelledby={`${presetsId}-label`}
+                aria-activedescendant={activeIndex >= 0 ? `${presetsId}-opt-${activeIndex}` : undefined}
+                tabIndex={-1}
+                className="absolute right-0 top-full mt-2 w-80 sm:w-96 z-50 bg-slate-900/98 backdrop-blur-md border border-amber-500/30 rounded-2xl shadow-2xl p-2 space-y-1.5 max-h-72 overflow-y-auto custom-scrollbar"
+              >
+                <div id={`${presetsId}-label`} className="px-3 py-1.5 text-[11px] font-bold text-amber-400 border-b border-white/10 uppercase tracking-wider flex items-center justify-between">
+                  <span>Copy Presets</span>
+                  <span className="text-[10px] text-slate-400">↑↓ to navigate • Enter to select • Esc</span>
+                </div>
+                {availableSuggestions.map((item, idx) => {
+                  const isSelected = activeIndex === idx;
+                  return (
+                    <button
+                      key={idx}
+                      ref={(el) => { itemRefs.current[idx] = el; }}
+                      id={`${presetsId}-opt-${idx}`}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => applySuggestion(item)}
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all cursor-pointer group ${
+                        isSelected
+                          ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 ring-1 ring-amber-400/30'
+                          : 'border-transparent hover:bg-amber-500/15 hover:border-amber-500/30'
+                      }`}
+                    >
+                      {item.category && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/80 block mb-1">
+                          {item.category}
+                        </span>
+                      )}
+                      <p className={`text-xs font-medium line-clamp-1 ${isSelected ? 'text-amber-200 font-bold' : 'text-white group-hover:text-amber-300'}`}>
+                        {item.en}
+                      </p>
+                      <p className="text-[11px] text-slate-400 font-arabic text-right line-clamp-1 mt-0.5" dir="rtl">
+                        {item.ar}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
-
-              <div className="max-h-60 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-                {activeSuggestions.map((item, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => applySuggestion(item)}
-                    className="p-2.5 rounded-xl bg-slate-800/80 hover:bg-amber-500/20 hover:border-amber-400/40 border border-white/5 cursor-pointer transition-all text-start group"
-                  >
-                    {item.category && (
-                      <span className="text-[9px] font-black uppercase text-amber-400 tracking-wider">
-                        {item.category}
-                      </span>
-                    )}
-                    <p className="text-xs text-white font-medium group-hover:text-amber-200 mt-0.5 line-clamp-2">
-                      {item.en}
-                    </p>
-                    <p className="text-xs text-slate-300 font-arabic group-hover:text-amber-200 mt-1 line-clamp-2 text-right" dir="rtl">
-                      {item.ar}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Side-by-Side Dual-Language Grid */}
@@ -177,29 +262,34 @@ export const BilingualField: React.FC<BilingualFieldProps> = ({
         {/* English Column */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-[11px] font-bold text-slate-400">
-            <span className="flex items-center gap-1 text-slate-300">
-              <span className="text-xs">🇺🇸</span> English (LTR)
-            </span>
+            <label htmlFor={enId} className="flex items-center gap-1 text-slate-300 cursor-pointer">
+              <span className="text-xs" aria-hidden="true">🇺🇸</span> English (LTR)
+            </label>
             <button
               type="button"
               onClick={() => handleCopy('en', valueEn)}
               className="text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px] cursor-pointer"
+              aria-label="Copy English text to clipboard"
             >
               {copiedField === 'en' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
               <span>{copiedField === 'en' ? 'Copied' : 'Copy'}</span>
             </button>
           </div>
 
-          {type === 'textarea' ? (
+          {isMultiLine ? (
             <textarea
+              id={enId}
+              aria-describedby={hintId}
               value={valueEn || ''}
               onChange={(e) => onChangeEn(e.target.value)}
               placeholder={placeholderEn}
               rows={rows}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 focus:outline-none transition-all resize-y"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 focus:outline-none transition-all resize-y leading-relaxed"
             />
           ) : (
             <input
+              id={enId}
+              aria-describedby={hintId}
               type="text"
               value={valueEn || ''}
               onChange={(e) => onChangeEn(e.target.value)}
@@ -216,26 +306,31 @@ export const BilingualField: React.FC<BilingualFieldProps> = ({
               type="button"
               onClick={() => handleCopy('ar', valueAr)}
               className="text-slate-500 hover:text-slate-300 flex items-center gap-1 text-[10px] cursor-pointer"
+              aria-label="نسخ النص العربي للحافظة"
             >
               {copiedField === 'ar' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
               <span>{copiedField === 'ar' ? 'تم النسخ' : 'نسخ'}</span>
             </button>
-            <span className="flex items-center gap-1 text-slate-300">
-              العربية (RTL) <span className="text-xs">🇱🇧</span>
-            </span>
+            <label htmlFor={arId} className="flex items-center gap-1 text-slate-300 cursor-pointer font-arabic">
+              العربية (RTL) <span className="text-xs" aria-hidden="true">🇱🇧</span>
+            </label>
           </div>
 
-          {type === 'textarea' ? (
+          {isMultiLine ? (
             <textarea
+              id={arId}
+              aria-describedby={hintId}
               value={valueAr || ''}
               onChange={(e) => onChangeAr(e.target.value)}
               placeholder={placeholderAr}
               dir="rtl"
               rows={rows}
-              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 focus:outline-none transition-all resize-y text-right font-arabic"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:ring-1 focus:ring-amber-400/30 focus:outline-none transition-all resize-y text-right font-arabic leading-relaxed"
             />
           ) : (
             <input
+              id={arId}
+              aria-describedby={hintId}
               type="text"
               value={valueAr || ''}
               onChange={(e) => onChangeAr(e.target.value)}

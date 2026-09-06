@@ -13,10 +13,40 @@
   --glass-border: rgba(184, 151, 83, 0.25);
 }
 
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--gold-dark);
-  outline-offset: 2px;
-  border-radius: 6px;
+:is(a, button, input, select, textarea, summary, [role="button"], [role="tab"], [role="link"], [tabindex]):focus-visible {
+  outline: 3px solid #c5a059 !important;
+  box-shadow: 0 0 0 6px rgba(197, 160, 89, 0.2) !important;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--gold-dark);
+  color: white;
+  padding: 8px;
+  z-index: 100;
+  transition: top 0.2s;
+}
+
+.skip-link:focus {
+  top: 0;
 }
 
 @layer base {
@@ -124,5 +154,43 @@
 
 .animate-slideInRight {
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+[dir="rtl"] .animate-slideInRight { animation-name: slideInLeft; }
+
+/* Arabic typography support */
+.font-arabic {
+  font-family: 'Tajawal', 'Cairo', 'Amiri', 'Segoe UI', system-ui, sans-serif;
+  /* Arabic needs a little more line box than the Latin default */
+  line-height: 1.8;
+}
+
+/* Explicit CMS custom-scrollbar styling */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(184, 151, 83, 0.5) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(184, 151, 83, 0.45);
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(184, 151, 83, 0.75);
+}
+
+/* CMS draft indicator entrance bounce */
+@keyframes bounceShort {
+  0%   { transform: translateY(12px); opacity: 0; }
+  55%  { transform: translateY(-4px); opacity: 1; }
+  75%  { transform: translateY(2px); }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.animate-bounce-short {
+  animation: bounceShort 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 

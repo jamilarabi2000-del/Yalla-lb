@@ -439,6 +439,14 @@ export function sanitizeDocumentData<T>(input: T): T {
   if (input === null || input === undefined) {
     return null as unknown as T;
   }
+  if (typeof input === 'string') {
+    // Prevent Firestore 1MB document size limit crash from oversized base64 data URLs (> 200KB)
+    if (input.startsWith('data:image/') && input.length > 200000) {
+      console.warn(`[DatabaseMonitor] Stripped oversized base64 image data URL (${Math.round(input.length / 1024)} KB) to prevent Firestore 1MB document size limit violation.`);
+      return '' as unknown as T;
+    }
+    return input;
+  }
   if (Array.isArray(input)) {
     return input
       .filter((item) => item !== undefined)

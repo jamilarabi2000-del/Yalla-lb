@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useShop } from '../context/ShopContext';
+import { useDialog } from '../hooks/useDialog';
 import { SectionVisibilityConfig, CMSCustomBlock } from '../types';
 import { 
   ShieldCheck, 
@@ -38,6 +39,11 @@ export const AdminQuickEditor: React.FC<AdminQuickEditorProps> = ({
 
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [drawerTab, setDrawerTab] = useState<'visibility' | 'quick_text' | 'add_block'>('visibility');
+
+  const { containerRef: drawerPanelRef } = useDialog({
+    isOpen: isOpenDrawer,
+    onClose: () => setIsOpenDrawer(false)
+  });
 
   // If admin is not unlocked, do not render floating editor
   if (!isAdminUnlocked) return null;
@@ -226,6 +232,10 @@ export const AdminQuickEditor: React.FC<AdminQuickEditorProps> = ({
       {isOpenDrawer && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in">
           <div 
+            ref={drawerPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-quick-drawer-title"
             id="admin-quick-drawer-panel"
             className="w-full max-w-md bg-slate-900 text-white h-full shadow-2xl border-l border-slate-800 flex flex-col overflow-hidden"
           >
@@ -236,7 +246,7 @@ export const AdminQuickEditor: React.FC<AdminQuickEditorProps> = ({
                   <Sliders className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                  <h3 id="admin-quick-drawer-title" className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
                     <span>Page Divs & Visibility</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
                       {activeTab}

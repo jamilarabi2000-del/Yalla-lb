@@ -1,4 +1,15 @@
 import { SiteContent } from '../types';
+import { db, IS_FIREBASE_ENABLED } from '../firebase';
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  limit, 
+  deleteDoc 
+} from 'firebase/firestore';
 
 export interface CmsSnapshot {
   id: string;
@@ -7,6 +18,7 @@ export interface CmsSnapshot {
   note?: string;
   changesCount: number;
   data: SiteContent;
+  isRemote?: boolean;
 }
 
 export interface CmsDiffItem {
@@ -20,6 +32,7 @@ export interface CmsDiffItem {
 }
 
 const STORAGE_KEY = 'yalla_cms_history_snapshots_v1';
+const REMOTE_COLLECTION = 'cms_versions';
 
 export const getCmsSnapshots = (): CmsSnapshot[] => {
   try {
@@ -28,37 +41,112 @@ export const getCmsSnapshots = (): CmsSnapshot[] => {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (e) {
-    console.error('Failed to load CMS snapshots:', e);
+    console.error('Failed to load CMS snapshots from local storage:', e);
     return [];
   }
 };
 
 export const saveCmsSnapshot = (data: SiteContent, author = 'Admin', note?: string, changesCount = 1): CmsSnapshot => {
+  const newSnapshot: CmsSnapshot = {
+    id: `snap_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: new Date().toISOString(),
+    author,
+    note: note || 'CMS live update published',
+    changesCount,
+    data: JSON.parse(JSON.stringify(data))
+  };
+
   try {
     const snapshots = getCmsSnapshots();
-    const newSnapshot: CmsSnapshot = {
-      id: `snap_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString(),
-      author,
-      note: note || 'CMS live update published',
-      changesCount,
-      data: JSON.parse(JSON.stringify(data))
-    };
-
-    // Keep up to 25 recent revisions
-    const updated = [newSnapshot, ...snapshots].slice(0, 25);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return newSnapshot;
+    // Keep up to 10 recent revisions in local storage to prevent storage quota exhaustion
+    const updated = [newSnapshot, ...snapshots].slice(0, 10);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    } catch {
+      // If quota exceeded, try keeping only the latest 2 snapshots
+      const minimal = [newSnapshot, snapshots[0]].filter(Boolean);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
+    }
   } catch (e) {
-    console.error('Failed to save CMS snapshot:', e);
-    return {
-      id: `snap_${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      author,
-      changesCount,
-      data
-    };
+    console.warn('Could not save CMS snapshot to local storage (quota or storage restricted):', e);
   }
+
+  // Also asynchronously persist to Firestore cms_versions if Firebase is active
+  void saveCmsSnapshotRemote(newSnapshot);
+
+  return newSnapshot;
+};
+
+/**
+ * Persists snapshot to Firestore `cms_versions` collection
+ */
+export const saveCmsSnapshotRemote = async (snapshot: CmsSnapshot): Promise<boolean> => {
+  if (!IS_FIREBASE_ENABLED || !db) return false;
+  try {
+    const docRef = doc(collection(db, REMOTE_COLLECTION), snapshot.id);
+    await setDoc(docRef, {
+      ...snapshot,
+      createdAt: new Date().toISOString()
+    });
+    // Fire and forget pruning older snapshots beyond 30
+    void pruneCmsSnapshotsRemote();
+    return true;
+  } catch (err) {
+    console.warn('[cmsSnapshots] Could not save remote snapshot to Firestore:', err);
+    return false;
+  }
+};
+
+/**
+ * Fetches recent snapshots from Firestore `cms_versions`
+ */
+export const getCmsSnapshotsRemote = async (): Promise<CmsSnapshot[] | null> => {
+  if (!IS_FIREBASE_ENABLED || !db) return null;
+  try {
+    const q = query(collection(db, REMOTE_COLLECTION), orderBy('timestamp', 'desc'), limit(30));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const remoteList: CmsSnapshot[] = [];
+    snap.forEach(docItem => {
+      const data = docItem.data();
+      remoteList.push({
+        id: docItem.id,
+        timestamp: data.timestamp || new Date().toISOString(),
+        author: data.author || 'Admin',
+        note: data.note || 'Version snapshot',
+        changesCount: typeof data.changesCount === 'number' ? data.changesCount : 1,
+        data: data.data,
+        isRemote: true
+      });
+    });
+    // Cache the remote list locally too
+    if (remoteList.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remoteList));
+      } catch {}
+    }
+    return remoteList;
+  } catch (err) {
+    console.warn('[cmsSnapshots] Failed to fetch remote snapshots:', err);
+    return null;
+  }
+};
+
+/**
+ * Prunes remote snapshots in Firestore to the 30 most recent
+ */
+export const pruneCmsSnapshotsRemote = async (): Promise<void> => {
+  if (!IS_FIREBASE_ENABLED || !db) return;
+  try {
+    const q = query(collection(db, REMOTE_COLLECTION), orderBy('timestamp', 'desc'), limit(45));
+    const snap = await getDocs(q);
+    if (snap.size > 30) {
+      const docsToDelete = snap.docs.slice(30);
+      for (const d of docsToDelete) {
+        await deleteDoc(d.ref).catch(() => {});
+      }
+    }
+  } catch {}
 };
 
 export const deleteCmsSnapshot = (id: string): CmsSnapshot[] => {
@@ -66,6 +154,9 @@ export const deleteCmsSnapshot = (id: string): CmsSnapshot[] => {
     const snapshots = getCmsSnapshots();
     const updated = snapshots.filter(s => s.id !== id);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    if (IS_FIREBASE_ENABLED && db) {
+      deleteDoc(doc(db, REMOTE_COLLECTION, id)).catch(() => {});
+    }
     return updated;
   } catch (e) {
     console.error('Failed to delete CMS snapshot:', e);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { sanitizeRowForCsv } from '../../utils/csvSafe';
 import { useShop } from '../../context/ShopContext';
+import { useDialog } from '../../hooks/useDialog';
 import { 
   Users, 
   Search, 
@@ -32,6 +33,11 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUse
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
   const [localDbUsers, setLocalDbUsers] = useState<(UserProfile & { uid?: string })[]>([]);
   const [isLoading, setIsLoading] = useState(!propDbUsers);
+
+  const { containerRef: customerModalRef } = useDialog({
+    isOpen: !!selectedCustomer,
+    onClose: () => setSelectedCustomer(null)
+  });
 
   useEffect(() => {
     if (!isAdminUser && !isAdminUnlocked) {
@@ -281,10 +287,16 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUse
       {/* Customer Orders History Modal */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+          <div 
+            ref={customerModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="customer-orders-modal-title"
+            className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">{selectedCustomer.name}</h3>
+                <h3 id="customer-orders-modal-title" className="text-lg font-bold text-slate-900">{selectedCustomer.name}</h3>
                 <p className="text-xs text-slate-500">{selectedCustomer.phone} • {selectedCustomer.city}, {selectedCustomer.governorate}</p>
               </div>
               <button 

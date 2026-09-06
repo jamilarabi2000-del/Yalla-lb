@@ -1,5 +1,39 @@
 import { CartItem, DiscountRule, Product, ProductBundle } from '../types';
 
+export function round2(num: number): number {
+  return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+
+export function computeDiscounts(params: {
+  lines: Array<{ product: any; quantity: number; unitPriceUSD?: number }>;
+  discounts: any[];
+  bundles: any[];
+  couponCode?: string;
+  isNewCustomer?: boolean;
+  subtotalUSD?: number;
+}): { discountUSD: number; appliedCoupon?: string; finalSubtotalUSD: number; appliedRules: any[] } {
+  const items: CartItem[] = params.lines.map(l => ({
+    product: {
+      ...l.product,
+      priceUSD: typeof l.unitPriceUSD === 'number' ? l.unitPriceUSD : l.product.priceUSD
+    },
+    quantity: l.quantity
+  }));
+
+  const res = applyDiscounts(items, params.discounts, {
+    couponCode: params.couponCode,
+    isNewUser: params.isNewCustomer,
+    productBundles: params.bundles
+  });
+
+  return {
+    discountUSD: res.discountUSD,
+    finalSubtotalUSD: res.finalSubtotalUSD,
+    appliedCoupon: params.couponCode || undefined,
+    appliedRules: res.appliedRules
+  };
+}
+
 export interface DiscountCalculationResult {
   subtotalUSD: number;
   discountUSD: number;
@@ -186,7 +220,48 @@ export function applyDiscounts(
     if (baseApplicableAmount <= 0) continue;
 
     let ruleDiscount = 0;
-    if (rule.type === 'percentage') {
+    if (rule.type === 'bogo') {
+      const buyX = Math.max(1, rule.buyQty || 1);
+      const getY = Math.max(1, rule.getQty || 1);
+      const discountPct = Math.min(100, Math.max(1, rule.getDiscountPercent !== undefined ? rule.getDiscountPercent : (rule.value || 100)));
+      const groupSize = buyX + getY;
+
+      // Group eligible items into individual unit price list
+      const eligibleItems = rule.target === 'checkout' || rule.target === 'all'
+        ? items
+        : items.filter(item => matchesTarget(item.product, rule));
+
+      if (rule.target === 'product') {
+        // Single product BOGO: calculate units per product
+        for (const item of eligibleItems) {
+          if (item.quantity >= groupSize) {
+            const fullGroups = Math.floor(item.quantity / groupSize);
+            const freeUnits = fullGroups * getY;
+            const savings = freeUnits * item.product.priceUSD * (discountPct / 100);
+            ruleDiscount += savings;
+          }
+        }
+      } else {
+        // Multi-product / Category / Brand / Storewide BOGO:
+        // Expand eligible items into individual price units, sort ascending (discount the cheapest eligible items in the set)
+        const unitPrices: number[] = [];
+        for (const item of eligibleItems) {
+          for (let i = 0; i < item.quantity; i++) {
+            unitPrices.push(item.product.priceUSD);
+          }
+        }
+        
+        if (unitPrices.length >= groupSize) {
+          unitPrices.sort((a, b) => a - b); // Ascending order
+          const fullGroups = Math.floor(unitPrices.length / groupSize);
+          const totalDiscountedUnits = fullGroups * getY;
+          // Discount the cheapest units
+          for (let i = 0; i < totalDiscountedUnits && i < unitPrices.length; i++) {
+            ruleDiscount += unitPrices[i] * (discountPct / 100);
+          }
+        }
+      }
+    } else if (rule.type === 'percentage') {
       ruleDiscount = baseApplicableAmount * (Math.min(100, Math.max(0, rule.value)) / 100);
     } else {
       // Fixed discount cannot exceed eligible amount and cannot be negative

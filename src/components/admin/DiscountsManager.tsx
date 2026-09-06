@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useShop } from '../../context/ShopContext';
+import { useDialog } from '../../hooks/useDialog';
 import { DiscountRule } from '../../types';
 import { ProductBundlesManager } from './ProductBundlesManager';
 import { 
@@ -27,8 +28,16 @@ import {
   PackageCheck
 } from 'lucide-react';
 
-export const DiscountsManager: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'rules' | 'bundles'>('rules');
+interface DiscountsManagerProps {
+  initialTab?: 'rules' | 'bundles';
+}
+
+export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab = 'rules' }) => {
+  const [activeTab, setActiveTab] = useState<'rules' | 'bundles'>(initialTab);
+
+  React.useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const { 
     discountRules = [], 
@@ -42,9 +51,14 @@ export const DiscountsManager: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
+  const { containerRef: discountModalRef } = useDialog({
+    isOpen: isModalOpen,
+    onClose: () => setIsModalOpen(false)
+  });
+
   const [form, setForm] = useState<{
     name: string;
-    type: 'percentage' | 'fixed';
+    type: 'percentage' | 'fixed' | 'bogo';
     value: number;
     target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
     targetValue: string;
@@ -54,6 +68,9 @@ export const DiscountsManager: React.FC = () => {
     startDate: string;
     endDate: string;
     isNewUserOnly: boolean;
+    buyQty: number;
+    getQty: number;
+    getDiscountPercent: number;
   }>({
     name: '',
     type: 'percentage',
@@ -65,7 +82,10 @@ export const DiscountsManager: React.FC = () => {
     minPurchaseUSD: 0,
     startDate: '',
     endDate: '',
-    isNewUserOnly: false
+    isNewUserOnly: false,
+    buyQty: 1,
+    getQty: 1,
+    getDiscountPercent: 100
   });
 
   // Extract unique categories, artisans, and origins/brands from products for quick selectors
@@ -86,7 +106,10 @@ export const DiscountsManager: React.FC = () => {
       minPurchaseUSD: 0,
       startDate: '',
       endDate: '',
-      isNewUserOnly: false
+      isNewUserOnly: false,
+      buyQty: 1,
+      getQty: 1,
+      getDiscountPercent: 100
     });
     setIsModalOpen(true);
   };
@@ -104,7 +127,10 @@ export const DiscountsManager: React.FC = () => {
       minPurchaseUSD: rule.minPurchaseUSD || 0,
       startDate: rule.startDate || '',
       endDate: rule.endDate || '',
-      isNewUserOnly: rule.isNewUserOnly || false
+      isNewUserOnly: rule.isNewUserOnly || false,
+      buyQty: rule.buyQty || 1,
+      getQty: rule.getQty || 1,
+      getDiscountPercent: rule.getDiscountPercent !== undefined ? rule.getDiscountPercent : (rule.type === 'bogo' ? rule.value || 100 : 100)
     });
     setIsModalOpen(true);
   };
@@ -124,7 +150,7 @@ export const DiscountsManager: React.FC = () => {
       showToast('Please enter a discount rule name', 'warning');
       return;
     }
-    if (form.value <= 0) {
+    if (form.type !== 'bogo' && form.value <= 0) {
       showToast('Discount value must be greater than 0', 'warning');
       return;
     }
@@ -134,6 +160,17 @@ export const DiscountsManager: React.FC = () => {
     if (form.type === 'percentage' && form.value > 100) {
       showToast('A percentage discount cannot exceed 100%', 'warning');
       return;
+    }
+
+    if (form.type === 'bogo') {
+      if (!form.buyQty || form.buyQty < 1) {
+        showToast('Please specify a valid buy quantity (at least 1)', 'warning');
+        return;
+      }
+      if (!form.getQty || form.getQty < 1) {
+        showToast('Please specify a valid free/discounted quantity (at least 1)', 'warning');
+        return;
+      }
     }
 
     // Validate start date < end date if both provided
@@ -148,7 +185,7 @@ export const DiscountsManager: React.FC = () => {
       const payload: Omit<DiscountRule, 'id'> = {
         name: form.name.trim(),
         type: form.type,
-        value: Number(form.value),
+        value: form.type === 'bogo' ? (form.getDiscountPercent || 100) : Number(form.value),
         target: form.target,
         targetValue: (form.target !== 'checkout' && form.target !== 'all') ? form.targetValue.trim() : undefined,
         couponCode: form.couponCode.trim() ? form.couponCode.trim().toUpperCase() : undefined,
@@ -156,7 +193,10 @@ export const DiscountsManager: React.FC = () => {
         minPurchaseUSD: Number(form.minPurchaseUSD) || 0,
         startDate: form.startDate ? form.startDate : undefined,
         endDate: form.endDate ? form.endDate : undefined,
-        isNewUserOnly: form.isNewUserOnly
+        isNewUserOnly: form.isNewUserOnly,
+        buyQty: form.type === 'bogo' ? Number(form.buyQty) : undefined,
+        getQty: form.type === 'bogo' ? Number(form.getQty) : undefined,
+        getDiscountPercent: form.type === 'bogo' ? Number(form.getDiscountPercent) : undefined
       };
 
       if (editingId) {
@@ -369,7 +409,9 @@ export const DiscountsManager: React.FC = () => {
                   <div className="flex items-baseline justify-between gap-2 pt-1">
                     <h3 className="font-extrabold text-slate-900 text-base leading-snug">{rule.name}</h3>
                     <span className="text-xl font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200/60 shrink-0">
-                      {isPercentage ? `${rule.value}% OFF` : `$${rule.value} OFF`}
+                      {rule.type === 'bogo' 
+                        ? `Buy ${rule.buyQty || 1} Get ${rule.getQty || 1} ${(rule.getDiscountPercent || 100) === 100 ? 'FREE' : `${rule.getDiscountPercent}% OFF`}`
+                        : (isPercentage ? `${rule.value}% OFF` : `$${rule.value} OFF`)}
                     </span>
                   </div>
 
@@ -470,11 +512,17 @@ export const DiscountsManager: React.FC = () => {
       {/* Create / Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto">
+          <div 
+            ref={discountModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="discount-modal-title"
+            className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto"
+          >
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h2 className="text-xl font-extrabold text-slate-900">
+                <h2 id="discount-modal-title" className="text-xl font-extrabold text-slate-900">
                   {editingId ? 'Edit Discount Rule' : 'Create New Discount Rule'}
                 </h2>
                 <p className="text-xs text-slate-500 font-medium">Configure storewide, brand, seller, promotion period, or new user discounts</p>
@@ -529,9 +577,79 @@ export const DiscountsManager: React.FC = () => {
                   >
                     <option value="percentage">Percentage (%)</option>
                     <option value="fixed">Fixed Amount ($)</option>
+                    <option value="bogo">Buy X Get Y (BOGO / Quantity Deal)</option>
                   </select>
                 </div>
               </div>
+
+              {/* BOGO Quantity Parameters */}
+              {form.type === 'bogo' && (
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200/90 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Buy X Get Y (BOGO) Deal Settings</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-emerald-950 mb-1">
+                        Buy Quantity (X)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        value={form.buyQty}
+                        onChange={(e) => setForm({ ...form, buyQty: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-300 text-sm font-extrabold text-slate-900 focus:outline-none focus:border-emerald-500"
+                        placeholder="e.g. 1 or 2"
+                      />
+                      <span className="text-[10px] text-emerald-700">e.g. <strong>2</strong> in Buy 2</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-emerald-950 mb-1">
+                        Get Quantity (Y)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        required
+                        value={form.getQty}
+                        onChange={(e) => setForm({ ...form, getQty: Math.max(1, parseInt(e.target.value) || 1) })}
+                        className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-300 text-sm font-extrabold text-slate-900 focus:outline-none focus:border-emerald-500"
+                        placeholder="e.g. 1"
+                      />
+                      <span className="text-[10px] text-emerald-700">e.g. <strong>1</strong> in Get 1</span>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold uppercase text-emerald-950 mb-1">
+                        Discount on Y (%)
+                      </label>
+                      <select
+                        value={form.getDiscountPercent}
+                        onChange={(e) => setForm({ ...form, getDiscountPercent: Number(e.target.value) })}
+                        className="w-full px-3 py-2 bg-white rounded-xl border border-emerald-300 text-sm font-extrabold text-slate-900 focus:outline-none focus:border-emerald-500"
+                      >
+                        <option value="100">100% (Free Item)</option>
+                        <option value="50">50% Off</option>
+                        <option value="25">25% Off</option>
+                        <option value="75">75% Off</option>
+                      </select>
+                      <span className="text-[10px] text-emerald-700">
+                        {form.getDiscountPercent === 100 ? 'Item Y is 100% Free' : `${form.getDiscountPercent}% discount on Y`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white/80 p-3 rounded-xl border border-emerald-200 text-xs text-emerald-800 font-medium">
+                    🎯 <strong>Rule Formula:</strong> For every <strong>{form.buyQty + form.getQty}</strong> eligible items added to the cart, the customer pays for <strong>{form.buyQty}</strong> and gets <strong>{form.getQty}</strong> at {form.getDiscountPercent === 100 ? '100% Free' : `${form.getDiscountPercent}% off`}.
+                  </div>
+                </div>
+              )}
 
               {/* Conditional Target Value Selection */}
               {form.target === 'category' && (
@@ -627,35 +745,37 @@ export const DiscountsManager: React.FC = () => {
                 </div>
               )}
 
-              {/* Value & Min Purchase */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Discount Amount ({form.type === 'percentage' ? '%' : '$'})
-                  </label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    max={form.type === 'percentage' ? 100 : undefined}
-                    step="0.1"
-                    required
-                    value={form.value}
-                    onChange={(e) => setForm({ ...form, value: Number(e.target.value) })}
-                    className="w-full px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-sm font-extrabold focus:outline-none focus:border-amber-500"
-                  />
-                </div>
+              {/* Value & Min Purchase (Only show for standard fixed or percentage discounts) */}
+              {form.type !== 'bogo' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Discount Amount ({form.type === 'percentage' ? '%' : '$'})
+                    </label>
+                    <input
+                      type="number"
+                      min="0.1"
+                      max={form.type === 'percentage' ? 100 : undefined}
+                      step="0.1"
+                      required
+                      value={form.value}
+                      onChange={(e) => setForm({ ...form, value: Number(e.target.value) })}
+                      className="w-full px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-sm font-extrabold focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Min Purchase ($)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={form.minPurchaseUSD}
-                    onChange={(e) => setForm({ ...form, minPurchaseUSD: Number(e.target.value) })}
-                    className="w-full px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-amber-500"
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Min Purchase ($)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={form.minPurchaseUSD}
+                      onChange={(e) => setForm({ ...form, minPurchaseUSD: Number(e.target.value) })}
+                      className="w-full px-4 py-2.5 bg-slate-50 rounded-xl border border-slate-200 text-sm font-medium focus:outline-none focus:border-amber-500"
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Promotion Period (Start Date & End Date) */}
               <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-3">

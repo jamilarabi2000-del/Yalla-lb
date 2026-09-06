@@ -1,0 +1,115 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Order, PaymentMethod } from '../types';
+import { db, IS_FIREBASE_ENABLED, app } from '../firebase';
+import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { orderConverter } from '../lib/converters';
+import { useAuth } from './AuthContext';
+
+export interface PlaceOrderParams {
+  shipping: any;
+  paymentMethod: PaymentMethod;
+  couponCode?: string;
+  deliverySpeed?: string;
+  items?: Array<{ productId: string; quantity: number; selectedOption?: string }>;
+}
+
+export interface OrdersContextType {
+  orders: Order[];
+  isLoadingOrders: boolean;
+  placeOrder: (params: PlaceOrderParams) => Promise<any>;
+}
+
+const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
+
+export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { firebaseUser, isAdminUser, isSellerUser, sellerId } = useAuth();
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const saved = localStorage.getItem('yallalb_orders');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [isLoadingOrders, setIsLoadingOrders] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED || !db || !firebaseUser) {
+      setIsLoadingOrders(false);
+      return;
+    }
+
+    try {
+      let q;
+      if (isAdminUser) {
+        q = query(collection(db, 'orders').withConverter(orderConverter), orderBy('date', 'desc'));
+      } else if (isSellerUser && sellerId) {
+        q = query(collection(db, 'orders').withConverter(orderConverter), where('sellerIds', 'array-contains', sellerId));
+      } else {
+        q = query(collection(db, 'orders').withConverter(orderConverter), where('userId', '==', firebaseUser.uid));
+      }
+
+      const unsub = onSnapshot(q, (snap) => {
+        setOrders(snap.docs.map(d => d.data()));
+        setIsLoadingOrders(false);
+      }, () => setIsLoadingOrders(false));
+
+      return () => unsub();
+    } catch {
+      setIsLoadingOrders(false);
+    }
+  }, [firebaseUser, isAdminUser, isSellerUser, sellerId]);
+
+  const placeOrder = async (params: PlaceOrderParams): Promise<any> => {
+    if (IS_FIREBASE_ENABLED && app) {
+      try {
+        const functions = getFunctions(app, 'europe-west1');
+        const placeOrderFn = httpsCallable<any, any>(functions, 'placeOrder');
+        const result = await placeOrderFn(params);
+        return result.data;
+      } catch (err: any) {
+        console.error('[OrdersContext] Cloud Function placeOrder failed:', err);
+        throw err;
+      }
+    } else {
+      // Local fallback
+      const mockOrder: Order = {
+        id: `ord-local-${Date.now()}`,
+        userId: firebaseUser?.uid || 'guest',
+        date: new Date().toISOString(),
+        trackingNumber: `LB-EXP-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+        status: 'pending',
+        items: [],
+        shipping: params.shipping || { fullName: '', phone: '', address: '', governorate: '', city: '', deliverySpeed: 'standard' },
+        paymentMethod: params.paymentMethod || 'cod_usd',
+        currency: 'USD',
+        subtotalUSD: 0,
+        deliveryFeeUSD: 0,
+        totalUSD: 0,
+        totalLBP: 0,
+        estimatedDelivery: '2-4 business days'
+      };
+      setOrders(prev => [mockOrder, ...prev]);
+      return mockOrder;
+    }
+  };
+
+  return (
+    <OrdersContext.Provider value={{
+      orders,
+      isLoadingOrders,
+      placeOrder
+    }}>
+      {children}
+    </OrdersContext.Provider>
+  );
+};
+
+export const useOrders = () => {
+  const context = useContext(OrdersContext);
+  if (!context) {
+    throw new Error('useOrders must be used within an OrdersProvider');
+  }
+  return context;
+};

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   ArrowUp, 
   ArrowDown, 
@@ -19,6 +19,7 @@ import {
   Mail
 } from 'lucide-react';
 import { SectionVisibilityConfig } from '../../../types';
+import { CMSConfirmModal } from './CMSConfirmModal';
 
 export const DEFAULT_HOME_SECTION_ORDER = [
   'homeHero',
@@ -133,6 +134,8 @@ export const CMSSectionReorder: React.FC<CMSSectionReorderProps> = ({
     return [...raw, ...missing];
   }, [order]);
 
+  const [showResetModal, setShowResetModal] = useState(false);
+
   const moveSection = (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= currentOrder.length) return;
@@ -144,14 +147,24 @@ export const CMSSectionReorder: React.FC<CMSSectionReorderProps> = ({
     onOrderChange(updated);
   };
 
-  const handleReset = () => {
-    if (confirm('Reset homepage sections to default recommended layout order?')) {
-      onOrderChange(DEFAULT_HOME_SECTION_ORDER);
-    }
+  const handleConfirmReset = () => {
+    onOrderChange(DEFAULT_HOME_SECTION_ORDER);
+    setShowResetModal(false);
   };
 
   return (
     <div className="bg-[#121222] border border-white/10 rounded-3xl p-6 space-y-4">
+      <CMSConfirmModal
+        isOpen={showResetModal}
+        title="Reset Homepage Section Order"
+        message="Are you sure you want to reset homepage sections back to the default recommended layout arrangement?"
+        confirmLabel="Reset Order"
+        cancelLabel="Cancel"
+        isDanger={false}
+        onConfirm={handleConfirmReset}
+        onCancel={() => setShowResetModal(false)}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-white/10">
         <div>
@@ -166,7 +179,7 @@ export const CMSSectionReorder: React.FC<CMSSectionReorderProps> = ({
 
         <button
           type="button"
-          onClick={handleReset}
+          onClick={() => setShowResetModal(true)}
           className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
         >
           <RotateCcw className="w-3.5 h-3.5" />

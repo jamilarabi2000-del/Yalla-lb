@@ -1,3 +1,4 @@
+import { safeHref } from '../../../lib/safeUrl';
 import React, { useState } from 'react';
 import { Image as ImageIcon, Upload, Check, Sparkles, X, ExternalLink, RefreshCw } from 'lucide-react';
 
@@ -82,6 +83,14 @@ export const LEBANESE_HERITAGE_PRESETS: HeritageAssetPreset[] = [
     titleAr: 'أباريق الزجاج اليدوي المنفوخ من الصرفند',
     url: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?auto=format&fit=crop&q=80&w=1200',
     aspect: '1:1'
+  },
+  {
+    id: 'craft-ceramic-pourover',
+    category: 'crafts',
+    title: 'Artisan Ceramic Coffee Server & Pour-Over Dripper',
+    titleAr: 'طقم تحضير القهوة السيراميكي الفاخر المصنوع يدوياً',
+    url: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80',
+    aspect: '4:3'
   },
   {
     id: 'heritage-cedars-forest',
@@ -226,7 +235,7 @@ export const MediaAssetPicker: React.FC<MediaAssetPickerProps> = ({
             </label>
             {value && (
               <a
-                href={value}
+                href={safeHref(value)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"

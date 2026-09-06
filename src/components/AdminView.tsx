@@ -16,13 +16,17 @@ import { ReviewsManager } from './admin/ReviewsManager';
 import { SearchAnalyticsView } from './admin/SearchAnalyticsView';
 import { DiscountsManager } from './admin/DiscountsManager';
 import { DatabaseActivityLogs } from './admin/DatabaseActivityLogs';
+import { OrdersRoute } from './admin/routes/OrdersRoute';
 import { PageCMSManager } from './PageCMSManager';
 import { ProductOrderRankWidget } from './admin/ProductOrderRankWidget';
 import { ProductsSequenceTableView } from './admin/ProductsSequenceTableView';
+import { OTPModal } from './OTPModal';
+import { SECRET_ADMIN_TOKEN } from '../config/portalSecurity';
 import { 
   downloadFullMasterReport,
   downloadSellerPerformanceReport,
-  downloadStockInventoryReport
+  downloadStockInventoryReport,
+  downloadOrdersReport
 } from '../utils/exportMasterReport';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
 import { checkDuplicateProductNumber } from '../lib/productValidation';
@@ -137,6 +141,13 @@ export const ADMIN_TAB_METAS: Record<AdminMenuTab, { path: string; title: string
     section: 'Store Operations',
     desc: 'Configure discount coupons, seasonal vouchers, and free shipping triggers',
     icon: '🏷️'
+  },
+  bundles: {
+    path: 'bundles',
+    title: 'Bundles & Combo Deals',
+    section: 'Store Operations',
+    desc: 'Create and manage multi-product gift sets, combo discounts, and promotional bundles',
+    icon: '🎁'
   },
   customers: {
     path: 'customers',
@@ -356,7 +367,7 @@ export const AdminView: React.FC = () => {
   const navigateAdminTab = (tab: AdminMenuTab) => {
     setCurrentTab(tab);
     const meta = ADMIN_TAB_METAS[tab] || ADMIN_TAB_METAS.ecommerce;
-    const targetUrl = tab === 'ecommerce' ? '/admin' : `/admin/${meta.path}`;
+    const targetUrl = tab === 'ecommerce' ? `/${SECRET_ADMIN_TOKEN}` : `/${SECRET_ADMIN_TOKEN}/${meta.path}`;
     if (typeof window !== 'undefined' && window.history && window.location.pathname !== targetUrl) {
       const currentDepth = (window.history.state && typeof window.history.state.depth === 'number')
         ? window.history.state.depth
@@ -445,6 +456,7 @@ export const AdminView: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [showAdminOtpModal, setShowAdminOtpModal] = useState(false);
 
   // Clear credentials on mount / session start to prevent unwanted autofill/saving
   useEffect(() => {
@@ -452,11 +464,6 @@ export const AdminView: React.FC = () => {
     setAdminPassword('');
     setLoginError(null);
   }, []);
-
-  // Orders State
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [orderSearchQuery, setOrderSearchQuery] = useState('');
-  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
 
   // Form State for new product
   const [newProduct, setNewProduct] = useState<{
@@ -527,11 +534,6 @@ export const AdminView: React.FC = () => {
   const { containerRef: editProductModalRef } = useDialog({
     isOpen: !!fullEditProduct,
     onClose: () => setFullEditProduct(null)
-  });
-
-  const { containerRef: invoiceModalRef } = useDialog({
-    isOpen: !!selectedInvoiceOrder,
-    onClose: () => setSelectedInvoiceOrder(null)
   });
 
   const addModalScrollRef = useRef(0);
@@ -763,23 +765,14 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
 
-          <form autoComplete="off" onSubmit={async (e) => {
+          <form autoComplete="off" onSubmit={(e) => {
             e.preventDefault();
-            setIsLoggingIn(true);
-            setLoginError(null);
-            try {
-              await signInWithEmail(adminEmail, adminPassword);
-            } catch (err: any) {
-              setAdminPassword('');
-              const msg =
-                err?.code === 'auth/network-request-failed'
-                  ? 'Network error — check your connection and try again.'
-                  : err?.code === 'auth/too-many-requests'
-                  ? 'Too many attempts. Wait a few minutes before retrying.'
-                  : 'Incorrect email or password.';
-              setLoginError(msg);
+            if (!adminEmail || !adminPassword) {
+              setLoginError('Please enter both admin email and password.');
+              return;
             }
-            setIsLoggingIn(false);
+            setLoginError(null);
+            setShowAdminOtpModal(true);
           }} className="space-y-4">
             <input type="hidden" name="remember" value="false" />
             
@@ -861,6 +854,35 @@ export const AdminView: React.FC = () => {
             </div>
           </form>
         </div>
+
+        {/* Security OTP Modal */}
+        <OTPModal
+          isOpen={showAdminOtpModal}
+          onClose={() => setShowAdminOtpModal(false)}
+          targetContact={adminEmail}
+          actionType="admin"
+          language="en"
+          onVerifySuccess={async () => {
+            setIsLoggingIn(true);
+            setLoginError(null);
+            try {
+              await signInWithEmail(adminEmail, adminPassword);
+              showToast('Admin login verified successfully!', 'success');
+            } catch (err: any) {
+              setAdminPassword('');
+              const msg =
+                err?.code === 'auth/network-request-failed'
+                  ? 'Network error — check your connection and try again.'
+                  : err?.code === 'auth/too-many-requests'
+                  ? 'Too many attempts. Wait a few minutes before retrying.'
+                  : 'Incorrect email or password.';
+              setLoginError(msg);
+              throw new Error(msg);
+            } finally {
+              setIsLoggingIn(false);
+            }
+          }}
+        />
       </div>
     );
   }
@@ -911,16 +933,6 @@ export const AdminView: React.FC = () => {
     await syncAllProductsToDatabase();
     setIsSyncingDb(false);
   };
-
-  const filteredOrders = orders.filter(o => {
-    const matchesStatus = filterStatus === 'all' || o.status === filterStatus;
-    const matchesSearch = !orderSearchQuery || 
-      o.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-      (o.shipping?.fullName || '').toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
-      (o.shipping?.phone || '').includes(orderSearchQuery) ||
-      (o.shipping?.city || '').toLowerCase().includes(orderSearchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
 
   // Product Sequence Ordering Handlers
   const handleMoveProductInCatalog = (productId: string, direction: 'up' | 'down' | 'top' | 'bottom') => {
@@ -1305,55 +1317,9 @@ export const AdminView: React.FC = () => {
     setSelectedProductIds(next);
   };
 
-  const handleCancelOrder = async (orderId: string) => {
-    const confirmed = window.confirm(`Are you sure you want to cancel order #${orderId}?`);
-    if (!confirmed) return;
-    try {
-      await updateOrderStatus(orderId, 'cancelled');
-      if (selectedInvoiceOrder && selectedInvoiceOrder.id === orderId) {
-        setSelectedInvoiceOrder({ ...selectedInvoiceOrder, status: 'cancelled' });
-      }
-      showToast(`Order #${orderId} was cancelled successfully.`, 'info');
-    } catch (err: any) {
-      showToast(`Failed to cancel order: ${err.message || err}`, 'warning');
-    }
-  };
-
   const handleDownloadOrdersReport = () => {
-    import('papaparse').then((Papa) => {
-      const dataToExport = filteredOrders.map(ord => ({
-        order_id: ord.id,
-        date: ord.date,
-        customer_name: ord.shipping?.fullName || 'Anonymous Shopper',
-        phone: ord.shipping?.phone || '',
-        email: ord.shipping?.email || '',
-        governorate: ord.shipping?.governorate || '',
-        city: ord.shipping?.city || '',
-        street_address: ord.shipping?.street || '',
-        building: ord.shipping?.building || '',
-        delivery_notes: ord.shipping?.deliveryNotes || '',
-        items_count: ord.items.reduce((s, i) => s + i.quantity, 0),
-        items_summary: ord.items.map(i => `${i.quantity}x ${i.product.name}`).join('; '),
-        subtotal_usd: (ord.subtotalUSD || 0).toFixed(2),
-        delivery_fee_usd: (ord.deliveryFeeUSD || 0).toFixed(2),
-        discount_usd: (ord.discountUSD || 0).toFixed(2),
-        total_usd: (ord.totalUSD || 0).toFixed(2),
-        payment_method: ord.paymentMethod,
-        status: ord.status
-      }));
-
-      const csv = Papa.unparse(dataToExport.map(sanitizeRowForCsv));
-      const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `yalla_orders_report_${new Date().toISOString().slice(0, 10)}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      showToast('Orders report downloaded successfully', 'success');
-    });
+    downloadOrdersReport(orders);
+    showToast('Orders report downloaded successfully', 'success');
   };
 
   const handleDownloadFullMasterReport = () => {
@@ -1801,213 +1767,7 @@ export const AdminView: React.FC = () => {
 
           {/* 2. Orders */}
           {currentTab === 'orders' && (
-            <div className="space-y-6">
-              
-              {/* Header */}
-              <div className="bg-white p-5 sm:p-7 rounded-3xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-indigo-600 shrink-0">
-                      <Truck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                        Orders & Courier Dispatch
-                      </h2>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        Manage customer orders, courier dispatch tracking, and delivery confirmations across Lebanon.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end shrink-0">
-                  <button
-                    onClick={handleDownloadOrdersReport}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200 shadow-2xs active:scale-95"
-                    title="Download Orders CSV Report"
-                  >
-                    <Download className="w-3.5 h-3.5 text-slate-600" />
-                    <span>Download Report</span>
-                  </button>
-                  <span className="px-3.5 py-2 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-200/60 shadow-2xs whitespace-nowrap">
-                    {orders.length} Total Orders
-                  </span>
-                </div>
-              </div>
-
-              {/* Filters */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4">
-                <div className="relative flex-1 min-w-0 sm:min-w-[280px]">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search by order ID, customer name, phone, city..."
-                    value={orderSearchQuery}
-                    onChange={(e) => setOrderSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 bg-white text-xs text-slate-900 placeholder-slate-400 rounded-2xl border border-slate-200 focus:outline-none focus:border-indigo-500 shadow-2xs transition-all"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2.5 shrink-0 justify-between sm:justify-start">
-                  <span className="text-xs text-slate-500 font-bold whitespace-nowrap">Status:</span>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-white text-xs font-semibold text-slate-900 border border-slate-200 rounded-2xl px-3.5 py-2.5 focus:outline-none focus:border-indigo-500 shadow-2xs cursor-pointer"
-                  >
-                    <option value="all">All Statuses ({orders.length})</option>
-                    <option value="pending">Pending</option>
-                    <option value="crafting">Crafting / Preparing</option>
-                    <option value="courier_assigned">Courier Assigned</option>
-                    <option value="in_transit">In Transit</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Orders Table */}
-              <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full text-left text-xs text-slate-700 min-w-[850px]">
-                    <thead className="bg-slate-50/90 text-[11px] uppercase font-black text-slate-500 tracking-wider border-b border-slate-100">
-                      <tr>
-                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Order ID</th>
-                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Customer</th>
-                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Delivery Location</th>
-                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Items Ordered</th>
-                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Total Amount</th>
-                        <th className="py-4 px-4 sm:px-5 whitespace-nowrap">Status</th>
-                        <th className="py-4 px-4 sm:px-5 text-right whitespace-nowrap">Dispatch Control</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredOrders.map((ord) => (
-                        <tr key={ord.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-4 px-4 sm:px-5 whitespace-nowrap">
-                            <button
-                              onClick={() => setSelectedInvoiceOrder(ord)}
-                              className="font-mono font-black text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer text-left block"
-                              title="Click to view full order details"
-                            >
-                              #{ord.id}
-                            </button>
-                            <div className="text-[10px] text-slate-400 font-sans font-medium mt-0.5">{ord.date}</div>
-                          </td>
-
-                          <td className="py-4 px-4 sm:px-5">
-                            <button
-                              onClick={() => setSelectedInvoiceOrder(ord)}
-                              className="font-bold text-slate-900 hover:text-indigo-600 text-left cursor-pointer block truncate max-w-[180px]"
-                              title={ord.shipping?.fullName || 'Anonymous Shopper'}
-                            >
-                              {ord.shipping?.fullName || 'Anonymous Shopper'}
-                            </button>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 font-medium whitespace-nowrap">
-                              <span>{ord.shipping?.phone || 'No phone'}</span>
-                            </div>
-                          </td>
-
-                          <td className="py-4 px-4 sm:px-5">
-                            <div className="font-bold text-slate-800 whitespace-nowrap">{ord.shipping?.city || 'No city'}</div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[180px] mt-0.5" title={ord.shipping?.street || 'No address'}>
-                              {ord.shipping?.street || 'No address'}
-                            </div>
-                          </td>
-
-                          <td className="py-4 px-4 sm:px-5">
-                            <div className="font-bold text-slate-900 whitespace-nowrap">
-                              {ord.items.reduce((s, i) => s + i.quantity, 0)} Units
-                            </div>
-                            <div className="text-[11px] text-slate-500 truncate max-w-[200px] mt-0.5" title={ord.items.map(i => `${i.quantity}x ${i.product.name}`).join(', ')}>
-                              {ord.items.map(i => `${i.quantity}x ${i.product.name}`).join(', ')}
-                            </div>
-                          </td>
-
-                          <td className="py-4 px-4 sm:px-5 whitespace-nowrap">
-                            <div className="font-black text-slate-900 text-sm">
-                              {formatPrice(ord.totalUSD)}
-                            </div>
-                            <div className="text-[10px] text-slate-400 uppercase font-bold mt-0.5">
-                              {ord.paymentMethod.replace(/_/g, ' ')}
-                            </div>
-                          </td>
-
-                          <td className="py-4 px-4 sm:px-5 whitespace-nowrap">
-                            <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              ord.status === 'delivered'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : ord.status === 'cancelled'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : ord.status === 'in_transit' || ord.status === 'courier_assigned'
-                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}>
-                              {ord.status.replace(/_/g, ' ')}
-                            </span>
-                          </td>
-
-                          <td className="py-4 px-4 sm:px-5 text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5 shrink-0">
-                              <select
-                                value={ord.status}
-                                onChange={(e) => updateOrderStatus(ord.id, e.target.value as OrderStatus)}
-                                className="bg-slate-50 text-xs font-bold text-slate-800 border border-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
-                              >
-                                <option value="pending">Pending</option>
-                                <option value="confirmed">Confirmed</option>
-                                <option value="crafting">Crafting / Preparing</option>
-                                <option value="courier_assigned">Courier Assigned</option>
-                                <option value="in_transit">In Transit</option>
-                                <option value="delivered">Delivered</option>
-                                <option value="cancelled">Cancelled</option>
-                              </select>
-
-                              {/* View Order Details */}
-                              <button
-                                onClick={() => setSelectedInvoiceOrder(ord)}
-                                className="p-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 transition-colors cursor-pointer active:scale-95 flex items-center gap-1 shrink-0"
-                                title="See Full Order Details"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </button>
-
-                              {/* Print Invoice */}
-                              <button
-                                onClick={() => setSelectedInvoiceOrder(ord)}
-                                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer active:scale-95 shrink-0"
-                                title="View / Print Order Invoice"
-                              >
-                                <FileText className="w-4 h-4" />
-                              </button>
-
-                              {/* Cancel Order Button */}
-                              {ord.status !== 'cancelled' && ord.status !== 'delivered' && (
-                                <button
-                                  onClick={() => handleCancelOrder(ord.id)}
-                                  className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200/60 transition-colors cursor-pointer active:scale-95 shrink-0"
-                                  title="Cancel Order"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {filteredOrders.length === 0 && (
-                  <div className="text-center py-12 text-slate-400 text-xs font-medium">
-                    No orders match your filter criteria.
-                  </div>
-                )}
-              </div>
-
-            </div>
+            <OrdersRoute />
           )}
 
           {/* 3. Products Catalog */}
@@ -2766,7 +2526,12 @@ export const AdminView: React.FC = () => {
 
           {/* Discounts & Promos */}
           {currentTab === 'discounts' && (
-            <DiscountsManager />
+            <DiscountsManager initialTab="rules" />
+          )}
+
+          {/* Bundles & Combo Deals */}
+          {currentTab === 'bundles' && (
+            <DiscountsManager initialTab="bundles" />
           )}
 
           {/* 5. Customers */}
@@ -2790,7 +2555,7 @@ export const AdminView: React.FC = () => {
           {/* 7. Pages CMS & Individual Page Sections */}
           {currentTab === 'pages_cms' && (
             <div className="space-y-6">
-              <PageCMSManager initialTab="visibility" />
+              <PageCMSManager initialTab="home" />
             </div>
           )}
 
@@ -4761,220 +4526,6 @@ export const AdminView: React.FC = () => {
           </div>
         );
       })()}
-
-      {/* Invoice & Order Details Modal */}
-      {selectedInvoiceOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div 
-            ref={invoiceModalRef}
-            role="dialog"
-            aria-modal="true"
-            tabIndex={-1}
-            className="bg-white max-w-2xl w-full p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto focus:outline-hidden"
-          >
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-black text-slate-900">Order Details & Invoice Inspector</h3>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                    selectedInvoiceOrder.status === 'delivered'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : selectedInvoiceOrder.status === 'cancelled'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}>
-                    {selectedInvoiceOrder.status.replace(/_/g, ' ')}
-                  </span>
-                </div>
-                <p className="text-xs text-[#4f46e5] font-mono font-bold mt-1">Order ID: #{selectedInvoiceOrder.id} • Placed on {selectedInvoiceOrder.date}</p>
-              </div>
-              <button 
-                onClick={() => setSelectedInvoiceOrder(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-800 font-bold cursor-pointer transition-all"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Quick Status Control */}
-            <div className="flex items-center justify-between p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 text-xs">
-              <span className="font-bold text-indigo-950">Update Fulfillment Status:</span>
-              <select
-                value={selectedInvoiceOrder.status}
-                onChange={async (e) => {
-                  const newStatus = e.target.value as OrderStatus;
-                  await updateOrderStatus(selectedInvoiceOrder.id, newStatus);
-                  setSelectedInvoiceOrder({ ...selectedInvoiceOrder, status: newStatus });
-                }}
-                className="bg-white text-xs font-bold text-slate-800 border border-indigo-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs"
-              >
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="crafting">Crafting / Preparing</option>
-                <option value="courier_assigned">Courier Assigned</option>
-                <option value="in_transit">In Transit</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                <h4 className="font-bold uppercase text-[10px] tracking-wider text-slate-400 mb-1">Customer & Recipient</h4>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Name:</span>
-                  <span className="font-bold text-slate-900">{selectedInvoiceOrder.shipping?.fullName || 'Anonymous Shopper'}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Phone:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-slate-900">{selectedInvoiceOrder.shipping?.phone || 'No phone'}</span>
-                    {selectedInvoiceOrder.shipping?.phone && (
-                      <a
-                        href={`https://wa.me/${selectedInvoiceOrder.shipping.phone.replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors inline-flex items-center gap-1"
-                        title="Chat on WhatsApp"
-                      >
-                        <MessageSquare className="w-3 h-3" />
-                        <span>WhatsApp</span>
-                      </a>
-                    )}
-                  </div>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Payment:</span>
-                  <span className="font-bold uppercase text-indigo-600">{selectedInvoiceOrder.paymentMethod.replace(/_/g, ' ')}</span>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                <h4 className="font-bold uppercase text-[10px] tracking-wider text-slate-400 mb-1">Delivery Address</h4>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Governorate:</span>
-                  <span className="font-bold text-slate-900 uppercase">{selectedInvoiceOrder.shipping?.governorate || 'Lebanon'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">City / Town:</span>
-                  <span className="font-bold text-slate-900">{selectedInvoiceOrder.shipping?.city || 'Beirut'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Street / Bldg:</span>
-                  <span className="font-medium text-slate-900 truncate max-w-[150px]">{selectedInvoiceOrder.shipping?.street}, {selectedInvoiceOrder.shipping?.building || ''}</span>
-                </div>
-                {selectedInvoiceOrder.shipping?.deliveryNotes && (
-                  <div className="pt-1 text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
-                    <span className="font-bold">Notes:</span> {selectedInvoiceOrder.shipping.deliveryNotes}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Ordered Items ({selectedInvoiceOrder.items.reduce((s, i) => s + i.quantity, 0)})</h4>
-              <div className="divide-y divide-slate-100 max-h-60 overflow-y-auto pr-1">
-                {selectedInvoiceOrder.items.map((item) => (
-                  <div key={item.product.id} className="py-3 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-3">
-                      <img 
-                        src={item.product.image} 
-                        alt={item.product.name} 
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0" 
-                        referrerPolicy="no-referrer"
-                      />
-                      <div>
-                        <div className="font-bold text-slate-900">{item.product.name}</div>
-                        <div className="text-[11px] text-slate-500">
-                          Seller: <span className="font-semibold text-indigo-700">{item.product.seller || item.product.artisan || 'Local Producer'}</span> • Qty: {item.quantity} × {formatPrice(item.product.priceUSD)}
-                        </div>
-                      </div>
-                    </div>
-                    <span className="font-black text-slate-900">{formatPrice(item.product.priceUSD * item.quantity)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1.5 text-xs">
-              <div className="flex justify-between text-slate-600">
-                <span>Subtotal</span>
-                <span className="font-bold">{formatPrice(selectedInvoiceOrder.subtotalUSD)}</span>
-              </div>
-              <div className="flex justify-between text-slate-600">
-                <span>Delivery Fee</span>
-                <span className="font-bold">{formatPrice(selectedInvoiceOrder.deliveryFeeUSD)}</span>
-              </div>
-              {selectedInvoiceOrder.discountUSD && selectedInvoiceOrder.discountUSD > 0 && (
-                <div className="flex justify-between text-emerald-600 font-bold">
-                  <span>Discount ({selectedInvoiceOrder.appliedCoupon || 'Promo'})</span>
-                  <span>-{formatPrice(selectedInvoiceOrder.discountUSD)}</span>
-                </div>
-              )}
-              <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-sm font-black text-slate-900">
-                <span>Total Due on Delivery (COD):</span>
-                <span className="text-[#4f46e5] text-base">{formatPrice(selectedInvoiceOrder.totalUSD)}</span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex flex-wrap items-center justify-between gap-2.5">
-              <div>
-                {selectedInvoiceOrder.status === 'delivered' ? (
-                  <span className="text-xs text-emerald-600 font-bold flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span>This order has been delivered (cannot be cancelled or deleted)</span>
-                  </span>
-                ) : selectedInvoiceOrder.status === 'cancelled' ? (
-                  <span className="text-xs text-rose-600 font-bold flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-3 py-2 rounded-xl">
-                    <XCircle className="w-4 h-4 text-rose-600" />
-                    <span>This order has been cancelled</span>
-                  </span>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleCancelOrder(selectedInvoiceOrder.id)}
-                      className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
-                      title="Cancel this order"
-                    >
-                      <XCircle className="w-4 h-4 text-rose-600" />
-                      <span>Cancel Order</span>
-                    </button>
-                    <button
-                      onClick={async (e) => { e.stopPropagation();
-                        if (confirm(`Are you sure you want to PERMANENTLY delete order #${selectedInvoiceOrder.id}?`)) {
-                          await deleteOrder(selectedInvoiceOrder.id);
-                          setSelectedInvoiceOrder(null);
-                        }
-                      }}
-                      className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-95"
-                      title="Delete this order permanently"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete Order</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setSelectedInvoiceOrder(null)}
-                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer transition-all"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={() => window.print()}
-                  className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all active:scale-95"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>Print Invoice</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

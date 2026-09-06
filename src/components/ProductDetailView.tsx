@@ -609,13 +609,13 @@ export const ProductDetailView: React.FC = () => {
 
             {/* Description & Craft Story */}
             <div className="space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
-              <p>{product.description}</p>
+              <p className="whitespace-pre-line">{product.description}</p>
               {product.craftStory && (
                 <div className="mt-4 p-4 rounded-2xl bg-[#fdfbf7] border border-[#f5ece1] text-[#785b28] space-y-1.5">
                   <h4 className="font-bold text-xs uppercase tracking-wider text-[#a37f35]">
                     {siteContent.productDetailPage?.craftStoryTitle ?? 'Artisan Workshop & Provenance'}
                   </h4>
-                  <p className="text-xs leading-relaxed italic">{product.craftStory}</p>
+                  <p className="text-xs leading-relaxed italic whitespace-pre-line">{product.craftStory}</p>
                 </div>
               )}
             </div>
