@@ -5,10 +5,62 @@ import { doc, setDoc, getDoc, getDocs, collection, query, where } from 'firebase
 import { beforeAll, afterAll, test } from 'vitest';
 
 let env: any;
+
+const validProduct = {
+  id: 'p-order',
+  name: 'Test Product',
+  priceUSD: 10,
+  stock: 10,
+};
+
+const validOrder = (id: string) => ({
+  id,
+  userId: 'cust-1',
+  sellerIds: [],
+  productIds: ['p-order'],
+  date: '2026-09-07',
+  items: [
+    {
+      quantity: 1,
+      product: {
+        id: 'p-order',
+        priceUSD: 10,
+      },
+    },
+  ],
+  shipping: {
+    fullName: 'Test Customer',
+    deliveryNotes: '',
+  },
+  paymentMethod: 'cod_usd',
+  currency: 'USD',
+  subtotalUSD: 10,
+  deliveryFeeUSD: 0,
+  totalUSD: 10,
+  totalLBP: 0,
+  status: 'pending',
+  estimatedDelivery: '',
+  trackingNumber: 'TEST-001',
+  discountUSD: 0,
+  appliedCoupon: '',
+  notes: '',
+  customerNote: '',
+  adminNotes: '',
+  createdAt: '2026-09-07',
+  updatedAt: '2026-09-07',
+});
+
 beforeAll(async () => {
   env = await initializeTestEnvironment({
     projectId: 'yalla-lb-test',
     firestore: { rules: readFileSync('firestore.rules', 'utf8') },
+  });
+
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(
+      doc(ctx.firestore(), 'products', 'p-order'),
+      validProduct
+    );
   });
 });
 afterAll(() => env.cleanup());
@@ -21,16 +73,25 @@ const admin = () => env.authenticatedContext('admin-1', {
 }).firestore();
 
 // ── Regression 1: v3 — status mismatch silently rejected every order ──────────
-test('customer can create an order with status pending', async () => {
-  await assertSucceeds(setDoc(doc(customer(), 'orders', 'o1'), {
-    userId: 'cust-1', status: 'pending', subtotalUSD: 42, deliveryFeeUSD: 0, totalUSD: 42, items: [], shipping: {},
-  }));
+test('customer can create a valid order with status pending', async () => {
+  await assertSucceeds(
+    setDoc(
+      doc(customer(), 'orders', 'o1'),
+      validOrder('o1')
+    )
+  );
 });
 
 test('customer cannot create a pre-advanced order', async () => {
-  await assertFails(setDoc(doc(customer(), 'orders', 'o2'), {
-    userId: 'cust-1', status: 'crafting', subtotalUSD: 42, deliveryFeeUSD: 0, totalUSD: 42, items: [], shipping: {},
-  }));
+  await assertFails(
+    setDoc(
+      doc(customer(), 'orders', 'o2'),
+      {
+        ...validOrder('o2'),
+        status: 'crafting',
+      }
+    )
+  );
 });
 
 // ── Regression 2: v5 — stock rule let any signed-in user zero the catalog ─────
@@ -46,9 +107,12 @@ test('customer cannot decrement product stock', async () => {
 // inside the order transaction, this catches it before deploy.
 test('customer order path performs no product writes', async () => {
   await assertFails(setDoc(doc(customer(), 'products', 'p1'), { stock: 4 }, { merge: true }));
-  await assertSucceeds(setDoc(doc(customer(), 'orders', 'o3'), {
-    userId: 'cust-1', status: 'pending', subtotalUSD: 10, deliveryFeeUSD: 0, totalUSD: 10, items: [], shipping: {},
-  }));
+  await assertSucceeds(
+    setDoc(
+      doc(customer(), 'orders', 'o3'),
+      validOrder('o3')
+    )
+  );
 });
 
 // ── Standing authorization invariants ────────────────────────────────────────
@@ -104,4 +168,116 @@ test('unauthenticated user cannot write search_logs', async () => {
   await assertFails(setDoc(doc(unauthenticated(), 'search_logs', 's1'), { query: 'olive oil' }));
   await assertSucceeds(setDoc(doc(customer(), 'search_logs', 's2'), { userId: 'cust-1', query: 'soap' }));
 });
+
+// ── Adversarial Attack Tests ─────────────────────────────────────────────────
+
+// 1. Discount manipulation
+test('adversarial: customer cannot arbitrarily inflate discountUSD to create a free order', async () => {
+  await assertFails(
+    setDoc(
+      doc(customer(), 'orders', 'o-discount-attack'),
+      {
+        ...validOrder('o-discount-attack'),
+        discountUSD: 10,
+        totalUSD: 0,
+      }
+    )
+  );
+});
+
+// 2. Fake review creation without purchase
+test('adversarial: customer cannot review a product they never purchased', async () => {
+  await assertFails(
+    setDoc(
+      doc(customer(), 'reviews', 'cust-1_unbought-prod'),
+      {
+        id: 'cust-1_unbought-prod',
+        userId: 'cust-1',
+        userName: 'Attacker',
+        productId: 'unbought-prod',
+        orderId: 'o1',
+        rating: 5,
+        comment: 'Fake positive review',
+        createdAt: '2026-09-07',
+        date: '2026-09-07',
+      }
+    )
+  );
+});
+
+// 3. Order / productIds mismatch attack
+test('adversarial: customer cannot create order where product in items is missing from productIds', async () => {
+  await assertFails(
+    setDoc(
+      doc(customer(), 'orders', 'o-mismatch'),
+      {
+        ...validOrder('o-mismatch'),
+        productIds: ['another-product-id'], // mismatch
+      }
+    )
+  );
+});
+
+// 4. Seller impersonation / cross-seller modification
+test('adversarial: seller cannot modify another seller profile', async () => {
+  const sellerA = env.authenticatedContext('user-seller-a', {
+    email: 'sellera@example.com', email_verified: true,
+  }).firestore();
+
+  // Create seller documents
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'sellers', 'seller-a'), {
+      id: 'seller-a',
+      accountUid: 'user-seller-a',
+      nameEn: 'Seller A',
+      sellerCode: 'SELLER-A',
+    });
+    await setDoc(doc(ctx.firestore(), 'sellers', 'seller-b'), {
+      id: 'seller-b',
+      accountUid: 'user-seller-b',
+      nameEn: 'Seller B',
+      sellerCode: 'SELLER-B',
+    });
+  });
+
+  // Seller A tries to modify Seller B profile
+  await assertFails(
+    setDoc(
+      doc(sellerA, 'sellers', 'seller-b'),
+      { nameEn: 'Defaced by Seller A' },
+      { merge: true }
+    )
+  );
+});
+
+// 5. User security-field manipulation
+test('adversarial: customer cannot grant themselves admin role or alter emailVerified in user profile', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'users', 'cust-1'), {
+      uid: 'cust-1',
+      name: 'Customer 1',
+      role: 'customer',
+      emailVerified: false,
+    });
+  });
+
+  // Customer tries to elevate role
+  await assertFails(
+    setDoc(
+      doc(customer(), 'users', 'cust-1'),
+      { role: 'admin' },
+      { merge: true }
+    )
+  );
+
+  // Customer tries to alter emailVerified
+  await assertFails(
+    setDoc(
+      doc(customer(), 'users', 'cust-1'),
+      { emailVerified: true },
+      { merge: true }
+    )
+  );
+});
+
 

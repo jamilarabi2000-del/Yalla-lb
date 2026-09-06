@@ -119,14 +119,12 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly([
         'id', 'name', 'arabicName', 'artisan', 'seller', 'arabicSeller',
         'sellerId', 'sellerActive', 'origin', 'category', 'priceUSD',
-        'originalPriceUSD', 'discountPercentage', 'rating', 'reviewsCount',
-        'image', 'additionalImages', 'videoUrl', 'additionalVideos', 'videos',
-        'description', 'craftStory', 'stock', 'isNewArrival', 'isFeatured',
-        'isBestseller', 'isPublished', 'displayOrder', 'tags', 'keywords',
-        'arabicKeywords', 'seoTitle', 'seoArabicTitle', 'seoDescription',
-        'seoArabicDescription', 'weightOrVolume', 'sellerItemCode',
-        'lowStockThreshold', 'lowStockNotice', 'customStockLabel',
-        'createdAt', 'updatedAt'
+        'originalPriceUSD', 'image', 'additionalImages', 'videoUrl',
+        'additionalVideos', 'videos', 'description', 'craftStory', 'stock',
+        'isPublished', 'tags', 'keywords', 'arabicKeywords', 'seoTitle',
+        'seoArabicTitle', 'seoDescription', 'seoArabicDescription',
+        'weightOrVolume', 'sellerItemCode', 'lowStockThreshold',
+        'lowStockNotice', 'customStockLabel', 'createdAt', 'updatedAt'
       ]);
     }
 
@@ -439,8 +437,6 @@ service cloud.firestore {
         'defaultAddress',
         'defaultBuilding',
         'defaultNotes',
-        'emailVerified',
-        'isOtpVerified',
         'ordersPlaced',
         'updatedAt',
         'createdAt'
@@ -559,10 +555,14 @@ service cloud.firestore {
     function orderItemOk(i) {
       let it = request.resource.data.items[i];
 
-      return it.quantity is number
+      return it is map
+        && it.quantity is number
         && it.quantity > 0
         && it.quantity <= 99
         && it.quantity == math.floor(it.quantity)
+        && it.product is map
+        && it.product.id is string
+        && request.resource.data.productIds is list
         && request.resource.data.productIds.hasAny([it.product.id])
         && it.product.priceUSD ==
            get(
@@ -590,19 +590,17 @@ service cloud.firestore {
     }
 
     function orderItemsOk() {
-      let n = request.resource.data.items.size();
-
       return request.resource.data.items is list
-        && n >= 1
-        && n <= 8
+        && request.resource.data.items.size() >= 1
+        && request.resource.data.items.size() <= 8
         && orderItemOk(0)
-        && (n < 2 || orderItemOk(1))
-        && (n < 3 || orderItemOk(2))
-        && (n < 4 || orderItemOk(3))
-        && (n < 5 || orderItemOk(4))
-        && (n < 6 || orderItemOk(5))
-        && (n < 7 || orderItemOk(6))
-        && (n < 8 || orderItemOk(7));
+        && (request.resource.data.items.size() < 2 || orderItemOk(1))
+        && (request.resource.data.items.size() < 3 || orderItemOk(2))
+        && (request.resource.data.items.size() < 4 || orderItemOk(3))
+        && (request.resource.data.items.size() < 5 || orderItemOk(4))
+        && (request.resource.data.items.size() < 6 || orderItemOk(5))
+        && (request.resource.data.items.size() < 7 || orderItemOk(6))
+        && (request.resource.data.items.size() < 8 || orderItemOk(7));
     }
 
     function orderShippingOk() {
