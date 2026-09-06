@@ -35,23 +35,26 @@ service cloud.firestore {
 
     function isVerified() {
       return isSignedIn()
-        && request.auth.token.get('email_verified', false) == true;
+        && 'email_verified' in request.auth.token
+        && request.auth.token.email_verified == true;
     }
 
     // Admin authorization:
     // 1. Firebase custom admin claim
     // 2. Explicit verified platform-admin email
     // 3. Admin registry document
-    //
-    // .get() is used for optional token claims so users without an `admin`
-    // claim do not cause "Property admin is undefined" rule evaluation errors.
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.get('admin', false) == true
+        (
+          'admin' in request.auth.token
+          && request.auth.token.admin == true
+        )
         ||
         (
-          request.auth.token.get('email', '') == 'jamilarabi2000@gmail.com'
-          && request.auth.token.get('email_verified', false) == true
+          'email' in request.auth.token
+          && request.auth.token.email == 'jamilarabi2000@gmail.com'
+          && 'email_verified' in request.auth.token
+          && request.auth.token.email_verified == true
         )
         ||
         exists(
@@ -853,6 +856,8 @@ service cloud.firestore {
       allow read: if isAdmin();
 
       allow create: if isSignedIn()
+        && 'userId' in request.resource.data
+        && request.resource.data.userId == request.auth.uid
         && request.resource.data.keys().hasOnly([
           'id',
           'query',
@@ -867,31 +872,28 @@ service cloud.firestore {
           'filterRegion',
           'createdAt'
         ])
-        && request.resource.data.get('query', '') is string
-        && request.resource.data.get('query', '').size() > 0
-        && request.resource.data.get('query', '').size() <= 200
-        && request.resource.data.get('userId', '') == request.auth.uid
+        && request.resource.data.query is string
+        && request.resource.data.query.size() > 0
+        && request.resource.data.query.size() <= 200
         && (
           !('userEmail' in request.resource.data)
-          || request.resource.data.get('userEmail', '') == request.auth.token.get('email', '')
+          || (
+            'email' in request.auth.token
+            && request.resource.data.userEmail == request.auth.token.email
+          )
         )
-        && boundedString(
-          request.resource.data.get('userName', ''),
-          120
+        && (
+          !('userName' in request.resource.data)
+          || boundedString(request.resource.data.userName, 120)
         )
-        && boundedString(
-          request.resource.data.get('timestamp', ''),
-          40
+        && (
+          !('timestamp' in request.resource.data)
+          || boundedString(request.resource.data.timestamp, 40)
         )
-        && request.resource.data.get(
-          'origin',
-          'direct'
-        ) in [
-          'navbar',
-          'products_page',
-          'mobile_menu',
-          'direct'
-        ];
+        && (
+          !('origin' in request.resource.data)
+          || request.resource.data.origin in ['navbar', 'products_page', 'mobile_menu', 'direct']
+        );
 
       allow update, delete: if isAdmin();
     }

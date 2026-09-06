@@ -102,6 +102,6 @@ test('phone_registry is not publicly readable', async () => {
 
 test('unauthenticated user cannot write search_logs', async () => {
   await assertFails(setDoc(doc(unauthenticated(), 'search_logs', 's1'), { query: 'olive oil' }));
-  await assertSucceeds(setDoc(doc(customer(), 'search_logs', 's2'), { query: 'soap' }));
+  await assertSucceeds(setDoc(doc(customer(), 'search_logs', 's2'), { userId: 'cust-1', query: 'soap' }));
 });
 
