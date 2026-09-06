@@ -93,8 +93,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
 
     match /test/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -113,6 +112,21 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 250;
     }
 
+    function sellerProductPayloadOk() {
+      return request.resource.data.keys().hasOnly([
+        'id', 'name', 'arabicName', 'artisan', 'seller', 'arabicSeller',
+        'sellerId', 'sellerActive', 'origin', 'category', 'priceUSD',
+        'originalPriceUSD', 'discountPercentage', 'rating', 'reviewsCount',
+        'image', 'additionalImages', 'videoUrl', 'additionalVideos', 'videos',
+        'description', 'craftStory', 'stock', 'isNewArrival', 'isFeatured',
+        'isBestseller', 'isPublished', 'displayOrder', 'tags', 'keywords',
+        'arabicKeywords', 'seoTitle', 'seoArabicTitle', 'seoDescription',
+        'seoArabicDescription', 'weightOrVolume', 'sellerItemCode',
+        'lowStockThreshold', 'lowStockNotice', 'customStockLabel',
+        'createdAt', 'updatedAt'
+      ]);
+    }
+
     match /products/{productId} {
       allow read: if true;
 
@@ -120,6 +134,7 @@ service cloud.firestore {
         || (
           isSeller()
           && request.resource.data.get('sellerId', '') == getSellerId()
+          && sellerProductPayloadOk()
           && productShapeOk()
         );
 
@@ -128,6 +143,7 @@ service cloud.firestore {
           isSeller()
           && resource.data.get('sellerId', '') == getSellerId()
           && request.resource.data.get('sellerId', '') == getSellerId()
+          && sellerProductPayloadOk()
           && productShapeOk()
         );
 
@@ -163,6 +179,8 @@ service cloud.firestore {
 
     function sellerSelfEditableKeys() {
       return [
+        'id',
+        'sellerCode',
         'nameEn',
         'nameAr',
         'bio',
@@ -197,6 +215,7 @@ service cloud.firestore {
         || (
           isSeller()
           && sellerId == getSellerId()
+          && request.resource.data.get('id', sellerId) == getSellerId()
           && noPrivateSellerFields()
           && request.resource.data.diff(resource.data)
                .affectedKeys()
@@ -403,12 +422,35 @@ service cloud.firestore {
            resource.data.get('ordersPlaced', 0) + 1;
     }
 
+    function userSelfEditableKeys() {
+      return [
+        'uid',
+        'name',
+        'firstName',
+        'lastName',
+        'email',
+        'phone',
+        'avatar',
+        'defaultGovernorate',
+        'defaultCity',
+        'defaultAddress',
+        'defaultBuilding',
+        'defaultNotes',
+        'emailVerified',
+        'isOtpVerified',
+        'ordersPlaced',
+        'updatedAt',
+        'createdAt'
+      ];
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
 
       allow create: if (
           isOwner(userId)
           && request.resource.data.get('uid', '') == userId
+          && request.resource.data.keys().hasOnly(userSelfEditableKeys())
           && !request.resource.data.keys().hasAny([
             'role',
             'sellerId',
@@ -420,6 +462,9 @@ service cloud.firestore {
 
       allow update: if (
           isOwner(userId)
+          && request.resource.data.diff(resource.data)
+               .affectedKeys()
+               .hasOnly(userSelfEditableKeys())
           && !request.resource.data.diff(resource.data)
                .affectedKeys()
                .hasAny([
@@ -515,6 +560,7 @@ service cloud.firestore {
         && it.quantity > 0
         && it.quantity <= 99
         && it.quantity == math.floor(it.quantity)
+        && request.resource.data.productIds.hasAny([it.product.id])
         && it.product.priceUSD ==
            get(
              /databases/$(database)/documents/products/$(it.product.id)
@@ -613,6 +659,9 @@ service cloud.firestore {
         && d.get('status', '') == 'pending'
         && d.get('userId', '') == request.auth.uid
         && d.get('trackingNumber', '') is string
+        && 'productIds' in d
+        && d.productIds is list
+        && d.productIds.size() >= 1
         && d.get('totalLBP', 0) is number
         && d.get('totalLBP', 0) >= 0
         && d.get('paymentMethod', '') in [
@@ -695,10 +744,9 @@ service cloud.firestore {
       ).data;
 
       return order.get('userId', '') == request.auth.uid
-        && (
-          !('productIds' in order)
-          || order.productIds.hasAny([productId])
-        );
+        && 'productIds' in order
+        && order.productIds is list
+        && order.productIds.hasAny([productId]);
     }
 
     function reviewBodyOk() {
@@ -784,11 +832,13 @@ service cloud.firestore {
     }
 
     match /audit_logs/{logId} {
-      allow read, write: if isAdmin();
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /inventory_logs/{logId} {
-      allow read, write: if isAdmin();
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
     }
 
     match /admin_config/{docId} {
@@ -821,9 +871,9 @@ service cloud.firestore {
         && request.resource.data.get('query', '').size() > 0
         && request.resource.data.get('query', '').size() <= 200
         && request.resource.data.get('userId', '') == request.auth.uid
-        && boundedString(
-          request.resource.data.get('userEmail', ''),
-          254
+        && (
+          !('userEmail' in request.resource.data)
+          || request.resource.data.get('userEmail', '') == request.auth.token.get('email', '')
         )
         && boundedString(
           request.resource.data.get('userName', ''),
