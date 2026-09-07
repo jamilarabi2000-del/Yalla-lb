@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { secureRandomInt } from '../utils/uuid';
 import { sanitizeRowForCsv } from '../utils/csvSafe';
 import { useShop } from '../context/ShopContext';
 import { useDialog } from '../hooks/useDialog';
@@ -523,7 +524,7 @@ export const AdminView: React.FC = () => {
     keywordsInput: 'lebanese, artisanal, authentic, gourmet',
     arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
     newArabicKeywordInput: '',
-    sellerItemCode: 'SIC-' + Math.floor(100000 + Math.random() * 900000)
+    sellerItemCode: 'SIC-' + secureRandomInt(100000, 1000000)
   });
 
   const { containerRef: addProductModalRef } = useDialog({
@@ -1124,7 +1125,7 @@ export const AdminView: React.FC = () => {
       seoTitle: `${newProduct.name} | Authentic Lebanese Goods`,
       seoArabicTitle: `${newProduct.arabicName || newProduct.name} | يلا ع لبنان`,
       seoDescription: newProduct.description || 'Authentic Lebanese craft and mouneh delivered globally.',
-      sellerItemCode: newProduct.sellerItemCode || ('SIC-' + Math.floor(100000 + Math.random() * 900000))
+      sellerItemCode: newProduct.sellerItemCode || ('SIC-' + secureRandomInt(100000, 1000000))
     };
 
     try {
@@ -1164,7 +1165,7 @@ export const AdminView: React.FC = () => {
         keywordsInput: 'lebanese, artisanal, authentic, gourmet',
         arabicKeywords: ['مونة بلدية', 'منتجات لبنانية أصيلة'],
         newArabicKeywordInput: '',
-        sellerItemCode: 'SIC-' + Math.floor(100000 + Math.random() * 900000)
+        sellerItemCode: 'SIC-' + secureRandomInt(100000, 1000000)
       });
       setIsAddModalOpen(false);
     } catch {

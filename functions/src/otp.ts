@@ -171,12 +171,9 @@ export const requestOtp = onCall(
       if (!request.auth?.uid) {
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
-      const uid = request.auth.uid;
       const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
-      const adminDoc = await db.collection('admins').doc(uid).get();
-      const isAdminRegistry = adminDoc.exists;
 
-      if (!isCustomClaimAdmin && !isAdminRegistry) {
+      if (!isCustomClaimAdmin) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
       }
     }
@@ -185,14 +182,9 @@ export const requestOtp = onCall(
       if (!request.auth?.uid) {
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
-      const uid = request.auth.uid;
       const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
-      const sellerDoc = await db.collection('sellers').doc(uid).get();
-      const isSellerRegistry = sellerDoc.exists;
-      const userDoc = await db.collection('users').doc(uid).get();
-      const isDbSeller = userDoc.exists && userDoc.data()?.role === 'seller';
 
-      if (!isCustomClaimSeller && !isSellerRegistry && !isDbSeller) {
+      if (!isCustomClaimSeller) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
       }
     }
@@ -327,12 +319,9 @@ export const verifyOtp = onCall(
       if (!request.auth?.uid) {
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
-      const uid = request.auth.uid;
       const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
-      const adminDoc = await db.collection('admins').doc(uid).get();
-      const isAdminRegistry = adminDoc.exists;
 
-      if (!isCustomClaimAdmin && !isAdminRegistry) {
+      if (!isCustomClaimAdmin) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
       }
     }
@@ -341,14 +330,9 @@ export const verifyOtp = onCall(
       if (!request.auth?.uid) {
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
-      const uid = request.auth.uid;
       const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
-      const sellerDoc = await db.collection('sellers').doc(uid).get();
-      const isSellerRegistry = sellerDoc.exists;
-      const userDoc = await db.collection('users').doc(uid).get();
-      const isDbSeller = userDoc.exists && userDoc.data()?.role === 'seller';
 
-      if (!isCustomClaimSeller && !isSellerRegistry && !isDbSeller) {
+      if (!isCustomClaimSeller) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
       }
     }

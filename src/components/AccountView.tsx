@@ -44,6 +44,7 @@ export const AccountView: React.FC = () => {
     showToast,
     removeFromWishlist,
     firebaseUser,
+    isSellerUser,
     signInWithGoogle,
     signInWithApple,
     signOutUser,
@@ -352,7 +353,7 @@ export const AccountView: React.FC = () => {
     }
   };
 
-  if (user?.role === 'seller') {
+  if (isSellerUser) {
     return (
       <div className="min-h-screen bg-slate-50 pb-24">
         {/* Account Header with Sign Out */}

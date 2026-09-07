@@ -22,3 +22,30 @@ export function generateIdempotencyKey(): string {
   throw new Error('Security Error: No cryptographically secure random number generator available. Failing closed.');
 }
 
+export function secureRandomInt(min: number, max: number): number {
+  const cryptoObj = (typeof window !== 'undefined' && window.crypto) || (typeof globalThis !== 'undefined' && globalThis.crypto);
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+    throw new Error('Security Error: Cryptographically secure random number generator not available.');
+  }
+  const range = max - min;
+  const bytes = new Uint32Array(1);
+  cryptoObj.getRandomValues(bytes);
+  return min + (bytes[0] % range);
+}
+
+export function secureRandomString(length: number): string {
+  const cryptoObj = (typeof window !== 'undefined' && window.crypto) || (typeof globalThis !== 'undefined' && globalThis.crypto);
+  if (!cryptoObj || typeof cryptoObj.getRandomValues !== 'function') {
+    throw new Error('Security Error: Cryptographically secure random number generator not available.');
+  }
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const bytes = new Uint8Array(length);
+  cryptoObj.getRandomValues(bytes);
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[bytes[i] % chars.length];
+  }
+  return result;
+}
+
+

@@ -8,7 +8,7 @@ import { DEFAULT_CATEGORIES } from '../data/categories';
 import { DEFAULT_SELLERS } from '../data/sellers';
 import { LEBANON_REGIONS, LBP_USD_RATE } from '../data/regions';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
-import { generateIdempotencyKey } from '../utils/uuid';
+import { generateIdempotencyKey, secureRandomInt, secureRandomString } from '../utils/uuid';
 import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
@@ -259,6 +259,7 @@ interface ShopContextType {
   // Firebase Auth & OTP Verification
   firebaseUser: FirebaseUser | null;
   isAdminUser: boolean;
+  isSellerUser: boolean;
   isEmailVerified: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, phone?: string) => Promise<void>;
@@ -370,6 +371,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(getInitialProductDetail);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
+  const [isSellerUser, setIsSellerUser] = useState(false);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   useEffect(() => {
@@ -385,12 +387,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       firebaseUser.getIdTokenResult(true) // force refresh
         .then(result => {
           setIsAdminUser(result.claims.admin === true);
+          setIsSellerUser(result.claims.seller === true);
         })
         .catch(() => {
           setIsAdminUser(false);
+          setIsSellerUser(false);
         });
     } else {
       setIsAdminUser(false);
+      setIsSellerUser(false);
     }
   }, [firebaseUser]);
 
@@ -783,7 +788,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const addDiscountRule = async (ruleData: Omit<DiscountRule, 'id'>) => {
-    const id = 'rule-' + Math.random().toString(36).substring(2, 9);
+    const id = 'rule-' + secureRandomString(7);
     const newRule: DiscountRule = {
       ...ruleData,
       id
@@ -940,7 +945,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const addProductBundle = async (bundleData: Omit<ProductBundle, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const id = 'bundle-' + Math.random().toString(36).substring(2, 9);
+    const id = 'bundle-' + secureRandomString(7);
     const newBundle: ProductBundle = {
       ...bundleData,
       id,
@@ -1411,7 +1416,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (sellers.some(s => s.id === slug)) {
       throw new Error(`A seller with the ID "${slug}" already exists.`);
     }
-    const sellerCode = sellerData.sellerCode?.trim() || `SLR-${Math.floor(100 + Math.random() * 900)}`;
+    const sellerCode = sellerData.sellerCode?.trim() || `SLR-${secureRandomInt(100, 1000)}`;
     const newSeller: Seller = {
       ...sellerData,
       id: slug,
@@ -1438,7 +1443,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         await monitoredSetDoc(doc(db, 'sellers', slug), sanitizeDocumentData(publicData), undefined, 'ShopContext:addSeller');
         
-        if (isAdminUser || user?.role === 'seller') {
+        if (isAdminUser || isSellerUser) {
           try {
              await monitoredSetDoc(doc(db, 'seller_private', slug), sanitizeDocumentData(privateData), undefined, 'ShopContext:addSellerPrivate');
           } catch (privErr) {
@@ -1477,7 +1482,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
            await monitoredUpdateDoc(doc(db, 'sellers', id), sanitizeDocumentData(publicUpdates), 'ShopContext:updateSeller');
         }
         
-        if (hasPrivateUpdates && (isAdminUser || user?.role === 'seller')) {
+        if (hasPrivateUpdates && (isAdminUser || isSellerUser)) {
            try {
              await monitoredUpdateDoc(doc(db, 'seller_private', id), sanitizeDocumentData(privateUpdates), 'ShopContext:updateSellerPrivate');
            } catch (privErr) {
@@ -1595,7 +1600,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
             const sku = (row.sku || row.product_id || '').toString().trim() || `prod-${Date.now()}-${idx}`;
             const isPublished = !['false', '0', 'no', 'hidden'].includes(String(row.is_published ?? row.status ?? '').toLowerCase());
-            const sellerItemCode = (row.seller_item_code || row.seller_code || row.item_code || '').toString().trim() || `SIC-${Math.floor(10000 + Math.random() * 90000)}`;
+            const sellerItemCode = (row.seller_item_code || row.seller_code || row.item_code || '').toString().trim() || `SIC-${secureRandomInt(10000, 100000)}`;
 
             // 1. Validation: Duplicate Product Number (SKU & sellerItemCode)
             const normSku = sku.toLowerCase();
@@ -2251,7 +2256,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let q;
     if (isAdminUser) {
       q = query(collection(db, 'orders'), orderBy('date', 'desc'), limit(500));
-    } else if (user?.role === 'seller' && user?.sellerId) {
+    } else if (isSellerUser && user?.sellerId) {
       q = query(collectionGroup(db, 'sellers'), where('sellerId', '==', user.sellerId), limit(200));
     } else {
       // Query solely by userId without composite index requirement, then sort in JS memory
@@ -3158,7 +3163,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lastLoggedSearchRef.current = { query: trimmed, time: now };
 
     const searchEntry: SearchLog = {
-      id: `srch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      id: `srch_${Date.now()}_${secureRandomString(5)}`,
       query: trimmed,
       timestamp: new Date().toISOString(),
       userId: firebaseUser?.uid || null,
@@ -3215,7 +3220,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.crypto.getRandomValues(array);
       trackingSuffix = Array.from(array, b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
     } else {
-      trackingSuffix = Math.random().toString(36).substring(2, 14).toUpperCase();
+      trackingSuffix = secureRandomString(12).toUpperCase();
     }
     const dateStr = new Date().toISOString();
     const trackingNumberStr = `LB-EXP-${trackingSuffix}`;
@@ -3411,9 +3416,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Persist status change to Firestore
     try {
-      const isSellerUser = user?.role === 'seller' && user?.sellerId;
-      const targetPath = isSellerUser ? `order_fulfillment/${orderId}/sellers/${user.sellerId}` : `orders/${orderId}`;
-      await monitoredSetDoc(doc(db, targetPath), { status, updatedAt: serverTimestamp() }, { merge: true }, isSellerUser ? 'SellerDashboard:updateOrderStatus' : 'AdminView:updateOrderStatus');
+      const isSellerActive = isSellerUser && user?.sellerId;
+      const targetPath = isSellerActive ? `order_fulfillment/${orderId}/sellers/${user.sellerId}` : `orders/${orderId}`;
+      await monitoredSetDoc(doc(db, targetPath), { status, updatedAt: serverTimestamp() }, { merge: true }, isSellerActive ? 'SellerDashboard:updateOrderStatus' : 'AdminView:updateOrderStatus');
       
       await logAdminActivity(
         'order_status',
@@ -3535,7 +3540,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Add Product - Saves new item to Firestore database
   const addProduct = async (newProdData: Omit<Product, 'id'> & { id?: string }) => {
     // Seller authorization check: non-admin sellers can only create products for their own workshop
-    if (!isAdminUser && user.role === 'seller') {
+    if (!isAdminUser && isSellerUser) {
       if (!user.sellerId) {
         const errorMsg = 'Unauthorized: Your account is not linked to a registered seller workshop.';
         showToast(errorMsg, 'error');
@@ -3670,7 +3675,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const existing = products.find(p => p.id === id);
 
     // Seller authorization check: non-admin sellers can only update their own products
-    if (!isAdminUser && user.role === 'seller') {
+    if (!isAdminUser && isSellerUser) {
       if (!user.sellerId || !existing || existing.sellerId?.toLowerCase() !== user.sellerId?.toLowerCase()) {
         const errorMsg = 'Unauthorized: You can only edit products belonging to your workshop.';
         showToast(errorMsg, 'error');
@@ -3788,7 +3793,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const target = products.find(p => p.id === id);
     
     // Seller authorization check: non-admin sellers can only delete their own products
-    if (!isAdminUser && user.role === 'seller') {
+    if (!isAdminUser && isSellerUser) {
       if (!user.sellerId || !target || target.sellerId?.toLowerCase() !== user.sellerId?.toLowerCase()) {
         const errorMsg = 'Unauthorized: You can only delete products belonging to your workshop.';
         showToast(errorMsg, 'error');
@@ -4218,6 +4223,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkPhoneUniqueness,
     firebaseUser,
     isAdminUser,
+    isSellerUser,
     isEmailVerified,
     signInWithEmail,
     signUpWithEmail,
@@ -4302,6 +4308,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     firebaseUser,
     isEmailVerified,
     isAdminUser,
+    isSellerUser,
     searchQuery,
     logSearchQuery,
     selectedCategory,

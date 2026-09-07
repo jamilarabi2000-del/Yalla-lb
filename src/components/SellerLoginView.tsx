@@ -36,6 +36,7 @@ export const SellerLoginView: React.FC = () => {
     user, 
     firebaseUser, 
     isAdminUser, 
+    isSellerUser,
     signOutUser, 
     resetPassword, 
     showToast, 
@@ -133,7 +134,7 @@ export const SellerLoginView: React.FC = () => {
         const userSnap = await getDoc(userDocRef);
         const userData = userSnap.exists() ? userSnap.data() : null;
 
-        const isUserAdmin = userData?.role === 'admin' || isAdminUser;
+        const isUserAdmin = isAdminUser;
 
         // Email verification enforcement (OWASP / Enterprise Standard)
         if (!userCredential.user.emailVerified && !isUserAdmin) {
@@ -346,8 +347,6 @@ export const SellerLoginView: React.FC = () => {
   };
 
   // If user is logged in as a seller, render the complete Seller Dashboard
-  const isSellerUser = user?.role === 'seller';
-
   if (isSellerUser) {
     return (
       <div className="min-h-screen bg-slate-50 pb-24">

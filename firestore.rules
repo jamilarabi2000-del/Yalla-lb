@@ -40,41 +40,25 @@ service cloud.firestore {
     }
 
     // Admin authorization:
-    // 1. Firebase custom admin claim
-    // 2. Admin registry document (/admins/{uid})
-    // 3. User document role (/users/{uid}.role == 'admin')
+    // Firebase custom admin claim ONLY
     function isAdmin() {
-      return isSignedIn() && (
-        (
-          'admin' in request.auth.token
-          && request.auth.token.admin == true
-        )
-        ||
-        exists(
-          /databases/$(database)/documents/admins/$(request.auth.uid)
-        )
-        ||
-        (
-          exists(/databases/$(database)/documents/users/$(request.auth.uid))
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin'
-        )
-      );
+      return isSignedIn()
+        && 'admin' in request.auth.token
+        && request.auth.token.admin == true;
     }
 
+    // Seller authorization:
+    // Firebase custom seller claim ONLY
     function isSeller() {
       return isSignedIn()
-        && exists(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        )
-        && get(
-          /databases/$(database)/documents/users/$(request.auth.uid)
-        ).data.get('role', '') == 'seller';
+        && 'seller' in request.auth.token
+        && request.auth.token.seller == true;
     }
 
     function getSellerId() {
-      return get(
-        /databases/$(database)/documents/users/$(request.auth.uid)
-      ).data.get('sellerId', '');
+      return 'sellerId' in request.auth.token 
+        ? request.auth.token.sellerId 
+        : get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('sellerId', '');
     }
 
     // ---------------------------------------------------------------------

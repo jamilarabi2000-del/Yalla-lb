@@ -42,18 +42,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Check custom claims & admin registry
+      // Check custom claims ONLY
       const tokenResult = await fbUser.getIdTokenResult().catch(() => null);
-      const hasAdminClaim = Boolean(tokenResult?.claims?.admin);
-      let isRegistryAdmin = false;
-      if (db) {
-        try {
-          const adminSnap = await getDoc(doc(db, 'admins', fbUser.uid));
-          isRegistryAdmin = adminSnap.exists();
-        } catch {}
-      }
-      const initialIsAdmin = hasAdminClaim || isRegistryAdmin;
-      setIsAdminUser(initialIsAdmin);
+      const hasAdminClaim = Boolean(tokenResult?.claims?.admin === true);
+      const hasSellerClaim = Boolean(tokenResult?.claims?.seller === true);
+      const claimSellerId = typeof tokenResult?.claims?.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+
+      setIsAdminUser(hasAdminClaim);
+      setIsSellerUser(hasSellerClaim);
+      setSellerId(claimSellerId);
 
       // Listen to user profile document
       if (db) {
@@ -79,9 +76,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               emailVerified: fbUser.emailVerified,
               isOtpVerified: data.isOtpVerified
             });
-            setIsAdminUser(initialIsAdmin || data.role === 'admin');
-            setIsSellerUser(data.role === 'seller');
-            setSellerId(data.sellerId || null);
+            // Strictly enforce custom claims only, do not fallback to db fields or role values
+            setIsAdminUser(hasAdminClaim);
+            setIsSellerUser(hasSellerClaim);
+            setSellerId(claimSellerId || data.sellerId || null);
           } else {
             setUser({
               uid: fbUser.uid,

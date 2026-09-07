@@ -65,6 +65,7 @@ const MainAppContent: React.FC = () => {
     customBlockToEdit,
     setCustomBlockToEdit,
     user,
+    isSellerUser,
     language,
     setLanguage
   } = useShop();
@@ -182,7 +183,7 @@ const MainAppContent: React.FC = () => {
     let targetPath = activeTab === 'home' ? '' : activeTab;
     if (activeTab === 'admin') {
       targetPath = SECRET_ADMIN_TOKEN;
-    } else if (activeTab === 'seller' || (activeTab === 'account' && user?.role === 'seller')) {
+    } else if (activeTab === 'seller' || (activeTab === 'account' && isSellerUser)) {
       targetPath = SECRET_SELLER_TOKEN;
     } else if (activeTab === 'product_detail' && selectedProductDetail) {
       targetPath = `product/${selectedProductDetail.id}`;

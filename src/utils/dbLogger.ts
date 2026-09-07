@@ -3,6 +3,8 @@
  * Tracks the complete lifecycle of data updates from UI form inputs to Firestore persistence and snapshot sync.
  */
 
+import { secureRandomString } from './uuid';
+
 export type DataFlowStage = 
   | 'STAGE_1_FORM_INPUT'       // UI Form input or button action captured
   | 'STAGE_2_SANITIZATION'     // Payload inspected, stripped of 'undefined', diff calculated
@@ -116,7 +118,7 @@ class DatabaseLoggerService {
       ...entry,
       payload: redactPII(entry.payload),
       diff: redactPII(entry.diff),
-      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `log-${Date.now()}-${secureRandomString(5)}`,
       timestamp: now.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }),
       isoTime: now.toISOString()
     };

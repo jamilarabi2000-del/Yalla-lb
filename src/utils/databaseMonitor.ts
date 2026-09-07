@@ -5,6 +5,7 @@
  * to diagnose and pinpoint sync failures immediately.
  */
 
+import { secureRandomString } from './uuid';
 import { 
   DocumentReference, 
   DocumentData, 
@@ -167,7 +168,7 @@ class DatabaseMonitorService {
     diff?: Record<string, { before: any; after: any }>;
     metadata?: Record<string, any>;
   }): { opId: string; startTime: number } {
-    const opId = `op-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const opId = `op-${Date.now()}-${secureRandomString(5)}`;
     const startTime = performance.now();
     const { collection, documentId, path } = this.parsePath(params.path);
 
@@ -298,7 +299,7 @@ class DatabaseMonitorService {
     const now = new Date();
 
     const record: FirestoreLogRecord = {
-      id: `snap-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: `snap-${Date.now()}-${secureRandomString(4)}`,
       timestamp: now.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 }),
       isoTimestamp: now.toISOString(),
       epochMs: Date.now(),

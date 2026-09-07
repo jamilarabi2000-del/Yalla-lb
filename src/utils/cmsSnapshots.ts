@@ -1,5 +1,6 @@
 import { SiteContent } from '../types';
 import { db, IS_FIREBASE_ENABLED } from '../firebase';
+import { secureRandomString } from './uuid';
 import { 
   collection, 
   doc, 
@@ -48,7 +49,7 @@ export const getCmsSnapshots = (): CmsSnapshot[] => {
 
 export const saveCmsSnapshot = (data: SiteContent, author = 'Admin', note?: string, changesCount = 1): CmsSnapshot => {
   const newSnapshot: CmsSnapshot = {
-    id: `snap_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    id: `snap_${Date.now()}_${secureRandomString(5)}`,
     timestamp: new Date().toISOString(),
     author,
     note: note || 'CMS live update published',

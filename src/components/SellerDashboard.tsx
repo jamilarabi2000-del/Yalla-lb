@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { secureRandomInt } from '../utils/uuid';
 import { useShop } from '../context/ShopContext';
 import { Product, Order, Seller } from '../types';
 import { 
@@ -207,7 +208,7 @@ export const SellerDashboard: React.FC = () => {
       craftStory: formCraftStory,
       lowStockThreshold: formLowStockThreshold,
       weightOrVolume: formWeightOrVolume,
-      sellerItemCode: formSellerItemCode || `SLR-PROD-${Math.floor(100 + Math.random() * 900)}`,
+      sellerItemCode: formSellerItemCode || `SLR-PROD-${secureRandomInt(100, 1000)}`,
       origin: currentSeller?.village || 'Lebanon',
       rating: editingProduct?.rating ?? 5,
       reviewsCount: editingProduct?.reviewsCount ?? 0,
