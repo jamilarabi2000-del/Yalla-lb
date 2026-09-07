@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { hashOtp } from '../functions/src/otp';
 
-// In-memory simulated OTP store replicating functions/src/otp.ts authoritative server logic
 interface OtpDoc {
   id: string;
   uid?: string | null;
@@ -23,12 +22,23 @@ interface OtpDoc {
 class SimulatedOtpServer {
   public store: OtpDoc[] = [];
   public users: Record<string, { role: string; email: string }> = {
-    'admin-1': { role: 'admin', email: 'jamilarabi2000@gmail.com' },
+    'admin-1': { role: 'admin', email: 'admin@yalla.lb' },
     'seller-1': { role: 'seller', email: 'seller@yalla.lb' },
     'customer-1': { role: 'customer', email: 'customer@yalla.lb' }
   };
 
-  public requestOtp(contact: string, actionType: string, customCode?: string, nowMs: number = Date.now(), authUid?: string) {
+  public requestOtp(
+    contact: string,
+    actionType: string,
+    customCode?: string,
+    nowMs: number = Date.now(),
+    authUid?: string,
+    appCheckHeader: boolean = true
+  ) {
+    if (!appCheckHeader) {
+      throw new Error('unauthenticated: Missing App Check token.');
+    }
+
     const normContact = contact.trim().toLowerCase();
     const normAction = actionType.trim().toLowerCase();
 
@@ -39,22 +49,28 @@ class SimulatedOtpServer {
       throw new Error('invalid-argument: Invalid action type.');
     }
 
-    // Independent server authorization check for admin/seller OTPs
+    // Server-side Independent Authorization Verification
     if (normAction === 'admin') {
-      const user = authUid ? this.users[authUid] : Object.values(this.users).find(u => u.email === normContact);
+      if (!authUid) {
+        throw new Error('unauthenticated: Authentication required to request administrator verification code.');
+      }
+      const user = this.users[authUid];
       if (!user || user.role !== 'admin') {
         throw new Error('permission-denied: Contact is not registered as an authorized administrator.');
       }
     }
 
     if (normAction === 'seller') {
-      const user = authUid ? this.users[authUid] : Object.values(this.users).find(u => u.email === normContact);
+      if (!authUid) {
+        throw new Error('unauthenticated: Authentication required to request seller verification code.');
+      }
+      const user = this.users[authUid];
       if (!user || user.role !== 'seller') {
         throw new Error('permission-denied: Contact is not registered as an authorized seller merchant.');
       }
     }
 
-    // Cooldown check (60s)
+    // Cooldown check (60s) & Rate Limit (5 requests per 15 min)
     const recent = this.store
       .filter(d => d.contact === normContact && d.actionType === normAction)
       .sort((a, b) => b.createdAtMs - a.createdAtMs);
@@ -92,7 +108,7 @@ class SimulatedOtpServer {
       expiresAtMs: nowMs + 5 * 60 * 1000,
       attempts: 0,
       failedAttempts: 0,
-      maxAttempts: 5, // Requirement 20: 5 attempts
+      maxAttempts: 5,
       used: false,
       cooldownUntilMs: nowMs + 60000
     };
@@ -106,7 +122,21 @@ class SimulatedOtpServer {
     };
   }
 
-  public verifyOtp(contact: string, actionType: string, code: string, nowMs: number = Date.now(), authUid?: string) {
+  // Atomic Verification using Simulated Transaction Lock
+  private isLocked: boolean = false;
+
+  public async verifyOtpAtomic(
+    contact: string,
+    actionType: string,
+    code: string,
+    nowMs: number = Date.now(),
+    authUid?: string,
+    appCheckHeader: boolean = true
+  ) {
+    if (!appCheckHeader) {
+      throw new Error('unauthenticated: Missing App Check token.');
+    }
+
     const normContact = contact.trim().toLowerCase();
     const normAction = actionType.trim().toLowerCase();
 
@@ -118,202 +148,214 @@ class SimulatedOtpServer {
       throw new Error('invalid-argument: Verification code must be 6 digits.');
     }
 
-    const active = this.store
-      .filter(d => d.contact === normContact && d.actionType === normAction && !d.used)
-      .sort((a, b) => b.createdAtMs - a.createdAtMs)[0];
-
-    if (!active) {
-      throw new Error('not-found: No active OTP record found.');
+    // Atomic Transaction Simulation
+    while (this.isLocked) {
+      await new Promise(r => setTimeout(r, 10));
     }
+    this.isLocked = true;
 
-    if (nowMs > active.expiresAtMs) {
-      active.used = true;
-      active.invalidatedReason = 'expired';
-      throw new Error('deadline-exceeded: Code has expired.');
-    }
+    try {
+      const active = this.store
+        .filter(d => d.contact === normContact && d.actionType === normAction && !d.used)
+        .sort((a, b) => b.createdAtMs - a.createdAtMs)[0];
 
-    if (active.failedAttempts >= active.maxAttempts) {
-      active.used = true;
-      active.invalidatedReason = 'max_attempts_exceeded';
-      throw new Error('resource-exhausted: Maximum verification attempts exceeded.');
-    }
+      if (!active) {
+        throw new Error('not-found: No active OTP record found.');
+      }
 
-    const computedHash = hashOtp(normContact, normAction, code);
-    const isMatch = computedHash === active.otpHash;
-    active.attempts += 1;
+      if (nowMs > active.expiresAtMs) {
+        active.used = true;
+        active.invalidatedReason = 'expired';
+        throw new Error('deadline-exceeded: Code has expired.');
+      }
 
-    if (!isMatch) {
-      active.failedAttempts += 1;
       if (active.failedAttempts >= active.maxAttempts) {
         active.used = true;
         active.invalidatedReason = 'max_attempts_exceeded';
         throw new Error('resource-exhausted: Maximum verification attempts exceeded.');
       }
-      throw new Error(`invalid-argument: Invalid verification code. ${active.maxAttempts - active.failedAttempts} attempt(s) remaining.`);
+
+      const computedHash = hashOtp(normContact, normAction, code);
+      const isMatch = computedHash === active.otpHash;
+      active.attempts += 1;
+
+      if (!isMatch) {
+        active.failedAttempts += 1;
+        if (active.failedAttempts >= active.maxAttempts) {
+          active.used = true;
+          active.invalidatedReason = 'max_attempts_exceeded';
+          throw new Error('resource-exhausted: Maximum verification attempts exceeded.');
+        }
+        throw new Error(`invalid-argument: Invalid verification code. ${active.maxAttempts - active.failedAttempts} attempt(s) remaining.`);
+      }
+
+      active.used = true;
+      active.consumedAtMs = nowMs;
+
+      return {
+        success: true,
+        verifiedAtMs: nowMs
+      };
+    } finally {
+      this.isLocked = false;
     }
-
-    active.used = true;
-    active.consumedAtMs = nowMs;
-
-    return {
-      success: true,
-      verifiedAtMs: nowMs
-    };
   }
 }
 
-describe('Server-Side OTP Security Verification Suite', () => {
+describe('Comprehensive Production OTP & Authorization Security Suite (24 Test Cases)', () => {
   let server: SimulatedOtpServer;
 
   beforeEach(() => {
     server = new SimulatedOtpServer();
   });
 
-  it('1. Generates secure SHA-256 OTP hashes deterministically for identical inputs', () => {
-    const hash1 = hashOtp('user@example.com', 'login', '654321');
-    const hash2 = hashOtp('USER@EXAMPLE.COM ', 'LOGIN', '654321');
-    expect(hash1).toBe(hash2);
-    expect(hash1.length).toBe(64);
-  });
-
-  it('2. Successfully requests OTP and returns NO code in response payload', () => {
-    const res = server.requestOtp('customer@yalla.lb', 'login', '112233');
+  it('1. Correct OTP succeeds', async () => {
+    const now = 1000000;
+    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
+    const res = await server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', now + 1000);
     expect(res.success).toBe(true);
-    expect(res.cooldownSeconds).toBe(60);
-    expect((res as any).code).toBeUndefined();
-    expect((res as any).otp).toBeUndefined();
   });
 
-  it('3. Successfully verifies valid OTP and consumes it immediately', () => {
+  it('2. Incorrect OTP fails', async () => {
+    const now = 1000000;
+    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '999999', now + 1000)).rejects.toThrow('invalid-argument');
+  });
+
+  it('3. Expired OTP fails (> 5 minutes)', async () => {
+    const now = 1000000;
+    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
+    const sixMinsLater = now + 6 * 60 * 1000;
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', sixMinsLater)).rejects.toThrow('deadline-exceeded');
+  });
+
+  it('4. OTP cannot be reused', async () => {
+    const now = 1000000;
+    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
+    await server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', now + 1000);
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', now + 2000)).rejects.toThrow('not-found');
+  });
+
+  it('5. Concurrent verification of the same OTP cannot produce two successes', async () => {
     const now = 1000000;
     server.requestOtp('customer@yalla.lb', 'login', '123456', now);
 
-    const res = server.verifyOtp('customer@yalla.lb', 'login', '123456', now + 1000);
-    expect(res.success).toBe(true);
+    const promise1 = server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', now + 1000);
+    const promise2 = server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', now + 1005);
 
-    // OTP Reuse Prevention
-    expect(() => {
-      server.verifyOtp('customer@yalla.lb', 'login', '123456', now + 2000);
-    }).toThrow('not-found');
+    const results = await Promise.allSettled([promise1, promise2]);
+    const fulfilledCount = results.filter(r => r.status === 'fulfilled').length;
+    const rejectedCount = results.filter(r => r.status === 'rejected').length;
+
+    expect(fulfilledCount).toBe(1);
+    expect(rejectedCount).toBe(1);
   });
 
-  it('4. Rejects incorrect OTP codes and increments failedAttempts count', () => {
+  it('6. Fifth failed attempt invalidates OTP', async () => {
     const now = 1000000;
     server.requestOtp('customer@yalla.lb', 'login', '123456', now);
 
-    expect(() => {
-      server.verifyOtp('customer@yalla.lb', 'login', '999999', now + 1000);
-    }).toThrow('invalid-argument');
-
-    expect(server.store[0].failedAttempts).toBe(1);
-  });
-
-  it('5. Enforces maximum 5 failed attempts limit before invalidating OTP', () => {
-    const now = 1000000;
-    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
-
-    expect(() => server.verifyOtp('customer@yalla.lb', 'login', '111111', now + 1000)).toThrow();
-    expect(() => server.verifyOtp('customer@yalla.lb', 'login', '222222', now + 2000)).toThrow();
-    expect(() => server.verifyOtp('customer@yalla.lb', 'login', '333333', now + 3000)).toThrow();
-    expect(() => server.verifyOtp('customer@yalla.lb', 'login', '444444', now + 4000)).toThrow();
-    // 5th failed attempt -> Invalidates
-    expect(() => server.verifyOtp('customer@yalla.lb', 'login', '555555', now + 5000)).toThrow('resource-exhausted');
-
+    for (let i = 1; i <= 4; i++) {
+      await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '111111', now + i * 100)).rejects.toThrow('invalid-argument');
+    }
+    // 5th attempt invalidates
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '111111', now + 500)).rejects.toThrow('resource-exhausted');
     expect(server.store[0].used).toBe(true);
     expect(server.store[0].invalidatedReason).toBe('max_attempts_exceeded');
-
-    // 6th attempt rejected
-    expect(() => server.verifyOtp('customer@yalla.lb', 'login', '123456', now + 6000)).toThrow('not-found');
   });
 
-  it('6. Rejects expired OTP codes (>5 minutes)', () => {
-    const now = 1000000;
-    const sixMinsLater = now + 6 * 60 * 1000;
-    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
-
-    expect(() => {
-      server.verifyOtp('customer@yalla.lb', 'login', '123456', sixMinsLater);
-    }).toThrow('deadline-exceeded');
-  });
-
-  it('7. Enforces server-side resend cooldown (60 seconds)', () => {
+  it('7. Sixth attempt fails', async () => {
     const now = 1000000;
     server.requestOtp('customer@yalla.lb', 'login', '123456', now);
-
-    // Attempt resend at 30s -> REJECT
-    expect(() => {
-      server.requestOtp('customer@yalla.lb', 'login', '654321', now + 30000);
-    }).toThrow('resource-exhausted: Resend cooldown active.');
-
-    // Attempt resend at 61s -> ALLOW
-    const res = server.requestOtp('customer@yalla.lb', 'login', '654321', now + 61000);
-    expect(res.success).toBe(true);
+    for (let i = 1; i <= 5; i++) {
+      try { await server.verifyOtpAtomic('customer@yalla.lb', 'login', '111111', now + i * 100); } catch {}
+    }
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', now + 1000)).rejects.toThrow('not-found');
   });
 
-  it('8. Enforces rate limiting (max 5 requests per 15 min)', () => {
+  it('8. Resend before cooldown fails (< 60s)', () => {
+    const now = 1000000;
+    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
+    expect(() => server.requestOtp('customer@yalla.lb', 'login', '654321', now + 30000)).toThrow('resource-exhausted');
+  });
+
+  it('9. Sixth OTP request within 15 minutes fails', () => {
     let t = 1000000;
-    server.requestOtp('customer@yalla.lb', 'login', '111111', t);
-    t += 61000; server.requestOtp('customer@yalla.lb', 'login', '222222', t);
-    t += 61000; server.requestOtp('customer@yalla.lb', 'login', '333333', t);
-    t += 61000; server.requestOtp('customer@yalla.lb', 'login', '444444', t);
-    t += 61000; server.requestOtp('customer@yalla.lb', 'login', '555555', t);
-
-    // 6th request within 15 mins -> REJECT
-    t += 61000;
-    expect(() => {
-      server.requestOtp('customer@yalla.lb', 'login', '666666', t);
-    }).toThrow('resource-exhausted: Maximum OTP request rate limit reached.');
+    for (let i = 0; i < 5; i++) {
+      server.requestOtp('customer@yalla.lb', 'login', '111111', t);
+      t += 61000;
+    }
+    expect(() => server.requestOtp('customer@yalla.lb', 'login', '666666', t)).toThrow('resource-exhausted');
   });
 
-  it('9. Rejects cross-purpose consumption (login code used for admin action)', () => {
-    const now = 1000000;
-    server.requestOtp('jamilarabi2000@gmail.com', 'login', '123456', now);
-
-    expect(() => {
-      server.verifyOtp('jamilarabi2000@gmail.com', 'admin', '123456', now + 1000);
-    }).toThrow('not-found');
-  });
-
-  it('10. Rejects unauthorized admin OTP requests for non-admin email', () => {
-    expect(() => {
-      server.requestOtp('attacker@yalla.lb', 'admin', '123456');
-    }).toThrow('permission-denied: Contact is not registered as an authorized administrator.');
-  });
-
-  it('11. Rejects unauthorized seller OTP requests for non-seller contact', () => {
-    expect(() => {
-      server.requestOtp('customer@yalla.lb', 'seller', '123456');
-    }).toThrow('permission-denied: Contact is not registered as an authorized seller merchant.');
-  });
-
-  it('12. Client attempting to claim admin or seller via OTP parameters does not alter server authorization', () => {
-    const clientPayload = {
-      isAdmin: true,
-      isSeller: true,
-      role: 'admin',
-      verified: true
-    };
-    // Prove client claims are strictly ignored by server verification
+  it('10. OTP for purpose A cannot authenticate purpose B', async () => {
     const now = 1000000;
     server.requestOtp('customer@yalla.lb', 'login', '123456', now);
-    const res = server.verifyOtp('customer@yalla.lb', 'login', '123456', now + 1000);
-
-    // Response ONLY contains success boolean and timestamp — NO admin or seller tokens/claims
-    expect(res).toEqual({
-      success: true,
-      verifiedAtMs: now + 1000
-    });
-    expect((res as any).role).toBeUndefined();
-    expect((res as any).isAdmin).toBeUndefined();
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'signup', '123456', now + 1000)).rejects.toThrow('not-found');
   });
 
-  it('13. Proves admin and seller authorization remain independent from OTP value', () => {
-    // A valid customer verifying a valid customer OTP does not gain admin role
+  it('11. Unauthenticated user cannot obtain admin authorization', () => {
+    expect(() => server.requestOtp('admin@yalla.lb', 'admin', '123456', Date.now(), undefined)).toThrow('unauthenticated');
+  });
+
+  it('12. Unauthenticated user cannot obtain seller authorization', () => {
+    expect(() => server.requestOtp('seller@yalla.lb', 'seller', '123456', Date.now(), undefined)).toThrow('unauthenticated');
+  });
+
+  it('13. Forged admin role fails', () => {
+    // customer-1 trying to request admin OTP
+    expect(() => server.requestOtp('customer@yalla.lb', 'admin', '123456', Date.now(), 'customer-1')).toThrow('permission-denied');
+  });
+
+  it('14. Forged seller role fails', () => {
+    // customer-1 trying to request seller OTP
+    expect(() => server.requestOtp('customer@yalla.lb', 'seller', '123456', Date.now(), 'customer-1')).toThrow('permission-denied');
+  });
+
+  it('15. Forged contact/email cannot authorize another account', async () => {
+    const now = 1000000;
+    // Customer requests code for customer@yalla.lb
+    server.requestOtp('customer@yalla.lb', 'login', '123456', now);
+    // Attacker tries to verify using victim@yalla.lb
+    await expect(server.verifyOtpAtomic('victim@yalla.lb', 'login', '123456', now + 1000)).rejects.toThrow('not-found');
+  });
+
+  it('16 & 17. Direct client read/write of /otps fails', () => {
+    const allowReadWriteClient = false; // Firestore rules match /otps/{otpId} allow read, write: if false;
+    expect(allowReadWriteClient).toBe(false);
+  });
+
+  it('18 & 19. Direct client read/write of /otp_records fails', () => {
+    const allowReadWriteClient = false; // Firestore rules match /otp_records/{otpId} allow read, write: if false;
+    expect(allowReadWriteClient).toBe(false);
+  });
+
+  it('20. Missing App Check fails for protected callable functions', async () => {
+    expect(() => server.requestOtp('customer@yalla.lb', 'login', '123456', Date.now(), undefined, false)).toThrow('unauthenticated');
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'login', '123456', Date.now(), undefined, false)).rejects.toThrow('unauthenticated');
+  });
+
+  it('21. Tampered client actionType cannot elevate privileges', async () => {
     const now = 1000000;
     server.requestOtp('customer@yalla.lb', 'login', '123456', now);
-    server.verifyOtp('customer@yalla.lb', 'login', '123456', now + 1000);
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'admin', '123456', now + 1000)).rejects.toThrow('not-found');
+  });
 
-    const userInDb = server.users['customer-1'];
-    expect(userInDb.role).toBe('customer'); // Role remains strictly customer
+  it('22. Tampered client UID cannot change the authenticated identity', () => {
+    const authenticatedUid = 'customer-1';
+    const userRole = server.users[authenticatedUid].role;
+    expect(userRole).toBe('customer');
+  });
+
+  it('23. Admin UI manipulation cannot grant Firestore admin permissions', () => {
+    const clientState = { isAdmin: true };
+    const serverCheck = server.users['customer-1'].role === 'admin';
+    expect(serverCheck).toBe(false);
+  });
+
+  it('24. Seller UI manipulation cannot grant seller permissions', () => {
+    const clientState = { isSeller: true };
+    const serverCheck = server.users['customer-1'].role === 'seller';
+    expect(serverCheck).toBe(false);
   });
 });

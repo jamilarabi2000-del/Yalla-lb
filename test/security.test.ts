@@ -771,10 +771,10 @@ describe('Security Regression Suite - Application Controls', () => {
         path.resolve(__dirname, '../functions/src/otp.ts'),
         'utf-8'
       );
-      expect(otpSource).toMatch(/import\s*\{\s*randomInt,\s*createHash,\s*timingSafeEqual\s*\}\s*from\s*['"]node:crypto['"]/);
+      expect(otpSource).toMatch(/import\s*\{\s*randomInt,\s*(?:createHash|createHmac),\s*timingSafeEqual\s*\}\s*from\s*['"]node:crypto['"]/);
       expect(otpSource).toMatch(/randomInt\(100000,\s*1000000\)/);
       expect(otpSource).not.toMatch(/Math\.random/);
-      expect(otpSource).toMatch(/createHash\('sha256'\)/);
+      expect(otpSource).toMatch(/(?:createHash|createHmac)\('sha256'/);
       expect(otpSource).toMatch(/timingSafeEqual/);
     });
 

@@ -40,7 +40,7 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ dbUsers: propDbUse
   });
 
   useEffect(() => {
-    if (!isAdminUser && !isAdminUnlocked) {
+    if (!isAdminUser) {
       setIsLoading(false);
       return;
     }

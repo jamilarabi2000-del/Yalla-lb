@@ -682,7 +682,7 @@ export const AdminView: React.FC = () => {
   const [dbActiveCartsCount, setDbActiveCartsCount] = useState(0);
 
   useEffect(() => {
-    if (!isAdminUser && !isAdminUnlocked) return;
+    if (!isAdminUser) return;
     let isMounted = true;
     const fetchUsersAndCarts = async () => {
       try {

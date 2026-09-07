@@ -178,7 +178,7 @@ const isProductLinkedToSeller = (p: Product, seller: Seller) => {
 };
 
 export const SellersView: React.FC = () => {
-  const { sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
+  const { isAdminUser, sellers, addSeller, updateSeller, toggleSellerActive, deleteSeller, bulkImportProducts, products, orders = [], categories, showToast } = useShop();
 
   const [activeSubTab, setActiveSubTab] = useState<'sellers' | 'applications' | 'import'>('sellers');
   const [searchQuery, setSearchQuery] = useState('');
@@ -193,6 +193,7 @@ export const SellersView: React.FC = () => {
   
   // Realtime subscribe to seller_applications
   useEffect(() => {
+    if (!isAdminUser) return;
     const appsCol = query(
       collection(db, 'seller_applications'),
       orderBy('submittedAt', 'desc'),
@@ -536,7 +537,7 @@ export const SellersView: React.FC = () => {
         if (d.data().role === 'seller' || d.data().role === 'admin') isRegistered = true;
       });
 
-      if (!isRegistered && target !== 'jamilarabi2000@gmail.com') {
+      if (!isRegistered) {
         showToast(`The email ${target} is not registered and saved in the database as a seller.`, 'error');
         return;
       }

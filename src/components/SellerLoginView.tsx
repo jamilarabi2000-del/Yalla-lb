@@ -133,7 +133,7 @@ export const SellerLoginView: React.FC = () => {
         const userSnap = await getDoc(userDocRef);
         const userData = userSnap.exists() ? userSnap.data() : null;
 
-        const isUserAdmin = userData?.role === 'admin' || (email.toLowerCase() === 'jamilarabi2000@gmail.com' && userCredential.user.emailVerified) || isAdminUser;
+        const isUserAdmin = userData?.role === 'admin' || isAdminUser;
 
         // Email verification enforcement (OWASP / Enterprise Standard)
         if (!userCredential.user.emailVerified && !isUserAdmin) {
@@ -249,7 +249,7 @@ export const SellerLoginView: React.FC = () => {
         console.warn('[SellerLoginView] User check error:', checkErr);
       }
 
-      const isAuthorizedSeller = isMatchedSeller || isMatchedSellerInDb || (target === 'jamilarabi2000@gmail.com');
+      const isAuthorizedSeller = isMatchedSeller || isMatchedSellerInDb;
 
       if (!isAuthorizedSeller) {
         const errorMsg = isArabic 

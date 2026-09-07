@@ -31,7 +31,7 @@ import { SearchLog } from '../../types';
 type TimeRangeFilter = 'all' | '24h' | '7d' | '30d';
 
 export const SearchAnalyticsView: React.FC = () => {
-  const { setActiveTab, setSearchQuery: setGlobalSearchQuery, logSearchQuery, showToast } = useShop();
+  const { isAdminUser, setActiveTab, setSearchQuery: setGlobalSearchQuery, logSearchQuery, showToast } = useShop();
   
   const [searchLogs, setSearchLogs] = useState<SearchLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,6 +68,7 @@ export const SearchAnalyticsView: React.FC = () => {
 
   // Real-time Firestore sync listener
   useEffect(() => {
+    if (!isAdminUser) return;
     let unsubscribe: () => void = () => {};
     try {
       const logsColRef = collection(db, 'search_logs');

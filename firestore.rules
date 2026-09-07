@@ -41,8 +41,8 @@ service cloud.firestore {
 
     // Admin authorization:
     // 1. Firebase custom admin claim
-    // 2. Explicit verified platform-admin email
-    // 3. Admin registry document
+    // 2. Admin registry document (/admins/{uid})
+    // 3. User document role (/users/{uid}.role == 'admin')
     function isAdmin() {
       return isSignedIn() && (
         (
@@ -50,15 +50,13 @@ service cloud.firestore {
           && request.auth.token.admin == true
         )
         ||
-        (
-          'email' in request.auth.token
-          && request.auth.token.email == 'jamilarabi2000@gmail.com'
-          && 'email_verified' in request.auth.token
-          && request.auth.token.email_verified == true
-        )
-        ||
         exists(
           /databases/$(database)/documents/admins/$(request.auth.uid)
+        )
+        ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == 'admin'
         )
       );
     }
@@ -96,7 +94,8 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
 
     match /test/{docId} {
-      allow read, write: if isAdmin();
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -438,10 +437,9 @@ service cloud.firestore {
 
     function userEmailMatchesAuth() {
       return !('email' in request.resource.data)
-        || (
-          'email' in request.auth.token
-          && request.resource.data.email == request.auth.token.email
-        );
+        || request.resource.data.email == ''
+        || request.auth.token.get('email', '') == ''
+        || request.resource.data.email.lower() == request.auth.token.get('email', '').lower();
     }
 
     function userSelfEditableKeys() {
@@ -516,7 +514,8 @@ service cloud.firestore {
         ])
         && request.resource.data.get('uid', '') == request.auth.uid
         && request.resource.data.get('cleanDigits', '') is string
-        && request.resource.data.get('cleanDigits', '').size() == 8
+        && request.resource.data.get('cleanDigits', '').size() >= 7
+        && request.resource.data.get('cleanDigits', '').size() <= 12
         && boundedString(
           request.resource.data.get('phone', ''),
           32
@@ -662,7 +661,7 @@ service cloud.firestore {
         && isValidStatusTransition(oldStatus, newStatus);
     }
 
-    match /order_fulfillment/{orderId}/sellers/{sellerId} {
+    match /{path=**}/sellers/{sellerId} {
       allow get, list: if isAdmin()
         || (
           isSeller()
@@ -859,7 +858,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    match /otp_records/{otpId} {
+    match /otp_rate_limits/{docId} {
       allow read, write: if false;
     }
   }

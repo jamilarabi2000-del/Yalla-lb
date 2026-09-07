@@ -26,7 +26,7 @@ export const ActiveCartsView: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAdminUser && !isAdminUnlocked) {
+    if (!isAdminUser) {
       setIsLoading(false);
       return;
     }

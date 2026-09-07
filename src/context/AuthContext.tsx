@@ -42,11 +42,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Check claims and email
+      // Check custom claims & admin registry
       const tokenResult = await fbUser.getIdTokenResult().catch(() => null);
       const hasAdminClaim = Boolean(tokenResult?.claims?.admin);
-      const isOwnerEmail = fbUser.email === 'jamilarabi2000@gmail.com';
-      setIsAdminUser(hasAdminClaim || isOwnerEmail);
+      let isRegistryAdmin = false;
+      if (db) {
+        try {
+          const adminSnap = await getDoc(doc(db, 'admins', fbUser.uid));
+          isRegistryAdmin = adminSnap.exists();
+        } catch {}
+      }
+      const initialIsAdmin = hasAdminClaim || isRegistryAdmin;
+      setIsAdminUser(initialIsAdmin);
 
       // Listen to user profile document
       if (db) {
@@ -72,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               emailVerified: fbUser.emailVerified,
               isOtpVerified: data.isOtpVerified
             });
+            setIsAdminUser(initialIsAdmin || data.role === 'admin');
             setIsSellerUser(data.role === 'seller');
             setSellerId(data.sellerId || null);
           } else {

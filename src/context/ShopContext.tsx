@@ -382,13 +382,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (firebaseUser) {
-      const isUserAdminEmail = firebaseUser.email === 'jamilarabi2000@gmail.com' && firebaseUser.emailVerified === true;
       firebaseUser.getIdTokenResult(true) // force refresh
         .then(result => {
-          setIsAdminUser(result.claims.admin === true || isUserAdminEmail);
+          setIsAdminUser(result.claims.admin === true);
         })
         .catch(() => {
-          setIsAdminUser(isUserAdminEmail);
+          setIsAdminUser(false);
         });
     } else {
       setIsAdminUser(false);
@@ -916,8 +915,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               createdAt: new Date().toISOString()
             }
           ];
-          for (const b of initialBundles) {
-            await monitoredSetDoc(doc(db, 'product_bundles', b.id), sanitizeDocumentData(b), undefined, 'ShopContext:seedBundles');
+          if (isAdminUser) {
+            for (const b of initialBundles) {
+              await monitoredSetDoc(doc(db, 'product_bundles', b.id), sanitizeDocumentData(b), undefined, 'ShopContext:seedBundles');
+            }
           }
         } else if (!snapshot.empty) {
           hasSeededBundlesRef.current = true;
@@ -3178,7 +3179,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn("[ShopContext] Search cache notice:", cacheErr);
     }
 
-    if (!IS_FIREBASE_ENABLED) return;
+    if (!IS_FIREBASE_ENABLED || !firebaseUser) return;
     try {
       const logDocRef = doc(collection(db, 'search_logs'));
       searchEntry.id = logDocRef.id;
