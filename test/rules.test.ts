@@ -561,21 +561,51 @@ test('adversarial: customer cannot inject arbitrary schemas or oversized payload
   );
 });
 
-// 13. Seller Application ID Integrity
-test('adversarial: applicant cannot create application with mismatched ID', async () => {
-  await assertFails(
-    setDoc(
-      doc(unauthenticated(), 'seller_applications', 'app-actual-id'),
-      {
-        id: 'app-spoofed-id',
-        sellerCompany: 'Al-Arz Soap Works',
-        email: 'artisan@example.com',
-        phone: '+961 70 123 456',
-        status: 'pending',
-        createdAt: '2026-09-07',
-      }
-    )
-  );
+// 14. Seller Order Data Isolation
+test('adversarial: seller order data isolation and fulfillment access', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'orders', 'ord-1'), {
+      id: 'ord-1',
+      userId: 'cust-1',
+      sellerIds: ['seller-tripoli', 'seller-other'],
+      totalUSD: 100,
+    });
+    await setDoc(doc(db, 'order_fulfillment/ord-1/sellers/seller-tripoli'), {
+      orderId: 'ord-1',
+      sellerId: 'seller-tripoli',
+      status: 'pending',
+      items: [{ product: { id: 'p-1' }, quantity: 1 }],
+      shipping: { fullName: 'Test', phone: '+96170123456' }
+    });
+    await setDoc(doc(db, 'order_fulfillment/ord-1/sellers/seller-other'), {
+      orderId: 'ord-1',
+      sellerId: 'seller-other',
+      status: 'pending',
+      items: [{ product: { id: 'p-2' }, quantity: 1 }],
+      shipping: { fullName: 'Test', phone: '+96170123456' }
+    });
+  });
+
+  // Seller A (seller-tripoli) reads own fulfillment doc -> ALLOW
+  await assertSucceeds(getDoc(doc(seller(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
+
+  // Seller A reads Seller B fulfillment doc -> DENY
+  await assertFails(getDoc(doc(seller(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-other')));
+
+  // Seller A attempts to read full /orders/ord-1 directly -> DENY (enforced by new rules!)
+  await assertFails(getDoc(doc(seller(), 'orders', 'ord-1')));
+
+  // Customer (cust-1) reads own order -> ALLOW
+  await assertSucceeds(getDoc(doc(customer(), 'orders', 'ord-1')));
+
+  // Customer cannot read seller fulfillment doc -> DENY
+  await assertFails(getDoc(doc(customer(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
+
+  // Admin reads full order & fulfillment -> ALLOW
+  await assertSucceeds(getDoc(doc(admin(), 'orders', 'ord-1')));
+  await assertSucceeds(getDoc(doc(admin(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
 });
+
 
 

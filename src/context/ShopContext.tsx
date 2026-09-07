@@ -34,6 +34,7 @@ import {
   setDoc, 
   deleteDoc, 
   collection, 
+  collectionGroup,
   getDocs, 
   onSnapshot, 
   getDocFromServer,
@@ -44,7 +45,8 @@ import {
   orderBy,
   limit,
   startAfter,
-  runTransaction
+  runTransaction,
+  serverTimestamp
 } from 'firebase/firestore';
 
 const safeGetDoc = async (docRef: any): Promise<any> => {
@@ -2249,7 +2251,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isAdminUser) {
       q = query(collection(db, 'orders'), orderBy('date', 'desc'), limit(500));
     } else if (user?.role === 'seller' && user?.sellerId) {
-      q = query(collection(db, 'orders'), where('sellerIds', 'array-contains', user.sellerId), limit(200));
+      q = query(collectionGroup(db, 'sellers'), where('sellerId', '==', user.sellerId), limit(200));
     } else {
       // Query solely by userId without composite index requirement, then sort in JS memory
       q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), limit(100));
@@ -2263,10 +2265,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           snapshot.forEach((docSnap) => {
             const data = docSnap.data();
             dbOrders.push({
-              ...data,
-              id: data.id || docSnap.id,
-              status: data.status || 'pending'
-            } as Order);
+              id: data.orderId || docSnap.id,
+              orderId: data.orderId,
+              userId: '',
+              status: data.status || 'pending',
+              date: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()) : new Date().toISOString(),
+              items: data.items || [],
+              shipping: data.shipping || {},
+              sellerIds: user?.sellerId ? [user.sellerId] : [],
+              subtotalUSD: 0,
+              discountUSD: 0,
+              deliveryFeeUSD: 0,
+              totalUSD: 0,
+              paymentMethod: 'cod_usd',
+              currency: 'USD',
+              totalLBP: 0,
+              estimatedDelivery: '',
+              trackingNumber: '',
+              ...data
+            } as unknown as Order);
           });
           // Sort newest first client-side
           dbOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -3393,7 +3410,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Persist status change to Firestore
     try {
-      await monitoredSetDoc(doc(db, 'orders', orderId), { status }, { merge: true }, 'AdminView:updateOrderStatus');
+      const isSellerUser = user?.role === 'seller' && user?.sellerId;
+      const targetPath = isSellerUser ? `order_fulfillment/${orderId}/sellers/${user.sellerId}` : `orders/${orderId}`;
+      await monitoredSetDoc(doc(db, targetPath), { status, updatedAt: serverTimestamp() }, { merge: true }, isSellerUser ? 'SellerDashboard:updateOrderStatus' : 'AdminView:updateOrderStatus');
       
       await logAdminActivity(
         'order_status',

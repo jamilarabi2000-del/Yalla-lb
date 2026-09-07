@@ -550,6 +550,33 @@ export const placeOrder = onCall<PlaceOrderRequest>(
 
       tx.set(orderRef, orderData);
 
+      // 6b. Create seller fulfillment documents atomically
+      for (const sId of canonicalSellerIds) {
+        const sellerLines = lines.filter(l => (typeof l.product.sellerId === 'string' ? l.product.sellerId.trim() : '') === sId);
+        const fulfillmentRef = db.doc(`order_fulfillment/${orderRef.id}/sellers/${sId}`);
+        tx.set(fulfillmentRef, {
+          orderId: orderRef.id,
+          sellerId: sId,
+          status: 'pending',
+          items: sellerLines.map(l => ({
+            product: l.product,
+            quantity: l.quantity,
+            selectedOption: l.selectedOption
+          })),
+          shipping: {
+            fullName: cleanShipping.fullName,
+            phone: cleanShipping.phone,
+            governorate: cleanShipping.governorate,
+            city: cleanShipping.city,
+            street: cleanShipping.street,
+            building: cleanShipping.building,
+            deliveryNotes: cleanShipping.deliveryNotes
+          },
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+
       tx.set(idempotencyRef, {
         uid,
         idempotencyKey,
