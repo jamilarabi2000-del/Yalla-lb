@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { randomInt, createHmac, timingSafeEqual } from 'node:crypto';
+import { defineSecret } from 'firebase-functions/params';
 
 if (getApps().length === 0) {
   initializeApp();
@@ -16,20 +17,44 @@ const getDb = () => {
   }
 };
 
+const OTP_SECRET = defineSecret('OTP_SECRET');
+
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
- * Never hard-coded in source code; reads strictly from process.env.OTP_SECRET.
+ * Never hard-coded in source code; reads strictly from Secret Manager.
  */
 function getOtpSecret(): string {
-  const secret = process.env.OTP_SECRET || process.env.FIREBASE_CONFIG;
+  if (
+    process.env.NODE_ENV === 'test' ||
+    process.env.FUNCTIONS_EMULATOR === 'true' ||
+    process.env.VITEST === 'true'
+  ) {
+    return 'TEST_SERVER_ONLY_HMAC_SECRET_KEY';
+  }
+
+  let secret = '';
+  try {
+    secret = OTP_SECRET.value();
+  } catch {
+    // Fail closed in production if Secret Manager parameter is missing/fails
+  }
+
   if (!secret) {
-    if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true' || process.env.VITEST === 'true') {
-      return 'TEST_SERVER_ONLY_HMAC_SECRET_KEY';
-    }
-    // Fail closed in production if secret is missing
     throw new HttpsError('internal', 'Server misconfiguration: OTP secret key missing.');
   }
   return secret;
+}
+
+/**
+ * Cryptographically derive secure deterministic document IDs using OTP_SECRET.
+ */
+export function deriveHmacId(contact: string, actionType: string): string {
+  const normalizedContact = contact.trim().toLowerCase();
+  const normalizedAction = actionType.trim().toLowerCase();
+  const secret = getOtpSecret();
+  return createHmac('sha256', secret)
+    .update(`${normalizedContact}:${normalizedAction}`)
+    .digest('hex');
 }
 
 /**
@@ -119,7 +144,7 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
  * - Returns NO plaintext code or secret token to the client
  */
 export const requestOtp = onCall(
-  { region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true },
+  { region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true, secrets: [OTP_SECRET] },
   async (request) => {
     const data = request.data || {};
     let contact = typeof data.contact === 'string' ? data.contact.trim().toLowerCase() : '';
@@ -178,17 +203,10 @@ export const requestOtp = onCall(
     // HMAC-SHA256 Hash
     const otpHash = hashOtp(contact, actionType, numericCode);
 
-    // Invalidate any active unused OTP for this contact/action (read before transaction starts)
-    const activeQuerySnap = await db.collection('otps')
-      .where('contact', '==', contact)
-      .where('actionType', '==', actionType)
-      .where('used', '==', false)
-      .get();
-
-    // ATOMIC CONCURRENCY-SAFE RATE LIMITING
-    const rateLimitDocKey = `${contact.replace(/[^a-zA-Z0-9_]/g, '_')}_${actionType}`;
-    const rateLimitRef = db.collection('otp_rate_limits').doc(rateLimitDocKey);
-    const newOtpRef = db.collection('otps').doc();
+    // Cryptographically derive secure deterministic document keys using OTP_SECRET
+    const hmacId = deriveHmacId(contact, actionType);
+    const rateLimitRef = db.collection('otp_rate_limits').doc(hmacId);
+    const newOtpRef = db.collection('otps').doc(hmacId);
     const expiresAtMs = now + 5 * 60 * 1000;
 
     await db.runTransaction(async (transaction) => {
@@ -222,16 +240,10 @@ export const requestOtp = onCall(
         );
       }
 
-      // Invalidate previous active OTPs
-      activeQuerySnap.docs.forEach(docSnap => {
-        transaction.update(docSnap.ref, { used: true, invalidatedReason: 'replaced_by_new_request' });
-      });
-
-      // Update Rate Limit document atomically
+      // Update Rate Limit document atomically (obfuscating plain contact info)
       const newCooldownUntilMs = now + 60 * 1000;
       requests.push(now);
       transaction.set(rateLimitRef, {
-        contact,
         actionType,
         cooldownUntilMs: newCooldownUntilMs,
         requests,
@@ -240,7 +252,7 @@ export const requestOtp = onCall(
 
       // Save secure OTP record in single server-only /otps collection
       transaction.set(newOtpRef, {
-        id: newOtpRef.id,
+        id: hmacId,
         uid: request.auth?.uid || null,
         contact,
         purpose: actionType,
@@ -262,7 +274,7 @@ export const requestOtp = onCall(
       await sendOtpDelivery(contact, actionType, numericCode);
     } catch (deliveryErr) {
       // Securely invalidate the OTP if delivery fails
-      await db.collection('otps').doc(newOtpRef.id).update({
+      await db.collection('otps').doc(hmacId).update({
         used: true,
         invalidatedReason: 'delivery_failed'
       }).catch(() => {});
@@ -288,7 +300,7 @@ export const requestOtp = onCall(
  * - Single server-only /otps collection
  */
 export const verifyOtp = onCall(
-  { region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true },
+  { region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true, secrets: [OTP_SECRET] },
   async (request) => {
     const data = request.data || {};
     let contact = typeof data.contact === 'string' ? data.contact.trim().toLowerCase() : '';
@@ -341,19 +353,8 @@ export const verifyOtp = onCall(
       }
     }
 
-    const snapshot = await db.collection('otps')
-      .where('contact', '==', contact)
-      .where('actionType', '==', actionType)
-      .where('used', '==', false)
-      .orderBy('createdAtMs', 'desc')
-      .limit(1)
-      .get();
-
-    if (snapshot.empty) {
-      throw new HttpsError('not-found', 'No active verification code found for this contact. Please request a new code.');
-    }
-
-    const otpDocRef = snapshot.docs[0].ref;
+    const hmacId = deriveHmacId(contact, actionType);
+    const otpDocRef = db.collection('otps').doc(hmacId);
 
     // ATOMIC FIRESTORE TRANSACTION PREVENTING CONCURRENT VERIFICATION DOUBLE-SUCCESS
     // Does NOT throw HttpsError from inside the transaction after making updates
