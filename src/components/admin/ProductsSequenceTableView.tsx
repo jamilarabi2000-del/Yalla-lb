@@ -97,11 +97,11 @@ export const ProductsSequenceTableView: React.FC<ProductsSequenceTableViewProps>
                   {/* Product Details */}
                   <td className="py-3 px-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                      <div className="w-12 h-12 rounded-xl bg-slate-50 overflow-hidden shrink-0 border border-slate-200 flex items-center justify-center p-0.5">
                         <img 
                           src={prod.image} 
                           alt={prod.name} 
-                          className="w-full h-full object-cover" 
+                          className="w-full h-full object-contain" 
                         />
                       </div>
                       <div className="min-w-0">

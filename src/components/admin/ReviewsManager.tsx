@@ -214,12 +214,14 @@ export const ReviewsManager: React.FC<ReviewsManagerProps> = ({ products }) => {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                   <div className="flex items-center gap-3">
                     {product?.image ? (
-                      <img 
-                        src={product.image} 
-                        alt={product.name} 
-                        className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" 
-                        referrerPolicy="no-referrer"
-                      />
+                      <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+                        <img 
+                          src={product.image} 
+                          alt={product.name} 
+                          className="w-full h-full object-contain" 
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     ) : (
                       <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                         <Package className="w-5 h-5 text-slate-400" />

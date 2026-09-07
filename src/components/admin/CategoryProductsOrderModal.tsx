@@ -318,11 +318,11 @@ export const CategoryProductsOrderModal: React.FC<CategoryProductsOrderModalProp
 
                   {/* Middle: Product Thumbnail & Details */}
                   <div className="flex items-center gap-3.5 min-w-0 flex-1">
-                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 relative">
+                    <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 shrink-0 relative flex items-center justify-center p-0.5">
                       <img 
                         src={prod.image} 
                         alt={prod.name} 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         referrerPolicy="no-referrer"
                       />
                       {prod.isFeatured && (

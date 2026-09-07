@@ -275,14 +275,13 @@ export const HomeView: React.FC = () => {
                     onClick={() => handleCategoryClick(cat.id)}
                     className="group relative flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer text-start"
                   >
-                    <div className="relative aspect-square w-full overflow-hidden bg-slate-100">
+                    <div className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center p-2">
                       <img
                         src={cat.image}
                         alt={cat.name}
-                        className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+                        className="h-full w-full object-contain object-center group-hover:scale-105 transition-transform duration-500 ease-out"
                         loading="lazy"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-black/10 opacity-40 group-hover:opacity-60 transition-opacity" />
                       <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10 pointer-events-none">
                         <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-slate-900/85 backdrop-blur-xs text-amber-300 rounded-md shadow-sm border border-amber-400/20">
                           {productCount > 0 
@@ -498,12 +497,14 @@ export const HomeView: React.FC = () => {
                         </p>
                         {bundleProds.map(prod => (
                           <div key={prod.id} className="flex items-center gap-3">
-                            <img
-                              src={prod.image}
-                              alt={prod.name}
-                              className="w-8 h-8 rounded-lg object-cover border border-slate-100 animate-fadeIn"
-                              referrerPolicy="no-referrer"
-                            />
+                            <div className="w-8 h-8 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-center p-0.5 shrink-0 overflow-hidden animate-fadeIn">
+                              <img
+                                src={prod.image}
+                                alt={prod.name}
+                                className="w-full h-full object-contain"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
                             <div className="min-w-0 flex-1">
                               <p className="text-xs font-semibold text-slate-700 truncate">
                                 {language === 'ar' ? (prod.arabicName || prod.name) : prod.name}

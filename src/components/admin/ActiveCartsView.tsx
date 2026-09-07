@@ -185,11 +185,13 @@ export const ActiveCartsView: React.FC = () => {
                     {cartSession.items.map((item: any) => (
                       <div key={item.product.id} className="py-3 flex items-center justify-between gap-4 first:pt-0 last:pb-0">
                         <div className="flex items-center gap-3">
-                          <img 
-                            src={item.product.image} 
-                            alt={item.product.name}
-                            className="w-12 h-12 rounded-xl object-cover border border-slate-100" 
-                          />
+                          <div className="w-12 h-12 rounded-xl border border-slate-100 bg-white flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+                            <img 
+                              src={item.product.image} 
+                              alt={item.product.name}
+                              className="w-full h-full object-contain" 
+                            />
+                          </div>
                           <div>
                             <p className="text-xs font-bold text-slate-900 line-clamp-1">{item.product.name}</p>
                             <p className="text-[11px] text-[#c5a059] font-medium">{item.product.artisan} • {item.product.origin}</p>

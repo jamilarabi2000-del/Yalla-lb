@@ -76,11 +76,11 @@ export const ProductModal: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-12">
           
           {/* Left: Image & Provenance Badge */}
-          <div className="md:col-span-6 relative bg-slate-950 min-h-[300px] md:min-h-full flex items-center justify-center overflow-hidden">
+          <div className="md:col-span-6 relative bg-slate-950 min-h-[300px] md:min-h-full flex items-center justify-center overflow-hidden p-4">
             <img
               src={product.image}
               alt={product.name}
-              className="w-full h-full object-cover max-h-[460px]"
+              className="w-full h-full object-contain object-center max-h-[460px]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#16162a] via-transparent to-transparent opacity-80" />
             

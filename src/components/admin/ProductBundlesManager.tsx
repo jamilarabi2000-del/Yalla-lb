@@ -364,7 +364,9 @@ export const ProductBundlesManager: React.FC = () => {
                     <div className="grid grid-cols-2 gap-2">
                       {bundledProducts.map(prod => (
                         <div key={prod.id} className="flex items-center gap-2 bg-slate-900/80 p-1.5 rounded-lg border border-white/5">
-                          <img src={prod.image} alt={prod.name} className="w-8 h-8 rounded-md object-cover flex-shrink-0" />
+                          <div className="w-8 h-8 rounded-md bg-slate-950 flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+                            <img src={prod.image} alt={prod.name} className="w-full h-full object-contain" />
+                          </div>
                           <div className="overflow-hidden min-w-0">
                             <p className="text-[11px] font-medium text-slate-200 truncate">{prod.name}</p>
                             <p className="text-[10px] text-slate-400 font-mono">${prod.priceUSD.toFixed(2)}</p>
@@ -536,7 +538,9 @@ export const ProductBundlesManager: React.FC = () => {
                             onChange={() => {}} // handled by parent div
                             className="accent-amber-500"
                           />
-                          <img src={p.image} alt={p.name} className="w-7 h-7 rounded object-cover flex-shrink-0" />
+                          <div className="w-7 h-7 rounded bg-slate-950 flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+                            <img src={p.image} alt={p.name} className="w-full h-full object-contain" />
+                          </div>
                           <span className="text-xs font-medium truncate">{p.name}</span>
                         </div>
                         <span className="text-xs font-mono text-amber-400 font-bold flex-shrink-0">${p.priceUSD.toFixed(2)}</span>

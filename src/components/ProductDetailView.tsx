@@ -377,7 +377,7 @@ export const ProductDetailView: React.FC = () => {
           {/* Left Column: Image & Video Media Gallery */}
           {(visibility.detailGallery || isVisualEditMode) && (
             <div className="lg:col-span-6 space-y-4">
-              <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-slate-900 border border-slate-200 shadow-md">
+              <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-200 shadow-md flex items-center justify-center p-4">
                 {activeMediaType === 'video' && currentVideoEmbed ? (
                   currentVideoEmbed.type === 'youtube' || currentVideoEmbed.type === 'vimeo' ? (
                     <iframe
@@ -399,7 +399,7 @@ export const ProductDetailView: React.FC = () => {
                   <img
                     src={currentImage}
                     alt={displayTitle}
-                    className="w-full h-full object-cover object-center transition-all duration-300"
+                    className="w-full h-full object-contain object-center transition-all duration-300"
                     referrerPolicy="no-referrer"
                   />
                 )}
@@ -453,7 +453,7 @@ export const ProductDetailView: React.FC = () => {
                           : 'border-slate-200 opacity-70 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-contain p-1 bg-slate-50" referrerPolicy="no-referrer" />
                     </button>
                   ))}
 

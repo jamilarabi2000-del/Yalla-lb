@@ -345,11 +345,13 @@ export const OrdersRoute: React.FC = () => {
                 {selectedInvoiceOrder.items?.map((item, idx) => (
                   <div key={idx} className="p-3 flex items-center justify-between text-xs hover:bg-slate-50">
                     <div className="flex items-center gap-3">
-                      <img 
-                        src={item.product?.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=100&q=80'} 
-                        alt={item.product?.name || 'Product'} 
-                        className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" 
-                      />
+                      <div className="w-10 h-10 rounded-xl border border-slate-200 bg-white flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+                        <img 
+                          src={item.product?.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=100&q=80'} 
+                          alt={item.product?.name || 'Product'} 
+                          className="w-full h-full object-contain" 
+                        />
+                      </div>
                       <div>
                         <div className="font-bold text-slate-900">{item.product?.name || 'Product'}</div>
                         <div className="text-[11px] text-slate-500 font-mono">Qty: {item.quantity || 1} × ${item.product?.priceUSD?.toFixed(2) || '0.00'}</div>

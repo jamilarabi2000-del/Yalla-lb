@@ -495,13 +495,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex -space-x-3 overflow-hidden">
                     {order.items.slice(0, 4).map((item, idx) => (
-                      <img 
-                        key={idx}
-                        src={item.product.image} 
-                        alt={item.product.name}
-                        className="w-10 h-10 rounded-full border-2 border-white object-cover bg-slate-100"
-                        title={`${item.quantity}x ${item.product.name}`}
-                      />
+                      <div key={idx} className="w-10 h-10 rounded-full border-2 border-white bg-slate-50 flex items-center justify-center p-0.5 overflow-hidden shadow-xs">
+                        <img 
+                          src={item.product.image} 
+                          alt={item.product.name}
+                          className="w-full h-full object-contain"
+                          title={`${item.quantity}x ${item.product.name}`}
+                        />
+                      </div>
                     ))}
                     {order.items.length > 4 && (
                       <div className="w-10 h-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
@@ -621,11 +622,13 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 <div className="space-y-3">
                   {selectedOrder.items.map((item, idx) => (
                     <div key={idx} className="flex gap-3 p-3 rounded-2xl border border-slate-100 bg-white items-center">
-                      <img 
-                        src={item.product.image} 
-                        alt={item.product.name}
-                        className="w-14 h-14 rounded-xl object-cover bg-slate-50"
-                      />
+                      <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center p-1 overflow-hidden">
+                        <img 
+                          src={item.product.image} 
+                          alt={item.product.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <h5 className="text-sm font-bold text-slate-900 line-clamp-1">
                           {language === 'ar' ? (item.product.arabicName || item.product.name) : item.product.name}

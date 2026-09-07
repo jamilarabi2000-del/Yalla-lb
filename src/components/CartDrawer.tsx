@@ -160,11 +160,13 @@ export const CartDrawer: React.FC = () => {
                     key={item.product.id}
                     className="flex gap-3 p-3 rounded-2xl bg-white border border-slate-200/90 items-center justify-between shadow-sm hover:border-[#b89753] transition-all"
                   >
-                    <img
-                      src={item.product.image}
-                      alt={item.product.name}
-                      className="w-16 h-16 rounded-xl object-cover bg-slate-100 border border-slate-200 flex-shrink-0"
-                    />
+                    <div className="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center p-1 overflow-hidden">
+                      <img
+                        src={item.product.image}
+                        alt={item.product.name}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
 
                     <div className="flex-1 min-w-0 pr-1">
                       <h4 className="text-xs font-bold text-slate-900 leading-snug line-clamp-2">

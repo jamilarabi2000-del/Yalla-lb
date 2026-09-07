@@ -61,12 +61,12 @@ const ProductCardComponent: React.FC<ProductCardProps> = ({ product, showRemoveB
     >
       {/* Image Container */}
       <div 
-        className="relative aspect-square w-full overflow-hidden bg-slate-100"
+        className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center p-2"
       >
         <img
           src={product.image}
           alt={displayTitle}
-          className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+          className="h-full w-full object-contain object-center group-hover:scale-105 transition-transform duration-500 ease-out"
           loading="lazy"
         />
         

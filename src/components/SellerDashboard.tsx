@@ -426,8 +426,8 @@ export const SellerDashboard: React.FC = () => {
                 {filteredProducts.map(prod => (
                   <div key={prod.id} className="border border-slate-100 rounded-2xl p-4 space-y-4 hover:border-slate-200 hover:shadow-xs transition-all flex flex-col justify-between">
                     <div>
-                      <div className="relative aspect-square rounded-xl overflow-hidden bg-slate-100 border border-slate-100">
-                        <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      <div className="relative aspect-square rounded-xl overflow-hidden bg-slate-50 border border-slate-100 flex items-center justify-center p-2">
+                        <img src={prod.image} alt={prod.name} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                         {prod.stock <= (prod.lowStockThreshold ?? 5) && (
                           <span className="absolute top-2 left-2 bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-lg shadow-sm">
                             Low Stock
@@ -526,7 +526,9 @@ export const SellerDashboard: React.FC = () => {
                         {orderItems.map((item, idx) => (
                           <div key={idx} className="flex items-center justify-between text-xs text-slate-700 bg-slate-50/50 p-2.5 rounded-xl border border-slate-100">
                             <div className="flex items-center gap-3">
-                              <img src={item.product.image} alt={item.product.name} className="w-10 h-10 object-cover rounded-lg border" referrerPolicy="no-referrer" />
+                              <div className="w-10 h-10 rounded-lg border bg-white flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
+                                <img src={item.product.image} alt={item.product.name} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+                              </div>
                               <div>
                                 <p className="font-bold text-slate-900">{item.product.name}</p>
                                 <p className="text-[10px] text-slate-500">Qty: {item.quantity} • Unit Price: ${item.product.priceUSD.toFixed(2)}</p>

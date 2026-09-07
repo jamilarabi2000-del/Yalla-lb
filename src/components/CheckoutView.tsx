@@ -1259,11 +1259,13 @@ export const CheckoutView: React.FC = () => {
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {cart.map((item) => (
                     <div key={item.product.id} className="flex items-center gap-3 text-xs">
-                      <img
-                        src={item.product.image}
-                        alt={item.product.name}
-                        className="w-12 h-12 rounded-xl object-cover bg-slate-50 border border-slate-200 flex-shrink-0"
-                      />
+                      <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center p-0.5 overflow-hidden">
+                        <img
+                          src={item.product.image}
+                          alt={item.product.name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-slate-900 truncate">{item.product.name}</h4>
                         <p className="text-[11px] text-slate-500">Qty: {item.quantity} × {formatPrice(item.product.priceUSD)}</p>

@@ -2279,11 +2279,11 @@ export const AdminView: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="aspect-4/3 rounded-2xl overflow-hidden bg-slate-100 relative group">
+                          <div className="aspect-4/3 rounded-2xl overflow-hidden bg-slate-50 border border-slate-200 relative group flex items-center justify-center p-2">
                             <img 
                               src={prod.image} 
                               alt={prod.name} 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                              className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300" 
                             />
 
                             <span className="absolute top-2.5 right-2.5 px-3 py-1 rounded-full text-xs font-black bg-slate-900/90 text-white shadow-sm backdrop-blur-xs">
@@ -2969,12 +2969,14 @@ export const AdminView: React.FC = () => {
                       className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-200 focus:outline-none"
                     />
                     {newProduct.image && (
-                      <img
-                        src={newProduct.image}
-                        alt="Primary Preview"
-                        className="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
+                      <div className="w-9 h-9 rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-50 flex items-center justify-center p-0.5 overflow-hidden">
+                        <img
+                          src={newProduct.image}
+                          alt="Primary Preview"
+                          className="w-full h-full object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     )}
                   </div>
                   {(newProduct.image && (newProduct.image.includes('.html') || (!newProduct.image.match(/\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$/i) && !newProduct.image.includes('unsplash.com') && !newProduct.image.includes('cloudinary') && !newProduct.image.includes('firebase')))) && (
@@ -3055,8 +3057,8 @@ export const AdminView: React.FC = () => {
                   {newProduct.additionalImages.length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-1">
                       {newProduct.additionalImages.map((imgUrl, iIdx) => (
-                        <div key={iIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300 shadow-2xs bg-white">
-                          <img src={imgUrl} alt={`Gallery ${iIdx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <div key={iIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300 shadow-2xs bg-slate-50 flex items-center justify-center p-1">
+                          <img src={imgUrl} alt={`Gallery ${iIdx + 1}`} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                           <button
                             type="button"
                             onClick={() => setNewProduct({
@@ -3960,12 +3962,14 @@ export const AdminView: React.FC = () => {
                       className="flex-1 px-3 py-2 bg-white rounded-xl border border-slate-200 focus:outline-none"
                     />
                     {fullEditProduct.image && (
-                      <img
-                        src={fullEditProduct.image}
-                        alt="Primary Preview"
-                        className="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0"
-                        referrerPolicy="no-referrer"
-                      />
+                      <div className="w-9 h-9 rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-50 flex items-center justify-center p-0.5 overflow-hidden">
+                        <img
+                          src={fullEditProduct.image}
+                          alt="Primary Preview"
+                          className="w-full h-full object-contain"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
                     )}
                   </div>
                   {(fullEditProduct.image && (fullEditProduct.image.includes('.html') || (!fullEditProduct.image.match(/\.(jpg|jpeg|png|webp|gif|svg)(\?.*)?$|unsplash\.com|cloudinary|firebase/i)))) && (
@@ -4048,8 +4052,8 @@ export const AdminView: React.FC = () => {
                   {(fullEditProduct.additionalImages || []).length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-1">
                       {(fullEditProduct.additionalImages || []).map((imgUrl, iIdx) => (
-                        <div key={iIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300 shadow-2xs bg-white">
-                          <img src={imgUrl} alt={`Gallery ${iIdx + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                        <div key={iIdx} className="relative group w-14 h-14 rounded-xl overflow-hidden border border-slate-300 shadow-2xs bg-slate-50 flex items-center justify-center p-1">
+                          <img src={imgUrl} alt={`Gallery ${iIdx + 1}`} className="w-full h-full object-contain" referrerPolicy="no-referrer" />
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation();
@@ -4432,11 +4436,11 @@ export const AdminView: React.FC = () => {
                   <div className="p-4 bg-slate-100/70 border border-slate-200 rounded-3xl flex justify-center">
                     <div className="w-full max-w-[260px] bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm space-y-2.5 pb-3">
                       {/* Product Image & Badges */}
-                      <div className="relative aspect-4/3 w-full bg-slate-100 overflow-hidden">
+                      <div className="relative aspect-4/3 w-full bg-slate-50 overflow-hidden flex items-center justify-center p-2">
                         <img 
                           src={fullEditProduct.image || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80'} 
                           alt={fullEditProduct.name}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain"
                         />
                         <div className="absolute top-2 left-2 flex flex-col gap-1">
                           {fullEditProduct.isPublished === false ? (
