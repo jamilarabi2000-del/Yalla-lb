@@ -23,11 +23,13 @@ const getDb = () => {
 function getOtpSecret(): string {
   const secret = process.env.OTP_SECRET || process.env.FIREBASE_CONFIG;
   if (!secret) {
-    if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true') {
+    if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true' || process.env.VITEST === 'true') {
       return 'TEST_SERVER_ONLY_HMAC_SECRET_KEY';
     }
+    // Fail closed in production if secret is missing
+    throw new HttpsError('internal', 'Server misconfiguration: OTP secret key missing.');
   }
-  return secret || 'YALLA_PRODUCTION_SERVER_ONLY_HMAC_SECRET';
+  return secret;
 }
 
 /**
@@ -150,19 +152,7 @@ export const requestOtp = onCall(
       const isAdminRegistry = adminDoc.exists;
 
       if (!isCustomClaimAdmin && !isAdminRegistry) {
-        // Auto-bootstrap initial admin if registry is empty
-        const adminsSnap = await db.collection('admins').limit(1).get();
-        if (adminsSnap.empty) {
-          await db.collection('admins').doc(uid).set({
-            uid,
-            createdAt: FieldValue.serverTimestamp()
-          });
-          await db.collection('users').doc(uid).set({
-            role: 'admin'
-          }, { merge: true });
-        } else {
-          throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
-        }
+        throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
       }
     }
 
@@ -182,11 +172,26 @@ export const requestOtp = onCall(
       }
     }
 
+    // Cryptographically secure 6-digit random code
+    const numericCode = randomInt(100000, 1000000).toString();
+
+    // HMAC-SHA256 Hash
+    const otpHash = hashOtp(contact, actionType, numericCode);
+
+    // Invalidate any active unused OTP for this contact/action (read before transaction starts)
+    const activeQuerySnap = await db.collection('otps')
+      .where('contact', '==', contact)
+      .where('actionType', '==', actionType)
+      .where('used', '==', false)
+      .get();
+
     // ATOMIC CONCURRENCY-SAFE RATE LIMITING
     const rateLimitDocKey = `${contact.replace(/[^a-zA-Z0-9_]/g, '_')}_${actionType}`;
     const rateLimitRef = db.collection('otp_rate_limits').doc(rateLimitDocKey);
+    const newOtpRef = db.collection('otps').doc();
+    const expiresAtMs = now + 5 * 60 * 1000;
 
-    return await db.runTransaction(async (transaction) => {
+    await db.runTransaction(async (transaction) => {
       const rateLimitSnap = await transaction.get(rateLimitRef);
       let requests: number[] = [];
       let cooldownUntilMs = 0;
@@ -217,31 +222,13 @@ export const requestOtp = onCall(
         );
       }
 
-      // Cryptographically secure 6-digit random code
-      const numericCode = randomInt(100000, 1000000).toString();
-
-      // HMAC-SHA256 Hash
-      const otpHash = hashOtp(contact, actionType, numericCode);
-
-      // Dispatch via real production provider before writing record
-      await sendOtpDelivery(contact, actionType, numericCode);
-
-      // Expiration: 5 minutes (300,000 ms)
-      const expiresAtMs = now + 5 * 60 * 1000;
-      const newCooldownUntilMs = now + 60 * 1000;
-
-      // Invalidate any active unused OTP for this contact/action
-      const activeQuerySnap = await db.collection('otps')
-        .where('contact', '==', contact)
-        .where('actionType', '==', actionType)
-        .where('used', '==', false)
-        .get();
-
+      // Invalidate previous active OTPs
       activeQuerySnap.docs.forEach(docSnap => {
         transaction.update(docSnap.ref, { used: true, invalidatedReason: 'replaced_by_new_request' });
       });
 
       // Update Rate Limit document atomically
+      const newCooldownUntilMs = now + 60 * 1000;
       requests.push(now);
       transaction.set(rateLimitRef, {
         contact,
@@ -252,7 +239,6 @@ export const requestOtp = onCall(
       });
 
       // Save secure OTP record in single server-only /otps collection
-      const newOtpRef = db.collection('otps').doc();
       transaction.set(newOtpRef, {
         id: newOtpRef.id,
         uid: request.auth?.uid || null,
@@ -269,13 +255,26 @@ export const requestOtp = onCall(
         used: false,
         consumedAt: null
       });
-
-      return {
-        success: true,
-        cooldownSeconds: 60,
-        expiresAtMs
-      };
     });
+
+    // Send OTP delivery ONLY AFTER transaction commits successfully
+    try {
+      await sendOtpDelivery(contact, actionType, numericCode);
+    } catch (deliveryErr) {
+      // Securely invalidate the OTP if delivery fails
+      await db.collection('otps').doc(newOtpRef.id).update({
+        used: true,
+        invalidatedReason: 'delivery_failed'
+      }).catch(() => {});
+
+      throw new HttpsError('internal', 'Verification code delivery failed. Please try again.');
+    }
+
+    return {
+      success: true,
+      cooldownSeconds: 60,
+      expiresAtMs
+    };
   }
 );
 
@@ -311,6 +310,37 @@ export const verifyOtp = onCall(
     const db = getDb();
     const now = Date.now();
 
+    // Independent Server Authorization Check for Admin / Seller BEFORE OTP verification
+    if (actionType === 'admin') {
+      if (!request.auth?.uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+      }
+      const uid = request.auth.uid;
+      const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
+      const adminDoc = await db.collection('admins').doc(uid).get();
+      const isAdminRegistry = adminDoc.exists;
+
+      if (!isCustomClaimAdmin && !isAdminRegistry) {
+        throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
+      }
+    }
+
+    if (actionType === 'seller') {
+      if (!request.auth?.uid) {
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+      }
+      const uid = request.auth.uid;
+      const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
+      const sellerDoc = await db.collection('sellers').doc(uid).get();
+      const isSellerRegistry = sellerDoc.exists;
+      const userDoc = await db.collection('users').doc(uid).get();
+      const isDbSeller = userDoc.exists && userDoc.data()?.role === 'seller';
+
+      if (!isCustomClaimSeller && !isSellerRegistry && !isDbSeller) {
+        throw new HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
+      }
+    }
+
     const snapshot = await db.collection('otps')
       .where('contact', '==', contact)
       .where('actionType', '==', actionType)
@@ -326,15 +356,16 @@ export const verifyOtp = onCall(
     const otpDocRef = snapshot.docs[0].ref;
 
     // ATOMIC FIRESTORE TRANSACTION PREVENTING CONCURRENT VERIFICATION DOUBLE-SUCCESS
-    return await db.runTransaction(async (transaction) => {
+    // Does NOT throw HttpsError from inside the transaction after making updates
+    const result = await db.runTransaction(async (transaction) => {
       const otpDocSnap = await transaction.get(otpDocRef);
       if (!otpDocSnap.exists) {
-        throw new HttpsError('not-found', 'Verification record missing.');
+        return { outcome: 'not_found' };
       }
 
       const otpData = otpDocSnap.data()!;
       if (otpData.used) {
-        throw new HttpsError('not-found', 'Verification code has already been used or invalidated.');
+        return { outcome: 'already_used' };
       }
 
       const maxAttempts = otpData.maxAttempts || 5;
@@ -342,13 +373,13 @@ export const verifyOtp = onCall(
       // Check Expiration (5 min limit)
       if (now > otpData.expiresAtMs) {
         transaction.update(otpDocRef, { used: true, invalidatedReason: 'expired' });
-        throw new HttpsError('deadline-exceeded', 'The verification code has expired. Please request a new code.');
+        return { outcome: 'expired' };
       }
 
       // Check Maximum Attempts
       if ((otpData.failedAttempts || 0) >= maxAttempts) {
         transaction.update(otpDocRef, { used: true, invalidatedReason: 'max_attempts_exceeded' });
-        throw new HttpsError('resource-exhausted', 'Maximum verification attempts exceeded. Code permanently invalidated.');
+        return { outcome: 'locked' };
       }
 
       // HMAC comparison using timingSafeEqual
@@ -369,10 +400,9 @@ export const verifyOtp = onCall(
         });
 
         if (isNowInvalidated) {
-          throw new HttpsError('resource-exhausted', 'Maximum verification attempts exceeded. Code permanently invalidated.');
+          return { outcome: 'locked' };
         } else {
-          const remaining = maxAttempts - newFailedAttempts;
-          throw new HttpsError('invalid-argument', `Invalid verification code. ${remaining} attempt(s) remaining.`);
+          return { outcome: 'invalid_attempt', remaining: maxAttempts - newFailedAttempts };
         }
       }
 
@@ -384,39 +414,29 @@ export const verifyOtp = onCall(
         verifiedUid: request.auth?.uid || null
       });
 
-      if (request.auth?.uid) {
-        const verifiedUid = request.auth.uid;
-        if (actionType === 'admin') {
-          try {
-            const { getAuth } = await import('firebase-admin/auth');
-            await getAuth().setCustomUserClaims(verifiedUid, { admin: true });
-            await db.collection('admins').doc(verifiedUid).set({
-              uid: verifiedUid,
-              updatedAt: FieldValue.serverTimestamp()
-            }, { merge: true });
-            await db.collection('users').doc(verifiedUid).set({
-              role: 'admin'
-            }, { merge: true });
-          } catch (claimsErr) {
-            console.error('Failed setting admin claims:', claimsErr);
-          }
-        } else if (actionType === 'seller') {
-          try {
-            const { getAuth } = await import('firebase-admin/auth');
-            await getAuth().setCustomUserClaims(verifiedUid, { seller: true });
-            await db.collection('users').doc(verifiedUid).set({
-              role: 'seller'
-            }, { merge: true });
-          } catch (claimsErr) {
-            console.error('Failed setting seller claims:', claimsErr);
-          }
-        }
-      }
-
-      return {
-        success: true,
-        verifiedAtMs: now
-      };
+      return { outcome: 'success' };
     });
+
+    // Map internal outcomes to external HTTP errors outside transaction
+    if (result.outcome === 'not_found') {
+      throw new HttpsError('not-found', 'Verification record missing.');
+    }
+    if (result.outcome === 'already_used') {
+      throw new HttpsError('not-found', 'Verification code has already been used or invalidated.');
+    }
+    if (result.outcome === 'expired') {
+      throw new HttpsError('deadline-exceeded', 'The verification code has expired. Please request a new code.');
+    }
+    if (result.outcome === 'locked') {
+      throw new HttpsError('resource-exhausted', 'Maximum verification attempts exceeded. Code permanently invalidated.');
+    }
+    if (result.outcome === 'invalid_attempt') {
+      throw new HttpsError('invalid-argument', `Invalid verification code. ${result.remaining} attempt(s) remaining.`);
+    }
+
+    return {
+      success: true,
+      verifiedAtMs: now
+    };
   }
 );

@@ -38,7 +38,8 @@ export const OTPModal: React.FC<OTPModalProps> = ({
     try {
       const requestOtpFn = httpsCallable<{ contact: string; actionType: string }, { success: boolean; cooldownSeconds: number }>(
         functionsInstance,
-        'requestOtp'
+        'requestOtp',
+        { limitedUseAppCheckTokens: true }
       );
       const res = await requestOtpFn({ contact: targetContact, actionType });
       if (res.data?.success) {
@@ -137,7 +138,8 @@ export const OTPModal: React.FC<OTPModalProps> = ({
     try {
       const verifyOtpFn = httpsCallable<{ contact: string; actionType: string; code: string }, { success: boolean }>(
         functionsInstance,
-        'verifyOtp'
+        'verifyOtp',
+        { limitedUseAppCheckTokens: true }
       );
       const res = await verifyOtpFn({ contact: targetContact, actionType, code: enteredCode });
 

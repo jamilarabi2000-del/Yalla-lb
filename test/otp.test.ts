@@ -148,6 +148,27 @@ class SimulatedOtpServer {
       throw new Error('invalid-argument: Verification code must be 6 digits.');
     }
 
+    // Server-side Independent Authorization Verification BEFORE OTP verification
+    if (normAction === 'admin') {
+      if (!authUid) {
+        throw new Error('unauthenticated: Authentication required to verify administrator verification code.');
+      }
+      const user = this.users[authUid];
+      if (!user || user.role !== 'admin') {
+        throw new Error('permission-denied: Contact is not registered as an authorized administrator.');
+      }
+    }
+
+    if (normAction === 'seller') {
+      if (!authUid) {
+        throw new Error('unauthenticated: Authentication required to verify seller verification code.');
+      }
+      const user = this.users[authUid];
+      if (!user || user.role !== 'seller') {
+        throw new Error('permission-denied: Contact is not registered as an authorized seller merchant.');
+      }
+    }
+
     // Atomic Transaction Simulation
     while (this.isLocked) {
       await new Promise(r => setTimeout(r, 10));
@@ -338,7 +359,10 @@ describe('Comprehensive Production OTP & Authorization Security Suite (24 Test C
   it('21. Tampered client actionType cannot elevate privileges', async () => {
     const now = 1000000;
     server.requestOtp('customer@yalla.lb', 'login', '123456', now);
-    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'admin', '123456', now + 1000)).rejects.toThrow('not-found');
+    // Unauthenticated request with admin actionType fails with unauthenticated check first
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'admin', '123456', now + 1000, undefined)).rejects.toThrow('unauthenticated');
+    // Authenticated non-admin request fails with permission-denied check first
+    await expect(server.verifyOtpAtomic('customer@yalla.lb', 'admin', '123456', now + 1000, 'customer-1')).rejects.toThrow('permission-denied');
   });
 
   it('22. Tampered client UID cannot change the authenticated identity', () => {

@@ -537,7 +537,7 @@ service cloud.firestore {
       allow get: if isAdmin()
         || (
           isSignedIn()
-          && resource.data.get('uid', '') == request.auth.uid
+          && (resource == null || resource.data.get('uid', '') == request.auth.uid)
         );
       allow list: if isAdmin();
 
@@ -621,7 +621,13 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow get, list: if isAdmin()
+      allow get: if isAdmin()
+        || (
+          isSignedIn()
+          && (resource == null || resource.data.get('userId', '') == request.auth.uid)
+        );
+
+      allow list: if isAdmin()
         || (
           isSignedIn()
           && resource.data.get('userId', '') == request.auth.uid
@@ -665,7 +671,10 @@ service cloud.firestore {
       allow get, list: if isAdmin()
         || (
           isSeller()
-          && getSellerId() == sellerId
+          && (
+            getSellerId() == sellerId
+            || (resource != null && resource.data.get('sellerId', '') == getSellerId())
+          )
         );
 
       allow create: if false;
