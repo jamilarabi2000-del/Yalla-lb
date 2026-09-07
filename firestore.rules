@@ -647,8 +647,8 @@ service cloud.firestore {
         );
 
       // Customer checkout MUST go through the authoritative placeOrder Cloud Function.
-      // Direct Firestore creation from client identities is forbidden.
-      allow create: if isAdmin();
+      // Direct Firestore creation from ANY client identity (including admins) is strictly forbidden.
+      allow create: if false;
 
       allow update: if isAdmin()
         || (

@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds }
   from '@firebase/rules-unit-testing';
 import { doc, setDoc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { beforeAll, afterAll, test } from 'vitest';
+import { beforeAll, afterAll, test, expect } from 'vitest';
 
 let env: any;
 
@@ -61,19 +61,42 @@ beforeAll(async () => {
       doc(ctx.firestore(), 'products', 'p-order'),
       validProduct
     );
+    await setDoc(
+      doc(ctx.firestore(), 'users', 'seller-uid-1'),
+      {
+        uid: 'seller-uid-1',
+        role: 'seller',
+        sellerId: 'seller-tripoli',
+        email: 'seller1@example.com'
+      }
+    );
   });
 });
 afterAll(() => env.cleanup());
 
+const unauthenticated = () => env.unauthenticatedContext().firestore();
 const customer = () => env.authenticatedContext('cust-1', {
   email: 'c@example.com', email_verified: true,
+}).firestore();
+const seller = () => env.authenticatedContext('seller-uid-1', {
+  email: 'seller1@example.com', email_verified: true,
 }).firestore();
 const admin = () => env.authenticatedContext('admin-1', {
   email: 'a@example.com', email_verified: true, admin: true,
 }).firestore();
 
-// ── Regression 1: Checkout hardening — direct customer order writes are forbidden ───
-test('customer cannot create an order directly (must use placeOrder Cloud Function)', async () => {
+// ── Strict Security Tests: Order creation is backend-only via placeOrder Cloud Function ───
+
+test('TEST A: Unauthenticated client cannot create an order', async () => {
+  await assertFails(
+    setDoc(
+      doc(unauthenticated(), 'orders', 'o-unauth'),
+      validOrder('o-unauth')
+    )
+  );
+});
+
+test('TEST B: Normal authenticated customer cannot create an order directly', async () => {
   await assertFails(
     setDoc(
       doc(customer(), 'orders', 'o1'),
@@ -82,13 +105,37 @@ test('customer cannot create an order directly (must use placeOrder Cloud Functi
   );
 });
 
-test('admin can create an order directly in Firestore', async () => {
-  await assertSucceeds(
+test('TEST C: Authenticated seller cannot create an order directly', async () => {
+  await assertFails(
+    setDoc(
+      doc(seller(), 'orders', 'o-seller'),
+      validOrder('o-seller')
+    )
+  );
+});
+
+test('TEST D: Authenticated admin cannot create an order directly', async () => {
+  await assertFails(
     setDoc(
       doc(admin(), 'orders', 'o-admin'),
       validOrder('o-admin')
     )
   );
+});
+
+test('TEST E: The existing placeOrder Cloud Function can still successfully create an order using the Admin SDK', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    const adminDb = ctx.firestore();
+    await assertSucceeds(
+      setDoc(
+        doc(adminDb, 'orders', 'o-backend-admin-sdk'),
+        validOrder('o-backend-admin-sdk')
+      )
+    );
+    const snap = await getDoc(doc(adminDb, 'orders', 'o-backend-admin-sdk'));
+    expect(snap.exists()).toBe(true);
+    expect(snap.data()?.id).toBe('o-backend-admin-sdk');
+  });
 });
 
 test('customer cannot create a pre-advanced order', async () => {
@@ -144,14 +191,6 @@ test('admin can write products and cms', async () => {
 
 test('non-admin cannot write cms', async () => {
   await assertFails(setDoc(doc(customer(), 'cms', 'main'), { navbar: {} }, { merge: true }));
-});
-
-const unauthenticated = () => env.unauthenticatedContext().firestore();
-
-test('unauthenticated user cannot create order', async () => {
-  await assertFails(setDoc(doc(unauthenticated(), 'orders', 'o-unauth'), {
-    userId: 'cust-1', status: 'pending', subtotalUSD: 10, deliveryFeeUSD: 0, totalUSD: 10, items: [], shipping: {},
-  }));
 });
 
 test('unauthenticated user cannot read order with trackingNumber', async () => {
