@@ -38,6 +38,7 @@ import {
   downloadFullMasterReport, 
   downloadSellerPerformanceReport 
 } from '../../utils/exportMasterReport';
+import { safeHref } from '../../lib/safeUrl';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../../utils/importerResolvers';
 import { checkDuplicateSellerItemCode } from '../../lib/productValidation';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../../utils/phoneUtils';
@@ -1372,7 +1373,7 @@ export const SellersView: React.FC = () => {
                       {app.socialLink && (
                         <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-semibold">
                           <ExternalLink className="w-3.5 h-3.5" />
-                          <a href={app.socialLink} target="_blank" rel="noreferrer" className="hover:underline truncate max-w-xs">
+                          <a href={safeHref(app.socialLink)} target="_blank" rel="noreferrer" className="hover:underline truncate max-w-xs">
                             {app.socialLink}
                           </a>
                         </div>

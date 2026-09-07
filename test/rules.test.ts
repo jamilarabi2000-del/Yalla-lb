@@ -370,4 +370,139 @@ test('adversarial: seller cannot manipulate sellerActive, rating, reviewCount, o
   );
 });
 
+// 8. Product Document ID Integrity
+test('adversarial: seller cannot create or update product with mismatched ID', async () => {
+  const sellerContext = env.authenticatedContext('user-seller-x', {
+    email: 'sellerx@example.com',
+    email_verified: true,
+  }).firestore();
+
+  // Mismatched ID on create
+  await assertFails(
+    setDoc(
+      doc(sellerContext, 'products', 'p-actual-id'),
+      {
+        id: 'p-spoofed-id',
+        sellerId: 'seller-x',
+        name: 'Spoofed ID Product',
+        priceUSD: 20,
+        stock: 10,
+      }
+    )
+  );
+
+  // Altering ID on update
+  await assertFails(
+    setDoc(
+      doc(sellerContext, 'products', 'p-seller-x'),
+      { id: 'p-changed-id' },
+      { merge: true }
+    )
+  );
+});
+
+// 9. Email Integrity in User Profile
+test('adversarial: customer cannot set profile email to another user email', async () => {
+  await assertFails(
+    setDoc(
+      doc(customer(), 'users', 'cust-1'),
+      { email: 'victim@example.com' },
+      { merge: true }
+    )
+  );
+
+  // Succeeds when setting matching token email
+  await assertSucceeds(
+    setDoc(
+      doc(customer(), 'users', 'cust-1'),
+      { email: 'c@example.com' },
+      { merge: true }
+    )
+  );
+});
+
+// 10. Phone Registry Privacy
+test('adversarial: customer cannot query or read another user phone registry', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'phone_registry', '96170999999'), {
+      uid: 'victim-cust',
+      phone: '+961 70 999 999',
+      cleanDigits: '70999999',
+    });
+  });
+
+  // Customer tries to read victim phone registry
+  await assertFails(getDoc(doc(customer(), 'phone_registry', '96170999999')));
+});
+
+// 11. Secret Coupons Access Restriction
+test('adversarial: non-admin cannot read or write coupons', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'coupons', 'SECRET50'), {
+      code: 'SECRET50',
+      discountPercent: 50,
+    });
+  });
+
+  await assertFails(getDoc(doc(customer(), 'coupons', 'SECRET50')));
+  await assertFails(getDoc(doc(unauthenticated(), 'coupons', 'SECRET50')));
+  await assertFails(setDoc(doc(customer(), 'coupons', 'HACK100'), { code: 'HACK100' }));
+});
+
+// 12. Cart & Wishlist Schema Validation
+test('adversarial: customer cannot inject arbitrary schemas or oversized payloads in carts/wishlists', async () => {
+  // Invalid cart key
+  await assertFails(
+    setDoc(
+      doc(customer(), 'carts', 'cust-1'),
+      { maliciousField: 'attack' }
+    )
+  );
+
+  // Oversized cart (>50 items)
+  const oversizedItems = Array.from({ length: 51 }, (_, i) => ({
+    quantity: 1,
+    product: { id: `p-${i}` }
+  }));
+  await assertFails(
+    setDoc(
+      doc(customer(), 'carts', 'cust-1'),
+      {
+        userId: 'cust-1',
+        items: oversizedItems,
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      }
+    )
+  );
+
+  // Valid cart succeeds
+  await assertSucceeds(
+    setDoc(
+      doc(customer(), 'carts', 'cust-1'),
+      {
+        userId: 'cust-1',
+        items: [{ quantity: 2, product: { id: 'p-1' } }],
+        updatedAt: '2026-09-07T00:00:00.000Z',
+      }
+    )
+  );
+});
+
+// 13. Seller Application ID Integrity
+test('adversarial: applicant cannot create application with mismatched ID', async () => {
+  await assertFails(
+    setDoc(
+      doc(unauthenticated(), 'seller_applications', 'app-actual-id'),
+      {
+        id: 'app-spoofed-id',
+        sellerCompany: 'Al-Arz Soap Works',
+        email: 'artisan@example.com',
+        phone: '+961 70 123 456',
+        status: 'pending',
+        createdAt: '2026-09-07',
+      }
+    )
+  );
+});
+
 

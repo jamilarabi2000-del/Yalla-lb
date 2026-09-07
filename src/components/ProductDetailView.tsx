@@ -291,7 +291,10 @@ export const ProductDetailView: React.FC = () => {
     if (vimeoMatch && vimeoMatch[3]) {
       return { type: 'vimeo' as const, embedUrl: `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1` };
     }
-    return { type: 'direct' as const, embedUrl: trimmed };
+    if (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('/')) {
+      return { type: 'direct' as const, embedUrl: trimmed };
+    }
+    return null;
   };
 
   const currentVideoUrl = activeVideoUrl || allVideos[0] || null;

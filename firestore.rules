@@ -143,6 +143,7 @@ service cloud.firestore {
       allow create: if isAdmin()
         || (
           isSeller()
+          && request.resource.data.get('id', '') == productId
           && request.resource.data.get('sellerId', '') == getSellerId()
           && sellerProductPayloadOk()
           && productShapeOk()
@@ -153,9 +154,11 @@ service cloud.firestore {
           isSeller()
           && resource.data.get('sellerId', '') == getSellerId()
           && request.resource.data.get('sellerId', '') == getSellerId()
+          && request.resource.data.get('id', productId) == productId
           && sellerProductPayloadOk()
           && productShapeOk()
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'id',
             'sellerId',
             'sellerActive',
             'rating',
@@ -313,6 +316,8 @@ service cloud.firestore {
           'submittedAt'
         ])
         && request.resource.data.status == 'pending'
+        && request.resource.data.get('id', appId) == appId
+        && boundedString(request.resource.data.get('id', appId), 100)
         && boundedString(request.resource.data.sellerCompany, 200)
         && request.resource.data.sellerCompany.size() > 0
         && boundedString(request.resource.data.email, 200)
@@ -399,8 +404,7 @@ service cloud.firestore {
     }
 
     match /coupons/{couponId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     match /shipping_rules/{ruleId} {
@@ -432,6 +436,14 @@ service cloud.firestore {
     // User accounts and profiles
     // ---------------------------------------------------------------------
 
+    function userEmailMatchesAuth() {
+      return !('email' in request.resource.data)
+        || (
+          'email' in request.auth.token
+          && request.resource.data.email == request.auth.token.email
+        );
+    }
+
     function userSelfEditableKeys() {
       return [
         'uid',
@@ -458,6 +470,7 @@ service cloud.firestore {
           isOwner(userId)
           && request.resource.data.get('uid', '') == userId
           && request.resource.data.keys().hasOnly(userSelfEditableKeys())
+          && userEmailMatchesAuth()
           && !request.resource.data.keys().hasAny([
             'role',
             'sellerId',
@@ -472,6 +485,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data)
                .affectedKeys()
                .hasOnly(userSelfEditableKeys())
+          && userEmailMatchesAuth()
           && !request.resource.data.diff(resource.data)
                .affectedKeys()
                .hasAny([
@@ -521,7 +535,11 @@ service cloud.firestore {
     }
 
     match /phone_registry/{phoneKey} {
-      allow get: if isSignedIn();
+      allow get: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.get('uid', '') == request.auth.uid
+        );
       allow list: if isAdmin();
 
       allow create: if isAdmin()
@@ -548,12 +566,36 @@ service cloud.firestore {
     // Carts and wishlists
     // ---------------------------------------------------------------------
 
+    function cartPayloadOk(userId) {
+      return request.resource.data.keys().hasOnly(['userId', 'items', 'updatedAt'])
+        && request.resource.data.get('userId', userId) == userId
+        && (!('items' in request.resource.data) || (
+          request.resource.data.items is list
+          && request.resource.data.items.size() <= 50
+        ))
+        && (!('updatedAt' in request.resource.data) || boundedString(request.resource.data.updatedAt, 40));
+    }
+
+    function wishlistPayloadOk(userId) {
+      return request.resource.data.keys().hasOnly(['userId', 'productIds', 'updatedAt'])
+        && request.resource.data.get('userId', userId) == userId
+        && (!('productIds' in request.resource.data) || (
+          request.resource.data.productIds is list
+          && request.resource.data.productIds.size() <= 200
+        ))
+        && (!('updatedAt' in request.resource.data) || boundedString(request.resource.data.updatedAt, 40));
+    }
+
     match /carts/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if (isOwner(userId) && cartPayloadOk(userId)) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     match /wishlists/{userId} {
-      allow read, write: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if (isOwner(userId) && wishlistPayloadOk(userId)) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     // ---------------------------------------------------------------------

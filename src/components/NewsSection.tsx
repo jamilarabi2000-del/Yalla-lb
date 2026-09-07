@@ -376,17 +376,25 @@ export const NewsSection: React.FC = () => {
               className="w-[260px] sm:w-[280px] md:w-[290px] flex-shrink-0 snap-start bg-white rounded-xl border border-amber-900/10 hover:border-[#c5a059]/60 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer group transform hover:-translate-y-0.5"
             >
               {/* Card Image / Banner Header */}
-              <div className="w-full h-32 sm:h-36 relative overflow-hidden bg-slate-100 flex-shrink-0">
-                {/* Real Photography with subtle zoom */}
-                <div className="w-full h-full relative">
+              <div className="w-full h-36 sm:h-44 relative overflow-hidden bg-slate-900 flex-shrink-0 flex items-center justify-center">
+                {/* Ambient blurred backdrop so any aspect ratio fills seamlessly without cropping foreground */}
+                <img
+                  src={item.image}
+                  alt=""
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 pointer-events-none"
+                  referrerPolicy="no-referrer"
+                />
+                {/* Real Photography fully visible and uncropped */}
+                <div className="w-full h-full relative z-10 flex items-center justify-center p-1.5">
                   <img
                     src={item.image}
                     alt={language === 'ar' ? item.titleAr : item.titleEn}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 rounded-md shadow-sm"
                     referrerPolicy="no-referrer"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent group-hover:from-black/30 transition-colors" />
                 </div>
+                <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
               </div>
 
               {/* Card Body matching typography and system gold accent line */}
@@ -449,25 +457,34 @@ export const NewsSection: React.FC = () => {
             className="bg-[#121222] text-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-[#c5a059]/40 focus:outline-hidden"
           >
             
-            <div className="relative h-60 w-full overflow-hidden bg-slate-900">
+            <div className="relative h-64 sm:h-80 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
+              {/* Ambient blurred backdrop */}
+              <img 
+                src={selectedNews.image} 
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 w-full h-full object-cover blur-lg opacity-35 scale-110 pointer-events-none"
+                referrerPolicy="no-referrer"
+              />
+              {/* Fully visible uncropped foreground image */}
               <img 
                 src={selectedNews.image} 
                 alt={language === 'ar' ? selectedNews.titleAr : selectedNews.titleEn}
-                className="w-full h-full object-cover opacity-90"
+                className="relative z-10 max-h-full max-w-full object-contain p-4 drop-shadow-md"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#121222] via-black/40 to-black/20" />
+              <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#121222] via-black/30 to-transparent pointer-events-none" />
               <button 
                 onClick={() => setSelectedNews(null)}
-                className="absolute top-4 right-4 p-2.5 rounded-full bg-black/70 hover:bg-black text-white transition-colors cursor-pointer"
+                className="absolute top-4 right-4 z-30 p-2.5 rounded-full bg-black/70 hover:bg-black text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
-              <div className="absolute bottom-4 left-6 right-6 text-white space-y-1.5">
+              <div className="absolute bottom-4 left-6 right-6 z-30 text-white space-y-1.5">
                 <span className="inline-block px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-[#c5a059] text-[#121222] shadow">
                   {selectedNews.category.toUpperCase()}
                 </span>
-                <h2 className="text-lg sm:text-xl font-bold leading-snug">
+                <h2 className="text-lg sm:text-xl font-bold leading-snug drop-shadow-md">
                   {language === 'ar' ? selectedNews.titleAr : selectedNews.titleEn}
                 </h2>
               </div>

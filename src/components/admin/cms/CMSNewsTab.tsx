@@ -324,22 +324,31 @@ export const CMSNewsTab: React.FC<CMSNewsTabProps> = ({
                 article.isPublished !== false ? 'border-white/10 hover:border-white/20' : 'border-white/5 opacity-60'
               }`}
             >
-              <div className="relative h-40 bg-slate-950 overflow-hidden">
+              <div className="relative h-48 sm:h-52 bg-slate-950 overflow-hidden flex items-center justify-center group">
+                {/* Ambient blurred backdrop for seamless filling without cropping foreground */}
+                <img 
+                  src={article.imageUrl} 
+                  alt="" 
+                  aria-hidden="true"
+                  className="absolute inset-0 w-full h-full object-cover blur-md opacity-30 scale-110 pointer-events-none"
+                  referrerPolicy="no-referrer"
+                />
+                {/* Fully visible uncropped foreground image */}
                 <img 
                   src={article.imageUrl} 
                   alt={article.title} 
-                  className="w-full h-full object-cover"
+                  className="relative z-10 max-h-full max-w-full object-contain p-2 transition-transform duration-300 group-hover:scale-105"
                   referrerPolicy="no-referrer"
                 />
-                <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md ${
                     article.isPublished !== false ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'
                   }`}>
                     {article.isPublished !== false ? 'Published' : 'Draft'}
                   </span>
                 </div>
-                <div className="absolute bottom-2.5 left-2.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-xs text-amber-300">
+                <div className="absolute bottom-2.5 left-2.5 z-20">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs text-amber-300 shadow-md">
                     {article.tag}
                   </span>
                 </div>
