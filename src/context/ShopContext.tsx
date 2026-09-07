@@ -3200,8 +3200,11 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const dateStr = new Date().toISOString();
     const trackingNumberStr = `LB-EXP-${trackingSuffix}`;
 
-    // If Firebase is disabled, we do standard local-only fallback
+    // If Firebase is disabled, block in production, allow local-only fallback in non-production
     if (!IS_FIREBASE_ENABLED) {
+      if (import.meta.env.PROD) {
+        throw new Error('Online checkout requires an active backend connection. Offline order placement is disabled in production.');
+      }
       const newOrder: Order = {
         ...orderData,
         id: orderId,
@@ -3209,7 +3212,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         trackingNumber: trackingNumberStr,
         status: 'pending',
         userId: activeUserId,
-        sellerIds: Array.from(new Set((orderData.items || []).map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
+        sellerIds: Array.from(new Set((orderData.items || []).map(item => item.product.sellerId || '').filter(Boolean)))
       };
       setOrders(prev => {
         const next = [newOrder, ...prev];
@@ -3236,20 +3239,28 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const placeOrderFn = httpsCallable<any, any>(functionsInstance, 'placeOrder');
 
+      const rawShipping = orderData.shipping || {};
+      const chosenSpeed = (orderData.shipping?.deliverySpeed || 'standard') as 'standard' | 'express_beirut' | 'diaspora_air' | 'diaspora_global';
+
       const payload = {
         items: (orderData.items || cart).map(it => ({
           productId: it.product.id,
-          quantity: it.quantity,
-          selectedOption: it.selectedOption
+          quantity: Math.max(1, Math.floor(it.quantity || 1)),
+          ...(it.selectedOption ? { selectedOption: it.selectedOption } : {})
         })),
         shipping: {
-          ...orderData.shipping,
-          deliverySpeed: orderData.shipping?.deliverySpeed || 'standard',
-          governorate: orderData.shipping?.governorate
+          fullName: String(rawShipping.fullName || '').trim(),
+          phone: String(rawShipping.phone || '').trim(),
+          governorate: String(rawShipping.governorate || 'Beirut').trim(),
+          city: String(rawShipping.city || '').trim(),
+          street: String(rawShipping.street || (rawShipping as any)?.address || '').trim(),
+          building: String(rawShipping.building || 'N/A').trim(),
+          deliveryNotes: String(rawShipping.deliveryNotes || (rawShipping as any)?.notes || '').trim(),
+          deliverySpeed: chosenSpeed
         },
         paymentMethod: orderData.paymentMethod || 'cod_usd',
-        couponCode: appliedCouponCode || undefined,
-        deliverySpeed: orderData.shipping?.deliverySpeed || 'standard'
+        ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
+        deliverySpeed: chosenSpeed
       };
 
       const resp = await placeOrderFn(payload);
@@ -3276,7 +3287,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         totalLBP: Math.round(serverTotalUSD * LBP_USD_RATE),
         appliedCoupon: appliedCouponCode || undefined,
         productIds: Array.from(new Set((orderData.items || cart).map(item => item.product.id).filter(Boolean))),
-        sellerIds: Array.from(new Set((orderData.items || cart).map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
+        sellerIds: Array.from(new Set((orderData.items || cart).map(item => item.product.sellerId || '').filter(Boolean)))
       };
 
       // Optimistically update local catalog state so patron immediately sees decremented stock in session

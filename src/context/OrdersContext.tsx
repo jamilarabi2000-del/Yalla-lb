@@ -66,14 +66,38 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         const functions = getFunctions(app, 'europe-west1');
         const placeOrderFn = httpsCallable<any, any>(functions, 'placeOrder');
-        const result = await placeOrderFn(params);
+        const rawShipping = params.shipping || {};
+        const sanitizedPayload = {
+          items: (params.items || []).map(it => ({
+            productId: it.productId,
+            quantity: it.quantity,
+            ...(it.selectedOption ? { selectedOption: it.selectedOption } : {})
+          })),
+          shipping: {
+            fullName: String(rawShipping.fullName || '').trim(),
+            phone: String(rawShipping.phone || '').trim(),
+            governorate: String(rawShipping.governorate || 'Beirut').trim(),
+            city: String(rawShipping.city || '').trim(),
+            street: String(rawShipping.street || rawShipping.address || '').trim(),
+            building: String(rawShipping.building || 'N/A').trim(),
+            deliveryNotes: String(rawShipping.deliveryNotes || rawShipping.notes || '').trim(),
+            deliverySpeed: rawShipping.deliverySpeed || params.deliverySpeed || 'standard',
+          },
+          paymentMethod: params.paymentMethod || 'cod_usd',
+          couponCode: params.couponCode || undefined,
+          deliverySpeed: rawShipping.deliverySpeed || params.deliverySpeed || 'standard',
+        };
+        const result = await placeOrderFn(sanitizedPayload);
         return result.data;
       } catch (err: any) {
         console.error('[OrdersContext] Cloud Function placeOrder failed:', err);
         throw err;
       }
     } else {
-      // Local fallback
+      if (import.meta.env.PROD) {
+        throw new Error('Online checkout requires an active backend service. Offline orders are disabled in production.');
+      }
+      // Local fallback for non-production development only
       const mockOrder: Order = {
         id: `ord-local-${Date.now()}`,
         userId: firebaseUser?.uid || 'guest',

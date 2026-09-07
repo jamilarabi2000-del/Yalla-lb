@@ -3,107 +3,193 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.round2 = round2;
 exports.computeDiscounts = computeDiscounts;
 function round2(num) {
+    if (typeof num !== 'number' || !Number.isFinite(num))
+        return 0;
     return Math.round((num + Number.EPSILON) * 100) / 100;
+}
+function matchesTarget(product, rule) {
+    if (!rule.target || rule.target === 'checkout' || rule.target === 'all')
+        return true;
+    const targetVal = String(rule.targetValue || '').toLowerCase().trim();
+    if (!targetVal)
+        return true;
+    if (rule.target === 'product') {
+        return String(product.id || '').toLowerCase() === targetVal;
+    }
+    if (rule.target === 'category') {
+        return String(product.category || '').toLowerCase() === targetVal;
+    }
+    if (rule.target === 'seller') {
+        return ((product.sellerId && String(product.sellerId).toLowerCase() === targetVal) ||
+            (product.seller && String(product.seller).toLowerCase() === targetVal) ||
+            (product.artisan && String(product.artisan).toLowerCase().includes(targetVal)) ||
+            (product.origin && String(product.origin).toLowerCase().includes(targetVal)));
+    }
+    return false;
 }
 function computeDiscounts(params) {
     const { lines, discounts = [], bundles = [], couponCode, isNewCustomer = false, subtotalUSD } = params;
-    if (subtotalUSD <= 0 || lines.length === 0) {
+    if (typeof subtotalUSD !== 'number' || !Number.isFinite(subtotalUSD) || subtotalUSD <= 0 || !Array.isArray(lines) || lines.length === 0) {
         return { discountUSD: 0 };
     }
     let totalDiscount = 0;
-    const normalizedCoupon = couponCode ? couponCode.trim().toUpperCase() : '';
+    let matchedCouponCode = undefined;
+    const normalizedCoupon = couponCode && typeof couponCode === 'string' ? couponCode.trim().toUpperCase() : '';
     const now = new Date();
     // 1. Combo & Product Bundle automatic discounts
-    if (bundles && bundles.length > 0) {
+    if (Array.isArray(bundles) && bundles.length > 0) {
         const availableQuantities = {};
         for (const line of lines) {
-            const pid = line.product.id;
-            availableQuantities[pid] = (availableQuantities[pid] || 0) + line.quantity;
+            if (!line || !line.product)
+                continue;
+            const pid = String(line.product.id || '');
+            const qty = typeof line.quantity === 'number' && Number.isFinite(line.quantity) ? Math.max(0, line.quantity) : 0;
+            availableQuantities[pid] = (availableQuantities[pid] || 0) + qty;
         }
-        const activeBundles = bundles.filter(b => b.isActive !== false);
+        const activeBundles = bundles.filter(b => b && b.isActive !== false);
         const bundlesWithSavings = activeBundles.map(bundle => {
+            const bundleProductIds = Array.isArray(bundle.productIds) ? bundle.productIds.map((id) => String(id)) : [];
             const bundleProducts = lines
                 .map(l => l.product)
-                .filter(p => (bundle.productIds || []).includes(p.id))
+                .filter(p => p && bundleProductIds.includes(String(p.id)))
                 .filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
-            const originalSum = bundleProducts.reduce((sum, p) => sum + (p.priceUSD || 0), 0);
-            const savingsPerSet = Math.max(0, originalSum - (bundle.bundlePriceUSD || 0));
-            return { bundle, savingsPerSet };
+            const originalSum = bundleProducts.reduce((sum, p) => {
+                const pPrice = typeof p.priceUSD === 'number' && Number.isFinite(p.priceUSD) ? Math.max(0, p.priceUSD) : 0;
+                return sum + pPrice;
+            }, 0);
+            const bundlePrice = typeof bundle.bundlePriceUSD === 'number' && Number.isFinite(bundle.bundlePriceUSD) ? Math.max(0, bundle.bundlePriceUSD) : 0;
+            const savingsPerSet = Math.max(0, originalSum - bundlePrice);
+            return { bundle, savingsPerSet, bundleProductIds };
         }).sort((a, b) => b.savingsPerSet - a.savingsPerSet);
-        for (const { bundle, savingsPerSet } of bundlesWithSavings) {
-            if (savingsPerSet <= 0 || !bundle.productIds || bundle.productIds.length === 0)
+        for (const { bundle, savingsPerSet, bundleProductIds } of bundlesWithSavings) {
+            if (savingsPerSet <= 0 || bundleProductIds.length === 0)
                 continue;
-            if (bundle.startDate && now < new Date(bundle.startDate))
-                continue;
-            if (bundle.endDate && now > new Date(bundle.endDate))
-                continue;
+            if (bundle.startDate) {
+                const bStart = new Date(bundle.startDate);
+                if (!isNaN(bStart.getTime()) && now < bStart)
+                    continue;
+            }
+            if (bundle.endDate) {
+                const bEnd = new Date(bundle.endDate);
+                if (!isNaN(bEnd.getTime()) && now > bEnd)
+                    continue;
+            }
             let completeSets = Infinity;
-            for (const pid of bundle.productIds) {
+            for (const pid of bundleProductIds) {
                 const qty = availableQuantities[pid] || 0;
                 if (qty < completeSets)
                     completeSets = qty;
             }
             if (completeSets > 0 && completeSets !== Infinity) {
-                for (const pid of bundle.productIds) {
+                for (const pid of bundleProductIds) {
                     availableQuantities[pid] -= completeSets;
                 }
                 const totalSaved = round2(savingsPerSet * completeSets);
-                if (totalSaved > 0) {
+                if (totalSaved > 0 && Number.isFinite(totalSaved)) {
                     totalDiscount += totalSaved;
                 }
             }
         }
     }
     // 2. Active discount rules
-    for (const rule of discounts) {
-        if (!rule.isActive)
-            continue;
-        if (rule.startDate && now < new Date(rule.startDate))
-            continue;
-        if (rule.endDate && now > new Date(rule.endDate))
-            continue;
-        if (rule.isNewUserOnly && !isNewCustomer)
-            continue;
-        if (rule.couponCode && rule.couponCode.trim() !== '') {
-            if (rule.couponCode.trim().toUpperCase() !== normalizedCoupon)
+    if (Array.isArray(discounts)) {
+        for (const rule of discounts) {
+            if (!rule || rule.isActive === false)
                 continue;
-        }
-        if (rule.minPurchaseUSD && subtotalUSD < rule.minPurchaseUSD)
-            continue;
-        let baseAmount = subtotalUSD;
-        if (rule.target && rule.target !== 'checkout' && rule.target !== 'all') {
-            const targetVal = (rule.targetValue || '').toLowerCase().trim();
-            const eligible = lines.filter(l => {
-                const p = l.product;
-                if (rule.target === 'product')
-                    return p.id?.toLowerCase() === targetVal;
-                if (rule.target === 'category')
-                    return p.category?.toLowerCase() === targetVal;
-                if (rule.target === 'seller') {
-                    return (p.artisan?.toLowerCase().includes(targetVal) || p.origin?.toLowerCase().includes(targetVal));
+            if (rule.startDate) {
+                const rStart = new Date(rule.startDate);
+                if (!isNaN(rStart.getTime()) && now < rStart)
+                    continue;
+            }
+            if (rule.endDate) {
+                const rEnd = new Date(rule.endDate);
+                if (!isNaN(rEnd.getTime()) && now > rEnd)
+                    continue;
+            }
+            if (rule.isNewUserOnly && !isNewCustomer)
+                continue;
+            const ruleHasCoupon = typeof rule.couponCode === 'string' && rule.couponCode.trim() !== '';
+            if (ruleHasCoupon) {
+                if (rule.couponCode.trim().toUpperCase() !== normalizedCoupon)
+                    continue;
+            }
+            if (typeof rule.minPurchaseUSD === 'number' && Number.isFinite(rule.minPurchaseUSD) && subtotalUSD < rule.minPurchaseUSD) {
+                continue;
+            }
+            let baseAmount = subtotalUSD;
+            if (rule.target && rule.target !== 'checkout' && rule.target !== 'all') {
+                const eligible = lines.filter(l => l && l.product && matchesTarget(l.product, rule));
+                baseAmount = eligible.reduce((s, l) => {
+                    const uPrice = typeof l.unitPriceUSD === 'number' && Number.isFinite(l.unitPriceUSD) ? Math.max(0, l.unitPriceUSD) : 0;
+                    const qty = typeof l.quantity === 'number' && Number.isFinite(l.quantity) ? Math.max(0, l.quantity) : 0;
+                    return s + uPrice * qty;
+                }, 0);
+            }
+            if (baseAmount <= 0)
+                continue;
+            let ruleDiscount = 0;
+            if (rule.type === 'bogo') {
+                const buyX = Math.max(1, typeof rule.buyQty === 'number' && Number.isFinite(rule.buyQty) ? rule.buyQty : 1);
+                const getY = Math.max(1, typeof rule.getQty === 'number' && Number.isFinite(rule.getQty) ? rule.getQty : 1);
+                const rawPct = typeof rule.getDiscountPercent === 'number' && Number.isFinite(rule.getDiscountPercent)
+                    ? rule.getDiscountPercent
+                    : (typeof rule.value === 'number' && Number.isFinite(rule.value) ? rule.value : 100);
+                const discountPct = Math.min(100, Math.max(1, rawPct));
+                const groupSize = buyX + getY;
+                const eligibleLines = rule.target === 'checkout' || rule.target === 'all'
+                    ? lines
+                    : lines.filter(l => l && l.product && matchesTarget(l.product, rule));
+                if (rule.target === 'product') {
+                    for (const item of eligibleLines) {
+                        if (item.quantity >= groupSize) {
+                            const fullGroups = Math.floor(item.quantity / groupSize);
+                            const freeUnits = fullGroups * getY;
+                            const unitPrice = typeof item.unitPriceUSD === 'number' && Number.isFinite(item.unitPriceUSD) ? item.unitPriceUSD : 0;
+                            ruleDiscount += freeUnits * unitPrice * (discountPct / 100);
+                        }
+                    }
                 }
-                return false;
-            });
-            baseAmount = eligible.reduce((s, l) => s + l.unitPriceUSD * l.quantity, 0);
-        }
-        if (baseAmount <= 0)
-            continue;
-        let ruleDiscount = 0;
-        if (rule.type === 'percentage') {
-            ruleDiscount = baseAmount * (Math.min(100, Math.max(0, rule.value)) / 100);
-        }
-        else {
-            ruleDiscount = Math.max(0, Math.min(rule.value, baseAmount));
-        }
-        ruleDiscount = round2(ruleDiscount);
-        if (ruleDiscount > 0) {
-            totalDiscount += ruleDiscount;
+                else {
+                    const unitPrices = [];
+                    for (const item of eligibleLines) {
+                        const unitPrice = typeof item.unitPriceUSD === 'number' && Number.isFinite(item.unitPriceUSD) ? item.unitPriceUSD : 0;
+                        for (let i = 0; i < item.quantity; i++) {
+                            unitPrices.push(unitPrice);
+                        }
+                    }
+                    if (unitPrices.length >= groupSize) {
+                        unitPrices.sort((a, b) => a - b);
+                        const fullGroups = Math.floor(unitPrices.length / groupSize);
+                        const totalDiscountedUnits = fullGroups * getY;
+                        for (let i = 0; i < totalDiscountedUnits && i < unitPrices.length; i++) {
+                            ruleDiscount += unitPrices[i] * (discountPct / 100);
+                        }
+                    }
+                }
+            }
+            else if (rule.type === 'percentage') {
+                const rawVal = typeof rule.value === 'number' && Number.isFinite(rule.value) ? rule.value : 0;
+                const pct = Math.min(100, Math.max(0, rawVal));
+                ruleDiscount = baseAmount * (pct / 100);
+            }
+            else {
+                const rawVal = typeof rule.value === 'number' && Number.isFinite(rule.value) ? rule.value : 0;
+                const fixedVal = Math.max(0, rawVal);
+                ruleDiscount = Math.min(fixedVal, baseAmount);
+            }
+            ruleDiscount = round2(ruleDiscount);
+            if (ruleDiscount > 0 && Number.isFinite(ruleDiscount)) {
+                totalDiscount += ruleDiscount;
+                if (ruleHasCoupon) {
+                    matchedCouponCode = normalizedCoupon;
+                }
+            }
         }
     }
-    totalDiscount = Math.min(round2(totalDiscount), subtotalUSD);
+    const boundedDiscount = Math.max(0, Math.min(round2(totalDiscount), subtotalUSD));
     return {
-        discountUSD: totalDiscount,
-        appliedCoupon: normalizedCoupon || undefined
+        discountUSD: boundedDiscount,
+        appliedCoupon: matchedCouponCode
     };
 }
 //# sourceMappingURL=pricing.js.map

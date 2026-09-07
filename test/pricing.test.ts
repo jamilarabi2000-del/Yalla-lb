@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { round2, computeDiscounts, applyDiscounts } from '../src/lib/pricing';
 import { calcDeliveryFeeUSD, FREE_DELIVERY_THRESHOLD_USD } from '../src/lib/delivery';
+import { computeDiscounts as computeFunctionsDiscounts } from '../functions/src/pricing';
 
 describe('Authoritative Pricing and Discount Engine', () => {
   it('correctly rounds to 2 decimal places without floating drift', () => {
@@ -54,6 +55,17 @@ describe('Authoritative Pricing and Discount Engine', () => {
 
     expect(result.discountUSD).toBe(4);
     expect(result.finalSubtotalUSD).toBe(36);
+
+    // Server-side functions pricing parity
+    const fnResult = computeFunctionsDiscounts({
+      lines,
+      discounts: rules,
+      bundles: [],
+      couponCode: 'WELCOME10',
+      subtotalUSD: 40
+    });
+    expect(fnResult.discountUSD).toBe(4);
+    expect(fnResult.appliedCoupon).toBe('WELCOME10');
   });
 
   it('bounds discount so it can never exceed 100% of order subtotal', () => {
@@ -95,5 +107,79 @@ describe('Authoritative Pricing and Discount Engine', () => {
 
     expect(result.discountUSD).toBe(10);
     expect(result.finalSubtotalUSD).toBe(0);
+
+    const fnResult = computeFunctionsDiscounts({
+      lines,
+      discounts: rules,
+      bundles: [],
+      couponCode: 'HUGE500',
+      subtotalUSD: 10
+    });
+    expect(fnResult.discountUSD).toBe(10);
+  });
+
+  it('resists adversarial inputs with NaN, negative, or infinite values', () => {
+    const mockProduct = {
+      id: 'prod-3',
+      name: 'Soap Bar',
+      priceUSD: 8,
+      stock: 10
+    };
+    const lines = [{ product: mockProduct, quantity: 2, unitPriceUSD: 8 }];
+
+    const maliciousRules = [
+      { id: 'bad-1', type: 'percentage', value: NaN, isActive: true },
+      { id: 'bad-2', type: 'fixed', value: -100, isActive: true },
+      { id: 'bad-3', type: 'percentage', value: Infinity, isActive: true }
+    ];
+
+    const maliciousBundles = [
+      { id: 'b-bad-1', bundlePriceUSD: -50, productIds: ['prod-3'], isActive: true },
+      { id: 'b-bad-2', bundlePriceUSD: NaN, productIds: null as any, isActive: true }
+    ];
+
+    const fnResult = computeFunctionsDiscounts({
+      lines,
+      discounts: maliciousRules,
+      bundles: maliciousBundles,
+      subtotalUSD: 16
+    });
+
+    expect(Number.isFinite(fnResult.discountUSD)).toBe(true);
+    expect(fnResult.discountUSD).toBeGreaterThanOrEqual(0);
+    expect(fnResult.discountUSD).toBeLessThanOrEqual(16);
+  });
+
+  it('accurately calculates BOGO discounts in server engine', () => {
+    const mockProduct = {
+      id: 'prod-jam',
+      name: 'Fig Jam',
+      priceUSD: 10,
+      stock: 20
+    };
+    const lines = [{ product: mockProduct, quantity: 4, unitPriceUSD: 10 }];
+    const bogoRule = [
+      {
+        id: 'bogo-jam',
+        type: 'bogo',
+        target: 'product',
+        targetValue: 'prod-jam',
+        buyQty: 1,
+        getQty: 1,
+        getDiscountPercent: 100,
+        isActive: true
+      }
+    ];
+
+    const fnResult = computeFunctionsDiscounts({
+      lines,
+      discounts: bogoRule,
+      bundles: [],
+      subtotalUSD: 40
+    });
+
+    // 4 units bought with Buy 1 Get 1 Free = 2 free units = $20 discount
+    expect(fnResult.discountUSD).toBe(20);
   });
 });
+
