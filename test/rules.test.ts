@@ -285,6 +285,89 @@ test('adversarial: customer cannot grant themselves admin role or alter emailVer
       { merge: true }
     )
   );
+
+  // Customer tries to modify ordersPlaced directly (must only be updated server-side by placeOrder)
+  await assertFails(
+    setDoc(
+      doc(customer(), 'users', 'cust-1'),
+      { ordersPlaced: 1 },
+      { merge: true }
+    )
+  );
+});
+
+// 6. User ordersPlaced creation guard
+test('adversarial: customer cannot create user profile with ordersPlaced preset', async () => {
+  const newCust = env.authenticatedContext('cust-new', {
+    email: 'new@example.com', email_verified: true,
+  }).firestore();
+
+  await assertFails(
+    setDoc(
+      doc(newCust, 'users', 'cust-new'),
+      {
+        uid: 'cust-new',
+        name: 'New Customer',
+        email: 'new@example.com',
+        ordersPlaced: 5,
+      }
+    )
+  );
+});
+
+// 7. Seller product permissions hardening
+test('adversarial: seller cannot manipulate sellerActive, rating, reviewCount, or hijack sellerId', async () => {
+  const sellerContext = env.authenticatedContext('user-seller-x', {
+    email: 'sellerx@example.com',
+    email_verified: true,
+  }).firestore();
+
+  // Seed seller profile mapping
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'sellers', 'seller-x'), {
+      id: 'seller-x',
+      accountUid: 'user-seller-x',
+      nameEn: 'Seller X',
+      sellerCode: 'SELLER-X',
+    });
+    await setDoc(doc(ctx.firestore(), 'products', 'p-seller-x'), {
+      id: 'p-seller-x',
+      sellerId: 'seller-x',
+      name: 'Artisan Soap',
+      priceUSD: 15,
+      stock: 50,
+      sellerActive: false, // Suspended by admin
+      rating: 4.0,
+      reviewCount: 2,
+    });
+  });
+
+  // Seller tries to reactivate own product by bypassing platform suspension (sellerActive: true)
+  await assertFails(
+    setDoc(
+      doc(sellerContext, 'products', 'p-seller-x'),
+      { sellerActive: true },
+      { merge: true }
+    )
+  );
+
+  // Seller tries to artificially inflate rating or review count
+  await assertFails(
+    setDoc(
+      doc(sellerContext, 'products', 'p-seller-x'),
+      { rating: 5.0, reviewCount: 100 },
+      { merge: true }
+    )
+  );
+
+  // Seller tries to reassign product to another seller
+  await assertFails(
+    setDoc(
+      doc(sellerContext, 'products', 'p-seller-x'),
+      { sellerId: 'seller-other' },
+      { merge: true }
+    )
+  );
 });
 
 

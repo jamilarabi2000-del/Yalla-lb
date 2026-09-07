@@ -118,13 +118,22 @@ service cloud.firestore {
     function sellerProductPayloadOk() {
       return request.resource.data.keys().hasOnly([
         'id', 'name', 'arabicName', 'artisan', 'seller', 'arabicSeller',
-        'sellerId', 'sellerActive', 'origin', 'category', 'priceUSD',
+        'sellerId', 'origin', 'category', 'priceUSD',
         'originalPriceUSD', 'image', 'additionalImages', 'videoUrl',
         'additionalVideos', 'videos', 'description', 'craftStory', 'stock',
         'isPublished', 'tags', 'keywords', 'arabicKeywords', 'seoTitle',
         'seoArabicTitle', 'seoDescription', 'seoArabicDescription',
         'weightOrVolume', 'sellerItemCode', 'lowStockThreshold',
         'lowStockNotice', 'customStockLabel', 'createdAt', 'updatedAt'
+      ])
+      && !request.resource.data.keys().hasAny([
+        'sellerActive',
+        'rating',
+        'reviewCount',
+        'ordersCount',
+        'soldCount',
+        'featured',
+        'isPromoted'
       ]);
     }
 
@@ -146,6 +155,16 @@ service cloud.firestore {
           && request.resource.data.get('sellerId', '') == getSellerId()
           && sellerProductPayloadOk()
           && productShapeOk()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'sellerId',
+            'sellerActive',
+            'rating',
+            'reviewCount',
+            'ordersCount',
+            'soldCount',
+            'featured',
+            'isPromoted'
+          ])
         );
 
       allow delete: if isAdmin()
@@ -413,16 +432,6 @@ service cloud.firestore {
     // User accounts and profiles
     // ---------------------------------------------------------------------
 
-    function ordersPlacedMoveOk() {
-      return !request.resource.data.diff(resource.data)
-          .affectedKeys()
-          .hasAny(['ordersPlaced'])
-        || request.resource.data.ordersPlaced ==
-           resource.data.get('ordersPlaced', 0)
-        || request.resource.data.ordersPlaced ==
-           resource.data.get('ordersPlaced', 0) + 1;
-    }
-
     function userSelfEditableKeys() {
       return [
         'uid',
@@ -437,7 +446,6 @@ service cloud.firestore {
         'defaultAddress',
         'defaultBuilding',
         'defaultNotes',
-        'ordersPlaced',
         'updatedAt',
         'createdAt'
       ];
@@ -453,9 +461,9 @@ service cloud.firestore {
           && !request.resource.data.keys().hasAny([
             'role',
             'sellerId',
-            'isBanned'
+            'isBanned',
+            'ordersPlaced'
           ])
-          && request.resource.data.get('ordersPlaced', 0) == 0
         )
         || isAdmin();
 
@@ -470,9 +478,9 @@ service cloud.firestore {
                  'role',
                  'sellerId',
                  'isBanned',
+                 'ordersPlaced',
                  'uid'
                ])
-          && ordersPlacedMoveOk()
         )
         || isAdmin();
 
@@ -549,129 +557,8 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // ORDERS - authoritative pricing
+    // ORDERS - authoritative Cloud Function only
     // ---------------------------------------------------------------------
-
-    function orderItemOk(i) {
-      let it = request.resource.data.items[i];
-
-      return it is map
-        && it.quantity is number
-        && it.quantity > 0
-        && it.quantity <= 99
-        && it.quantity == math.floor(it.quantity)
-        && it.product is map
-        && it.product.id is string
-        && request.resource.data.productIds is list
-        && request.resource.data.productIds.hasAny([it.product.id])
-        && it.product.priceUSD ==
-           get(
-             /databases/$(database)/documents/products/$(it.product.id)
-           ).data.priceUSD;
-    }
-
-    function orderLineTotal(i) {
-      let items = request.resource.data.items;
-
-      return items.size() > i
-        ? items[i].product.priceUSD * items[i].quantity
-        : 0;
-    }
-
-    function orderComputedSubtotal() {
-      return orderLineTotal(0)
-        + orderLineTotal(1)
-        + orderLineTotal(2)
-        + orderLineTotal(3)
-        + orderLineTotal(4)
-        + orderLineTotal(5)
-        + orderLineTotal(6)
-        + orderLineTotal(7);
-    }
-
-    function orderItemsOk() {
-      return request.resource.data.items is list
-        && request.resource.data.items.size() >= 1
-        && request.resource.data.items.size() <= 8
-        && orderItemOk(0)
-        && (request.resource.data.items.size() < 2 || orderItemOk(1))
-        && (request.resource.data.items.size() < 3 || orderItemOk(2))
-        && (request.resource.data.items.size() < 4 || orderItemOk(3))
-        && (request.resource.data.items.size() < 5 || orderItemOk(4))
-        && (request.resource.data.items.size() < 6 || orderItemOk(5))
-        && (request.resource.data.items.size() < 7 || orderItemOk(6))
-        && (request.resource.data.items.size() < 8 || orderItemOk(7));
-    }
-
-    function orderShippingOk() {
-      let s = request.resource.data.shipping;
-
-      return s is map
-        && s.get('fullName', '').size() <= 200
-        && s.get('deliveryNotes', '').size() <= 1000;
-    }
-
-    function orderMoneyOk() {
-      let d = request.resource.data;
-      let discount = d.get('discountUSD', 0);
-
-      return isMoney(d.subtotalUSD, 1000000)
-        && isMoney(d.deliveryFeeUSD, 50)
-        && isMoney(d.totalUSD, 1000000)
-        && isMoney(discount, 1000000)
-        && math.abs(
-          d.subtotalUSD - orderComputedSubtotal()
-        ) <= 0.02
-        && discount <= d.subtotalUSD * 0.95
-        && math.abs(
-          d.totalUSD -
-          (d.subtotalUSD - discount + d.deliveryFeeUSD)
-        ) <= 0.02;
-    }
-
-    function orderShapeOk() {
-      let d = request.resource.data;
-
-      return d.keys().hasOnly([
-          'id',
-          'userId',
-          'sellerIds',
-          'productIds',
-          'date',
-          'items',
-          'shipping',
-          'paymentMethod',
-          'currency',
-          'subtotalUSD',
-          'deliveryFeeUSD',
-          'totalUSD',
-          'totalLBP',
-          'status',
-          'estimatedDelivery',
-          'trackingNumber',
-          'discountUSD',
-          'appliedCoupon',
-          'notes',
-          'customerNote',
-          'adminNotes',
-          'createdAt',
-          'updatedAt'
-        ])
-        && d.get('status', '') == 'pending'
-        && d.get('userId', '') == request.auth.uid
-        && d.get('trackingNumber', '') is string
-        && 'productIds' in d
-        && d.productIds is list
-        && d.productIds.size() >= 1
-        && d.get('totalLBP', 0) is number
-        && d.get('totalLBP', 0) >= 0
-        && d.get('paymentMethod', '') in [
-          'cod_usd',
-          'cod_lbp',
-          'whish_pay',
-          'omt_pay'
-        ];
-    }
 
     function sellerOrderPatchOk() {
       return request.resource.data.diff(resource.data)
