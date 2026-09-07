@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { computeDiscounts, round2 } from './pricing.js';
 import { computeDelivery } from './delivery.js';
 
@@ -17,6 +18,40 @@ const getDb = () => {
     return getFirestore();
   }
 };
+
+export function computeRequestFingerprint(payload: {
+  items: Array<{ productId: string; quantity: number; selectedOption?: string }>;
+  shipping: ShippingDetails;
+  paymentMethod: string;
+  couponCode?: string;
+  deliverySpeed?: string;
+}): string {
+  const sortedItems = [...payload.items].sort((a, b) => a.productId.localeCompare(b.productId)).map(i => ({
+    productId: i.productId.trim(),
+    quantity: i.quantity,
+    selectedOption: i.selectedOption ? i.selectedOption.trim() : null
+  }));
+
+  const canonical = {
+    items: sortedItems,
+    shipping: {
+      fullName: payload.shipping.fullName,
+      phone: payload.shipping.phone,
+      governorate: payload.shipping.governorate,
+      city: payload.shipping.city,
+      street: payload.shipping.street,
+      building: payload.shipping.building,
+      deliveryNotes: payload.shipping.deliveryNotes || '',
+      deliverySpeed: payload.shipping.deliverySpeed,
+    },
+    paymentMethod: payload.paymentMethod.trim().toLowerCase(),
+    deliverySpeed: payload.deliverySpeed ? payload.deliverySpeed.trim().toLowerCase() : payload.shipping.deliverySpeed,
+    couponCode: payload.couponCode ? payload.couponCode.trim() : null,
+  };
+
+  const jsonStr = JSON.stringify(canonical, Object.keys(canonical).sort());
+  return createHash('sha256').update(jsonStr).digest('hex');
+}
 
 export interface ShippingDetails {
   fullName: string;
@@ -405,9 +440,20 @@ export const placeOrder = onCall<PlaceOrderRequest>(
         tx.get(db.doc(`users/${uid}`)),
       ]);
 
-      // 2. Authoritative idempotency check: If this key has already been processed for this user, return previous order details
+      const requestFingerprint = computeRequestFingerprint({
+        items,
+        shipping: cleanShipping,
+        paymentMethod: effectivePaymentMethod,
+        couponCode,
+        deliverySpeed: effectiveSpeed,
+      });
+
+      // 2. Authoritative idempotency check with request fingerprint verification
       if (idempotencySnap.exists) {
         const existingData = idempotencySnap.data() as any;
+        if (existingData.requestFingerprint && existingData.requestFingerprint !== requestFingerprint) {
+          throw new HttpsError('already-exists', 'Idempotency key reused with a different request payload.');
+        }
         return {
           orderId: existingData.orderId,
           trackingNumber: existingData.trackingNumber,
@@ -550,7 +596,17 @@ export const placeOrder = onCall<PlaceOrderRequest>(
 
       tx.set(orderRef, orderData);
 
-      // 6b. Create seller fulfillment documents atomically
+      const sellerSafeProduct = (p: any, selectedOpt?: string, qty?: number) => ({
+        productId: p.id,
+        name: p.name || '',
+        arabicName: p.arabicName || '',
+        image: p.image || '',
+        sellerItemCode: p.sellerItemCode || '',
+        selectedOption: selectedOpt || null,
+        quantity: qty || 1,
+      });
+
+      // 6b. Create seller fulfillment documents atomically with seller-safe product snapshot
       for (const sId of canonicalSellerIds) {
         const sellerLines = lines.filter(l => (typeof l.product.sellerId === 'string' ? l.product.sellerId.trim() : '') === sId);
         const fulfillmentRef = db.doc(`order_fulfillment/${orderRef.id}/sellers/${sId}`);
@@ -558,11 +614,7 @@ export const placeOrder = onCall<PlaceOrderRequest>(
           orderId: orderRef.id,
           sellerId: sId,
           status: 'pending',
-          items: sellerLines.map(l => ({
-            product: l.product,
-            quantity: l.quantity,
-            selectedOption: l.selectedOption
-          })),
+          items: sellerLines.map(l => sellerSafeProduct(l.product, l.selectedOption, l.quantity)),
           shipping: {
             fullName: cleanShipping.fullName,
             phone: cleanShipping.phone,
@@ -580,6 +632,7 @@ export const placeOrder = onCall<PlaceOrderRequest>(
       tx.set(idempotencyRef, {
         uid,
         idempotencyKey,
+        requestFingerprint,
         orderId: orderRef.id,
         trackingNumber,
         totalUSD,

@@ -641,11 +641,25 @@ service cloud.firestore {
     // Seller Order Fulfillment Documents
     // ---------------------------------------------------------------------
 
+    function isValidStatusTransition(oldStatus, newStatus) {
+      return (oldStatus == 'pending' && (newStatus == 'confirmed' || newStatus == 'cancelled'))
+        || (oldStatus == 'confirmed' && (newStatus == 'crafting' || newStatus == 'cancelled'))
+        || (oldStatus == 'crafting' && (newStatus == 'courier_assigned' || newStatus == 'cancelled'))
+        || (oldStatus == 'courier_assigned' && (newStatus == 'in_transit' || newStatus == 'cancelled'))
+        || (oldStatus == 'in_transit' && (newStatus == 'delivered' || newStatus == 'cancelled'))
+        || (oldStatus == 'delivered' && newStatus == 'returned')
+        || (oldStatus == newStatus);
+    }
+
     function sellerFulfillmentPatchOk() {
       let diff = request.resource.data.diff(resource.data).affectedKeys();
-      return diff.hasOnly(['status', 'updatedAt', 'fulfillmentNotes', 'trackingNumber'])
+      let oldStatus = resource.data.get('status', 'pending');
+      let newStatus = request.resource.data.get('status', 'pending');
+      return diff.hasOnly(['status', 'updatedAt', 'fulfillmentNotes', 'sellerTrackingNumber'])
         && request.resource.data.get('orderId', '') == resource.data.get('orderId', '')
-        && request.resource.data.get('sellerId', '') == resource.data.get('sellerId', '');
+        && request.resource.data.get('sellerId', '') == resource.data.get('sellerId', '')
+        && !diff.hasAny(['trackingNumber'])
+        && isValidStatusTransition(oldStatus, newStatus);
     }
 
     match /order_fulfillment/{orderId}/sellers/{sellerId} {

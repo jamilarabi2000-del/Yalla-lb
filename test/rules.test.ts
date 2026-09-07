@@ -607,5 +607,33 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
   await assertSucceeds(getDoc(doc(admin(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
 });
 
+// 15. Seller Fulfillment State Machine & Tracking Number Protection
+test('adversarial: seller fulfillment state machine transitions and tracking protection', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, 'order_fulfillment/ord-state/sellers/seller-tripoli'), {
+      orderId: 'ord-state',
+      sellerId: 'seller-tripoli',
+      status: 'pending',
+      items: [{ productId: 'p-1', quantity: 1 }],
+      shipping: { fullName: 'Test', phone: '+96170123456' }
+    });
+  });
+
+  const sellerDocRef = doc(seller(), 'order_fulfillment', 'ord-state', 'sellers', 'seller-tripoli');
+
+  // Valid transition: pending -> confirmed
+  await assertSucceeds(setDoc(sellerDocRef, { status: 'confirmed', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Invalid transition: confirmed -> delivered (jumping over intermediate states)
+  await assertFails(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Seller tries to modify authoritative trackingNumber -> DENY
+  await assertFails(setDoc(sellerDocRef, { trackingNumber: 'LB-EXP-HACKED', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Seller sets sellerTrackingNumber -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, { sellerTrackingNumber: 'COURIER-123', updatedAt: '2026-09-07' }, { merge: true }));
+});
+
 
 
