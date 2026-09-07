@@ -765,6 +765,27 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(placeOrderSource).not.toMatch(/Math\.random/);
       expect(placeOrderSource).not.toMatch(/Date\.now\(\)/);
     });
+
+    it('23. Cloud Function source code enforces server-side cryptographic OTP generation and hashing without Math.random', () => {
+      const otpSource = fs.readFileSync(
+        path.resolve(__dirname, '../functions/src/otp.ts'),
+        'utf-8'
+      );
+      expect(otpSource).toMatch(/import\s*\{\s*randomInt,\s*createHash,\s*timingSafeEqual\s*\}\s*from\s*['"]node:crypto['"]/);
+      expect(otpSource).toMatch(/randomInt\(100000,\s*1000000\)/);
+      expect(otpSource).not.toMatch(/Math\.random/);
+      expect(otpSource).toMatch(/createHash\('sha256'\)/);
+      expect(otpSource).toMatch(/timingSafeEqual/);
+    });
+
+    it('24. Password policy generator uses cryptographically secure random values without Math.random', () => {
+      const passwordPolicySource = fs.readFileSync(
+        path.resolve(__dirname, '../src/lib/passwordPolicy.ts'),
+        'utf-8'
+      );
+      expect(passwordPolicySource).not.toMatch(/Math\.random/);
+      expect(passwordPolicySource).toMatch(/getRandomValues/);
+    });
   });
 });
 

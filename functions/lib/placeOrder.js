@@ -1,10 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.placeOrder = exports.PRODUCT_ID_REGEX = exports.MAX_ORDER_VALUE_USD = exports.MAX_TOTAL_QUANTITY = exports.MAX_UNIQUE_PRODUCTS = exports.MAX_LINE_ITEMS = exports.ALLOWED_SHIPPING_KEYS = exports.ALLOWED_ITEM_KEYS = exports.ALLOWED_REQUEST_KEYS = exports.ALLOWED_DELIVERY_SPEEDS = exports.ALLOWED_PAYMENT_METHODS = void 0;
+exports.placeOrder = exports.MAX_IDEMPOTENCY_KEY_LENGTH = exports.IDEMPOTENCY_KEY_REGEX = exports.PRODUCT_ID_REGEX = exports.MAX_ORDER_VALUE_USD = exports.MAX_TOTAL_QUANTITY = exports.MAX_UNIQUE_PRODUCTS = exports.MAX_LINE_ITEMS = exports.ALLOWED_SHIPPING_KEYS = exports.ALLOWED_ITEM_KEYS = exports.ALLOWED_REQUEST_KEYS = exports.ALLOWED_DELIVERY_SPEEDS = exports.ALLOWED_PAYMENT_METHODS = void 0;
+exports.computeRequestFingerprint = computeRequestFingerprint;
 exports.validatePlaceOrderPayload = validatePlaceOrderPayload;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const app_1 = require("firebase-admin/app");
+const node_crypto_1 = require("node:crypto");
+const node_crypto_2 = require("node:crypto");
 const pricing_js_1 = require("./pricing.js");
 const delivery_js_1 = require("./delivery.js");
 if ((0, app_1.getApps)().length === 0) {
@@ -19,6 +22,31 @@ const getDb = () => {
         return (0, firestore_1.getFirestore)();
     }
 };
+function computeRequestFingerprint(payload) {
+    const sortedItems = [...payload.items].sort((a, b) => a.productId.localeCompare(b.productId)).map(i => ({
+        productId: i.productId.trim(),
+        quantity: i.quantity,
+        selectedOption: i.selectedOption ? i.selectedOption.trim() : null
+    }));
+    const canonical = {
+        items: sortedItems,
+        shipping: {
+            fullName: payload.shipping.fullName,
+            phone: payload.shipping.phone,
+            governorate: payload.shipping.governorate,
+            city: payload.shipping.city,
+            street: payload.shipping.street,
+            building: payload.shipping.building,
+            deliveryNotes: payload.shipping.deliveryNotes || '',
+            deliverySpeed: payload.shipping.deliverySpeed,
+        },
+        paymentMethod: payload.paymentMethod.trim().toLowerCase(),
+        deliverySpeed: payload.deliverySpeed ? payload.deliverySpeed.trim().toLowerCase() : payload.shipping.deliverySpeed,
+        couponCode: payload.couponCode ? payload.couponCode.trim() : null,
+    };
+    const jsonStr = JSON.stringify(canonical, Object.keys(canonical).sort());
+    return (0, node_crypto_2.createHash)('sha256').update(jsonStr).digest('hex');
+}
 exports.ALLOWED_PAYMENT_METHODS = [
     'cod_usd',
     'cod_lbp',
@@ -34,7 +62,7 @@ exports.ALLOWED_DELIVERY_SPEEDS = [
     'diaspora_air',
     'diaspora_global',
 ];
-exports.ALLOWED_REQUEST_KEYS = new Set(['items', 'shipping', 'paymentMethod', 'couponCode', 'deliverySpeed']);
+exports.ALLOWED_REQUEST_KEYS = new Set(['items', 'shipping', 'paymentMethod', 'couponCode', 'deliverySpeed', 'idempotencyKey']);
 exports.ALLOWED_ITEM_KEYS = new Set(['productId', 'quantity', 'selectedOption']);
 exports.ALLOWED_SHIPPING_KEYS = new Set([
     'fullName',
@@ -53,6 +81,8 @@ exports.MAX_UNIQUE_PRODUCTS = 50;
 exports.MAX_TOTAL_QUANTITY = 200;
 exports.MAX_ORDER_VALUE_USD = 10000;
 exports.PRODUCT_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
+exports.IDEMPOTENCY_KEY_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+exports.MAX_IDEMPOTENCY_KEY_LENGTH = 36;
 /**
  * Pure request validator for placeOrder payloads, exported for exhaustive testing.
  */
@@ -66,8 +96,22 @@ function validatePlaceOrderPayload(data) {
             throw new https_1.HttpsError('invalid-argument', `Unexpected property in request: "${key}".`);
         }
     }
-    const { items, shipping, paymentMethod, couponCode, deliverySpeed } = data;
-    // 2. Strict cart items array bounds
+    const { items, shipping, paymentMethod, couponCode, deliverySpeed, idempotencyKey } = data;
+    // 2. Strict idempotency key validation
+    if (idempotencyKey === undefined || idempotencyKey === null) {
+        throw new https_1.HttpsError('invalid-argument', 'idempotencyKey is required and must be provided by the client.');
+    }
+    if (typeof idempotencyKey !== 'string') {
+        throw new https_1.HttpsError('invalid-argument', 'idempotencyKey must be a valid string.');
+    }
+    const cleanIdempotencyKey = idempotencyKey.trim();
+    if (!cleanIdempotencyKey) {
+        throw new https_1.HttpsError('invalid-argument', 'idempotencyKey must not be empty.');
+    }
+    if (cleanIdempotencyKey.length > exports.MAX_IDEMPOTENCY_KEY_LENGTH || !exports.IDEMPOTENCY_KEY_REGEX.test(cleanIdempotencyKey)) {
+        throw new https_1.HttpsError('invalid-argument', `Invalid idempotencyKey "${cleanIdempotencyKey}". Must be a valid UUID string (e.g. standard v4 UUID) up to ${exports.MAX_IDEMPOTENCY_KEY_LENGTH} characters.`);
+    }
+    // 3. Strict cart items array bounds
     if (!Array.isArray(items) || items.length === 0 || items.length > exports.MAX_LINE_ITEMS) {
         throw new https_1.HttpsError('invalid-argument', `Invalid cart items count (${items?.length ?? 0}). Must contain between 1 and ${exports.MAX_LINE_ITEMS} items.`);
     }
@@ -235,6 +279,7 @@ function validatePlaceOrderPayload(data) {
         effectiveSpeed,
         couponCode: cleanCouponCode,
         totalQuantity,
+        idempotencyKey: cleanIdempotencyKey,
     };
 }
 exports.placeOrder = (0, https_1.onCall)({
@@ -249,18 +294,43 @@ exports.placeOrder = (0, https_1.onCall)({
     if (authUser?.token.email_verified !== true) {
         throw new https_1.HttpsError('failed-precondition', 'Please verify your email first.');
     }
-    const { items, cleanShipping, effectivePaymentMethod, effectiveSpeed, couponCode, } = validatePlaceOrderPayload(req.data);
+    const { items, cleanShipping, effectivePaymentMethod, effectiveSpeed, couponCode, idempotencyKey, } = validatePlaceOrderPayload(req.data);
     const db = getDb();
     return db.runTransaction(async (tx) => {
-        // 1. Transactional reads: All products, discounts, bundles, and user profile read WITHIN the transaction
+        // 1. Transactional reads: Idempotency doc, products, discounts, bundles, and user profile read WITHIN transaction
+        const idempotencyRef = db.doc(`order_idempotency/${uid}_${idempotencyKey}`);
         const productRefs = items.map(i => db.doc(`products/${i.productId.trim()}`));
-        const [productSnaps, discountsSnap, bundlesSnap, userSnap] = await Promise.all([
+        const [idempotencySnap, productSnaps, discountsSnap, bundlesSnap, userSnap] = await Promise.all([
+            tx.get(idempotencyRef),
             tx.getAll(...productRefs),
             tx.get(db.collection('discounts').where('isActive', '==', true)),
             tx.get(db.collection('product_bundles').where('isActive', '==', true)),
             tx.get(db.doc(`users/${uid}`)),
         ]);
-        // 2. Validate product existence, state, publication status, and stock
+        const requestFingerprint = computeRequestFingerprint({
+            items,
+            shipping: cleanShipping,
+            paymentMethod: effectivePaymentMethod,
+            couponCode,
+            deliverySpeed: effectiveSpeed,
+        });
+        // 2. Authoritative idempotency check with request fingerprint verification
+        if (idempotencySnap.exists) {
+            const existingData = idempotencySnap.data();
+            if (existingData.requestFingerprint && existingData.requestFingerprint !== requestFingerprint) {
+                throw new https_1.HttpsError('already-exists', 'Idempotency key reused with a different request payload.');
+            }
+            return {
+                orderId: existingData.orderId,
+                trackingNumber: existingData.trackingNumber,
+                totalUSD: existingData.totalUSD,
+                subtotalUSD: existingData.subtotalUSD,
+                discountUSD: existingData.discountUSD,
+                deliveryFeeUSD: existingData.deliveryFeeUSD,
+                duplicate: true,
+            };
+        }
+        // 3. Validate product existence, state, publication status, and stock
         const lines = items.map((line, idx) => {
             const snap = productSnaps[idx];
             if (!snap || !snap.exists) {
@@ -336,9 +406,7 @@ exports.placeOrder = (0, https_1.onCall)({
         }
         // 6. Create authoritative Order record
         const orderRef = db.collection('orders').doc();
-        const cryptoUuid = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
-            ? globalThis.crypto.randomUUID()
-            : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+        const cryptoUuid = (0, node_crypto_1.randomUUID)();
         const trackingNumber = `LB-EXP-${cryptoUuid.slice(0, 12).toUpperCase()}`;
         // Canonical seller IDs exclusively from product.sellerId
         const canonicalSellerIds = Array.from(new Set(lines
@@ -369,13 +437,59 @@ exports.placeOrder = (0, https_1.onCall)({
             createdAt: firestore_1.FieldValue.serverTimestamp(),
         };
         tx.set(orderRef, orderData);
+        const sellerSafeProduct = (p, selectedOpt, qty) => ({
+            productId: p.id,
+            name: p.name || '',
+            arabicName: p.arabicName || '',
+            image: p.image || '',
+            sellerItemCode: p.sellerItemCode || '',
+            selectedOption: selectedOpt || null,
+            quantity: qty || 1,
+        });
+        // 6b. Create seller fulfillment documents atomically with seller-safe product snapshot
+        for (const sId of canonicalSellerIds) {
+            const sellerLines = lines.filter(l => (typeof l.product.sellerId === 'string' ? l.product.sellerId.trim() : '') === sId);
+            const fulfillmentRef = db.doc(`order_fulfillment/${orderRef.id}/sellers/${sId}`);
+            tx.set(fulfillmentRef, {
+                orderId: orderRef.id,
+                sellerId: sId,
+                status: 'pending',
+                items: sellerLines.map(l => sellerSafeProduct(l.product, l.selectedOption, l.quantity)),
+                shipping: {
+                    fullName: cleanShipping.fullName,
+                    phone: cleanShipping.phone,
+                    governorate: cleanShipping.governorate,
+                    city: cleanShipping.city,
+                    street: cleanShipping.street,
+                    building: cleanShipping.building,
+                    deliveryNotes: cleanShipping.deliveryNotes
+                },
+                createdAt: firestore_1.FieldValue.serverTimestamp(),
+                updatedAt: firestore_1.FieldValue.serverTimestamp(),
+            });
+        }
+        tx.set(idempotencyRef, {
+            uid,
+            idempotencyKey,
+            requestFingerprint,
+            orderId: orderRef.id,
+            trackingNumber,
+            totalUSD,
+            subtotalUSD,
+            discountUSD,
+            deliveryFeeUSD,
+            status: 'completed',
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            updatedAt: firestore_1.FieldValue.serverTimestamp(),
+        });
         return {
             orderId: orderRef.id,
             trackingNumber,
             totalUSD,
             subtotalUSD,
             discountUSD,
-            deliveryFeeUSD
+            deliveryFeeUSD,
+            duplicate: false,
         };
     });
 });

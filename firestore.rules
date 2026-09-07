@@ -849,5 +849,18 @@ service cloud.firestore {
 
       allow update, delete: if isAdmin();
     }
+
+    // ---------------------------------------------------------------------
+    // Server-only OTP collection: Inaccessible to normal clients
+    // Managed exclusively by Cloud Functions via Firebase Admin SDK
+    // ---------------------------------------------------------------------
+
+    match /otps/{otpId} {
+      allow read, write: if false;
+    }
+
+    match /otp_records/{otpId} {
+      allow read, write: if false;
+    }
   }
 }

@@ -1,13 +1,11 @@
 export function generateSecurePassword(length: number = 12): string {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=';
   const array = new Uint32Array(length);
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-    window.crypto.getRandomValues(array);
+  const cryptoObj = (typeof window !== 'undefined' && window.crypto) || (typeof globalThis !== 'undefined' && globalThis.crypto);
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    cryptoObj.getRandomValues(array);
   } else {
-    // Fallback for non-browser environments if any (shouldn't be needed in client side, but just in case)
-    for (let i = 0; i < length; i++) {
-      array[i] = Math.floor(Math.random() * charset.length);
-    }
+    throw new Error('Security Error: Cryptographically secure random number generator is unavailable.');
   }
   
   let password = '';

@@ -635,5 +635,33 @@ test('adversarial: seller fulfillment state machine transitions and tracking pro
   await assertSucceeds(setDoc(sellerDocRef, { sellerTrackingNumber: 'COURIER-123', updatedAt: '2026-09-07' }, { merge: true }));
 });
 
+// 16. Server-only OTP Collection Direct Access Prevention
+test('adversarial: otps collection prohibits direct client access for all users including admins', async () => {
+  const otpRefUnauth = doc(unauthenticated(), 'otps', 'otp-secret-1');
+  const otpRefCustomer = doc(customer(), 'otps', 'otp-secret-1');
+  const otpRefSeller = doc(seller(), 'otps', 'otp-secret-1');
+  const otpRefAdmin = doc(admin(), 'otps', 'otp-secret-1');
+
+  const payload = {
+    contact: 'test@example.com',
+    actionType: 'login',
+    otpHash: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    attempts: 0,
+    used: false
+  };
+
+  // Direct creates must fail for all client contexts
+  await assertFails(setDoc(otpRefUnauth, payload));
+  await assertFails(setDoc(otpRefCustomer, payload));
+  await assertFails(setDoc(otpRefSeller, payload));
+  await assertFails(setDoc(otpRefAdmin, payload));
+
+  // Direct reads must fail for all client contexts
+  await assertFails(getDoc(otpRefUnauth));
+  await assertFails(getDoc(otpRefCustomer));
+  await assertFails(getDoc(otpRefSeller));
+  await assertFails(getDoc(otpRefAdmin));
+});
+
 
 

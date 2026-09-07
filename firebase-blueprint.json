@@ -281,6 +281,23 @@
         "userId": { "type": "string" }
       },
       "required": ["id", "query", "timestamp"]
+    },
+    "OTP": {
+      "title": "OTP",
+      "description": "Server-only cryptographic OTP authentication records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "contact": { "type": "string" },
+        "actionType": { "type": "string" },
+        "otpHash": { "type": "string" },
+        "createdAtMs": { "type": "number" },
+        "expiresAtMs": { "type": "number" },
+        "attempts": { "type": "number" },
+        "maxAttempts": { "type": "number" },
+        "used": { "type": "boolean" }
+      },
+      "required": ["id", "contact", "actionType", "otpHash", "expiresAtMs", "attempts", "used"]
     }
   },
   "firestore": {
@@ -343,6 +360,10 @@
     "/search_logs/{logId}": {
       "schema": { "$ref": "#/entities/SearchLog" },
       "description": "Log of user search queries for trend analysis"
+    },
+    "/otps/{otpId}": {
+      "schema": { "$ref": "#/entities/OTP" },
+      "description": "Server-only OTP records for authentication. Deny-all client rules."
     }
   }
 }
