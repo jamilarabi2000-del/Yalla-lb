@@ -98,28 +98,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw err;
       }
     } else {
-      if (import.meta.env.PROD) {
-        throw new Error('Online checkout requires an active backend service. Offline orders are disabled in production.');
-      }
-      // Local fallback for non-production development only
-      const mockOrder: Order = {
-        id: `ord-local-${Date.now()}`,
-        userId: firebaseUser?.uid || 'guest',
-        date: new Date().toISOString(),
-        trackingNumber: `LB-EXP-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
-        status: 'pending',
-        items: [],
-        shipping: params.shipping || { fullName: '', phone: '', address: '', governorate: '', city: '', deliverySpeed: 'standard' },
-        paymentMethod: params.paymentMethod || 'cod_usd',
-        currency: 'USD',
-        subtotalUSD: 0,
-        deliveryFeeUSD: 0,
-        totalUSD: 0,
-        totalLBP: 0,
-        estimatedDelivery: '2-4 business days'
-      };
-      setOrders(prev => [mockOrder, ...prev]);
-      return mockOrder;
+      throw new Error('Online checkout requires an active backend connection and Firebase configuration. Local mock order creation is disabled.');
     }
   };
 
