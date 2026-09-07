@@ -138,6 +138,40 @@ test('TEST E: The existing placeOrder Cloud Function can still successfully crea
   });
 });
 
+test('TEST F: order_idempotency is completely inaccessible to clients (read & write = false)', async () => {
+  const dummyRecord = {
+    orderId: 'ord-123',
+    trackingNumber: 'LB-EXP-ABC',
+    createdAt: new Date().toISOString(),
+    totalUSD: 50
+  };
+
+  // Unauthenticated client cannot read or write
+  await assertFails(getDoc(doc(unauthenticated(), 'order_idempotency', 'uid_key1')));
+  await assertFails(setDoc(doc(unauthenticated(), 'order_idempotency', 'uid_key1'), dummyRecord));
+
+  // Customer cannot read or write
+  await assertFails(getDoc(doc(customer(), 'order_idempotency', 'customer-123_key1')));
+  await assertFails(setDoc(doc(customer(), 'order_idempotency', 'customer-123_key1'), dummyRecord));
+
+  // Seller cannot read or write
+  await assertFails(getDoc(doc(seller(), 'order_idempotency', 'seller-123_key1')));
+  await assertFails(setDoc(doc(seller(), 'order_idempotency', 'seller-123_key1'), dummyRecord));
+
+  // Admin cannot read or write directly via client SDK
+  await assertFails(getDoc(doc(admin(), 'order_idempotency', 'admin-123_key1')));
+  await assertFails(setDoc(doc(admin(), 'order_idempotency', 'admin-123_key1'), dummyRecord));
+
+  // Admin SDK in Cloud Functions CAN read & write
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    const adminDb = ctx.firestore();
+    await assertSucceeds(setDoc(doc(adminDb, 'order_idempotency', 'backend_key1'), dummyRecord));
+    const snap = await getDoc(doc(adminDb, 'order_idempotency', 'backend_key1'));
+    expect(snap.exists()).toBe(true);
+    expect(snap.data()?.orderId).toBe('ord-123');
+  });
+});
+
 test('customer cannot create a pre-advanced order', async () => {
   await assertFails(
     setDoc(

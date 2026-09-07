@@ -8,6 +8,7 @@ import { DEFAULT_CATEGORIES } from '../data/categories';
 import { DEFAULT_SELLERS } from '../data/sellers';
 import { LEBANON_REGIONS, LBP_USD_RATE } from '../data/regions';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
+import { generateIdempotencyKey } from '../utils/uuid';
 import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
@@ -244,7 +245,7 @@ interface ShopContextType {
 
   // Orders
   orders: Order[];
-  placeOrder: (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>) => Promise<Order>;
+  placeOrder: (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>, customIdempotencyKey?: string) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
 
@@ -3174,8 +3175,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [firebaseUser, user]);
 
   // Place Order - Order creation with graceful fallback for empty profiles
-  const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>): Promise<Order> => {
+  const placeOrder = async (orderData: Omit<Order, 'id' | 'date' | 'trackingNumber' | 'status'>, customIdempotencyKey?: string): Promise<Order> => {
     const activeUserId = firebaseUser?.uid || auth?.currentUser?.uid || undefined;
+    const idempotencyKey = (customIdempotencyKey || generateIdempotencyKey()).trim();
 
     if (cart.length > MAX_ORDER_LINE_ITEMS) {
       const errMsg = language === 'ar'
@@ -3233,7 +3235,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       targetPath: `orders/${orderId}`,
       sourceComponent: 'ShopContext',
       actionName: 'placeOrderCloudFunction',
-      summary: `Submitting order to authoritative placeOrder Cloud Function...`,
+      summary: `Submitting order to authoritative placeOrder Cloud Function (idempotency: ${idempotencyKey.slice(0, 8)}...)...`,
     });
 
     try {
@@ -3260,7 +3262,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         paymentMethod: orderData.paymentMethod || 'cod_usd',
         ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
-        deliverySpeed: chosenSpeed
+        deliverySpeed: chosenSpeed,
+        idempotencyKey: idempotencyKey,
       };
 
       const resp = await placeOrderFn(payload);
@@ -3309,14 +3312,22 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         targetPath: `orders/${serverOrderId}`,
         sourceComponent: 'ShopContext',
         actionName: 'placeOrderCloudFunction',
-        summary: `Order #${serverOrderId} placed successfully via Cloud Function (tracking: ${serverTrackingNumber}).`,
+        summary: `Order #${serverOrderId} placed successfully via Cloud Function (tracking: ${serverTrackingNumber}${serverResult?.duplicate ? ' - idempotent duplicate confirmed' : ''}).`,
         startTime,
         payload: placedOrder
       });
 
-      setOrders(prev => [placedOrder, ...prev]);
+      setOrders(prev => {
+        const exists = prev.some(o => o.id === serverOrderId);
+        return exists ? prev : [placedOrder, ...prev];
+      });
       clearCart();
-      showToast(`Mabrouk! Order #${placedOrder.id} placed and confirmed by server.`, 'success');
+      showToast(
+        serverResult?.duplicate
+          ? `Order #${placedOrder.id} is already placed and confirmed by server.`
+          : `Mabrouk! Order #${placedOrder.id} placed and confirmed by server.`,
+        'success'
+      );
       return placedOrder;
     } catch (error: any) {
       dbLogger.logFirestoreWriteError({

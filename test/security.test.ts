@@ -408,7 +408,8 @@ describe('Security Regression Suite - Application Controls', () => {
       },
       paymentMethod: 'cod_usd',
       deliverySpeed: 'standard',
-      couponCode: 'WELCOME10'
+      couponCode: 'WELCOME10',
+      idempotencyKey: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'
     };
 
     it('1. App Check is required in production configuration', () => {
@@ -676,6 +677,82 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(() => placeOrderFallback(true, false)).toThrow('Offline order placement is disabled in production.');
       expect(placeOrderFallback(false, false)).toEqual({ id: 'local-dev-mock-order' });
       expect(placeOrderFallback(true, true)).toEqual({ id: 'authoritative-cloud-order' });
+    });
+
+    it('17. Missing or null idempotencyKey is strictly rejected', () => {
+      const payloadWithoutKey: any = { ...validPayload };
+      delete payloadWithoutKey.idempotencyKey;
+      expect(() => validatePlaceOrderPayload(payloadWithoutKey)).toThrow(/idempotencyKey is required/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: null as any
+      })).toThrow(/idempotencyKey is required/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: ''
+      })).toThrow(/idempotencyKey must not be empty/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: '   '
+      })).toThrow(/idempotencyKey must not be empty/);
+    });
+
+    it('18. Non-string or malformed idempotencyKey is rejected', () => {
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: 123456 as any
+      })).toThrow(/idempotencyKey must be a valid string/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: { key: 'uuid' } as any
+      })).toThrow(/idempotencyKey must be a valid string/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: 'not-a-valid-uuid'
+      })).toThrow(/Must be a valid UUID string/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: '12345678-1234-1234-1234-1234567890ab-extra'
+      })).toThrow(/Must be a valid UUID string/);
+
+      expect(() => validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: '../traversal/uuid'
+      })).toThrow(/Must be a valid UUID string/);
+    });
+
+    it('19. Valid v4 UUID idempotencyKey is accepted and normalized', () => {
+      const validated = validatePlaceOrderPayload({
+        ...validPayload,
+        idempotencyKey: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d'
+      });
+      expect(validated.idempotencyKey).toBe('9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d');
+    });
+
+    it('20. Cloud Function source code enforces atomic idempotency check and write within transaction', () => {
+      const placeOrderSource = fs.readFileSync(
+        path.resolve(__dirname, '../functions/src/placeOrder.ts'),
+        'utf-8'
+      );
+      expect(placeOrderSource).toMatch(/order_idempotency\/\$\{uid\}_\$\{idempotencyKey\}/);
+      expect(placeOrderSource).toMatch(/idempotencySnap\.exists/);
+      expect(placeOrderSource).toMatch(/duplicate:\s*true/);
+      expect(placeOrderSource).toMatch(/tx\.set\(idempotencyRef/);
+    });
+
+    it('21. Firestore rules strictly lock down order_idempotency collection against all client access', () => {
+      const rulesSource = fs.readFileSync(
+        path.resolve(__dirname, '../firestore.rules'),
+        'utf-8'
+      );
+      expect(rulesSource).toMatch(/match \/order_idempotency\/\{idempotencyId\}/);
+      expect(rulesSource).toMatch(/allow read, write:\s*if false;/);
     });
   });
 });

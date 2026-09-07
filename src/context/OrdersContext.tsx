@@ -5,6 +5,7 @@ import { collection, onSnapshot, query, where, orderBy } from 'firebase/firestor
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { orderConverter } from '../lib/converters';
 import { useAuth } from './AuthContext';
+import { generateIdempotencyKey } from '../utils/uuid';
 
 export interface PlaceOrderParams {
   shipping: any;
@@ -12,6 +13,7 @@ export interface PlaceOrderParams {
   couponCode?: string;
   deliverySpeed?: string;
   items?: Array<{ productId: string; quantity: number; selectedOption?: string }>;
+  idempotencyKey?: string;
 }
 
 export interface OrdersContextType {
@@ -67,6 +69,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const functions = getFunctions(app, 'europe-west1');
         const placeOrderFn = httpsCallable<any, any>(functions, 'placeOrder');
         const rawShipping = params.shipping || {};
+        const idempotencyKey = (params.idempotencyKey || generateIdempotencyKey()).trim();
         const sanitizedPayload = {
           items: (params.items || []).map(it => ({
             productId: it.productId,
@@ -86,6 +89,7 @@ export const OrdersProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           paymentMethod: params.paymentMethod || 'cod_usd',
           couponCode: params.couponCode || undefined,
           deliverySpeed: rawShipping.deliverySpeed || params.deliverySpeed || 'standard',
+          idempotencyKey: idempotencyKey,
         };
         const result = await placeOrderFn(sanitizedPayload);
         return result.data;

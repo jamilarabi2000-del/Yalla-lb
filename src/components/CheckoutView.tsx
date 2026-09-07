@@ -7,6 +7,7 @@ import { calcDeliveryFeeUSD } from '../lib/delivery';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
 import { OTPModal } from './OTPModal';
+import { generateIdempotencyKey } from '../utils/uuid';
 import { 
   ShieldCheck, 
   Truck, 
@@ -81,6 +82,7 @@ export const CheckoutView: React.FC = () => {
 
   const [deliverySpeed, setDeliverySpeed] = useState<'express_beirut' | 'standard' | 'diaspora_air'>('express_beirut');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod_usd');
+  const [checkoutIdempotencyKey, setCheckoutIdempotencyKey] = useState<string | null>(null);
 
   // Password visibility and reset modal states
   const [showPassword, setShowPassword] = useState(false);
@@ -486,6 +488,10 @@ export const CheckoutView: React.FC = () => {
     }
 
     const fullName = `${fName} ${lName}`.trim();
+    const idempotencyKey = checkoutIdempotencyKey || generateIdempotencyKey();
+    if (!checkoutIdempotencyKey) {
+      setCheckoutIdempotencyKey(idempotencyKey);
+    }
 
     setIsSubmitting(true);
     try {
@@ -517,7 +523,9 @@ export const CheckoutView: React.FC = () => {
           : deliverySpeed === 'standard' 
           ? '24-48 Hours (All Lebanon)' 
           : '3-5 Business Days (DHL Diaspora Air)'
-      });
+      }, idempotencyKey);
+
+      setCheckoutIdempotencyKey(null);
 
       // Persist user shipping details for subsequent visits
       updateUser({

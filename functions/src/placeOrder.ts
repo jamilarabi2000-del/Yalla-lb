@@ -53,6 +53,7 @@ export interface PlaceOrderRequest {
   paymentMethod: string;
   couponCode?: string;
   deliverySpeed?: string;
+  idempotencyKey: string;
 }
 
 export const ALLOWED_PAYMENT_METHODS = [
@@ -75,7 +76,7 @@ export const ALLOWED_DELIVERY_SPEEDS = [
 export type AllowedPaymentMethod = typeof ALLOWED_PAYMENT_METHODS[number];
 export type AllowedDeliverySpeed = typeof ALLOWED_DELIVERY_SPEEDS[number];
 
-export const ALLOWED_REQUEST_KEYS = new Set(['items', 'shipping', 'paymentMethod', 'couponCode', 'deliverySpeed']);
+export const ALLOWED_REQUEST_KEYS = new Set(['items', 'shipping', 'paymentMethod', 'couponCode', 'deliverySpeed', 'idempotencyKey']);
 export const ALLOWED_ITEM_KEYS = new Set(['productId', 'quantity', 'selectedOption']);
 export const ALLOWED_SHIPPING_KEYS = new Set([
   'fullName',
@@ -96,6 +97,8 @@ export const MAX_TOTAL_QUANTITY = 200;
 export const MAX_ORDER_VALUE_USD = 10000;
 
 export const PRODUCT_ID_REGEX = /^[a-zA-Z0-9_-]{1,128}$/;
+export const IDEMPOTENCY_KEY_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+export const MAX_IDEMPOTENCY_KEY_LENGTH = 36;
 
 /**
  * Pure request validator for placeOrder payloads, exported for exhaustive testing.
@@ -107,6 +110,7 @@ export function validatePlaceOrderPayload(data: any): {
   effectiveSpeed: AllowedDeliverySpeed;
   couponCode?: string;
   totalQuantity: number;
+  idempotencyKey: string;
 } {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new HttpsError('invalid-argument', 'Request payload must be a non-null object.');
@@ -119,9 +123,27 @@ export function validatePlaceOrderPayload(data: any): {
     }
   }
 
-  const { items, shipping, paymentMethod, couponCode, deliverySpeed } = data;
+  const { items, shipping, paymentMethod, couponCode, deliverySpeed, idempotencyKey } = data;
 
-  // 2. Strict cart items array bounds
+  // 2. Strict idempotency key validation
+  if (idempotencyKey === undefined || idempotencyKey === null) {
+    throw new HttpsError('invalid-argument', 'idempotencyKey is required and must be provided by the client.');
+  }
+  if (typeof idempotencyKey !== 'string') {
+    throw new HttpsError('invalid-argument', 'idempotencyKey must be a valid string.');
+  }
+  const cleanIdempotencyKey = idempotencyKey.trim();
+  if (!cleanIdempotencyKey) {
+    throw new HttpsError('invalid-argument', 'idempotencyKey must not be empty.');
+  }
+  if (cleanIdempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH || !IDEMPOTENCY_KEY_REGEX.test(cleanIdempotencyKey)) {
+    throw new HttpsError(
+      'invalid-argument',
+      `Invalid idempotencyKey "${cleanIdempotencyKey}". Must be a valid UUID string (e.g. standard v4 UUID) up to ${MAX_IDEMPOTENCY_KEY_LENGTH} characters.`
+    );
+  }
+
+  // 3. Strict cart items array bounds
   if (!Array.isArray(items) || items.length === 0 || items.length > MAX_LINE_ITEMS) {
     throw new HttpsError(
       'invalid-argument',
@@ -339,6 +361,7 @@ export function validatePlaceOrderPayload(data: any): {
     effectiveSpeed,
     couponCode: cleanCouponCode,
     totalQuantity,
+    idempotencyKey: cleanIdempotencyKey,
   };
 }
 
@@ -363,22 +386,39 @@ export const placeOrder = onCall<PlaceOrderRequest>(
       effectivePaymentMethod,
       effectiveSpeed,
       couponCode,
+      idempotencyKey,
     } = validatePlaceOrderPayload(req.data);
 
     const db = getDb();
 
     return db.runTransaction(async (tx) => {
-      // 1. Transactional reads: All products, discounts, bundles, and user profile read WITHIN the transaction
+      // 1. Transactional reads: Idempotency doc, products, discounts, bundles, and user profile read WITHIN transaction
+      const idempotencyRef = db.doc(`order_idempotency/${uid}_${idempotencyKey}`);
       const productRefs = items.map(i => db.doc(`products/${i.productId.trim()}`));
 
-      const [productSnaps, discountsSnap, bundlesSnap, userSnap] = await Promise.all([
+      const [idempotencySnap, productSnaps, discountsSnap, bundlesSnap, userSnap] = await Promise.all([
+        tx.get(idempotencyRef),
         tx.getAll(...productRefs),
         tx.get(db.collection('discounts').where('isActive', '==', true)),
         tx.get(db.collection('product_bundles').where('isActive', '==', true)),
         tx.get(db.doc(`users/${uid}`)),
       ]);
 
-      // 2. Validate product existence, state, publication status, and stock
+      // 2. Authoritative idempotency check: If this key has already been processed for this user, return previous order details
+      if (idempotencySnap.exists) {
+        const existingData = idempotencySnap.data() as any;
+        return {
+          orderId: existingData.orderId,
+          trackingNumber: existingData.trackingNumber,
+          totalUSD: existingData.totalUSD,
+          subtotalUSD: existingData.subtotalUSD,
+          discountUSD: existingData.discountUSD,
+          deliveryFeeUSD: existingData.deliveryFeeUSD,
+          duplicate: true,
+        };
+      }
+
+      // 3. Validate product existence, state, publication status, and stock
       const lines = items.map((line, idx) => {
         const snap = productSnaps[idx];
         if (!snap || !snap.exists) {
@@ -511,13 +551,28 @@ export const placeOrder = onCall<PlaceOrderRequest>(
 
       tx.set(orderRef, orderData);
 
+      tx.set(idempotencyRef, {
+        uid,
+        idempotencyKey,
+        orderId: orderRef.id,
+        trackingNumber,
+        totalUSD,
+        subtotalUSD,
+        discountUSD,
+        deliveryFeeUSD,
+        status: 'completed',
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
       return {
         orderId: orderRef.id,
         trackingNumber,
         totalUSD,
         subtotalUSD,
         discountUSD,
-        deliveryFeeUSD
+        deliveryFeeUSD,
+        duplicate: false,
       };
     });
   }

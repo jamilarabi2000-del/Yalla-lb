@@ -663,6 +663,14 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
+    // Order idempotency records - authoritative Cloud Function only
+    // ---------------------------------------------------------------------
+
+    match /order_idempotency/{idempotencyId} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------------------
     // Product reviews
     // ---------------------------------------------------------------------
 
