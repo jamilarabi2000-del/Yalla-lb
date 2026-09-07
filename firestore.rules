@@ -717,11 +717,9 @@ service cloud.firestore {
           ])
         );
 
-      allow create: if isVerified()
-        && orderShapeOk()
-        && orderShippingOk()
-        && orderItemsOk()
-        && orderMoneyOk();
+      // Customer checkout MUST go through the authoritative placeOrder Cloud Function.
+      // Direct Firestore creation from client identities is forbidden.
+      allow create: if isAdmin();
 
       allow update: if isAdmin()
         || (

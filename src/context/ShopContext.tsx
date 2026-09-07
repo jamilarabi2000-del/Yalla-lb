@@ -12,7 +12,7 @@ import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
 import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
-import { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification } from '../firebase';
+import { auth, db, functionsInstance, httpsCallable, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification } from '../firebase';
 import { 
   dbLogger, 
   sanitizeFirestorePayload, 
@@ -3223,127 +3223,61 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return newOrder;
     }
 
-    // Process order placement atomically inside a Firestore transaction!
-    // H-2 & H-3: Atomic transactional stock decrement and authoritative pricing
+    // Server-Authoritative Checkout: All checkout validation, stock decrement, pricing, and order creation
+    // are executed securely inside the placeOrder Firebase callable Cloud Function.
     const { startTime } = dbLogger.logFirestoreWriteStart({
       operation: 'setDoc',
       targetPath: `orders/${orderId}`,
       sourceComponent: 'ShopContext',
-      actionName: 'placeOrderTransaction',
-      summary: `Placing order #${orderId} and decrementing stock atomically...`,
+      actionName: 'placeOrderCloudFunction',
+      summary: `Submitting order to authoritative placeOrder Cloud Function...`,
     });
 
     try {
-      const resultOrder = await runTransaction(db, async (transaction) => {
-        // 1. Fetch products from DB to get fresh stock and pricing (authoritative checks!)
-        const dbProducts = [];
-        for (const item of cart) {
-          const productRef = doc(db, 'products', item.product.id);
-          const productSnap = await transaction.get(productRef);
-          if (!productSnap.exists()) {
-            throw new Error(`Product "${item.product.name}" is no longer available.`);
-          }
-          const productData = productSnap.data() as Product;
-          dbProducts.push({
-            ref: productRef,
-            data: productData,
-            cartItem: item
-          });
-        }
+      const placeOrderFn = httpsCallable<any, any>(functionsInstance, 'placeOrder');
 
-        // 2. Validate stock and build authoritative order items list
-        const validatedItems = [];
-        for (const dbProd of dbProducts) {
-          const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 0;
-          const reqQty = dbProd.cartItem.quantity;
-          if (currentStock < reqQty) {
-            throw new Error(`Sorry, "${dbProd.data.name}" only has ${currentStock} units remaining in stock.`);
-          }
-          // Build product object with authoritative pricing and data from DB
-          const validatedProduct: Product = {
-            ...dbProd.data,
-            // Force authoritative fields from DB to prevent client-side price tampering
-            priceUSD: dbProd.data.priceUSD,
-            name: dbProd.data.name,
-            id: dbProd.data.id
-          };
-          validatedItems.push({
-            product: validatedProduct,
-            quantity: reqQty,
-            selectedOption: dbProd.cartItem.selectedOption
-          });
-        }
+      const payload = {
+        items: (orderData.items || cart).map(it => ({
+          productId: it.product.id,
+          quantity: it.quantity,
+          selectedOption: it.selectedOption
+        })),
+        shipping: {
+          ...orderData.shipping,
+          deliverySpeed: orderData.shipping?.deliverySpeed || 'standard',
+          governorate: orderData.shipping?.governorate
+        },
+        paymentMethod: orderData.paymentMethod || 'cod_usd',
+        couponCode: appliedCouponCode || undefined,
+        deliverySpeed: orderData.shipping?.deliverySpeed || 'standard'
+      };
 
-        // 3. Recalculate subtotal, discounts, and total using authoritative values
-        let isNewUser = false;
-        if (activeUserId) {
-          const userDocRef = doc(db, 'users', activeUserId);
-          const userSnap = await transaction.get(userDocRef);
-          const ordersPlaced = userSnap.exists() ? (userSnap.data()?.ordersPlaced || 0) : 0;
-          isNewUser = ordersPlaced === 0;
-          if (userSnap.exists()) {
-            transaction.update(userDocRef, { ordersPlaced: ordersPlaced + 1 });
-          }
-        }
+      const resp = await placeOrderFn(payload);
+      const serverResult = resp.data;
 
-        const authDiscountCalc = applyDiscounts(validatedItems, discountRules, {
-          couponCode: appliedCouponCode,
-          isNewUser,
-          productBundles
-        });
-        const subtotalUSD = Math.round(validatedItems.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0) * 100) / 100;
-        
-        const govRaw = orderData.shipping?.governorate;
-        const matchedRegion = LEBANON_REGIONS.find(r => 
-          r.id === govRaw || 
-          r.nameEn === govRaw || 
-          r.nameAr === govRaw ||
-          (govRaw && (r.nameEn.toLowerCase() === govRaw.toLowerCase() || r.id.toLowerCase() === govRaw.toLowerCase()))
-        );
-        const deliveryFeeUSD = calcDeliveryFeeUSD({
-          speed: orderData.shipping?.deliverySpeed,
-          regionId: matchedRegion?.id || govRaw,
-          matchedRegion,
-          subtotalUSD: authDiscountCalc.finalSubtotalUSD
-        });
-        const totalUSD = Math.round((authDiscountCalc.finalSubtotalUSD + deliveryFeeUSD) * 100) / 100;
-        const discountUSDVal = authDiscountCalc.discountUSD;
+      const serverOrderId = serverResult?.orderId || orderId;
+      const serverTrackingNumber = serverResult?.trackingNumber || trackingNumberStr;
+      const serverTotalUSD = typeof serverResult?.totalUSD === 'number' ? serverResult.totalUSD : orderData.totalUSD;
+      const serverSubtotalUSD = typeof serverResult?.subtotalUSD === 'number' ? serverResult.subtotalUSD : orderData.subtotalUSD;
+      const serverDiscountUSD = typeof serverResult?.discountUSD === 'number' ? serverResult.discountUSD : (orderData.discountUSD || 0);
+      const serverDeliveryFeeUSD = typeof serverResult?.deliveryFeeUSD === 'number' ? serverResult.deliveryFeeUSD : (orderData.deliveryFeeUSD || 0);
 
-        // Construct the authoritative order structure! No client-side price injection allowed.
-        const newOrder: Order = {
-          ...orderData,
-          id: orderId,
-          date: dateStr,
-          trackingNumber: trackingNumberStr,
-          status: 'pending',
-          userId: activeUserId,
-          items: validatedItems,
-          subtotalUSD,
-          deliveryFeeUSD,
-          discountUSD: discountUSDVal,
-          totalUSD,
-          totalLBP: Math.round(totalUSD * LBP_USD_RATE),
-          appliedCoupon: appliedCouponCode || undefined,
-          productIds: Array.from(new Set(validatedItems.map(item => item.product.id).filter(Boolean))),
-          sellerIds: Array.from(new Set(validatedItems.map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
-        };
-
-        const sanitizedOrder = sanitizeFirestorePayload(newOrder);
-
-        // 4. Atomically decrement stock in Firestore if administrative authority permits
-        if (isAdminUser) {
-          for (const dbProd of dbProducts) {
-            const currentStock = typeof dbProd.data.stock === 'number' ? dbProd.data.stock : 0;
-            const newStock = Math.max(0, currentStock - dbProd.cartItem.quantity);
-            transaction.update(dbProd.ref, { stock: newStock });
-          }
-        }
-
-        // 5. Create the order
-        transaction.set(orderDocRef, sanitizedOrder);
-
-        return newOrder;
-      });
+      const placedOrder: Order = {
+        ...orderData,
+        id: serverOrderId,
+        date: dateStr,
+        trackingNumber: serverTrackingNumber,
+        status: 'pending',
+        userId: activeUserId,
+        subtotalUSD: serverSubtotalUSD,
+        deliveryFeeUSD: serverDeliveryFeeUSD,
+        discountUSD: serverDiscountUSD,
+        totalUSD: serverTotalUSD,
+        totalLBP: Math.round(serverTotalUSD * LBP_USD_RATE),
+        appliedCoupon: appliedCouponCode || undefined,
+        productIds: Array.from(new Set((orderData.items || cart).map(item => item.product.id).filter(Boolean))),
+        sellerIds: Array.from(new Set((orderData.items || cart).map(item => item.product.sellerId || item.product.seller || '').filter(Boolean)))
+      };
 
       // Optimistically update local catalog state so patron immediately sees decremented stock in session
       setProducts(prevProducts => {
@@ -3361,30 +3295,31 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       dbLogger.logFirestoreWriteSuccess({
         operation: 'setDoc',
-        targetPath: `orders/${orderId}`,
+        targetPath: `orders/${serverOrderId}`,
         sourceComponent: 'ShopContext',
-        actionName: 'placeOrderTransaction',
-        summary: `Order #${orderId} completed atomically: stock decremented, authoritative total $${resultOrder.totalUSD} verified.`,
+        actionName: 'placeOrderCloudFunction',
+        summary: `Order #${serverOrderId} placed successfully via Cloud Function (tracking: ${serverTrackingNumber}).`,
         startTime,
-        payload: resultOrder
+        payload: placedOrder
       });
 
-      setOrders(prev => [resultOrder, ...prev]);
+      setOrders(prev => [placedOrder, ...prev]);
       clearCart();
-      showToast(`Mabrouk! Order #${resultOrder.id} placed and saved to database.`, 'success');
-      return resultOrder;
+      showToast(`Mabrouk! Order #${placedOrder.id} placed and confirmed by server.`, 'success');
+      return placedOrder;
     } catch (error: any) {
       dbLogger.logFirestoreWriteError({
         operation: 'setDoc',
         targetPath: `orders/${orderId}`,
         sourceComponent: 'ShopContext',
-        actionName: 'placeOrderTransaction',
-        summary: `Failed to place order transaction: ${error.message}`,
+        actionName: 'placeOrderCloudFunction',
+        summary: `Failed to place order via Cloud Function: ${error.message}`,
         startTime,
         error
       });
-      console.error('[ShopContext] Transaction failed:', error);
-      showToast(error.message || 'Could not place order. Please try again.', 'warning');
+      console.error('[ShopContext] placeOrder Cloud Function error:', error);
+      const displayMsg = error?.message?.replace(/^FirebaseError:\s*/i, '') || 'Could not place order. Please try again.';
+      showToast(displayMsg, 'warning');
       throw error;
     }
   };

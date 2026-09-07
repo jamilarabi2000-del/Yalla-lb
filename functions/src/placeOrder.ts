@@ -24,15 +24,21 @@ export interface PlaceOrderRequest {
     phone?: string;
     governorate?: string;
     city?: string;
+    street?: string;
+    building?: string;
     address?: string;
+    deliveryNotes?: string;
     notes?: string;
     deliverySpeed?: string;
     [key: string]: any;
   };
-  paymentMethod: string;
+  paymentMethod?: string;
   couponCode?: string;
   deliverySpeed?: string;
 }
+
+const ALLOWED_PAYMENT_METHODS = ['cod_usd', 'cod_lbp', 'wish_omt', 'credit_card', 'whish_pay', 'omt_pay', 'cash_on_delivery'];
+const ALLOWED_DELIVERY_SPEEDS = ['standard', 'express_beirut', 'diaspora_air', 'diaspora_global'];
 
 export const placeOrder = onCall<PlaceOrderRequest>(
   { region: 'europe-west1' },
@@ -47,14 +53,59 @@ export const placeOrder = onCall<PlaceOrderRequest>(
 
     const { items, shipping, paymentMethod, couponCode, deliverySpeed } = req.data;
     if (!Array.isArray(items) || items.length === 0 || items.length > 50) {
-      throw new HttpsError('invalid-argument', 'Invalid cart items.');
+      throw new HttpsError('invalid-argument', 'Invalid cart items. Must contain between 1 and 50 items.');
     }
+
+    // Validate and sanitize shipping information
+    if (!shipping || typeof shipping !== 'object') {
+      throw new HttpsError('invalid-argument', 'Shipping details are required.');
+    }
+
+    const sanitizedFullName = String(shipping.fullName || '').trim().slice(0, 200);
+    const sanitizedPhone = String(shipping.phone || '').trim().slice(0, 50);
+    const sanitizedGovernorate = String(shipping.governorate || '').trim().slice(0, 100);
+    const sanitizedCity = String(shipping.city || '').trim().slice(0, 100);
+    const sanitizedStreet = String(shipping.street || shipping.address || '').trim().slice(0, 200);
+    const sanitizedBuilding = String(shipping.building || '').trim().slice(0, 100);
+    const sanitizedDeliveryNotes = String(shipping.deliveryNotes || shipping.notes || '').trim().slice(0, 1000);
+
+    if (!sanitizedFullName) {
+      throw new HttpsError('invalid-argument', 'Full name is required.');
+    }
+    if (!sanitizedPhone) {
+      throw new HttpsError('invalid-argument', 'Phone number is required.');
+    }
+    if (!sanitizedCity) {
+      throw new HttpsError('invalid-argument', 'City is required.');
+    }
+
+    const sanitizedSpeed = String(deliverySpeed || shipping.deliverySpeed || 'standard').trim().toLowerCase();
+    const effectiveSpeed = ALLOWED_DELIVERY_SPEEDS.includes(sanitizedSpeed) ? sanitizedSpeed : 'standard';
+
+    const rawPayment = String(paymentMethod || 'cod_usd').trim().toLowerCase();
+    const effectivePaymentMethod = ALLOWED_PAYMENT_METHODS.includes(rawPayment) ? rawPayment : 'cod_usd';
+
+    const cleanShipping = {
+      fullName: sanitizedFullName,
+      phone: sanitizedPhone,
+      governorate: sanitizedGovernorate || 'Beirut',
+      city: sanitizedCity,
+      street: sanitizedStreet,
+      building: sanitizedBuilding || 'N/A',
+      deliveryNotes: sanitizedDeliveryNotes,
+      deliverySpeed: effectiveSpeed,
+    };
 
     const db = getDb();
 
     return db.runTransaction(async (tx) => {
       // 1. Read all products, discount rules, bundles, and user data
-      const productRefs = items.map(i => db.doc(`products/${i.productId}`));
+      const productRefs = items.map(i => {
+        if (!i || typeof i.productId !== 'string' || !i.productId.trim()) {
+          throw new HttpsError('invalid-argument', 'Each item must have a valid productId.');
+        }
+        return db.doc(`products/${i.productId.trim()}`);
+      });
       const productSnaps = await tx.getAll(...productRefs);
       const [discountsSnap, bundlesSnap, userSnap] = await Promise.all([
         db.collection('discounts').where('isActive', '==', true).get(),
@@ -71,18 +122,18 @@ export const placeOrder = onCall<PlaceOrderRequest>(
         const p = { id: snap.id, ...snap.data() } as any;
         const qty = Math.floor(Number(line.quantity));
         if (!Number.isFinite(qty) || qty < 1 || qty > 99) {
-          throw new HttpsError('invalid-argument', `Invalid quantity for product "${p.name}".`);
+          throw new HttpsError('invalid-argument', `Invalid quantity for product "${p.name || snap.id}". Must be between 1 and 99.`);
         }
         const availableStock = typeof p.stock === 'number' ? p.stock : 0;
         if (availableStock < qty) {
-          throw new HttpsError('resource-exhausted', `"${p.name}" only has ${availableStock} items in stock.`);
+          throw new HttpsError('resource-exhausted', `"${p.name || 'Product'}" only has ${availableStock} items in stock.`);
         }
         return {
           ref: snap.ref,
           product: p,
           quantity: qty,
           unitPriceUSD: typeof p.priceUSD === 'number' ? p.priceUSD : 0,
-          selectedOption: line.selectedOption
+          selectedOption: typeof line.selectedOption === 'string' ? line.selectedOption.slice(0, 100) : undefined
         };
       });
 
@@ -94,15 +145,14 @@ export const placeOrder = onCall<PlaceOrderRequest>(
         lines,
         discounts: discountsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
         bundles: bundlesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-        couponCode,
+        couponCode: typeof couponCode === 'string' ? couponCode.slice(0, 50) : undefined,
         isNewCustomer,
         subtotalUSD,
       });
 
-      const activeSpeed = deliverySpeed || shipping?.deliverySpeed || 'standard';
       const deliveryFeeUSD = computeDelivery(
-        activeSpeed,
-        shipping?.governorate,
+        effectiveSpeed,
+        cleanShipping.governorate,
         subtotalUSD - discountUSD
       );
       const totalUSD = round2(subtotalUSD - discountUSD + deliveryFeeUSD);
@@ -133,8 +183,8 @@ export const placeOrder = onCall<PlaceOrderRequest>(
         })),
         productIds: Array.from(new Set(lines.map(l => l.product.id).filter(Boolean))),
         sellerIds: Array.from(new Set(lines.map(l => l.product.sellerId || l.product.seller).filter(Boolean))),
-        shipping: shipping || {},
-        paymentMethod: paymentMethod || 'cash_on_delivery',
+        shipping: cleanShipping,
+        paymentMethod: effectivePaymentMethod,
         currency: 'USD',
         subtotalUSD,
         discountUSD,

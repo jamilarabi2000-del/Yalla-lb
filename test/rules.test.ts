@@ -72,12 +72,21 @@ const admin = () => env.authenticatedContext('admin-1', {
   email: 'a@example.com', email_verified: true, admin: true,
 }).firestore();
 
-// ── Regression 1: v3 — status mismatch silently rejected every order ──────────
-test('customer can create a valid order with status pending', async () => {
-  await assertSucceeds(
+// ── Regression 1: Checkout hardening — direct customer order writes are forbidden ───
+test('customer cannot create an order directly (must use placeOrder Cloud Function)', async () => {
+  await assertFails(
     setDoc(
       doc(customer(), 'orders', 'o1'),
       validOrder('o1')
+    )
+  );
+});
+
+test('admin can create an order directly in Firestore', async () => {
+  await assertSucceeds(
+    setDoc(
+      doc(admin(), 'orders', 'o-admin'),
+      validOrder('o-admin')
     )
   );
 });
@@ -102,12 +111,10 @@ test('customer cannot decrement product stock', async () => {
   await assertFails(setDoc(doc(customer(), 'products', 'p1'), { stock: 0 }, { merge: true }));
 });
 
-// ── Regression 3: v6 — the write path the rule change orphaned ────────────────
-// Guards the Action 1 fix: if anyone reintroduces a client-side stock write
-// inside the order transaction, this catches it before deploy.
-test('customer order path performs no product writes', async () => {
+// ── Regression 3: v6 — direct client writes ────────────────────────────────────
+test('customer cannot write to products or orders', async () => {
   await assertFails(setDoc(doc(customer(), 'products', 'p1'), { stock: 4 }, { merge: true }));
-  await assertSucceeds(
+  await assertFails(
     setDoc(
       doc(customer(), 'orders', 'o3'),
       validOrder('o3')

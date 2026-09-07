@@ -28,6 +28,7 @@ import {
   Firestore 
 } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check';
+import { getFunctions, httpsCallable, Functions } from 'firebase/functions';
 import firebaseConfig from '../firebase-applet-config.json';
 
 // Suppress transient connection info messages in console
@@ -106,9 +107,21 @@ try {
 
 export const db = firestoreInstance;
 export const auth = authInstance;
+export const functionsInstance: Functions = getFunctions(app, 'europe-west1');
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
 
-export { GoogleAuthProvider, OAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail, sendEmailVerification };
-export type { FirebaseUser };
+export { 
+  GoogleAuthProvider, 
+  OAuthProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  sendPasswordResetEmail, 
+  sendEmailVerification,
+  httpsCallable
+};
+export type { FirebaseUser, Functions };
 
