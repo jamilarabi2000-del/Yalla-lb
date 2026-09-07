@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
+import { randomUUID } from 'node:crypto';
 import { computeDiscounts, round2 } from './pricing.js';
 import { computeDelivery } from './delivery.js';
 
@@ -510,9 +511,7 @@ export const placeOrder = onCall<PlaceOrderRequest>(
 
       // 6. Create authoritative Order record
       const orderRef = db.collection('orders').doc();
-      const cryptoUuid = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
-        ? globalThis.crypto.randomUUID()
-        : `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const cryptoUuid = randomUUID();
       const trackingNumber = `LB-EXP-${cryptoUuid.slice(0, 12).toUpperCase()}`;
 
       // Canonical seller IDs exclusively from product.sellerId

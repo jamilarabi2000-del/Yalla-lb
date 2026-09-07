@@ -754,6 +754,17 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(rulesSource).toMatch(/match \/order_idempotency\/\{idempotencyId\}/);
       expect(rulesSource).toMatch(/allow read, write:\s*if false;/);
     });
+
+    it('22. Cloud Function uses secure node:crypto randomUUID for tracking numbers without Math.random/Date.now fallbacks', () => {
+      const placeOrderSource = fs.readFileSync(
+        path.resolve(__dirname, '../functions/src/placeOrder.ts'),
+        'utf-8'
+      );
+      expect(placeOrderSource).toMatch(/import\s*\{\s*randomUUID\s*\}\s*from\s*['"]node:crypto['"]/);
+      expect(placeOrderSource).toMatch(/const\s+cryptoUuid\s*=\s*randomUUID\(\)/);
+      expect(placeOrderSource).not.toMatch(/Math\.random/);
+      expect(placeOrderSource).not.toMatch(/Date\.now\(\)/);
+    });
   });
 });
 
