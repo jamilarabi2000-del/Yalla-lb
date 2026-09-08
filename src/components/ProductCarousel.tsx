@@ -41,7 +41,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({ products, idPr
       {showLeft && (
         <button 
           onClick={() => scroll('left')}
-          className="absolute -left-2 sm:-left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/95 text-slate-800 rounded-full shadow-lg border border-slate-200/90 flex items-center justify-center hover:text-amber-600 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+          className="absolute -left-2 sm:-left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white text-[#171717] rounded-full shadow-md border border-[#E5E5E5] flex items-center justify-center hover:text-[#8F7137] hover:border-[#B89753] hover:scale-105 active:scale-95 transition-all cursor-pointer"
           aria-label="Scroll Left"
         >
           <ChevronLeft className="w-5 h-5" />
@@ -66,7 +66,7 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({ products, idPr
       {showRight && (
         <button 
           onClick={() => scroll('right')}
-          className="absolute -right-2 sm:-right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white/95 text-slate-800 rounded-full shadow-lg border border-slate-200/90 flex items-center justify-center hover:text-amber-600 hover:scale-110 active:scale-95 transition-all cursor-pointer"
+          className="absolute -right-2 sm:-right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 bg-white text-[#171717] rounded-full shadow-md border border-[#E5E5E5] flex items-center justify-center hover:text-[#8F7137] hover:border-[#B89753] hover:scale-105 active:scale-95 transition-all cursor-pointer"
           aria-label="Scroll Right"
         >
           <ChevronRight className="w-5 h-5" />

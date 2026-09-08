@@ -313,24 +313,24 @@ export const NewsSection: React.FC = () => {
   };
 
   return (
-    <section className="bg-gradient-to-b from-[#121222] via-[#16162a] to-[#0f0f1c] text-white py-8 sm:py-10 px-4 sm:px-6 lg:px-8 border-t border-b border-[#c5a059]/25 select-none relative overflow-hidden">
+    <section className="bg-[#171717] text-white py-10 sm:py-12 px-4 sm:px-6 lg:px-8 border-t border-b border-[#B89753]/25 select-none relative overflow-hidden">
       
       {/* Background Decorative Ambient Radial Pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:28px_28px] opacity-10 pointer-events-none" />
-      <div className="absolute -left-20 top-0 w-80 h-80 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -right-20 bottom-0 w-80 h-80 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(#B89753_1px,transparent_1px)] [background-size:32px_32px] opacity-10 pointer-events-none" />
+      <div className="absolute -left-20 top-0 w-80 h-80 bg-[#B89753]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -right-20 bottom-0 w-80 h-80 bg-[#B89753]/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-screen-2xl mx-auto relative z-10">
         
         {/* Section Heading & Slider Controls Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-light tracking-tight text-white">
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight text-white">
               {(!siteContent?.newsSection?.title || siteContent.newsSection.title === 'Press, Craft Stories & Cultural News' || siteContent.newsSection.title === 'News & Announcements') ? (
                 language === 'ar' ? (
-                  <>الأخبار <span className="gold-gradient font-serif italic">والإعلانات</span></>
+                  <>الأخبار <span className="text-[#B89753] italic">والإعلانات</span></>
                 ) : (
-                  <>News & <span className="gold-gradient font-serif italic">Announcements</span></>
+                  <>News & <span className="text-[#B89753] italic">Announcements</span></>
                 )
               ) : (
                 siteContent.newsSection.title
@@ -338,13 +338,13 @@ export const NewsSection: React.FC = () => {
             </h2>
           </div>
 
-          {/* Slider Navigation Arrows (Matching System Gold Theme) */}
+          {/* Slider Navigation Arrows */}
           <div className="flex items-center gap-2 self-end sm:self-auto">
             <button
               onClick={() => scrollSlider('left')}
               aria-label="Previous Slide"
               disabled={!canScrollLeft && !isAutoPlay}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[#c5a059]/30 bg-white/[0.05] text-[#f1d592] hover:bg-[#c5a059] hover:text-[#121222] hover:border-[#c5a059] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md disabled:opacity-25 disabled:cursor-not-allowed ${
+              className={`w-9 h-9 rounded-lg border border-[#B89753]/30 bg-white/5 text-[#B89753] hover:bg-[#B89753] hover:text-[#171717] hover:border-[#B89753] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-sm disabled:opacity-25 disabled:cursor-not-allowed ${
                 language === 'ar' ? 'rotate-180' : ''
               }`}
             >
@@ -354,7 +354,7 @@ export const NewsSection: React.FC = () => {
               onClick={() => scrollSlider('right')}
               aria-label="Next Slide"
               disabled={!canScrollRight && !isAutoPlay}
-              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[#c5a059]/30 bg-white/[0.05] text-[#f1d592] hover:bg-[#c5a059] hover:text-[#121222] hover:border-[#c5a059] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-md disabled:opacity-25 disabled:cursor-not-allowed ${
+              className={`w-9 h-9 rounded-lg border border-[#B89753]/30 bg-white/5 text-[#B89753] hover:bg-[#B89753] hover:text-[#171717] hover:border-[#B89753] flex items-center justify-center transition-all duration-200 cursor-pointer shadow-sm disabled:opacity-25 disabled:cursor-not-allowed ${
                 language === 'ar' ? 'rotate-180' : ''
               }`}
             >
@@ -373,11 +373,10 @@ export const NewsSection: React.FC = () => {
             <div
               key={item.id}
               onClick={() => setSelectedNews(item)}
-              className="w-[260px] sm:w-[280px] md:w-[290px] flex-shrink-0 snap-start bg-white rounded-xl border border-amber-900/10 hover:border-[#c5a059]/60 shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer group transform hover:-translate-y-0.5"
+              className="w-[260px] sm:w-[280px] md:w-[290px] flex-shrink-0 snap-start bg-white rounded-xl border border-[#E5E5E5] hover:border-[#B89753] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer group transform hover:-translate-y-0.5"
             >
               {/* Card Image / Banner Header */}
-              <div className="w-full h-36 sm:h-44 relative overflow-hidden bg-slate-900 flex-shrink-0 flex items-center justify-center">
-                {/* Ambient blurred backdrop so any aspect ratio fills seamlessly without cropping foreground */}
+              <div className="w-full h-36 sm:h-44 relative overflow-hidden bg-neutral-900 flex-shrink-0 flex items-center justify-center">
                 <img
                   src={item.image}
                   alt=""
@@ -385,36 +384,31 @@ export const NewsSection: React.FC = () => {
                   className="absolute inset-0 w-full h-full object-cover blur-md opacity-35 scale-110 pointer-events-none"
                   referrerPolicy="no-referrer"
                 />
-                {/* Real Photography fully visible and uncropped */}
-                <div className="w-full h-full relative z-10 flex items-center justify-center p-1.5">
+                <div className="w-full h-full relative z-10 flex items-center justify-center p-2">
                   <img
                     src={item.image}
                     alt={language === 'ar' ? item.titleAr : item.titleEn}
-                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 rounded-md shadow-sm"
+                    className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-500 rounded-md"
                     referrerPolicy="no-referrer"
                   />
                 </div>
                 <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
               </div>
 
-              {/* Card Body matching typography and system gold accent line */}
-              <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between bg-white text-slate-800">
-                
-                {/* Title in clean italicized font */}
+              {/* Card Body */}
+              <div className="p-4 flex-1 flex flex-col justify-between bg-white text-[#171717]">
                 <div>
-                  <h3 className="text-xs sm:text-[13px] text-slate-900 italic leading-snug font-semibold line-clamp-2 min-h-[34px] group-hover:text-[#96783d] transition-colors">
+                  <h3 className="text-xs sm:text-[13px] text-[#171717] font-semibold line-clamp-2 min-h-[36px] group-hover:text-[#8F7137] transition-colors leading-snug">
                     {language === 'ar' ? item.titleAr : item.titleEn}
                   </h3>
                 </div>
 
-                {/* Divider with active system gold accent line */}
-                <div className="mt-2.5 pt-1.5">
-                  <div className="w-full bg-slate-100 h-[1px] relative mb-2">
-                    <div className={`absolute top-0 w-10 h-[1.5px] bg-[#c5a059] ${language === 'ar' ? 'right-0' : 'left-0'}`} />
+                <div className="mt-3 pt-2">
+                  <div className="w-full bg-[#E5E5E5] h-[1px] relative mb-2">
+                    <div className={`absolute top-0 w-8 h-[1.5px] bg-[#B89753] ${language === 'ar' ? 'right-0' : 'left-0'}`} />
                   </div>
 
-                  {/* Date format at the bottom */}
-                  <div className="flex items-center justify-between text-[11px] text-[#96783d] font-semibold">
+                  <div className="flex items-center justify-between text-[11px] text-[#8F7137] font-medium">
                     <span>{language === 'ar' ? item.dateAr : item.date}</span>
                   </div>
                 </div>
@@ -424,22 +418,22 @@ export const NewsSection: React.FC = () => {
           ))}
         </div>
 
-        {/* Slider Pagination Dots & Hint */}
-        <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
+        {/* Slider Pagination Dots */}
+        <div className="mt-3 flex items-center justify-between text-xs text-neutral-400">
           <div className="flex items-center gap-1.5">
             {filteredNews.map((_, idx) => (
               <span
                 key={idx}
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   activeSlideIndex === idx
-                    ? 'w-6 bg-[#c5a059] shadow-[0_0_8px_#c5a059]'
+                    ? 'w-6 bg-[#B89753]'
                     : 'w-2 bg-white/20'
                 }`}
               />
             ))}
           </div>
 
-          <div className="text-[11px] text-[#f1d592]/70 hidden sm:flex items-center gap-2">
+          <div className="text-[11px] text-[#B89753]/80 hidden sm:flex items-center gap-2">
             <span>{language === 'ar' ? 'اسحب للتنقل بين الأخبار والإعلانات' : 'Scroll or use arrows to view all stories'}</span>
           </div>
         </div>
@@ -448,17 +442,16 @@ export const NewsSection: React.FC = () => {
 
       {/* Modal View for full news narrative */}
       {selectedNews && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
           <div 
             ref={containerRef}
             role="dialog"
             aria-modal="true"
             tabIndex={-1}
-            className="bg-[#121222] text-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-[#c5a059]/40 focus:outline-hidden"
+            className="bg-[#171717] text-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl relative border border-[#B89753]/30 focus:outline-hidden"
           >
             
-            <div className="relative h-64 sm:h-80 w-full overflow-hidden bg-slate-950 flex items-center justify-center">
-              {/* Ambient blurred backdrop */}
+            <div className="relative h-60 sm:h-72 w-full overflow-hidden bg-neutral-900 flex items-center justify-center">
               <img 
                 src={selectedNews.image} 
                 alt=""
@@ -466,42 +459,41 @@ export const NewsSection: React.FC = () => {
                 className="absolute inset-0 w-full h-full object-cover blur-lg opacity-35 scale-110 pointer-events-none"
                 referrerPolicy="no-referrer"
               />
-              {/* Fully visible uncropped foreground image */}
               <img 
                 src={selectedNews.image} 
                 alt={language === 'ar' ? selectedNews.titleAr : selectedNews.titleEn}
                 className="relative z-10 max-h-full max-w-full object-contain p-4 drop-shadow-md"
                 referrerPolicy="no-referrer"
               />
-              <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#121222] via-black/30 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#171717] via-black/30 to-transparent pointer-events-none" />
               <button 
                 onClick={() => setSelectedNews(null)}
-                className="absolute top-4 right-4 z-30 p-2.5 rounded-full bg-black/70 hover:bg-black text-white transition-colors cursor-pointer"
+                className="absolute top-4 right-4 z-30 p-2 rounded-lg bg-black/60 hover:bg-black text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
               <div className="absolute bottom-4 left-6 right-6 z-30 text-white space-y-1.5">
-                <span className="inline-block px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-[#c5a059] text-[#121222] shadow">
+                <span className="inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#B89753] text-white">
                   {selectedNews.category.toUpperCase()}
                 </span>
-                <h2 className="text-lg sm:text-xl font-bold leading-snug drop-shadow-md">
+                <h2 className="text-lg sm:text-xl font-serif font-bold leading-snug text-white">
                   {language === 'ar' ? selectedNews.titleAr : selectedNews.titleEn}
                 </h2>
               </div>
             </div>
 
             <div className="p-6 sm:p-8 space-y-6">
-              <div className="flex items-center justify-between text-xs text-slate-400 pb-3 border-b border-white/10">
-                <span className="flex items-center gap-1.5 font-medium text-[#f1d592]">
-                  <Calendar className="w-3.5 h-3.5 text-[#c5a059]" />
+              <div className="flex items-center justify-between text-xs text-neutral-400 pb-3 border-b border-white/10">
+                <span className="flex items-center gap-1.5 font-medium text-[#B89753]">
+                  <Calendar className="w-3.5 h-3.5" />
                   <span>{language === 'ar' ? selectedNews.dateAr : selectedNews.date}</span>
                 </span>
-                <span className="font-semibold text-slate-300">
+                <span className="font-semibold text-neutral-300">
                   {language === 'ar' ? selectedNews.authorAr : selectedNews.authorEn}
                 </span>
               </div>
 
-              <div className="space-y-4 text-sm sm:text-base text-slate-200 leading-relaxed font-light">
+              <div className="space-y-4 text-sm sm:text-base text-neutral-300 leading-relaxed font-normal">
                 {(language === 'ar' ? selectedNews.contentAr : selectedNews.contentEn).map((paragraph: string, index: number) => (
                   <p key={index}>{paragraph}</p>
                 ))}
@@ -510,7 +502,7 @@ export const NewsSection: React.FC = () => {
               <div className="pt-4 border-t border-white/10 flex items-center justify-end">
                 <button
                   onClick={() => setSelectedNews(null)}
-                  className="px-6 py-2.5 rounded-xl bg-[#c5a059] hover:bg-[#d4b36e] text-[#121222] text-xs font-black uppercase tracking-wider transition-colors cursor-pointer"
+                  className="px-6 py-2.5 rounded-lg bg-[#B89753] hover:bg-[#8F7137] text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
                 >
                   {language === 'ar' ? 'إغلاق' : 'Close'}
                 </button>

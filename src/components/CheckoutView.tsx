@@ -595,53 +595,53 @@ export const CheckoutView: React.FC = () => {
       : (siteContent?.checkoutSuccessPage?.buttonContinueText ?? 'Continue Shopping');
 
     return (
-      <div className="min-h-[75vh] flex items-center justify-center px-4 py-16 bg-slate-50">
-        <div className="max-w-xl w-full p-8 sm:p-12 rounded-3xl premium-card text-center space-y-6 animate-fadeIn">
-          <div className="w-20 h-20 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center mx-auto text-emerald-600 shadow-xl shadow-emerald-500/10">
-            <CheckCircle2 className="w-10 h-10" />
+      <div className="min-h-[75vh] flex items-center justify-center px-4 py-16 bg-[#F8F8F6]">
+        <div className="max-w-xl w-full p-8 sm:p-12 rounded-xl bg-white border border-[#E5E5E5] text-center space-y-6 shadow-sm animate-fade-in">
+          <div className="w-16 h-16 rounded-full bg-[#16803C]/10 border border-[#16803C]/20 flex items-center justify-center mx-auto text-[#16803C]">
+            <CheckCircle2 className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-[0.25em] text-amber-700">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#8F7137]">
               {successBadge}
             </span>
-            <h2 className="text-3xl sm:text-4xl font-light text-slate-900 leading-tight">
-              {successTitle} <span className="gold-gradient font-serif italic font-normal">{isArabic ? 'بنجاح' : 'Confirmed'}</span>
+            <h2 className="text-2xl sm:text-3xl font-serif font-bold text-[#171717] leading-tight">
+              {successTitle} <span className="italic text-[#8F7137]">{isArabic ? 'بنجاح' : 'Confirmed'}</span>
             </h2>
-            <p className="text-xs sm:text-sm text-slate-600">
-              {isArabic ? 'رمز التتبع المرجعي:' : 'Reference code:'} <span className="font-mono font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-lg border border-amber-200 inline-block mt-1">#{orderComplete}</span>
+            <p className="text-xs text-[#737373]">
+              {isArabic ? 'رمز التتبع المرجعي:' : 'Reference code:'} <span className="font-mono font-bold text-[#8F7137] bg-[#B89753]/10 px-3 py-1 rounded-lg border border-[#B89753]/20 inline-block mt-1">#{orderComplete}</span>
             </p>
           </div>
 
-          <div className="p-5 rounded-2xl bg-amber-50/50 border border-amber-200/60 text-left text-xs space-y-2.5 text-slate-700">
-            <div className="flex items-center gap-2 text-emerald-700 font-bold">
+          <div className="p-5 rounded-lg bg-[#F8F8F6] border border-[#E5E5E5] text-left text-xs space-y-2.5 text-[#171717]">
+            <div className="flex items-center gap-2 text-[#16803C] font-bold">
               <Clock className="w-4 h-4" />
               <span>{nextStepsHeading}</span>
             </div>
-            <p className="flex items-start gap-2">
-              <span className="text-[#c5a059] font-bold">1.</span>
-              <span>{step1}</span>
+            <p className="flex items-start gap-2 text-[#737373]">
+              <span className="text-[#8F7137] font-bold">1.</span>
+              <span className="text-[#171717]">{step1}</span>
             </p>
-            <p className="flex items-start gap-2">
-              <span className="text-[#c5a059] font-bold">2.</span>
-              <span>{step2}</span>
+            <p className="flex items-start gap-2 text-[#737373]">
+              <span className="text-[#8F7137] font-bold">2.</span>
+              <span className="text-[#171717]">{step2}</span>
             </p>
-            <p className="flex items-start gap-2">
-              <span className="text-[#c5a059] font-bold">3.</span>
-              <span>{step3Replaced}</span>
+            <p className="flex items-start gap-2 text-[#737373]">
+              <span className="text-[#8F7137] font-bold">3.</span>
+              <span className="text-[#171717]">{step3Replaced}</span>
             </p>
           </div>
 
           <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => setActiveTab('account')}
-              className="px-8 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs tracking-widest transition-all cursor-pointer shadow-lg rounded-xl"
+              className="px-8 py-3 bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer rounded-lg shadow-xs"
             >
               {btnTrack}
             </button>
             <button
               onClick={() => { setOrderComplete(null); setActiveTab('products'); }}
-              className="px-8 py-3.5 border border-[#c5a059] text-[#c5a059] hover:bg-[#c5a059]/10 font-bold uppercase text-xs tracking-widest transition-all cursor-pointer rounded-xl"
+              className="px-8 py-3 border border-[#B89753] text-[#8F7137] hover:bg-[#B89753]/10 font-bold text-xs uppercase tracking-wider transition-all cursor-pointer rounded-lg"
             >
               {btnContinue}
             </button>
@@ -652,32 +652,32 @@ export const CheckoutView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
+    <div className="min-h-screen bg-[#F8F8F6] pb-24">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="checkout" position="top" />
 
       {/* Checkout Header */}
-      <div className="bg-white border-b border-slate-200 pt-6 pb-10 px-4 sm:px-6 lg:px-8">
+      <div className="bg-white border-b border-[#E5E5E5] pt-6 pb-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-screen-2xl mx-auto space-y-3">
           <button
             id="checkout-page-back-btn"
             onClick={goBack}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold uppercase tracking-wider border border-slate-200 transition-colors cursor-pointer mb-1 shadow-sm"
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white hover:bg-neutral-50 text-[#171717] text-xs font-bold uppercase tracking-wider border border-[#E5E5E5] transition-colors cursor-pointer mb-1 shadow-xs"
           >
             <ArrowLeft className={`w-3.5 h-3.5 ${isArabic ? 'rotate-180' : ''}`} />
             <span>{t('back')}</span>
           </button>
-          <h1 className="text-3xl font-light text-slate-900 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-[#171717] tracking-tight">
             {siteContent?.checkoutPage?.title ? (
               <span>{siteContent.checkoutPage.title}</span>
             ) : isArabic ? (
-              <>التوصيل و <span className="gold-gradient font-serif italic">إتمام التسوية والطلب</span></>
+              <>التوصيل و <span className="italic text-[#8F7137]">إتمام التسوية والطلب</span></>
             ) : (
-              <>Delivery & <span className="gold-gradient font-serif italic">Payment Settlement</span></>
+              <>Delivery & <span className="italic text-[#8F7137]">Payment Settlement</span></>
             )}
           </h1>
-          <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
+          <p className="text-xs text-[#737373] max-w-2xl leading-relaxed">
             {siteContent?.checkoutPage?.subtitle ? (
               siteContent.checkoutPage.subtitle
             ) : isArabic ? (
@@ -693,16 +693,16 @@ export const CheckoutView: React.FC = () => {
         
         {cart.length === 0 ? (
           <div className="py-20 text-center space-y-4 max-w-md mx-auto">
-            <div className="w-16 h-16 rounded-full bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+            <div className="w-16 h-16 rounded-full bg-[#B89753]/10 border border-[#B89753]/20 flex items-center justify-center mx-auto text-[#8F7137]">
               <Truck className="w-8 h-8" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">{t('emptyBasket')}</h2>
-            <p className="text-xs text-slate-500">
+            <h2 className="text-xl font-serif font-bold text-[#171717]">{t('emptyBasket')}</h2>
+            <p className="text-xs text-[#737373]">
               {t('emptyBasketSub')}
             </p>
             <button
               onClick={() => setActiveTab('products')}
-              className="px-8 py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-black uppercase text-xs tracking-widest cursor-pointer transition-colors shadow-lg rounded-xl"
+              className="px-8 py-3 bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider cursor-pointer transition-colors shadow-xs rounded-lg"
             >
               {t('viewAllProducts')}
             </button>
@@ -715,7 +715,7 @@ export const CheckoutView: React.FC = () => {
 
               {/* Checkout Steps Indicator */}
               {(visibility.checkoutSteps || isVisualEditMode) && (
-                <div className={`p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs relative ${!visibility.checkoutSteps && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                <div className={`p-4 rounded-xl bg-white border border-[#E5E5E5] shadow-xs relative ${!visibility.checkoutSteps && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
                   {!visibility.checkoutSteps && isVisualEditMode && (
                     <div className="absolute top-1 right-2 z-40 bg-rose-600 text-white px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1">
                       <EyeOff className="w-2.5 h-2.5" />
@@ -726,38 +726,38 @@ export const CheckoutView: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <div className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center ${
                         firebaseUser 
-                          ? 'bg-emerald-500 text-white' 
-                          : 'bg-amber-500 text-white animate-pulse'
+                          ? 'bg-[#16803C] text-white' 
+                          : 'bg-[#B89753] text-white animate-pulse'
                       }`}>
                         {firebaseUser ? '✓' : '1'}
                       </div>
-                      <span className={`text-xs font-bold ${firebaseUser ? 'text-slate-500' : 'text-slate-900'}`}>
+                      <span className={`text-xs font-bold ${firebaseUser ? 'text-[#737373]' : 'text-[#171717]'}`}>
                         {isArabic ? 'حساب المستفيد' : 'Patron Account'}
                       </span>
                     </div>
 
-                    <div className="h-px bg-slate-200 flex-1 mx-4" />
+                    <div className="h-px bg-[#E5E5E5] flex-1 mx-4" />
 
                     <div className="flex items-center gap-2">
                       <div className={`w-6 h-6 rounded-lg text-[11px] font-bold flex items-center justify-center ${
                         firebaseUser 
-                          ? 'bg-amber-500 text-white animate-pulse' 
-                          : 'bg-slate-100 text-slate-400'
+                          ? 'bg-[#B89753] text-white animate-pulse' 
+                          : 'bg-neutral-100 text-[#737373]'
                       }`}>
                         2
                       </div>
-                      <span className={`text-xs font-bold ${firebaseUser ? 'text-slate-900' : 'text-slate-400'}`}>
+                      <span className={`text-xs font-bold ${firebaseUser ? 'text-[#171717]' : 'text-[#737373]'}`}>
                         {isArabic ? 'بيانات الشحن' : 'Delivery Address'}
                       </span>
                     </div>
 
-                    <div className="h-px bg-slate-200 flex-1 mx-4" />
+                    <div className="h-px bg-[#E5E5E5] flex-1 mx-4" />
 
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-400 text-[11px] font-bold flex items-center justify-center">
+                      <div className="w-6 h-6 rounded-lg bg-neutral-100 text-[#737373] text-[11px] font-bold flex items-center justify-center">
                         3
                       </div>
-                      <span className="text-xs font-bold text-slate-400">
+                      <span className="text-xs font-bold text-[#737373]">
                         {isArabic ? 'التسوية والطلب' : 'Settlement'}
                       </span>
                     </div>
@@ -767,35 +767,35 @@ export const CheckoutView: React.FC = () => {
 
               {/* 🔒 AUTHENTICATION GATE CARD IF NOT LOGGED IN */}
               {!firebaseUser ? (
-                <div id="checkout-auth-required-card" className="p-6 sm:p-8 rounded-3xl bg-white border-2 border-amber-300/80 shadow-xl shadow-amber-900/5 space-y-6 relative overflow-hidden animate-fadeIn">
-                  <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-amber-500 via-[#b89753] to-amber-600" />
+                <div id="checkout-auth-required-card" className="p-6 sm:p-8 rounded-xl bg-white border border-[#B89753]/30 shadow-sm space-y-6 relative overflow-hidden animate-fade-in">
+                  <div className="absolute top-0 right-0 left-0 h-1 bg-[#B89753]" />
                   
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#E5E5E5]">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 flex-shrink-0">
+                      <div className="w-10 h-10 rounded-lg bg-[#B89753]/10 text-[#8F7137] flex items-center justify-center flex-shrink-0">
                         <Lock className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-100/70 text-amber-800 text-[10px] font-black uppercase tracking-wider mb-1">
-                          <AlertCircle className="w-3 h-3 text-amber-700" />
+                        <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#B89753]/10 text-[#8F7137] text-[10px] font-bold uppercase tracking-wider mb-1">
+                          <AlertCircle className="w-3 h-3 text-[#8F7137]" />
                           <span>{isArabic ? 'تسجيل الدخول مطلوب' : 'Login Required to Proceed'}</span>
                         </div>
-                        <h3 className="text-lg font-bold text-slate-900">
+                        <h3 className="text-base font-serif font-bold text-[#171717]">
                           {isArabic ? 'يرجى تسجيل الدخول لإتمام طلبك' : 'Sign in to Complete Your Order'}
                         </h3>
                       </div>
                     </div>
 
                     {/* Auth Mode Toggle Tabs */}
-                    <div className="flex bg-slate-100 p-1 rounded-xl self-start sm:self-auto">
+                    <div className="flex bg-[#F8F8F6] p-1 rounded-lg border border-[#E5E5E5] self-start sm:self-auto">
                       <button
                         type="button"
                         id="checkout-switch-signin-btn"
                         onClick={() => setAuthMode('signin')}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                           authMode === 'signin' 
-                            ? 'bg-white text-slate-900 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-800'
+                            ? 'bg-white text-[#171717] shadow-xs' 
+                            : 'text-[#737373] hover:text-[#171717]'
                         }`}
                       >
                         {isArabic ? 'تسجيل دخول' : 'Sign In'}
@@ -804,10 +804,10 @@ export const CheckoutView: React.FC = () => {
                         type="button"
                         id="checkout-switch-signup-btn"
                         onClick={() => setAuthMode('signup')}
-                        className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        className={`px-3.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${
                           authMode === 'signup' 
-                            ? 'bg-white text-slate-900 shadow-sm' 
-                            : 'text-slate-500 hover:text-slate-800'
+                            ? 'bg-white text-[#171717] shadow-xs' 
+                            : 'text-[#737373] hover:text-[#171717]'
                         }`}
                       >
                         {isArabic ? 'حساب جديد' : 'New Account'}
@@ -815,7 +815,7 @@ export const CheckoutView: React.FC = () => {
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-600 leading-relaxed">
+                  <p className="text-xs text-[#737373] leading-relaxed">
                     {isArabic 
                       ? 'لضمان أمان طلبك وتوفير تتبع الطلبات عبر واتساب وحفظ عنوانك، يرجى تسجيل الدخول أو إنشاء حساب لبناني جديد.'
                       : 'To track courier dispatch, receive WhatsApp notifications, and auto-fill your delivery coordinates, please sign in or register below.'}
@@ -828,7 +828,7 @@ export const CheckoutView: React.FC = () => {
                       id="checkout-google-signin-btn"
                       onClick={handleCheckoutGoogle}
                       disabled={isAuthLoading}
-                      className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                      className="w-full py-2.5 px-4 rounded-lg bg-white hover:bg-neutral-50 text-[#171717] font-bold text-xs border border-[#E5E5E5] flex items-center justify-center gap-3 transition-colors shadow-xs cursor-pointer disabled:opacity-50"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -841,18 +841,18 @@ export const CheckoutView: React.FC = () => {
                   </div>
 
                   <div className="relative flex py-1 items-center">
-                    <div className="flex-grow border-t border-slate-200"></div>
-                    <span className="flex-shrink mx-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="flex-grow border-t border-[#E5E5E5]"></div>
+                    <span className="flex-shrink mx-4 text-[11px] font-bold uppercase tracking-wider text-[#737373]">
                       {isArabic ? 'أو عبر البريد الإلكتروني' : 'Or with email & password'}
                     </span>
-                    <div className="flex-grow border-t border-slate-200"></div>
+                    <div className="flex-grow border-t border-[#E5E5E5]"></div>
                   </div>
 
                   {/* Sign In Form */}
                   {authMode === 'signin' ? (
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                           {isArabic ? 'البريد الإلكتروني *' : 'Email Address *'}
                         </label>
                         <input
@@ -861,13 +861,13 @@ export const CheckoutView: React.FC = () => {
                           placeholder="name@example.com"
                           value={authEmail}
                           onChange={(e) => setAuthEmail(e.target.value)}
-                          className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                          className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                         />
                       </div>
 
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373]">
                             {isArabic ? 'كلمة المرور *' : 'Password *'}
                           </label>
                           <button
@@ -877,7 +877,7 @@ export const CheckoutView: React.FC = () => {
                               setForgotEmail(authEmail);
                               setShowForgotPasswordModal(true);
                             }}
-                            className="text-[11px] font-bold text-amber-600 hover:text-amber-700 hover:underline transition-colors cursor-pointer"
+                            className="text-[11px] font-bold text-[#8F7137] hover:underline transition-colors cursor-pointer"
                           >
                             {isArabic ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}
                           </button>
@@ -889,12 +889,12 @@ export const CheckoutView: React.FC = () => {
                             placeholder="••••••••"
                             value={authPassword}
                             onChange={(e) => setAuthPassword(e.target.value)}
-                            className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                            className="w-full pl-3.5 pr-10 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                            className="absolute right-3 p-1 text-[#737373] hover:text-[#171717] transition-colors focus:outline-none cursor-pointer"
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                             title={showPassword ? 'Hide password' : 'Show password'}
                           >
@@ -908,9 +908,9 @@ export const CheckoutView: React.FC = () => {
                         id="checkout-submit-signin-btn"
                         onClick={handleCheckoutSignIn}
                         disabled={isAuthLoading}
-                        className="w-full py-3.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                        className="w-full py-3 rounded-lg bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
                       >
-                        <LogIn className="w-4 h-4 text-[#c5a059]" />
+                        <LogIn className="w-4 h-4 text-[#B89753]" />
                         <span>{isAuthLoading ? (isArabic ? 'جاري التحقق...' : 'Signing in...') : (isArabic ? 'تسجيل الدخول ومتابعة الطلب' : 'Sign In & Continue Checkout')}</span>
                       </button>
                     </div>
@@ -919,7 +919,7 @@ export const CheckoutView: React.FC = () => {
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                             {isArabic ? 'الاسم الأول *' : 'First Name *'}
                           </label>
                           <input
@@ -928,11 +928,11 @@ export const CheckoutView: React.FC = () => {
                             placeholder="e.g. Walid"
                             value={signupFirstName}
                             onChange={(e) => setSignupFirstName(e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                            className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                             {isArabic ? 'اسم العائلة *' : 'Last Name *'}
                           </label>
                           <input
@@ -941,18 +941,18 @@ export const CheckoutView: React.FC = () => {
                             placeholder="e.g. Ghattas"
                             value={signupLastName}
                             onChange={(e) => setSignupLastName(e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                            className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                             {isArabic ? 'رقم الواتساب اللبناني *' : 'Lebanese WhatsApp Phone *'}
                           </label>
                           <div className="relative flex items-center">
-                            <div className="absolute left-3 flex items-center gap-1.5 pointer-events-none text-slate-500 font-bold text-xs select-none">
+                            <div className="absolute left-3 flex items-center gap-1.5 pointer-events-none text-[#737373] font-bold text-xs select-none">
                               <LebanonFlag className="w-4 h-3 rounded-xs" />
                               <span>+961</span>
                             </div>
@@ -963,13 +963,13 @@ export const CheckoutView: React.FC = () => {
                               maxLength={8}
                               value={signupPhone}
                               onChange={(e) => setSignupPhone(e.target.value.replace(/\D/g, ''))}
-                              className="w-full pl-20 pr-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-mono transition-all"
+                              className="w-full pl-20 pr-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none font-mono transition-all"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                             {isArabic ? 'البريد الإلكتروني *' : 'Email Address *'}
                           </label>
                           <input
@@ -978,14 +978,14 @@ export const CheckoutView: React.FC = () => {
                             placeholder="name@example.com"
                             value={authEmail}
                             onChange={(e) => setAuthEmail(e.target.value)}
-                            className="w-full px-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                            className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                             {isArabic ? 'كلمة المرور *' : 'Password *'}
                           </label>
                           <div className="relative flex items-center">
@@ -995,12 +995,12 @@ export const CheckoutView: React.FC = () => {
                               placeholder="Minimum 6 characters"
                               value={authPassword}
                               onChange={(e) => setAuthPassword(e.target.value)}
-                              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                              className="w-full pl-3.5 pr-10 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                             />
                             <button
                               type="button"
                               onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                              className="absolute right-3 p-1 text-[#737373] hover:text-[#171717] transition-colors focus:outline-none cursor-pointer"
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                               title={showPassword ? 'Hide password' : 'Show password'}
                             >
@@ -1009,7 +1009,7 @@ export const CheckoutView: React.FC = () => {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                             {isArabic ? 'تأكيد كلمة المرور *' : 'Confirm Password *'}
                           </label>
                           <div className="relative flex items-center">
@@ -1019,12 +1019,12 @@ export const CheckoutView: React.FC = () => {
                               placeholder="Repeat password"
                               value={authConfirmPassword}
                               onChange={(e) => setAuthConfirmPassword(e.target.value)}
-                              className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                              className="w-full pl-3.5 pr-10 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                             />
                             <button
                               type="button"
                               onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                              className="absolute right-3 p-1 text-[#737373] hover:text-[#171717] transition-colors focus:outline-none cursor-pointer"
                               aria-label={showPassword ? 'Hide password' : 'Show password'}
                               title={showPassword ? 'Hide password' : 'Show password'}
                             >
@@ -1039,9 +1039,9 @@ export const CheckoutView: React.FC = () => {
                         id="checkout-submit-signup-btn"
                         onClick={handleCheckoutSignUp}
                         disabled={isAuthLoading}
-                        className="w-full py-3.5 rounded-xl bg-[#b89753] hover:bg-[#a38446] text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                        className="w-full py-3 rounded-lg bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
                       >
-                        <UserPlus className="w-4 h-4" />
+                        <UserPlus className="w-4 h-4 text-[#B89753]" />
                         <span>{isAuthLoading ? (isArabic ? 'جاري الإنشاء...' : 'Creating Account...') : (isArabic ? 'إنشاء حساب ومتابعة الطلب' : 'Create Account & Continue Checkout')}</span>
                       </button>
                     </div>
@@ -1049,21 +1049,21 @@ export const CheckoutView: React.FC = () => {
                 </div>
               ) : (
                 /* ✅ LOGGED IN USER BANNER */
-                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+                <div className="p-4 sm:p-5 rounded-xl bg-white border border-[#E5E5E5] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+                    <div className="w-10 h-10 rounded-lg bg-[#16803C]/10 text-[#16803C] flex items-center justify-center flex-shrink-0">
                       <UserCheck className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-900">
+                        <span className="text-xs font-bold text-[#171717]">
                           {user.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : user.name || 'Lebanese Patron'}
                         </span>
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                        <span className="px-2 py-0.5 rounded-full bg-[#16803C]/10 text-[#16803C] text-[10px] font-bold uppercase">
                           {isArabic ? 'تم تسجيل الدخول' : 'Verified Account'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-600">
+                      <p className="text-[11px] text-[#737373]">
                         {firebaseUser.email || user.email}
                       </p>
                     </div>
@@ -1075,7 +1075,7 @@ export const CheckoutView: React.FC = () => {
                       await signOutUser();
                       showToast(isArabic ? 'تم تسجيل الخروج' : 'Signed out', 'info');
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-white border border-slate-200 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-[#737373] hover:text-[#C62828] hover:bg-neutral-50 border border-[#E5E5E5] transition-colors cursor-pointer"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>{isArabic ? 'تبديل الحساب' : 'Switch Account'}</span>
@@ -1085,25 +1085,25 @@ export const CheckoutView: React.FC = () => {
               
               {/* Recipient Details & Address */}
               {firebaseUser && (visibility.checkoutAddressForm || isVisualEditMode) && (
-                <div className={`p-6 rounded-3xl premium-card space-y-5 transition-opacity relative ${!visibility.checkoutAddressForm && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                <div className={`p-6 rounded-xl bg-white border border-[#E5E5E5] space-y-5 transition-opacity relative shadow-xs ${!visibility.checkoutAddressForm && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
                   {!visibility.checkoutAddressForm && isVisualEditMode && (
-                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-xs">
                       <EyeOff className="w-3 h-3" />
                       <span>Address Form Hidden (Draft)</span>
                     </div>
                   )}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
-                    <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-amber-600" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-[#E5E5E5]">
+                    <h3 className="text-base font-serif font-bold text-[#171717] flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-[#8F7137]" />
                       <span>{siteContent?.checkoutPage?.shippingHeading || (isArabic ? 'بيانات المستلم والعنوان في لبنان' : 'Recipient & Delivery Address')}</span>
                     </h3>
-                    <span className="text-[11px] text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2.5 py-0.5 rounded-md border border-emerald-200/50">
+                    <span className="text-[11px] text-[#16803C] font-semibold flex items-center gap-1 bg-[#16803C]/10 px-2.5 py-0.5 rounded-md border border-[#16803C]/20">
                       <Check className="w-3.5 h-3.5" />
                       {isArabic ? 'معبأ تلقائياً من ملفك الشخصي' : 'Auto-filled from profile'}
                     </span>
                   </div>
 
-                  <div className="p-3 bg-amber-50/50 border border-amber-200/50 rounded-xl flex items-center justify-between text-xs text-amber-800">
+                  <div className="p-3 bg-[#F8F8F6] border border-[#E5E5E5] rounded-lg flex items-center justify-between text-xs text-[#737373]">
                     <span className="font-medium pr-2">
                       {isArabic 
                         ? 'تُملأ بيانات التوصيل تلقائياً من حسابك وتعديلها يتم فقط من خلال ملفك الشخصي.' 
@@ -1112,7 +1112,7 @@ export const CheckoutView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setActiveTab('account')}
-                      className="px-2.5 py-1.5 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap"
+                      className="px-2.5 py-1.5 bg-white hover:bg-neutral-50 text-[#171717] border border-[#E5E5E5] rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer whitespace-nowrap"
                     >
                       {isArabic ? 'تحديث الملف' : 'Update Profile'}
                     </button>
@@ -1121,7 +1121,7 @@ export const CheckoutView: React.FC = () => {
                   {/* 🌟 SEPARATE FIRST NAME AND LAST NAME */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                         {isArabic ? 'الاسم الأول *' : 'First Name *'}
                       </label>
                       <input
@@ -1130,12 +1130,12 @@ export const CheckoutView: React.FC = () => {
                         placeholder="e.g. Walid"
                         value={formData.firstName}
                         onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-medium"
+                        className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none font-medium"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                         {isArabic ? 'اسم العائلة *' : 'Last Name *'}
                       </label>
                       <input
@@ -1144,18 +1144,18 @@ export const CheckoutView: React.FC = () => {
                         placeholder="e.g. Ghattas"
                         value={formData.lastName}
                         onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-medium"
+                        className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none font-medium"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                         {isArabic ? 'رقم الهاتف اللبناني / واتساب *' : 'Lebanese Mobile Phone / WhatsApp *'}
                       </label>
                       <div className="relative flex items-center">
-                        <div className="absolute left-3 flex items-center gap-1 pointer-events-none text-slate-500 font-bold text-xs select-none">
+                        <div className="absolute left-3 flex items-center gap-1 pointer-events-none text-[#737373] font-bold text-xs select-none">
                           <LebanonFlag className="w-4 h-3 rounded-xs" />
                         </div>
                         <input
@@ -1164,13 +1164,13 @@ export const CheckoutView: React.FC = () => {
                           placeholder="+961 70 123 456"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full pl-10 pr-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm font-mono"
+                          className="w-full pl-10 pr-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none font-mono"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                         {isArabic ? 'البريد الإلكتروني للإشعار *' : 'Email for Dispatch & Invoice *'}
                       </label>
                       <input
@@ -1179,13 +1179,13 @@ export const CheckoutView: React.FC = () => {
                         placeholder="name@example.com"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                       {isArabic ? 'المدينة / المنطقة / المحافظة *' : 'City / Governorate *'}
                     </label>
                     <input
@@ -1194,13 +1194,13 @@ export const CheckoutView: React.FC = () => {
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                       placeholder="e.g. Achrafieh, Beirut"
-                      className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
+                      className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                         {isArabic ? 'الشارع / نقطة علام معروفة *' : 'Street / Landmark *'}
                       </label>
                       <input
@@ -1209,12 +1209,12 @@ export const CheckoutView: React.FC = () => {
                         placeholder="e.g. Gouraud Street, next to Paul Bakery"
                         value={formData.street}
                         onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                         {isArabic ? 'المبنى، الطابق، رقم الشقة' : 'Building, Floor & Apt'}
                       </label>
                       <input
@@ -1223,13 +1223,13 @@ export const CheckoutView: React.FC = () => {
                         placeholder="e.g. Al-Nour Bldg, 4th Floor, Apt B"
                         value={formData.building}
                         onChange={(e) => setFormData({ ...formData, building: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                    <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                       {isArabic ? 'ملاحظات إضافية للتوصيل (اختياري)' : 'Delivery Notes & Courier Instructions (Optional)'}
                     </label>
                     <input
@@ -1238,12 +1238,195 @@ export const CheckoutView: React.FC = () => {
                       placeholder="e.g. Call upon arrival, leave with building concierge if not present"
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-white text-xs text-slate-900 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm"
+                      className="w-full px-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none"
                     />
                   </div>
                 </div>
               )}
 
+              {/* Delivery Speed Selection */}
+              {firebaseUser && (visibility.checkoutDeliverySpeed || isVisualEditMode) && (
+                <div className={`p-6 rounded-xl bg-white border border-[#E5E5E5] space-y-4 shadow-xs relative ${!visibility.checkoutDeliverySpeed && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutDeliverySpeed && isVisualEditMode && (
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                      <EyeOff className="w-3 h-3" />
+                      <span>Speed Hidden</span>
+                    </div>
+                  )}
+                  <h3 className="text-base font-serif font-bold text-[#171717] flex items-center gap-2 pb-3 border-b border-[#E5E5E5]">
+                    <Truck className="w-5 h-5 text-[#8F7137]" />
+                    <span>{isArabic ? 'سرعة التوصيل والشحن' : 'Delivery Speed & Schedule'}</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setDeliverySpeed('express_beirut')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        deliverySpeed === 'express_beirut'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'بيروت السريع' : 'Beirut Express'}
+                        </span>
+                        <span className="text-[11px] font-bold text-[#8F7137]">$3.00</span>
+                      </div>
+                      <p className="text-[11px] text-[#737373]">
+                        {isArabic ? 'خلال ساعتين في بيروت' : 'Within 2 Hours in Beirut'}
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliverySpeed('standard')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        deliverySpeed === 'standard'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'كافة المناطق' : 'Standard All Lebanon'}
+                        </span>
+                        <span className="text-[11px] font-bold text-[#8F7137]">$2.00</span>
+                      </div>
+                      <p className="text-[11px] text-[#737373]">
+                        {isArabic ? '24 - 48 ساعة لكافة المناطق' : '24 - 48 Hours Nationwide'}
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDeliverySpeed('diaspora_air')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer ${
+                        deliverySpeed === 'diaspora_air'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'شحن الاغتراب' : 'Diaspora Air Express'}
+                        </span>
+                        <span className="text-[11px] font-bold text-[#8F7137]">$28.00</span>
+                      </div>
+                      <p className="text-[11px] text-[#737373]">
+                        {isArabic ? '3 - 5 أيام عمل دولياً' : '3 - 5 Business Days DHL'}
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Payment Method Selection */}
+              {firebaseUser && (visibility.checkoutPaymentMethod || isVisualEditMode) && (
+                <div className={`p-6 rounded-xl bg-white border border-[#E5E5E5] space-y-4 shadow-xs relative ${!visibility.checkoutPaymentMethod && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                  {!visibility.checkoutPaymentMethod && isVisualEditMode && (
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-xs">
+                      <EyeOff className="w-3 h-3" />
+                      <span>Payment Hidden</span>
+                    </div>
+                  )}
+                  <h3 className="text-base font-serif font-bold text-[#171717] flex items-center gap-2 pb-3 border-b border-[#E5E5E5]">
+                    <CreditCard className="w-5 h-5 text-[#8F7137]" />
+                    <span>{isArabic ? 'طريقة الدفع والتسوية' : 'Payment Method & Settlement'}</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cod_usd')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'cod_usd'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-white border border-[#E5E5E5] flex items-center justify-center text-[#8F7137] shrink-0">
+                        <Banknote className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'الدفع نقداً بالدولار (COD)' : 'Cash on Delivery ($ USD)'}
+                        </div>
+                        <div className="text-[11px] text-[#737373]">
+                          {isArabic ? 'تسليم نقدي عند الاستلام' : 'Pay in cash upon arrival'}
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('cod_lbp')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'cod_lbp'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-white border border-[#E5E5E5] flex items-center justify-center text-[#8F7137] shrink-0">
+                        <Banknote className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'الدفع بالليرة اللبنانية (LBP)' : 'Cash on Delivery (LBP)'}
+                        </div>
+                        <div className="text-[11px] text-[#737373]">
+                          {isArabic ? 'حسب سعر الصرف الرسمي' : 'Official market rate'}
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('wish_omt')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'wish_omt'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-white border border-[#E5E5E5] flex items-center justify-center text-[#8F7137] shrink-0">
+                        <Sparkles className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'Whish Money / OMT' : 'Whish Money / OMT'}
+                        </div>
+                        <div className="text-[11px] text-[#737373]">
+                          {isArabic ? 'تحويل إلكتروني فوري' : 'Instant local e-transfer'}
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMethod('credit_card')}
+                      className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                        paymentMethod === 'credit_card'
+                          ? 'border-[#B89753] bg-[#B89753]/5 shadow-xs'
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] hover:bg-white'
+                      }`}
+                    >
+                      <div className="w-9 h-9 rounded-lg bg-white border border-[#E5E5E5] flex items-center justify-center text-[#8F7137] shrink-0">
+                        <CreditCard className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-[#171717]">
+                          {isArabic ? 'بطاقة مصرفية / ائتمان' : 'Credit / Debit Card'}
+                        </div>
+                        <div className="text-[11px] text-[#737373]">
+                          {isArabic ? 'دفع آمن ومشفر' : 'Secure online gateway'}
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
 
             </div>
 
@@ -1251,23 +1434,23 @@ export const CheckoutView: React.FC = () => {
             <div className="lg:col-span-5 space-y-6">
               
               {(visibility.checkoutOrderSummary || isVisualEditMode) && (
-                <div className={`p-6 rounded-3xl premium-card space-y-6 sticky top-28 relative ${!visibility.checkoutOrderSummary && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+                <div className={`p-6 rounded-xl bg-white border border-[#E5E5E5] space-y-6 sticky top-28 relative shadow-xs ${!visibility.checkoutOrderSummary && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
                   {!visibility.checkoutOrderSummary && isVisualEditMode && (
-                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-sm">
+                    <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 shadow-xs">
                       <EyeOff className="w-3 h-3" />
                       <span>Summary Box Hidden</span>
                     </div>
                   )}
-                  <h3 className="text-base font-bold text-slate-900 pb-3 border-b border-slate-100 flex items-center justify-between">
+                  <h3 className="text-base font-serif font-bold text-[#171717] pb-3 border-b border-[#E5E5E5] flex items-center justify-between">
                     <span>{siteContent?.checkoutPage?.summaryHeading || (isArabic ? 'ملخص الطلب' : 'Order Summary')}</span>
-                    <span className="text-xs text-amber-700 font-bold bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200/60">{cart.length} {isArabic ? 'منتجات' : 'Items'}</span>
+                    <span className="text-xs text-[#8F7137] font-bold bg-[#B89753]/10 px-2.5 py-0.5 rounded-full border border-[#B89753]/20">{cart.length} {isArabic ? 'منتجات' : 'Items'}</span>
                   </h3>
 
                 {/* Items preview */}
                 <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                   {cart.map((item) => (
                     <div key={item.product.id} className="flex items-center gap-3 text-xs">
-                      <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center p-0.5 overflow-hidden">
+                      <div className="w-12 h-12 rounded-lg bg-[#F8F8F6] border border-[#E5E5E5] flex-shrink-0 flex items-center justify-center p-0.5 overflow-hidden">
                         <img
                           src={item.product.image}
                           alt={item.product.name}
@@ -1275,10 +1458,10 @@ export const CheckoutView: React.FC = () => {
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-900 truncate">{item.product.name}</h4>
-                        <p className="text-[11px] text-slate-500">Qty: {item.quantity} × {formatPrice(item.product.priceUSD)}</p>
+                        <h4 className="font-bold text-[#171717] truncate">{item.product.name}</h4>
+                        <p className="text-[11px] text-[#737373]">Qty: {item.quantity} × {formatPrice(item.product.priceUSD)}</p>
                       </div>
-                      <span className="font-bold text-amber-700">
+                      <span className="font-bold text-[#8F7137]">
                         {formatPrice(item.product.priceUSD * item.quantity)}
                       </span>
                     </div>
@@ -1286,29 +1469,29 @@ export const CheckoutView: React.FC = () => {
                 </div>
 
                 {/* Coupon Code Section in Checkout */}
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-800">
+                <div className="pt-3 border-t border-[#E5E5E5] space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-[#171717]">
                     <span className="flex items-center gap-1.5">
-                      <Tag className="w-3.5 h-3.5 text-[#96783d]" />
+                      <Tag className="w-3.5 h-3.5 text-[#8F7137]" />
                       <span>{isArabic ? 'كوبون الخصم' : 'Discount Coupon'}</span>
                     </span>
                     {appliedCouponCode && (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                      <span className="text-[10px] font-bold text-[#16803C] bg-[#16803C]/10 px-2 py-0.5 rounded-md border border-[#16803C]/20">
                         {appliedCouponCode}
                       </span>
                     )}
                   </div>
 
                   {appliedCouponCode ? (
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs">
-                      <div className="flex items-center gap-1.5 text-emerald-800 font-medium text-[11px]">
-                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <div className="flex items-center justify-between p-2 rounded-lg bg-[#16803C]/10 border border-[#16803C]/20 text-xs">
+                      <div className="flex items-center gap-1.5 text-[#16803C] font-medium text-[11px]">
+                        <Check className="w-3.5 h-3.5 text-[#16803C]" />
                         <span>{isArabic ? `تم توفير ${formatPrice(discountUSD)}` : `Saved ${formatPrice(discountUSD)}`}</span>
                       </div>
                       <button
                         type="button"
                         onClick={removeCoupon}
-                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 bg-white px-2 py-0.5 rounded-md border border-rose-200 cursor-pointer"
+                        className="text-[10px] font-bold text-[#C62828] hover:underline bg-white px-2 py-0.5 rounded-md border border-[#E5E5E5] cursor-pointer"
                       >
                         {isArabic ? 'إلغاء' : 'Remove'}
                       </button>
@@ -1320,7 +1503,7 @@ export const CheckoutView: React.FC = () => {
                         value={checkoutCouponInput}
                         onChange={(e) => setCheckoutCouponInput(e.target.value.toUpperCase())}
                         placeholder={isArabic ? 'مثال: KOURA15' : 'e.g. KOURA15'}
-                        className="flex-1 px-3 py-2 text-xs rounded-xl bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 font-mono uppercase focus:bg-white"
+                        className="flex-1 px-3 py-2 text-xs rounded-lg bg-[#F8F8F6] border border-[#E5E5E5] text-[#171717] placeholder:text-[#737373] font-mono uppercase focus:bg-white focus:border-[#B89753] focus:outline-none"
                       />
                       <button
                         type="button"
@@ -1333,7 +1516,7 @@ export const CheckoutView: React.FC = () => {
                           }
                         }}
                         disabled={isApplyingCheckoutCoupon || !checkoutCouponInput.trim()}
-                        className="px-3 py-2 rounded-xl bg-slate-900 hover:bg-[#a37f35] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
+                        className="px-3 py-2 rounded-lg bg-[#171717] hover:bg-[#8F7137] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
                       >
                         {isArabic ? 'تطبيق' : 'Apply'}
                       </button>
@@ -1342,14 +1525,14 @@ export const CheckoutView: React.FC = () => {
                 </div>
 
                 {/* Totals Calculation */}
-                <div className="pt-3 border-t border-slate-100 space-y-2 text-xs">
-                  <div className="flex justify-between text-slate-600">
+                <div className="pt-3 border-t border-[#E5E5E5] space-y-2 text-xs">
+                  <div className="flex justify-between text-[#737373]">
                     <span>{isArabic ? 'مجموع المنتجات' : 'Products Subtotal'}</span>
-                    <span className="font-bold">{formatPrice(Math.round(cart.reduce((s, i) => s + i.product.priceUSD * i.quantity, 0) * 100) / 100)}</span>
+                    <span className="font-bold text-[#171717]">{formatPrice(Math.round(cart.reduce((s, i) => s + i.product.priceUSD * i.quantity, 0) * 100) / 100)}</span>
                   </div>
 
                   {discountUSD > 0 && (
-                    <div className="flex justify-between text-emerald-600 font-bold">
+                    <div className="flex justify-between text-[#16803C] font-bold">
                       <span className="flex items-center gap-1">
                         <Percent className="w-3.5 h-3.5" />
                         <span>{isArabic ? 'الخصم المطبق' : 'Applied Discount'}</span>
@@ -1358,18 +1541,18 @@ export const CheckoutView: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="flex justify-between text-slate-600">
+                  <div className="flex justify-between text-[#737373]">
                     <span>{isArabic ? 'أجور التوصيل والشحن' : 'Delivery Courier Fee'}</span>
-                    <span className="font-bold text-amber-700">+{formatPrice(deliveryFeeUSD)}</span>
+                    <span className="font-bold text-[#8F7137]">+{formatPrice(deliveryFeeUSD)}</span>
                   </div>
 
-                  <div className="pt-3 border-t border-slate-100 flex items-baseline justify-between">
-                    <span className="text-sm font-bold text-slate-900">{isArabic ? 'المبلغ الإجمالي المستحق' : 'Total Amount Due'}</span>
+                  <div className="pt-3 border-t border-[#E5E5E5] flex items-baseline justify-between">
+                    <span className="text-sm font-bold text-[#171717]">{isArabic ? 'المبلغ الإجمالي المستحق' : 'Total Amount Due'}</span>
                     <div className="text-right">
-                      <span className="text-2xl font-black text-amber-700">
+                      <span className="text-2xl font-bold text-[#8F7137]">
                         {formatPrice(finalTotalUSD)}
                       </span>
-                      <div className="text-[10px] text-slate-500 font-mono">
+                      <div className="text-[10px] text-[#737373] font-mono">
                         ≈ {(finalTotalUSD * LBP_USD_RATE).toLocaleString()} LBP
                       </div>
                     </div>
@@ -1381,9 +1564,9 @@ export const CheckoutView: React.FC = () => {
                   type="submit"
                   id="place-order-btn"
                   disabled={isSubmitting}
-                  className="w-full py-4 rounded-xl bg-slate-900 hover:bg-[#a37f35] text-white font-black uppercase text-xs tracking-widest shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3.5 rounded-lg bg-[#171717] hover:bg-[#8F7137] text-white font-bold uppercase text-xs tracking-wider shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <ShieldCheck className="w-4 h-4 text-[#16803C]" />
                   <span>
                     {isSubmitting 
                       ? (isArabic ? 'جاري المعالجة...' : 'Processing Order...') 
@@ -1396,7 +1579,7 @@ export const CheckoutView: React.FC = () => {
                 </button>
 
                 {!firebaseUser && (
-                  <p className="text-[11px] text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200/80 text-center font-medium flex items-center justify-center gap-1.5">
+                  <p className="text-[11px] text-[#8F7137] bg-[#B89753]/10 p-2.5 rounded-lg border border-[#B89753]/20 text-center font-medium flex items-center justify-center gap-1.5">
                     <Lock className="w-3.5 h-3.5 shrink-0" />
                     <span>{isArabic ? 'يرجى تسجيل الدخول أعلاه لإكمال الطلب' : 'Please sign in or register above to complete order'}</span>
                   </p>
@@ -1404,7 +1587,7 @@ export const CheckoutView: React.FC = () => {
 
                 {/* Guarantee Badges */}
                 {(visibility.checkoutGuarantees || isVisualEditMode) && (
-                  <div className={`pt-2 border-t border-slate-100 text-[11px] text-slate-500 space-y-1.5 relative ${!visibility.checkoutGuarantees && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 p-1.5 rounded-lg' : ''}`}>
+                  <div className={`pt-2 border-t border-[#E5E5E5] text-[11px] text-[#737373] space-y-1.5 relative ${!visibility.checkoutGuarantees && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 p-1.5 rounded-lg' : ''}`}>
                     {!visibility.checkoutGuarantees && isVisualEditMode && (
                       <div className="absolute top-0 right-0 bg-rose-600 text-white px-1.5 py-0.5 rounded text-[8px] font-bold">Hidden</div>
                     )}
@@ -1413,7 +1596,7 @@ export const CheckoutView: React.FC = () => {
                       <span>{siteContent?.checkoutPage?.guaranteeBadgeText || '100% Authentic Lebanese Artisan Guilds'}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
+                      <PhoneCall className="w-3.5 h-3.5 text-[#16803C]" />
                       <span>Dedicated courier WhatsApp confirmation before drop-off</span>
                     </div>
                   </div>
@@ -1434,31 +1617,31 @@ export const CheckoutView: React.FC = () => {
 
       {/* Forgot Password Modal */}
       {showForgotPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
           <div 
             ref={forgotPasswordModalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="reset-password-modal-title"
-            className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative"
+            className="bg-white rounded-xl shadow-2xl border border-[#E5E5E5] max-w-md w-full p-6 relative"
           >
             <button
               type="button"
               onClick={() => setShowForgotPasswordModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-[#737373] hover:text-[#171717] text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-neutral-100 transition-colors cursor-pointer"
             >
               ✕
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-[#B89753]/10 text-[#8F7137] flex items-center justify-center shrink-0">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 id="reset-password-modal-title" className="font-bold text-slate-900 text-base">
+                <h3 id="reset-password-modal-title" className="font-serif font-bold text-[#171717] text-base">
                   {isArabic ? 'إعادة تعيين كلمة المرور' : 'Reset Your Password'}
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[#737373]">
                   {isArabic ? 'أدخل بريدك الإلكتروني وسيتم إرسال رابط إعادة التعيين.' : 'Enter your registered email address to receive a reset link.'}
                 </p>
               </div>
@@ -1466,11 +1649,11 @@ export const CheckoutView: React.FC = () => {
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                   {isArabic ? 'البريد الإلكتروني *' : 'Email Address *'}
                 </label>
                 <div className="relative flex items-center">
-                  <Mail className="w-4 h-4 absolute left-3.5 text-slate-400" />
+                  <Mail className="w-4 h-4 absolute left-3.5 text-[#737373]" />
                   <input
                     type="email"
                     required
@@ -1478,7 +1661,7 @@ export const CheckoutView: React.FC = () => {
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     placeholder="name@example.com"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -1487,7 +1670,7 @@ export const CheckoutView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowForgotPasswordModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-lg border border-[#E5E5E5] text-[#171717] text-xs font-bold hover:bg-neutral-50 transition-colors cursor-pointer"
                 >
                   {isArabic ? 'إلغاء' : 'Cancel'}
                 </button>
@@ -1495,7 +1678,7 @@ export const CheckoutView: React.FC = () => {
                   type="submit"
                   id="checkout-send-reset-btn"
                   disabled={isSendingReset}
-                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  className="px-5 py-2 rounded-lg bg-[#171717] hover:bg-black text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
                   {isSendingReset ? (
                     <span>{isArabic ? 'جاري الإرسال...' : 'Sending Link...'}</span>

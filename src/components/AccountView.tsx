@@ -384,19 +384,19 @@ export const AccountView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
+    <div className="min-h-screen bg-[#F8F8F6] pb-24">
       
       {/* Top Banners */}
       <CustomBlocksRenderer page="account" position="top" />
 
       {/* Account Header */}
-      <div className="bg-white border-b border-slate-200 pt-6 pb-10 px-4 sm:px-6 lg:px-8">
+      <div className="bg-white border-b border-[#E5E5E5] pt-6 pb-8 px-4 sm:px-6 lg:px-8">
         <div className="max-w-screen-2xl mx-auto space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <button
               id="account-page-back-btn"
               onClick={goBack}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold uppercase tracking-wider border border-slate-200 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#F8F8F6] hover:bg-neutral-200 text-[#171717] text-xs font-bold uppercase tracking-wider border border-[#E5E5E5] transition-colors cursor-pointer"
             >
               <ArrowLeft className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
               <span>{t('back')}</span>
@@ -408,13 +408,13 @@ export const AccountView: React.FC = () => {
                 <button
                   id="firebase-signout-btn"
                   onClick={signOutUser}
-                  className="px-4 py-2 bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-200 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
+                  className="px-4 py-2 bg-[#F8F8F6] hover:bg-rose-50 text-[#737373] hover:text-[#C62828] border border-[#E5E5E5] rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
                 >
                   <span>{language === 'ar' ? 'تسجيل الخروج' : 'Sign Out'} ({firebaseUser.displayName || firebaseUser.email})</span>
                 </button>
               )}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-700">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 text-[11px] text-[#16803C]">
+                <span className="w-2 h-2 rounded-full bg-[#16803C]" />
                 <span className="font-bold tracking-wide">
                   {firebaseUser ? (language === 'ar' ? 'مسجل وموثق' : 'VERIFIED MEMBER') : (language === 'ar' ? 'زائر' : 'GUEST')}
                 </span>
@@ -424,24 +424,24 @@ export const AccountView: React.FC = () => {
 
           <div className="flex flex-wrap items-center justify-between gap-6 pt-2">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-900 font-serif text-2xl shadow-sm">
+              <div className="w-16 h-16 rounded-xl bg-[#F8F8F6] border border-[#E5E5E5] flex items-center justify-center text-[#171717] font-serif text-2xl shadow-2xs">
                 {profileFirstName ? profileFirstName.charAt(0).toUpperCase() : (user.name ? user.name.charAt(0).toUpperCase() : 'G')}
               </div>
               
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold text-slate-900">
+                  <h1 className="text-2xl font-serif font-bold text-[#171717]">
                     {profileFirstName && profileLastName 
                       ? `${profileFirstName} ${profileLastName}` 
                       : (profileName || (language === 'ar' ? 'زائر جديد' : 'New Guest Patron'))}
                   </h1>
                 </div>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-xs text-[#737373] mt-0.5">
                   {profileEmail || (language === 'ar' ? 'يرجى تحديث بريدك الإلكتروني ورقم هاتفك أدناه' : 'Please fill out your profile details below to complete sign up')} 
                   {profilePhone ? ` • +961 ${profilePhone.replace('+961', '').trim()}` : ''}
                 </p>
-                <p className="text-[11px] text-slate-600 flex items-center gap-1 mt-1 font-medium">
-                  <MapPin className="w-3 h-3 text-slate-400" />
+                <p className="text-[11px] text-[#737373] flex items-center gap-1 mt-1 font-medium">
+                  <MapPin className="w-3 h-3 text-[#B89753]" />
                   <span>
                     {profileAddress ? `${profileAddress}, ` : ''}{profileCity || 'Lebanon'}
                   </span>
@@ -451,13 +451,13 @@ export const AccountView: React.FC = () => {
 
             {/* Quick stats pills */}
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center min-w-[90px] shadow-sm">
-                <p className="text-[10px] uppercase font-bold text-slate-500">{language === 'ar' ? 'إجمالي الطلبات' : 'Orders'}</p>
-                <p className="text-xl font-black text-slate-900">{userOrders.length}</p>
+              <div className="p-3 rounded-xl bg-[#F8F8F6] border border-[#E5E5E5] text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-[#737373]">{language === 'ar' ? 'إجمالي الطلبات' : 'Orders'}</p>
+                <p className="text-xl font-bold text-[#171717]">{userOrders.length}</p>
               </div>
-              <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200/70 text-center min-w-[90px] shadow-sm">
-                <p className="text-[10px] uppercase font-bold text-rose-600">{language === 'ar' ? 'المفضلة' : 'Favorites'}</p>
-                <p className="text-xl font-black text-rose-600">{wishlist.length}</p>
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-center min-w-[90px]">
+                <p className="text-[10px] uppercase font-bold text-[#C62828]">{language === 'ar' ? 'المفضلة' : 'Favorites'}</p>
+                <p className="text-xl font-bold text-[#C62828]">{wishlist.length}</p>
               </div>
             </div>
           </div>
@@ -466,14 +466,14 @@ export const AccountView: React.FC = () => {
 
       {/* Main Tabs Container */}
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-4 overflow-x-auto">
+        <div className="flex items-center gap-2 border-b border-[#E5E5E5] pb-4 overflow-x-auto">
           <button
             id="tab-orders"
             onClick={() => setActiveAccountTab('orders')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
               activeAccountTab === 'orders'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
+                ? 'bg-[#171717] text-white shadow-sm'
+                : 'bg-white text-[#737373] hover:text-[#171717] border border-[#E5E5E5]'
             }`}
           >
             <Package className="w-4 h-4" />
@@ -484,24 +484,24 @@ export const AccountView: React.FC = () => {
           <button
             id="tab-wishlist"
             onClick={() => setActiveAccountTab('wishlist')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
               activeAccountTab === 'wishlist'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
+                ? 'bg-[#171717] text-white shadow-sm'
+                : 'bg-white text-[#737373] hover:text-[#171717] border border-[#E5E5E5]'
             }`}
           >
             <Heart className="w-4 h-4" />
             <span>{language === 'ar' ? 'المفضلة والمحفوظات' : 'Saved Favorites'}</span>
-            <span className="ml-1 px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded-md text-[10px] font-bold">{wishlist.length}</span>
+            <span className="ml-1 px-1.5 py-0.5 bg-rose-100 text-[#C62828] rounded-md text-[10px] font-bold">{wishlist.length}</span>
           </button>
 
           <button
             id="tab-profile"
             onClick={() => setActiveAccountTab('profile')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-xs uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${
               activeAccountTab === 'profile'
-                ? 'bg-slate-900 text-white shadow-md'
-                : 'bg-white text-slate-500 hover:text-slate-900 border border-slate-200'
+                ? 'bg-[#171717] text-white shadow-sm'
+                : 'bg-white text-[#737373] hover:text-[#171717] border border-[#E5E5E5]'
             }`}
           >
             <User className="w-4 h-4" />
@@ -511,18 +511,18 @@ export const AccountView: React.FC = () => {
 
         {/* Tab Content Areas */}
         <div className="mt-8">
-          {/* M-2: Email Verification Alert Warning Banner */}
+          {/* Email Verification Alert Warning Banner */}
           {firebaseUser && !firebaseUser.emailVerified && (
-            <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-fadeIn">
+            <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs animate-fadeIn">
               <div className="flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-700 shrink-0">
+                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-700 shrink-0">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  <h4 className="text-xs font-bold text-[#171717] uppercase tracking-wider">
                     {language === 'ar' ? 'تأكيد البريد الإلكتروني مطلوب' : 'Email Verification Required'}
                   </h4>
-                  <p className="text-xs text-slate-600 mt-0.5">
+                  <p className="text-xs text-[#737373] mt-0.5">
                     {language === 'ar' 
                       ? 'يرجى تأكيد بريدك الإلكتروني لتتمكن من إتمام طلباتك بنجاح.' 
                       : 'You must verify your email address to unlock checkout and complete orders.'}
@@ -548,7 +548,7 @@ export const AccountView: React.FC = () => {
                       }
                     }
                   }}
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#8F7137] hover:bg-[#B89753] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>{language === 'ar' ? 'تأكيد عبر رمز OTP' : 'Verify with OTP'}</span>
@@ -557,7 +557,7 @@ export const AccountView: React.FC = () => {
                   type="button"
                   disabled={isSendingVerification}
                   onClick={handleResendVerification}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                  className="px-4 py-2 bg-[#171717] hover:bg-black disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
                 >
                   <Mail className="w-3.5 h-3.5" />
                   <span>
@@ -583,21 +583,21 @@ export const AccountView: React.FC = () => {
           {activeAccountTab === 'wishlist' && (
             <div>
               {wishlistProducts.length === 0 ? (
-                <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 max-w-lg mx-auto space-y-4">
-                  <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto">
-                    <Heart className="w-8 h-8" />
+                <div className="bg-white rounded-xl p-12 text-center border border-[#E5E5E5] max-w-lg mx-auto space-y-4">
+                  <div className="w-14 h-14 bg-rose-50 text-[#C62828] rounded-full flex items-center justify-center mx-auto">
+                    <Heart className="w-7 h-7" />
                   </div>
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-base font-bold text-[#171717]">
                     {language === 'ar' ? 'لا توجد منتجات محفوظة بعد' : 'Your Favorites List is Empty'}
                   </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed">
+                  <p className="text-xs text-[#737373] leading-relaxed">
                     {language === 'ar' 
                       ? 'استكشف المنتجات الحرفية اللبنانية وانقر على رمز القلب لحفظها هنا للرجوع إليها لاحقاً.'
                       : 'Explore Lebanese artisanal products and click the heart icon on any product to save it here.'}
                   </p>
                   <button
                     onClick={() => setActiveTab('products')}
-                    className="inline-block px-6 py-3 bg-[#a37f35] hover:bg-[#8c6b2a] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer"
+                    className="inline-block px-6 py-3 bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-colors cursor-pointer shadow-xs"
                   >
                     {language === 'ar' ? 'تصفح المنتجات' : 'Browse Products'}
                   </button>
@@ -605,7 +605,7 @@ export const AccountView: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-slate-900">
+                    <h2 className="text-base font-bold text-[#171717]">
                       {language === 'ar' ? 'المنتجات المحفوظة' : 'Your Saved Items'} ({wishlistProducts.length})
                     </h2>
                   </div>
@@ -624,17 +624,17 @@ export const AccountView: React.FC = () => {
             </div>
           )}
 
-          {/* Tab 2: Profile Settings */}
+          {/* Tab 3: Profile Settings */}
           {activeAccountTab === 'profile' && (
             <div>
               {!firebaseUser ? (
-                <div className="max-w-lg mx-auto bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-center gap-2 mb-6 bg-slate-100 p-1.5 rounded-2xl">
+                <div className="max-w-lg mx-auto bg-white p-6 sm:p-8 rounded-xl border border-[#E5E5E5] shadow-sm">
+                  <div className="flex items-center justify-center gap-2 mb-6 bg-[#F8F8F6] p-1.5 rounded-lg">
                     <button
                       type="button"
                       onClick={() => setAuthMode('signin')}
-                      className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
-                        authMode === 'signin' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                      className={`flex-1 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                        authMode === 'signin' ? 'bg-white text-[#171717] shadow-xs' : 'text-[#737373] hover:text-[#171717]'
                       }`}
                     >
                       Sign In
@@ -642,8 +642,8 @@ export const AccountView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setAuthMode('signup')}
-                      className={`flex-1 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
-                        authMode === 'signup' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                      className={`flex-1 py-2 rounded-lg font-bold text-xs uppercase tracking-wider transition-all cursor-pointer ${
+                        authMode === 'signup' ? 'bg-white text-[#171717] shadow-xs' : 'text-[#737373] hover:text-[#171717]'
                       }`}
                     >
                       Sign Up
@@ -651,8 +651,8 @@ export const AccountView: React.FC = () => {
                   </div>
 
                   <div className="text-center mb-6">
-                    <h2 className="text-xl font-bold text-slate-900">{authMode === 'signin' ? 'Welcome Back' : 'Create Your Account'}</h2>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <h2 className="text-xl font-serif font-bold text-[#171717]">{authMode === 'signin' ? 'Welcome Back' : 'Create Your Account'}</h2>
+                    <p className="text-xs text-[#737373] mt-1">
                       {authMode === 'signin' ? 'Sign in to access your orders and saved details.' : 'Fill in your personal details and set a secure password.'}
                     </p>
                   </div>
@@ -664,7 +664,7 @@ export const AccountView: React.FC = () => {
                       id="account-google-signin-btn"
                       onClick={handleGoogleSignIn}
                       disabled={isAuthLoading}
-                      className="w-full py-3 px-4 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs border border-slate-200 flex items-center justify-center gap-3 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                      className="w-full py-2.5 px-4 rounded-lg bg-white hover:bg-neutral-50 text-[#171717] font-bold text-xs border border-[#E5E5E5] flex items-center justify-center gap-3 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
                     >
                       <svg className="w-4 h-4" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -677,35 +677,35 @@ export const AccountView: React.FC = () => {
                   </div>
 
                   <div className="relative flex py-2 items-center mb-6">
-                    <div className="flex-grow border-t border-slate-200"></div>
-                    <span className="flex-shrink mx-4 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    <div className="flex-grow border-t border-[#E5E5E5]"></div>
+                    <span className="flex-shrink mx-4 text-[11px] font-bold uppercase tracking-wider text-[#737373]">
                       Or with email
                     </span>
-                    <div className="flex-grow border-t border-slate-200"></div>
+                    <div className="flex-grow border-t border-[#E5E5E5]"></div>
                   </div>
 
                   {authMode === 'signin' ? (
                     <form onSubmit={handleSignIn} className="space-y-4">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Email Address</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Email Address</label>
                         <input 
                           type="email" 
                           value={authEmail} 
                           onChange={(e) => setAuthEmail(e.target.value)} 
-                          className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                           required 
                         />
                       </div>
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Password (Required)</label>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373]">Password (Required)</label>
                           <button
                             type="button"
                             onClick={() => {
                               setForgotEmail(authEmail);
                               setShowForgotPasswordModal(true);
                             }}
-                            className="text-[11px] font-bold text-amber-600 hover:text-amber-700 hover:underline transition-colors cursor-pointer"
+                            className="text-[11px] font-bold text-[#8F7137] hover:text-[#B89753] hover:underline transition-colors cursor-pointer"
                           >
                             Forgot Password?
                           </button>
@@ -715,14 +715,14 @@ export const AccountView: React.FC = () => {
                             type={showPassword ? 'text' : 'password'} 
                             value={authPassword} 
                             onChange={(e) => setAuthPassword(e.target.value)} 
-                            className="w-full pl-4 pr-10 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full pl-4 pr-10 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             minLength={6}
                             required 
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                            className="absolute right-3 p-1 text-[#737373] hover:text-[#171717] transition-colors focus:outline-none cursor-pointer"
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                             title={showPassword ? 'Hide password' : 'Show password'}
                           >
@@ -733,23 +733,23 @@ export const AccountView: React.FC = () => {
                       <button 
                         type="submit" 
                         disabled={isAuthLoading}
-                        className="w-full py-3.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:bg-slate-300"
+                        className="w-full py-3 bg-[#171717] hover:bg-black text-white font-bold rounded-lg text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer disabled:bg-neutral-300"
                       >
                         {isAuthLoading ? 'Signing In...' : 'Sign In'}
                       </button>
 
                       {/* Seller Login Shortcut */}
-                      <div className="pt-3 border-t border-slate-100 text-center">
-                        <p className="text-xs text-slate-500 mb-1.5">
+                      <div className="pt-3 border-t border-[#E5E5E5] text-center">
+                        <p className="text-xs text-[#737373] mb-1.5">
                           {language === 'ar' ? 'هل أنت بائع أو مورد معتمد في المنصة؟' : 'Are you a verified Lebanese seller or merchant?'}
                         </p>
                         <button
                           type="button"
                           id="account-to-seller-portal-btn"
                           onClick={() => setActiveTab('seller')}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#B89753]/10 hover:bg-[#B89753]/20 text-[#8F7137] border border-[#B89753]/30 text-xs font-bold transition-all cursor-pointer"
                         >
-                          <Store className="w-3.5 h-3.5 text-[#b89753]" />
+                          <Store className="w-3.5 h-3.5 text-[#B89753]" />
                           <span>{language === 'ar' ? 'دخول بوابة البائعين والتجار' : 'Access Seller & Merchant Portal'}</span>
                         </button>
                       </div>
@@ -758,53 +758,53 @@ export const AccountView: React.FC = () => {
                     <form onSubmit={handleSignUp} className="space-y-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">First Name (Required)</label>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">First Name (Required)</label>
                           <input 
                             type="text" 
                             value={profileFirstName} 
                             onChange={(e) => setProfileFirstName(e.target.value)} 
                             placeholder="John"
-                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             required 
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Family Name (Required)</label>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Family Name (Required)</label>
                           <input 
                             type="text" 
                             value={profileLastName} 
                             onChange={(e) => setProfileLastName(e.target.value)} 
                             placeholder="Doe"
-                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             required 
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Email Address</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Email Address</label>
                         <input 
                           type="email" 
                           value={authEmail} 
                           onChange={(e) => setAuthEmail(e.target.value)} 
-                          className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                           required 
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Password (Required)</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Password (Required)</label>
                         <div className="relative flex items-center">
                           <input 
                             type={showPassword ? 'text' : 'password'} 
                             value={authPassword} 
                             onChange={(e) => setAuthPassword(e.target.value)} 
-                            className="w-full pl-4 pr-10 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full pl-4 pr-10 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             minLength={6}
                             required 
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                            className="absolute right-3 p-1 text-[#737373] hover:text-[#171717] transition-colors focus:outline-none cursor-pointer"
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                             title={showPassword ? 'Hide password' : 'Show password'}
                           >
@@ -813,20 +813,20 @@ export const AccountView: React.FC = () => {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Confirm Password</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Confirm Password</label>
                         <div className="relative flex items-center">
                           <input 
                             type={showPassword ? 'text' : 'password'} 
                             value={authConfirmPassword} 
                             onChange={(e) => setAuthConfirmPassword(e.target.value)} 
-                            className="w-full pl-4 pr-10 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full pl-4 pr-10 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             minLength={6}
                             required 
                           />
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 p-1 text-slate-400 hover:text-slate-600 transition-colors focus:outline-none cursor-pointer"
+                            className="absolute right-3 p-1 text-[#737373] hover:text-[#171717] transition-colors focus:outline-none cursor-pointer"
                             aria-label={showPassword ? 'Hide password' : 'Show password'}
                             title={showPassword ? 'Hide password' : 'Show password'}
                           >
@@ -836,9 +836,9 @@ export const AccountView: React.FC = () => {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Phone (WhatsApp)</label>
-                          <div className="flex rounded-xl border border-slate-200 bg-slate-50 overflow-hidden focus-within:border-slate-400">
-                            <span className="flex items-center gap-1.5 px-3 bg-slate-100 text-slate-800 text-xs font-bold border-r border-slate-200 select-none whitespace-nowrap">
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Phone (WhatsApp)</label>
+                          <div className="flex rounded-lg border border-[#E5E5E5] bg-[#F8F8F6] overflow-hidden focus-within:border-[#B89753] focus-within:bg-white">
+                            <span className="flex items-center gap-1.5 px-3 bg-[#F8F8F6] text-[#171717] text-xs font-bold border-r border-[#E5E5E5] select-none whitespace-nowrap">
                               <LebanonFlag className="w-5 h-3.5" />
                               <span>+961</span>
                             </span>
@@ -852,60 +852,60 @@ export const AccountView: React.FC = () => {
                                 const val = e.target.value.replace(/\D/g, '').slice(0, 8);
                                 setProfilePhone(val);
                               }} 
-                              className="w-full px-3 py-2.5 bg-transparent text-slate-900 text-sm focus:outline-none" 
+                              className="w-full px-3 py-2.5 bg-transparent text-[#171717] text-sm focus:outline-none" 
                               required 
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">City / Region</label>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">City / Region</label>
                           <input 
                             type="text" 
                             value={profileCity} 
                             onChange={(e) => setProfileCity(e.target.value)} 
-                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             required 
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Street / Landmark *</label>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Street / Landmark *</label>
                           <input 
                             type="text" 
                             value={profileAddress} 
                             onChange={(e) => setProfileAddress(e.target.value)} 
                             placeholder="Gouraud Street, next to Paul Bakery"
-                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             required 
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Building, Floor & Apt *</label>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Building, Floor & Apt *</label>
                           <input 
                             type="text" 
                             value={profileBuilding} 
                             onChange={(e) => setProfileBuilding(e.target.value)} 
                             placeholder="Al-Nour Bldg, 4th Floor, Apt B"
-                            className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                            className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                             required 
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">Delivery Notes & Courier Instructions (Optional)</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">Delivery Notes & Courier Instructions (Optional)</label>
                         <input 
                           type="text" 
                           value={profileNotes} 
                           onChange={(e) => setProfileNotes(e.target.value)} 
                           placeholder="Call upon arrival, leave with building concierge if not present"
-                          className="w-full px-4 py-2.5 bg-slate-50 text-slate-900 text-sm rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white" 
                         />
                       </div>
                       <button 
                         type="submit" 
                         disabled={isAuthLoading}
-                        className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer disabled:bg-slate-300 mt-2"
+                        className="w-full py-3 bg-[#171717] hover:bg-black text-white font-bold rounded-lg text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer disabled:bg-neutral-300 mt-2"
                       >
                         {isAuthLoading ? 'Creating Account...' : 'Create Account & Sign Up'}
                       </button>
@@ -913,40 +913,38 @@ export const AccountView: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="max-w-2xl bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-xl shadow-slate-200/50 backdrop-blur-xs relative overflow-hidden transition-all hover:border-slate-300">
-                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500/20 via-amber-500/80 to-amber-500/20" />
-                  
-                  <div className="flex items-center gap-3 pb-5 mb-6 border-b border-slate-100">
-                    <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-700 ring-1 ring-amber-500/15 shadow-2xs shrink-0">
+                <div className="max-w-2xl bg-white p-6 sm:p-8 rounded-xl border border-[#E5E5E5] shadow-sm relative overflow-hidden transition-all hover:border-[#B89753]/40">
+                  <div className="flex items-center gap-3 pb-5 mb-6 border-b border-[#E5E5E5]">
+                    <div className="p-2.5 rounded-lg bg-[#B89753]/10 text-[#8F7137] shrink-0">
                       <User className="w-5 h-5" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-slate-900 tracking-tight">Personal Information</h2>
-                      <p className="text-xs text-slate-500 font-medium">Manage your personal profile and default delivery details</p>
+                      <h2 className="text-base font-serif font-bold text-[#171717] tracking-tight">Personal Information</h2>
+                      <p className="text-xs text-[#737373] font-normal">Manage your personal profile and default delivery details</p>
                     </div>
                   </div>
 
                   <form onSubmit={handleSaveProfile} className="space-y-5">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">First Name (Required)</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">First Name (Required)</label>
                         <input 
                           type="text" 
                           value={profileFirstName} 
                           onChange={(e) => setProfileFirstName(e.target.value)} 
                           placeholder="John"
-                          className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                           required 
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Last / Family Name (Required)</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">Last / Family Name (Required)</label>
                         <input 
                           type="text" 
                           value={profileLastName} 
                           onChange={(e) => setProfileLastName(e.target.value)} 
                           placeholder="Doe"
-                          className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                           required 
                         />
                       </div>
@@ -954,19 +952,19 @@ export const AccountView: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Email Address</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">Email Address</label>
                         <input 
                           type="email" 
                           value={profileEmail} 
                           onChange={(e) => setProfileEmail(e.target.value)} 
-                          className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                           required 
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Phone (WhatsApp)</label>
-                        <div className="flex rounded-xl border border-slate-200/90 bg-slate-50/80 overflow-hidden focus-within:border-amber-500 focus-within:bg-white focus-within:ring-4 focus-within:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs">
-                          <span className="flex items-center gap-1.5 px-3 bg-slate-100/90 text-slate-800 text-xs font-bold border-r border-slate-200/80 select-none whitespace-nowrap shrink-0">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">Phone (WhatsApp)</label>
+                        <div className="flex rounded-lg border border-[#E5E5E5] bg-[#F8F8F6] overflow-hidden focus-within:border-[#B89753] focus-within:bg-white transition-all">
+                          <span className="flex items-center gap-1.5 px-3 bg-[#F8F8F6] text-[#171717] text-xs font-bold border-r border-[#E5E5E5] select-none whitespace-nowrap shrink-0">
                             <LebanonFlag className="w-5 h-3.5" />
                             <span>+961</span>
                           </span>
@@ -980,7 +978,7 @@ export const AccountView: React.FC = () => {
                               const val = e.target.value.replace(/\D/g, '').slice(0, 8);
                               setProfilePhone(val);
                             }} 
-                            className="w-full px-3.5 py-2.5 bg-transparent text-slate-900 text-sm font-medium focus:outline-none" 
+                            className="w-full px-3.5 py-2.5 bg-transparent text-[#171717] text-sm font-medium focus:outline-none" 
                             required 
                           />
                         </div>
@@ -989,13 +987,13 @@ export const AccountView: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">City / Region</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">City / Region</label>
                         <input 
                           type="text" 
                           value={profileCity} 
                           onChange={(e) => setProfileCity(e.target.value)} 
                           placeholder="e.g. Achrafieh, Beirut"
-                          className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                           required 
                         />
                       </div>
@@ -1003,37 +1001,37 @@ export const AccountView: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Street / Landmark *</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">Street / Landmark *</label>
                         <input 
                           type="text" 
                           value={profileAddress} 
                           onChange={(e) => setProfileAddress(e.target.value)} 
                           placeholder="Gouraud Street, next to Paul Bakery"
-                          className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                           required 
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Building, Floor & Apt *</label>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">Building, Floor & Apt *</label>
                         <input 
                           type="text" 
                           value={profileBuilding} 
                           onChange={(e) => setProfileBuilding(e.target.value)} 
                           placeholder="Al-Nour Bldg, 4th Floor, Apt B"
-                          className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                          className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                           required 
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">Delivery Notes & Courier Instructions (Optional)</label>
+                      <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1.5">Delivery Notes & Courier Instructions (Optional)</label>
                       <input 
                         type="text" 
                         value={profileNotes} 
                         onChange={(e) => setProfileNotes(e.target.value)} 
                         placeholder="Call upon arrival, leave with building concierge if not present"
-                        className="w-full px-4 py-2.5 bg-slate-50/80 text-slate-900 text-sm font-medium rounded-xl border border-slate-200/90 focus:outline-none focus:border-amber-500 focus:bg-white focus:ring-4 focus:ring-amber-500/10 hover:border-slate-300 transition-all shadow-2xs" 
+                        className="w-full px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-sm font-medium rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all" 
                       />
                     </div>
 
@@ -1041,16 +1039,16 @@ export const AccountView: React.FC = () => {
                       <button 
                         type="submit" 
                         disabled={isSaving} 
-                        className="px-8 py-3.5 bg-slate-950 hover:bg-amber-600 disabled:bg-slate-300 text-white font-bold rounded-2xl text-xs uppercase tracking-wider transition-all shadow-md hover:shadow-lg shadow-slate-900/10 hover:shadow-amber-600/20 cursor-pointer flex items-center gap-2 hover:-translate-y-0.5 active:translate-y-0"
+                        className="px-8 py-3 bg-[#171717] hover:bg-black disabled:bg-neutral-300 text-white font-bold rounded-lg text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer flex items-center gap-2"
                       >
                         {isSaving ? (
                           <>
-                            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                            <Loader2 className="w-4 h-4 animate-spin text-[#B89753]" />
                             <span>Saving...</span>
                           </>
                         ) : (
                           <>
-                            <Save className="w-4 h-4 text-amber-400" />
+                            <Save className="w-4 h-4 text-[#B89753]" />
                             <span>Save Profile Details</span>
                           </>
                         )}
@@ -1066,46 +1064,46 @@ export const AccountView: React.FC = () => {
 
       {/* Forgot Password Modal */}
       {showForgotPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
           <div 
             ref={forgotPasswordModalRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="account-reset-password-title"
-            className="bg-white rounded-2xl shadow-2xl border border-slate-100 max-w-md w-full p-6 relative"
+            className="bg-white rounded-xl shadow-2xl border border-[#E5E5E5] max-w-md w-full p-6 relative"
           >
             <button
               type="button"
               onClick={() => setShowForgotPasswordModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-slate-100 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 text-[#737373] hover:text-[#171717] text-lg font-bold w-8 h-8 rounded-full flex items-center justify-center hover:bg-neutral-100 transition-colors cursor-pointer"
             >
               ✕
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-[#B89753]/10 text-[#8F7137] flex items-center justify-center shrink-0">
                 <KeyRound className="w-5 h-5" />
               </div>
               <div>
-                <h3 id="account-reset-password-title" className="font-bold text-slate-900 text-base">Reset Your Password</h3>
-                <p className="text-xs text-slate-500">Enter your registered email address to receive a password reset link.</p>
+                <h3 id="account-reset-password-title" className="font-serif font-bold text-[#171717] text-base">Reset Your Password</h3>
+                <p className="text-xs text-[#737373]">Enter your registered email address to receive a password reset link.</p>
               </div>
             </div>
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                   Email Address *
                 </label>
                 <div className="relative flex items-center">
-                  <Mail className="w-4 h-4 absolute left-3.5 text-slate-400" />
+                  <Mail className="w-4 h-4 absolute left-3.5 text-[#737373]" />
                   <input
                     type="email"
                     required
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     placeholder="name@example.com"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 text-xs text-slate-900 rounded-xl border border-slate-200 focus:bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 focus:outline-none shadow-sm transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-[#F8F8F6] text-xs text-[#171717] rounded-lg border border-[#E5E5E5] focus:bg-white focus:border-[#B89753] focus:outline-none transition-all"
                   />
                 </div>
               </div>
@@ -1114,14 +1112,14 @@ export const AccountView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowForgotPasswordModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-lg border border-[#E5E5E5] text-[#171717] text-xs font-bold hover:bg-neutral-50 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSendingReset}
-                  className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50 flex items-center gap-2"
+                  className="px-5 py-2 rounded-lg bg-[#171717] hover:bg-black text-white text-xs font-bold transition-all shadow-xs cursor-pointer disabled:opacity-50 flex items-center gap-2"
                 >
                   {isSendingReset ? 'Sending Link...' : 'Send Reset Link'}
                 </button>

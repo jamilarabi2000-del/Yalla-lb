@@ -217,13 +217,13 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
   return (
     <div className="space-y-6">
       {/* Dynamic Order Tracking Form */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+      <div className="bg-white p-6 rounded-xl border border-[#E5E5E5] shadow-sm space-y-4">
         <div>
-          <h3 className="text-sm font-bold text-[#a37f35] flex items-center gap-2">
-            <Compass className="w-4 h-4 text-[#a37f35]" />
+          <h3 className="text-sm font-bold text-[#8F7137] flex items-center gap-2">
+            <Compass className="w-4 h-4 text-[#B89753]" />
             <span>{language === 'ar' ? 'التتبع المباشر للطلب' : 'Real-time Order Tracking'}</span>
           </h3>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-[#737373] mt-1">
             {language === 'ar' 
               ? 'أدخل رقم التتبع (مثال: LB-EXP-123456) أو رقم الطلب للاستعلام المباشر عن حالة التوصيل من فيرستور.' 
               : 'Enter your tracking number (e.g., LB-EXP-123456) or Order ID to query live delivery progress directly from Firestore.'}
@@ -237,16 +237,16 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             placeholder={language === 'ar' ? 'أدخل رقم التتبع أو رقم الطلب...' : 'Enter Tracking Code or Order ID...'}
             value={trackingInput}
             onChange={(e) => setTrackingInput(e.target.value)}
-            className="flex-1 px-4 py-2.5 bg-slate-50 text-slate-900 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all"
+            className="flex-1 px-4 py-2.5 bg-[#F8F8F6] text-[#171717] text-xs rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all"
           />
           <button
             type="submit"
             disabled={isTrackingLoading}
-            className="px-5 py-2.5 bg-[#a37f35] hover:bg-[#8c6b2a] text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            className="px-5 py-2.5 bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
           >
             {isTrackingLoading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[#B89753]" />
                 <span>{language === 'ar' ? 'جاري البحث...' : 'Tracking...'}</span>
               </>
             ) : (
@@ -256,58 +256,58 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
         </form>
 
         {trackingError && (
-          <p className="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-100 px-3 py-2 rounded-xl inline-block">
+          <p className="text-xs font-bold text-[#C62828] bg-rose-50 border border-rose-200 px-3 py-2 rounded-lg inline-block">
             {trackingError}
           </p>
         )}
 
         {/* Tracked Order Result Area */}
         {trackedOrder && (
-          <div className="border border-[#a37f35]/20 bg-[#a37f35]/5 p-5 rounded-2xl relative space-y-4">
+          <div className="border border-[#B89753]/30 bg-[#B89753]/5 p-5 rounded-xl relative space-y-4">
             <button
               onClick={() => {
                 setTrackedOrder(null);
                 setTrackingInput('');
               }}
-              className="absolute top-4 right-4 p-1.5 bg-white hover:bg-slate-50 text-slate-500 rounded-lg border border-slate-200 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 p-1.5 bg-white hover:bg-neutral-50 text-[#737373] rounded-lg border border-[#E5E5E5] transition-colors cursor-pointer"
               title="Clear results"
             >
               <X className="w-3.5 h-3.5" />
             </button>
 
-            <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-[#a37f35]/10">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">
+            <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-[#B89753]/20">
+              <span className="text-[11px] font-bold text-[#737373] uppercase tracking-wide">
                 {language === 'ar' ? 'حالة الطلب الحالي' : 'Live Shipment Status'}
               </span>
-              <span className="text-xs font-mono font-bold bg-[#a37f35]/15 text-[#a37f35] px-2 py-0.5 rounded border border-[#a37f35]/20">
+              <span className="text-xs font-mono font-bold bg-[#B89753]/15 text-[#8F7137] px-2 py-0.5 rounded border border-[#B89753]/30">
                 #{trackedOrder.id}
               </span>
-              <span className="text-xs text-slate-500 ml-auto mr-8">
+              <span className="text-xs text-[#737373] ml-auto mr-8">
                 {new Date(trackedOrder.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1">
-                <p className="text-xs text-slate-500">
-                  {language === 'ar' ? 'رقم التتبع:' : 'Tracking Code:'} <span className="font-mono font-bold text-slate-900">{trackedOrder.trackingNumber}</span>
+                <p className="text-xs text-[#737373]">
+                  {language === 'ar' ? 'رقم التتبع:' : 'Tracking Code:'} <span className="font-mono font-bold text-[#171717]">{trackedOrder.trackingNumber}</span>
                 </p>
-                <p className="text-xs text-slate-500">
-                  {language === 'ar' ? 'المستلم:' : 'Recipient:'} <span className="font-semibold text-slate-900">{trackedOrder.shipping.fullName}</span>
+                <p className="text-xs text-[#737373]">
+                  {language === 'ar' ? 'المستلم:' : 'Recipient:'} <span className="font-semibold text-[#171717]">{trackedOrder.shipping.fullName}</span>
                 </p>
-                <p className="text-xs text-slate-500">
-                  {language === 'ar' ? 'العنوان:' : 'Delivery Address:'} <span className="font-semibold text-slate-900">{trackedOrder.shipping.street}, {trackedOrder.shipping.city}</span>
+                <p className="text-xs text-[#737373]">
+                  {language === 'ar' ? 'العنوان:' : 'Delivery Address:'} <span className="font-semibold text-[#171717]">{trackedOrder.shipping.street}, {trackedOrder.shipping.city}</span>
                 </p>
-                <p className="text-xs text-slate-500">
-                  {language === 'ar' ? 'التوصيل المقدر:' : 'Estimated Delivery:'} <span className="font-bold text-[#a37f35]">{trackedOrder.estimatedDelivery}</span>
+                <p className="text-xs text-[#737373]">
+                  {language === 'ar' ? 'التوصيل المقدر:' : 'Estimated Delivery:'} <span className="font-bold text-[#8F7137]">{trackedOrder.estimatedDelivery}</span>
                 </p>
               </div>
 
               <div className="flex items-center justify-start md:justify-end gap-3">
                 <div className="text-left md:text-right">
-                  <p className="text-[10px] uppercase font-bold text-slate-400">Total Price</p>
-                  <p className="text-lg font-black text-slate-900">{formatPrice(trackedOrder.totalUSD)}</p>
-                  <p className="text-[10px] text-slate-500">{trackedOrder.items.length} items • Paid via {trackedOrder.paymentMethod.toUpperCase()}</p>
+                  <p className="text-[10px] uppercase font-bold text-[#737373]">Total Price</p>
+                  <p className="text-lg font-bold text-[#171717]">{formatPrice(trackedOrder.totalUSD)}</p>
+                  <p className="text-[10px] text-[#737373]">{trackedOrder.items.length} items • Paid via {trackedOrder.paymentMethod.toUpperCase()}</p>
                 </div>
                 <div>
                   {getStatusBadge(trackedOrder.status)}
@@ -318,10 +318,10 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             {/* Visual Steps timeline for tracked order or Cancelled Banner */}
             <div className="pt-3">
               {trackedOrder.status === 'cancelled' ? (
-                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3">
-                  <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+                  <XCircle className="w-5 h-5 text-[#C62828] shrink-0 mt-0.5" />
                   <div className="text-xs text-rose-900">
-                    <div className="font-extrabold">{language === 'ar' ? 'تم إلغاء هذا الطلب' : 'This Order Has Been Cancelled'}</div>
+                    <div className="font-bold">{language === 'ar' ? 'تم إلغاء هذا الطلب' : 'This Order Has Been Cancelled'}</div>
                     <p className="text-rose-700 text-[11px] mt-0.5">
                       {language === 'ar'
                         ? 'تم إلغاء هذا الطلب ولن يتم شحنه أو تحصيل أي مبالغ.'
@@ -331,14 +331,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 </div>
               ) : (
                 <>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 mb-2">{language === 'ar' ? 'مراحل التوصيل' : 'Shipment Stepper'}</div>
+                  <div className="text-[10px] uppercase font-bold text-[#737373] mb-2">{language === 'ar' ? 'مراحل التوصيل' : 'Shipment Stepper'}</div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {getTrackingSteps(trackedOrder.status).map((step) => (
-                      <div key={step.id} className="flex flex-col items-center text-center p-2.5 rounded-xl bg-white border border-slate-200/70 shadow-sm">
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center mb-1 ${step.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
-                          {step.completed ? <CheckCircle2 className="w-3 h-3" /> : <div className="w-1 h-1 rounded-full bg-slate-300" />}
+                      <div key={step.id} className="flex flex-col items-center text-center p-2.5 rounded-lg bg-white border border-[#E5E5E5] shadow-2xs">
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center mb-1 ${step.completed ? 'bg-emerald-100 text-[#16803C]' : 'bg-neutral-100 text-neutral-400'}`}>
+                          {step.completed ? <CheckCircle2 className="w-3 h-3" /> : <div className="w-1 h-1 rounded-full bg-neutral-300" />}
                         </div>
-                        <span className={`text-[9px] font-bold uppercase tracking-wider ${step.completed ? 'text-slate-800' : 'text-slate-400'}`}>
+                        <span className={`text-[9px] font-bold uppercase tracking-wider ${step.completed ? 'text-[#171717]' : 'text-[#737373]'}`}>
                           {step.label}
                         </span>
                       </div>
@@ -352,10 +352,10 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
       </div>
 
       {/* Header & Filter Controls */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-xl border border-[#E5E5E5] shadow-sm">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-slate-600" />
+          <h2 className="text-base font-bold text-[#171717] flex items-center gap-2">
+            <Package className="w-5 h-5 text-[#8F7137]" />
             <span>{language === 'ar' ? 'سجل الطلبات' : 'Order History'}</span>
           </h2>
         </div>
@@ -363,20 +363,20 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
         {/* Search & Status Filters */}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#737373]" />
             <input 
               type="text"
               placeholder={language === 'ar' ? 'البحث...' : 'Search orders...'}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-slate-50 text-slate-900 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all w-48 sm:w-60"
+              className="pl-9 pr-4 py-2 bg-[#F8F8F6] text-[#171717] text-xs rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] focus:bg-white transition-all w-48 sm:w-60"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2 bg-slate-50 text-slate-900 text-xs font-bold rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 transition-all cursor-pointer"
+            className="px-3.5 py-2 bg-[#F8F8F6] text-[#171717] text-xs font-bold rounded-lg border border-[#E5E5E5] focus:outline-none focus:border-[#B89753] transition-all cursor-pointer"
           >
             <option value="all">{language === 'ar' ? `كل الحالات (${orders.length})` : `All Statuses (${orders.length})`}</option>
             <option value="processing">{language === 'ar' ? 'قيد المعالجة والتجهيز' : 'Processing & Crafting'}</option>
@@ -389,12 +389,12 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 
       {/* Orders List */}
       {filteredOrders.length === 0 ? (
-        <div className="py-16 text-center space-y-4 max-w-md mx-auto bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
-          <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center mx-auto text-slate-400">
-            <Package className="w-8 h-8" />
+        <div className="py-16 text-center space-y-4 max-w-md mx-auto bg-white rounded-xl border border-[#E5E5E5] p-8 shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-neutral-100 border border-[#E5E5E5] flex items-center justify-center mx-auto text-[#737373]">
+            <Package className="w-7 h-7" />
           </div>
-          <h3 className="text-lg font-bold text-slate-900">No Matching Orders</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-base font-bold text-[#171717]">No Matching Orders</h3>
+          <p className="text-xs text-[#737373]">
             {orders.length === 0 
               ? "You haven't placed any orders yet."
               : "No orders match your current filter."}
@@ -402,7 +402,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
           {orders.length === 0 && (
             <button
               onClick={onNavigateProducts}
-              className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs uppercase tracking-wider transition-all shadow-md cursor-pointer inline-flex items-center gap-2"
+              className="px-6 py-2.5 bg-[#171717] hover:bg-black text-white font-bold rounded-lg text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
             >
               <span>Explore Products</span>
             </button>
@@ -416,18 +416,18 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             return (
               <div 
                 key={order.id} 
-                className={`p-6 rounded-3xl bg-white border shadow-sm space-y-6 transition-all hover:border-slate-300 ${
-                  order.status === 'cancelled' ? 'border-rose-200/80 bg-rose-50/10' : 'border-slate-200'
+                className={`p-6 rounded-xl bg-white border shadow-sm space-y-5 transition-all hover:border-[#B89753]/50 ${
+                  order.status === 'cancelled' ? 'border-rose-200 bg-rose-50/10' : 'border-[#E5E5E5]'
                 }`}
               >
                 {/* Order Header */}
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-100">
+                <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#E5E5E5]">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <span className="text-xs font-mono font-bold text-[#171717] bg-[#F8F8F6] px-2.5 py-1 rounded-lg border border-[#E5E5E5]">
                         #{order.id}
                       </span>
-                      <span className="text-xs text-slate-500 flex items-center gap-1">
+                      <span className="text-xs text-[#737373] flex items-center gap-1">
                         <Calendar className="w-3.5 h-3.5" />
                         {new Date(order.date).toLocaleDateString('en-US', {
                           month: 'short',
@@ -436,15 +436,15 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                         })}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 font-medium">
-                      Estimated Delivery: <span className="text-slate-900 font-semibold">{order.estimatedDelivery}</span>
+                    <p className="text-xs text-[#737373] font-medium">
+                      Estimated Delivery: <span className="text-[#171717] font-semibold">{order.estimatedDelivery}</span>
                     </p>
                   </div>
 
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-[10px] uppercase font-bold text-slate-400">Total</p>
-                      <p className="text-lg font-black text-slate-900">{formatPrice(order.totalUSD)}</p>
+                      <p className="text-[10px] uppercase font-bold text-[#737373]">Total</p>
+                      <p className="text-base font-bold text-[#171717]">{formatPrice(order.totalUSD)}</p>
                     </div>
                     {getStatusBadge(order.status)}
                   </div>
@@ -452,8 +452,8 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 
                 {/* Shipment Tracker Visual Stepper OR Cancelled Notice Banner */}
                 {order.status === 'cancelled' ? (
-                  <div className="bg-rose-50/90 p-4 sm:p-5 rounded-2xl border border-rose-200 flex items-start gap-3.5">
-                    <div className="p-2 rounded-xl bg-rose-100 text-rose-700 shrink-0 mt-0.5">
+                  <div className="bg-rose-50 p-4 sm:p-5 rounded-lg border border-rose-200 flex items-start gap-3.5">
+                    <div className="p-2 rounded-lg bg-rose-100 text-[#C62828] shrink-0 mt-0.5">
                       <XCircle className="w-5 h-5" />
                     </div>
                     <div>
@@ -468,21 +468,21 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-100 space-y-3">
-                    <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2">
+                  <div className="bg-[#F8F8F6] p-4 sm:p-5 rounded-lg border border-[#E5E5E5] space-y-3">
+                    <div className="flex items-center justify-between text-xs font-bold text-[#171717] mb-2">
                       <span className="flex items-center gap-1.5">
-                        <Truck className="w-4 h-4 text-slate-500" />
+                        <Truck className="w-4 h-4 text-[#8F7137]" />
                         <span>Shipment Progress</span>
                       </span>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 relative">
                       {steps.map((step) => (
-                        <div key={step.id} className="flex flex-col items-center text-center p-2 rounded-xl bg-white border border-slate-200 shadow-sm">
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mb-1.5 ${step.completed ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-300'}`}>
-                            {step.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />}
+                        <div key={step.id} className="flex flex-col items-center text-center p-2 rounded-lg bg-white border border-[#E5E5E5] shadow-2xs">
+                          <div className={`w-6 h-6 rounded-full flex items-center justify-center mb-1.5 ${step.completed ? 'bg-emerald-100 text-[#16803C]' : 'bg-neutral-100 text-neutral-400'}`}>
+                            {step.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />}
                           </div>
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${step.completed ? 'text-slate-800' : 'text-slate-400'}`}>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${step.completed ? 'text-[#171717]' : 'text-[#737373]'}`}>
                             {step.label}
                           </span>
                         </div>
@@ -495,7 +495,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex -space-x-3 overflow-hidden">
                     {order.items.slice(0, 4).map((item, idx) => (
-                      <div key={idx} className="w-10 h-10 rounded-full border-2 border-white bg-slate-50 flex items-center justify-center p-0.5 overflow-hidden shadow-xs">
+                      <div key={idx} className="w-10 h-10 rounded-full border-2 border-white bg-white flex items-center justify-center p-0.5 overflow-hidden shadow-2xs">
                         <img 
                           src={item.product.image} 
                           alt={item.product.name}
@@ -505,7 +505,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                       </div>
                     ))}
                     {order.items.length > 4 && (
-                      <div className="w-10 h-10 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600">
+                      <div className="w-10 h-10 rounded-full border-2 border-white bg-neutral-100 flex items-center justify-center text-[10px] font-bold text-[#737373]">
                         +{order.items.length - 4}
                       </div>
                     )}
@@ -513,7 +513,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 
                   <button
                     onClick={() => setSelectedOrder(order)}
-                    className="flex items-center gap-1 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+                    className="flex items-center gap-1 px-4 py-2 bg-[#F8F8F6] hover:bg-neutral-200 text-[#171717] font-bold text-xs rounded-lg transition-colors cursor-pointer border border-[#E5E5E5]"
                   >
                     <span>View Details</span>
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -527,7 +527,7 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 
       {/* Detail Modal */}
       {selectedOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div 
             className="absolute inset-0 cursor-pointer"
             onClick={() => setSelectedOrder(null)}
@@ -537,24 +537,24 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
             role="dialog"
             aria-modal="true"
             tabIndex={-1}
-            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden focus:outline-hidden"
+            className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-[#E5E5E5] focus:outline-hidden"
           >
             
-            <div className="p-6 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div className="p-6 border-b border-[#E5E5E5] bg-[#F8F8F6] flex items-center justify-between">
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <h3 className="text-lg font-bold text-slate-900">
+                  <h3 className="text-base font-bold text-[#171717]">
                     {language === 'ar' ? 'تفاصيل الطلب' : 'Order Details'}
                   </h3>
                   {getStatusBadge(selectedOrder.status)}
                 </div>
-                <p className="text-xs font-mono text-slate-500">
+                <p className="text-xs font-mono text-[#737373]">
                   ID: #{selectedOrder.id} • {new Date(selectedOrder.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedOrder(null)}
-                className="p-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 rounded-xl transition-colors cursor-pointer"
+                className="p-2 bg-white border border-[#E5E5E5] hover:bg-neutral-50 text-[#737373] rounded-lg transition-colors cursor-pointer"
               >
                 Close
               </button>
@@ -562,10 +562,10 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
 
             <div className="overflow-y-auto p-6 space-y-6">
               {selectedOrder.status === 'cancelled' && (
-                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3">
-                  <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 flex items-start gap-3">
+                  <XCircle className="w-5 h-5 text-[#C62828] shrink-0 mt-0.5" />
                   <div className="text-xs text-rose-900">
-                    <div className="font-extrabold">{language === 'ar' ? 'تم إلغاء هذا الطلب' : 'This Order Has Been Cancelled'}</div>
+                    <div className="font-bold">{language === 'ar' ? 'تم إلغاء هذا الطلب' : 'This Order Has Been Cancelled'}</div>
                     <p className="text-rose-700 text-[11px] mt-0.5">
                       {language === 'ar'
                         ? 'تم إلغاء هذا الطلب من قبل الإدارة ولن يتم شحنه أو تحصيل أي مبالغ نقدية.'
@@ -576,40 +576,40 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
               )}
               
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    <MapPin className="w-3.5 h-3.5" />
+                <div className="p-4 rounded-lg bg-[#F8F8F6] border border-[#E5E5E5] space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#737373] uppercase tracking-wider mb-2">
+                    <MapPin className="w-3.5 h-3.5 text-[#B89753]" />
                     <span>Delivery Address</span>
                   </div>
-                  <p className="text-sm font-bold text-slate-900">{selectedOrder.shipping.fullName}</p>
-                  <p className="text-xs text-slate-600">{selectedOrder.shipping.phone}</p>
-                  <p className="text-xs text-slate-600 mt-1">
+                  <p className="text-sm font-bold text-[#171717]">{selectedOrder.shipping.fullName}</p>
+                  <p className="text-xs text-[#737373]">{selectedOrder.shipping.phone}</p>
+                  <p className="text-xs text-[#737373] mt-1">
                     {selectedOrder.shipping.building}, {selectedOrder.shipping.street}
                   </p>
-                  <p className="text-xs text-slate-600">
+                  <p className="text-xs text-[#737373]">
                     {selectedOrder.shipping.city}, {selectedOrder.shipping.governorate}
                   </p>
                 </div>
 
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                <div className="p-4 rounded-lg bg-[#F8F8F6] border border-[#E5E5E5] space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#737373] uppercase tracking-wider mb-2">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#16803C]" />
                     <span>Order Summary</span>
                   </div>
                   <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between text-slate-600">
+                    <div className="flex justify-between text-[#737373]">
                       <span>Subtotal</span>
                       <span>{formatPrice(selectedOrder.subtotalUSD)}</span>
                     </div>
-                    <div className="flex justify-between text-slate-600">
+                    <div className="flex justify-between text-[#737373]">
                       <span>Delivery</span>
                       <span>{formatPrice(selectedOrder.deliveryFeeUSD)}</span>
                     </div>
-                    <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-sm text-slate-900 mt-2">
+                    <div className="pt-2 border-t border-[#E5E5E5] flex justify-between font-bold text-sm text-[#171717] mt-2">
                       <span>Total USD</span>
                       <span>{formatPrice(selectedOrder.totalUSD)}</span>
                     </div>
-                    <div className="flex justify-between text-slate-500 text-[10px]">
+                    <div className="flex justify-between text-[#737373] text-[10px]">
                       <span>Payment Method</span>
                       <span className="uppercase">{selectedOrder.paymentMethod}</span>
                     </div>
@@ -618,11 +618,11 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
               </div>
 
               <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Items in this Order</h4>
+                <h4 className="text-xs font-bold text-[#737373] uppercase tracking-wider mb-3">Items in this Order</h4>
                 <div className="space-y-3">
                   {selectedOrder.items.map((item, idx) => (
-                    <div key={idx} className="flex gap-3 p-3 rounded-2xl border border-slate-100 bg-white items-center">
-                      <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-200 flex-shrink-0 flex items-center justify-center p-1 overflow-hidden">
+                    <div key={idx} className="flex gap-3 p-3 rounded-lg border border-[#E5E5E5] bg-white items-center">
+                      <div className="w-14 h-14 rounded-lg bg-[#F8F8F6] border border-[#E5E5E5] flex-shrink-0 flex items-center justify-center p-1 overflow-hidden">
                         <img 
                           src={item.product.image} 
                           alt={item.product.name}
@@ -630,14 +630,14 @@ export const OrderHistory: React.FC<OrderHistoryProps> = ({
                         />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h5 className="text-sm font-bold text-slate-900 line-clamp-1">
+                        <h5 className="text-xs sm:text-sm font-semibold text-[#171717] line-clamp-1">
                           {language === 'ar' ? (item.product.arabicName || item.product.name) : item.product.name}
                         </h5>
-                        <p className="text-xs text-slate-500">{item.product.origin}</p>
+                        <p className="text-xs text-[#737373]">{item.product.origin}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-slate-900">{formatPrice(item.product.priceUSD * item.quantity)}</p>
-                        <p className="text-[10px] text-slate-400">Qty: {item.quantity}</p>
+                        <p className="text-xs sm:text-sm font-bold text-[#171717]">{formatPrice(item.product.priceUSD * item.quantity)}</p>
+                        <p className="text-[10px] text-[#737373]">Qty: {item.quantity}</p>
                       </div>
                     </div>
                   ))}

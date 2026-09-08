@@ -172,24 +172,24 @@ export const OTPModal: React.FC<OTPModalProps> = ({
   }[actionType];
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-amber-200/80 overflow-hidden text-slate-800 animate-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#E5E5E5] overflow-hidden text-[#171717] animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 p-6 text-white text-center relative overflow-hidden">
+        <div className="bg-[#171717] p-6 text-white text-center relative overflow-hidden border-b border-[#B89753]/30">
           <button
             onClick={onClose}
             id="otp-modal-close-btn"
-            className="absolute top-4 right-4 text-white/80 hover:text-white bg-black/20 hover:bg-black/30 p-2 rounded-full transition-colors"
+            className="absolute top-4 right-4 text-neutral-400 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-lg transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center mb-3 shadow-inner">
-            <ShieldCheck className="w-6 h-6 text-white" />
+          <div className="mx-auto w-12 h-12 rounded-xl bg-[#B89753]/10 border border-[#B89753]/30 flex items-center justify-center mb-3 text-[#B89753]">
+            <ShieldCheck className="w-6 h-6" />
           </div>
-          <h3 className="text-xl font-bold tracking-tight">
+          <h3 className="text-lg font-serif font-bold tracking-tight text-white">
             {isArabic ? 'رمز التحقق (OTP)' : 'OTP Security Verification'}
           </h3>
-          <p className="text-xs text-amber-100 mt-1">
+          <p className="text-xs text-neutral-400 mt-1">
             {isArabic ? `مطلوب للـ ${actionTitle}` : `Required to complete ${actionTitle}`}
           </p>
         </div>
@@ -197,10 +197,10 @@ export const OTPModal: React.FC<OTPModalProps> = ({
         <div className="p-6 space-y-6">
           {/* Target Contact Info */}
           <div className="text-center space-y-1">
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-[#737373]">
               {isArabic ? 'تم إرسال رمز التحقق الأمني المكون من 6 أرقام إلى:' : 'A 6-digit security OTP code was dispatched to:'}
             </p>
-            <p className="text-sm font-bold text-slate-900 font-mono bg-slate-100 py-1.5 px-3 rounded-xl inline-block border border-slate-200">
+            <p className="text-xs font-bold text-[#171717] font-mono bg-[#F8F8F6] py-1.5 px-3 rounded-lg inline-block border border-[#E5E5E5]">
               {targetContact || 'your registered contact'}
             </p>
           </div>
@@ -208,7 +208,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
           {/* 6 Digit Input Fields */}
           <form onSubmit={handleSubmitVerification} className="space-y-5">
             <div>
-              <label className="block text-center text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+              <label className="block text-center text-xs font-bold text-[#171717] uppercase tracking-wider mb-3">
                 {isArabic ? 'أدخل الرمز المكون من 6 أرقام' : 'Enter 6-Digit Code'}
               </label>
               <div className="flex items-center justify-center gap-2 dir-ltr">
@@ -223,10 +223,10 @@ export const OTPModal: React.FC<OTPModalProps> = ({
                     onChange={(e) => handleDigitChange(idx, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(idx, e)}
                     id={`otp-digit-input-${idx}`}
-                    className={`w-11 h-13 sm:w-12 sm:h-14 text-center text-xl font-bold font-mono rounded-2xl border-2 transition-all focus:outline-none ${
+                    className={`w-11 h-12 sm:w-12 sm:h-13 text-center text-lg font-bold font-mono rounded-lg border transition-all focus:outline-none ${
                       digit
-                        ? 'border-amber-500 bg-amber-50/30 text-amber-950 shadow-sm'
-                        : 'border-slate-200 bg-slate-50 text-slate-900 focus:border-amber-500 focus:bg-white'
+                        ? 'border-[#B89753] bg-amber-50/40 text-[#171717]'
+                        : 'border-[#E5E5E5] bg-[#F8F8F6] text-[#171717] focus:border-[#B89753] focus:bg-white'
                     }`}
                   />
                 ))}
@@ -234,7 +234,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
             </div>
 
             {errorMsg && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-start gap-2 animate-shake">
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-[#C62828] text-xs font-medium flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                 <span>{errorMsg}</span>
               </div>
@@ -245,23 +245,23 @@ export const OTPModal: React.FC<OTPModalProps> = ({
               type="submit"
               id="otp-verify-submit-btn"
               disabled={isVerifying || isRequesting || otpDigits.join('').length < 6}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 text-white font-bold text-sm shadow-lg shadow-amber-900/10 hover:brightness-110 active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 rounded-lg bg-[#171717] hover:bg-black text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md active:scale-[0.99] disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {isVerifying ? (
                 <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-[#B89753]" />
                   <span>{isArabic ? 'جاري التحقق...' : 'Verifying Server OTP...'}</span>
                 </>
               ) : (
                 <>
                   <span>{isArabic ? 'تأكيد الرمز ومتابعة' : 'Verify OTP & Complete'}</span>
-                  <ArrowRight className={`w-4 h-4 ${isArabic ? 'rotate-180' : ''}`} />
+                  <ArrowRight className={`w-4 h-4 text-[#B89753] ${isArabic ? 'rotate-180' : ''}`} />
                 </>
               )}
             </button>
 
             {/* Resend Code Section */}
-            <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between text-xs text-[#737373] pt-2 border-t border-[#E5E5E5]">
               <span>
                 {isArabic ? 'لم تصلك الرسالة؟' : "Didn't receive the code?"}
               </span>
@@ -271,13 +271,13 @@ export const OTPModal: React.FC<OTPModalProps> = ({
                   id="otp-resend-btn"
                   disabled={isRequesting}
                   onClick={handleResendOtp}
-                  className="font-bold text-amber-600 hover:text-amber-700 hover:underline flex items-center gap-1 transition-colors disabled:opacity-50"
+                  className="font-bold text-[#8F7137] hover:text-[#B89753] hover:underline flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRequesting ? 'animate-spin' : ''}`} />
                   <span>{isArabic ? 'إعادة إرسال الرمز' : 'Resend OTP'}</span>
                 </button>
               ) : (
-                <span className="font-mono text-slate-400">
+                <span className="font-mono text-[#737373]">
                   {isArabic ? `إعادة الإرسال بعد (${resendTimer} ثانية)` : `Resend in (${resendTimer}s)`}
                 </span>
               )}
