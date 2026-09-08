@@ -1,6 +1,5 @@
 import React from 'react';
 import { isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
-import { HeroBanner } from './HeroBanner';
 import { HomeTopContainer } from './HomeTopContainer';
 import { ProductCard } from './ProductCard';
 import { ProductCarousel } from './ProductCarousel';
