@@ -355,7 +355,7 @@ interface ShopContextType {
 
 const ShopContext = createContext<ShopContextType | undefined>(undefined);
 
-const INITIAL_USER: UserProfile = {
+export const INITIAL_USER: UserProfile = {
   name: '',
   email: '',
   phone: '',
@@ -364,6 +364,89 @@ const INITIAL_USER: UserProfile = {
   defaultCity: '',
   defaultAddress: ''
 };
+
+/**
+ * Strict allowlisted UserProfile mapper for ShopContext.
+ * Firestore user documents are UNTRUSTED profile data.
+ * Under NO circumstances are admin, seller, or sellerId permissions derived from Firestore.
+ * Identity (uid), role ('customer'), and sellerId (claims only) are strictly enforced.
+ */
+export function mapSafeShopUserProfile(
+  data: Record<string, any>,
+  fbUser: FirebaseUser,
+  authoritativeSellerId: string | null,
+  cachedShipping?: Partial<UserProfile>,
+  fallbackNames?: { firstName: string; lastName: string; name: string }
+): UserProfile {
+  const firstName =
+    (typeof data.firstName === 'string' && data.firstName.trim()) ||
+    (typeof data.name === 'string' && data.name.trim() ? data.name.trim().split(' ')[0] : '') ||
+    cachedShipping?.firstName ||
+    fallbackNames?.firstName ||
+    '';
+
+  const lastName =
+    (typeof data.lastName === 'string' && data.lastName.trim()) ||
+    (typeof data.name === 'string' && data.name.trim() ? data.name.trim().split(' ').slice(1).join(' ') : '') ||
+    cachedShipping?.lastName ||
+    fallbackNames?.lastName ||
+    '';
+
+  const phone =
+    (typeof data.phone === 'string' && data.phone.trim()) ||
+    cachedShipping?.phone ||
+    '';
+
+  const defaultGovernorate =
+    (typeof data.defaultGovernorate === 'string' && data.defaultGovernorate.trim()) ||
+    INITIAL_USER.defaultGovernorate ||
+    '';
+
+  const defaultCity =
+    (typeof data.defaultCity === 'string' && data.defaultCity.trim()) ||
+    cachedShipping?.defaultCity ||
+    '';
+
+  const defaultAddress =
+    (typeof data.defaultAddress === 'string' && data.defaultAddress.trim()) ||
+    cachedShipping?.defaultAddress ||
+    '';
+
+  const defaultBuilding =
+    (typeof data.defaultBuilding === 'string' && data.defaultBuilding.trim()) ||
+    cachedShipping?.defaultBuilding ||
+    undefined;
+
+  const defaultNotes =
+    (typeof data.defaultNotes === 'string' && data.defaultNotes.trim()) ||
+    cachedShipping?.defaultNotes ||
+    undefined;
+
+  return {
+    uid: fbUser.uid,
+    name:
+      (typeof data.name === 'string' && data.name.trim()) ||
+      `${firstName} ${lastName}`.trim() ||
+      fbUser.displayName ||
+      '',
+    firstName,
+    lastName,
+    email: (typeof data.email === 'string' && data.email.trim()) || fbUser.email || '',
+    phone,
+    avatar: (typeof data.avatar === 'string' && data.avatar.trim()) || fbUser.photoURL || INITIAL_USER.avatar,
+    defaultGovernorate,
+    defaultCity,
+    defaultAddress,
+    defaultBuilding,
+    defaultNotes,
+    // NEVER use Firestore role for authorization.
+    role: 'customer',
+    // ONLY Firebase Auth custom claim.
+    sellerId: authoritativeSellerId || undefined,
+    emailVerified: fbUser.emailVerified,
+    isOtpVerified: typeof data.isOtpVerified === 'boolean' ? data.isOtpVerified : undefined
+  };
+}
 
 const INITIAL_ORDERS: Order[] = [];
 
@@ -2419,33 +2502,30 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch {}
 
+          // Obtain authoritative claims from Firebase Auth token
+          const tokenResult = await userObj.getIdTokenResult().catch(() => null);
+          const hasAdminClaim = tokenResult?.claims?.admin === true;
+          const hasSellerClaim = tokenResult?.claims?.seller === true;
+          const claimSellerId =
+            typeof tokenResult?.claims?.sellerId === 'string'
+              ? tokenResult.claims.sellerId
+              : null;
+
+          setIsAdminUser(hasAdminClaim);
+          setIsSellerUser(hasSellerClaim);
+          setSellerId(claimSellerId);
+
           if (userSnap.exists()) {
-            const data = userSnap.data() as UserProfile;
-            const firstName = data.firstName || (data.name ? data.name.split(' ')[0] : '') || cachedShipping.firstName || fallbackNames.firstName;
-            const lastName = data.lastName || (data.name ? data.name.split(' ').slice(1).join(' ') : '') || cachedShipping.lastName || fallbackNames.lastName;
-            const phone = data.phone || cachedShipping.phone || '';
-            const defaultCity = data.defaultCity || cachedShipping.defaultCity || '';
-            const defaultAddress = data.defaultAddress || cachedShipping.defaultAddress || '';
-            const defaultBuilding = data.defaultBuilding || cachedShipping.defaultBuilding || '';
-            const defaultNotes = data.defaultNotes || cachedShipping.defaultNotes || '';
+            const data = (userSnap.data() || {}) as Record<string, any>;
+            const safeProfile = mapSafeShopUserProfile(
+              data,
+              userObj,
+              claimSellerId,
+              cachedShipping,
+              fallbackNames
+            );
 
-            const mergedProfile: UserProfile = {
-              ...data,
-              firstName,
-              lastName,
-              name: data.name || `${firstName} ${lastName}`.trim(),
-              email: data.email || userObj.email || '',
-              phone,
-              defaultCity,
-              defaultAddress,
-              defaultBuilding,
-              defaultNotes
-            };
-
-            setUser(prev => ({ 
-              ...prev, 
-              ...mergedProfile
-            }));
+            setUser(safeProfile);
           } else {
             console.log("[ShopContext] User document does not exist, creating new user data.");
             let tempSignup: any = {};
@@ -2471,7 +2551,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || '',
               defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || '',
               defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || '',
-              defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || ''
+              defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || '',
+              role: 'customer',
+              sellerId: claimSellerId || undefined,
+              emailVerified: userObj.emailVerified
             };
             await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
             
@@ -4103,16 +4186,25 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Strip privileged fields from non-admin updates to prevent client-side privilege escalation
+    // Strip privileged and authorization fields to prevent client-side privilege escalation
     const safeUpdates = { ...updates };
-    if (!isAdminUser) {
-      delete (safeUpdates as any).role;
-      delete (safeUpdates as any).sellerId;
-      delete (safeUpdates as any).isBanned;
-      delete (safeUpdates as any).ordersPlaced;
-    }
+    delete (safeUpdates as any).role;
+    delete (safeUpdates as any).sellerId;
+    delete (safeUpdates as any).admin;
+    delete (safeUpdates as any).seller;
+    delete (safeUpdates as any).isAdminUser;
+    delete (safeUpdates as any).isSellerUser;
+    delete (safeUpdates as any).uid;
+    delete (safeUpdates as any).isBanned;
+    delete (safeUpdates as any).ordersPlaced;
 
-    const updatedUser = { ...user, ...safeUpdates };
+    const updatedUser: UserProfile = {
+      ...user,
+      ...safeUpdates,
+      uid: firebaseUser ? firebaseUser.uid : user.uid,
+      role: 'customer',
+      sellerId: sellerId || undefined
+    };
     const sanitizedUser = sanitizeDocumentData(updatedUser);
     setUser(updatedUser);
 

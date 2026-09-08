@@ -7,6 +7,7 @@ import { checkDuplicateProductNumber } from '../src/lib/productValidation';
 import { Product } from '../src/types';
 import { validatePlaceOrderPayload, placeOrder } from '../functions/src/placeOrder';
 import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
+import { mapSafeShopUserProfile } from '../src/context/ShopContext';
 
 describe('Security Regression Suite - Application Controls', () => {
   describe('1. CSV / Formula Injection Mitigation', () => {
@@ -149,8 +150,9 @@ describe('Security Regression Suite - Application Controls', () => {
 
   describe('5. Seller Workshop Isolation Invariant', () => {
     it('prohibits non-admin seller from creating or modifying products for another workshop', () => {
-      const sellerUser = {
-        role: 'seller',
+      const authClaims = {
+        admin: false,
+        seller: true,
         sellerId: 'workshop-byblos'
       };
 
@@ -160,21 +162,21 @@ describe('Security Regression Suite - Application Controls', () => {
         sellerId: 'workshop-baalbek'
       };
 
-      const canEdit = (user: typeof sellerUser, product: typeof targetProduct) => {
-        if (user.role === 'seller') {
-          return user.sellerId.toLowerCase() === product.sellerId.toLowerCase();
+      const canEdit = (claims: typeof authClaims, product: typeof targetProduct) => {
+        if (claims.seller && claims.sellerId) {
+          return claims.sellerId.toLowerCase() === product.sellerId.toLowerCase();
         }
         return false;
       };
 
-      expect(canEdit(sellerUser, targetProduct)).toBe(false);
+      expect(canEdit(authClaims, targetProduct)).toBe(false);
 
       const ownProduct = {
         id: 'prod-own',
         name: 'Byblos Cedar Box',
         sellerId: 'workshop-byblos'
       };
-      expect(canEdit(sellerUser, ownProduct)).toBe(true);
+      expect(canEdit(authClaims, ownProduct)).toBe(true);
     });
   });
 
@@ -1126,6 +1128,102 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(authCode).not.toMatch(/role:\s*data\.role/);
       expect(authCode).not.toMatch(/sellerId:\s*data\.sellerId/);
       expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+    });
+  });
+
+  describe('15. Secondary User Profile Isolation & Authorization Hardening (ShopContext Hardening)', () => {
+    const mockFirebaseUser = {
+      uid: 'user-auth-123',
+      displayName: 'Legitimate User',
+      email: 'user@example.com',
+      emailVerified: true
+    } as any;
+
+    it('TEST 1: Adversarial test (Req 7) - Malicious Firestore profile cannot change authorization state or escalate privileges in ShopContext', () => {
+      const maliciousDoc = {
+        role: 'admin',
+        admin: true,
+        seller: true,
+        sellerId: 'ATTACKER',
+        isAdminUser: true,
+        isSellerUser: true,
+        uid: 'spoofed-uid',
+        email: 'attacker@evil.com'
+      };
+
+      const tokenClaims = {
+        admin: false,
+        seller: false,
+        sellerId: null
+      };
+
+      const isAdminUser = Boolean(tokenClaims.admin === true);
+      const isSellerUser = Boolean(tokenClaims.seller === true);
+      const sellerId = typeof tokenClaims.sellerId === 'string' ? tokenClaims.sellerId : null;
+
+      const profile = mapSafeShopUserProfile(maliciousDoc, mockFirebaseUser, sellerId);
+
+      // Authorization states remain completely unaffected
+      expect(isAdminUser).toBe(false);
+      expect(isSellerUser).toBe(false);
+      expect(sellerId).toBeNull();
+
+      // Profile object is sanitized and cannot be contaminated
+      expect(profile.uid).toBe('user-auth-123');
+      expect(profile.role).toBe('customer');
+      expect(profile.sellerId).toBeUndefined();
+      expect((profile as any).admin).toBeUndefined();
+      expect((profile as any).seller).toBeUndefined();
+      expect((profile as any).isAdminUser).toBeUndefined();
+      expect((profile as any).isSellerUser).toBeUndefined();
+    });
+
+    it('TEST 2: Requirement 10 Regression - Conflicting sellerId in Firestore profile never overrides Auth claim sellerId', () => {
+      const forgedDoc = {
+        sellerId: 'ATTACKER',
+        role: 'seller'
+      };
+
+      const authClaims = {
+        admin: false,
+        seller: true,
+        sellerId: 'AUTHORIZED_SELLER'
+      };
+
+      const applicationAuthorizationSellerId =
+        typeof authClaims.sellerId === 'string' ? authClaims.sellerId : null;
+
+      const safeProfile = mapSafeShopUserProfile(
+        forgedDoc,
+        mockFirebaseUser,
+        applicationAuthorizationSellerId
+      );
+
+      // Authoritative authorization sellerId MUST be "AUTHORIZED_SELLER"
+      expect(applicationAuthorizationSellerId).toBe('AUTHORIZED_SELLER');
+      expect(applicationAuthorizationSellerId).not.toBe('ATTACKER');
+
+      // Profile sellerId MUST match Auth claim and NEVER Firestore doc
+      expect(safeProfile.sellerId).toBe('AUTHORIZED_SELLER');
+      expect(safeProfile.sellerId).not.toBe('ATTACKER');
+      expect(safeProfile.role).toBe('customer');
+    });
+
+    it('TEST 3: Source-code security test - ShopContext rejects unrestricted mergedProfile and raw data spreads', () => {
+      const shopCode = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf8');
+
+      // Must not contain mergedProfile construction or spread
+      expect(shopCode).not.toMatch(/const\s+mergedProfile\s*:\s*UserProfile/);
+      expect(shopCode).not.toMatch(/\.\.\.mergedProfile/);
+      expect(shopCode).not.toMatch(/setUser\(\s*prev\s*=>\s*\(\{\s*\.\.\.prev\s*,\s*\.\.\.mergedProfile/);
+      expect(shopCode).not.toMatch(/setUser\(\s*prev\s*=>\s*\(\{\s*\.\.\.prev\s*,\s*\.\.\.data/);
+
+      // Must explicitly use mapSafeShopUserProfile for Firestore profile hydration
+      expect(shopCode).toMatch(/mapSafeShopUserProfile/);
+
+      // Must not use data.role or fallback to data.sellerId for claims
+      expect(shopCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+      expect(shopCode).not.toMatch(/role:\s*data\.role/);
     });
   });
 });
