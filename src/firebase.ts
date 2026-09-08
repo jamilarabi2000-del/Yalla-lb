@@ -61,13 +61,17 @@ if (typeof window !== 'undefined') {
 
 let firestoreInstance: Firestore;
 try {
-  // Use initializeFirestore with multi-tab persistent cache or memory fallback
-  // This explicitly prevents "Database is closing/hidden" IndexedDB errors in iframes and background tabs
-  const cacheConfig = typeof window !== 'undefined'
-    ? persistentLocalCache({
-        tabManager: persistentMultipleTabManager()
-      })
-    : memoryLocalCache();
+  let cacheConfig;
+  try {
+    cacheConfig = typeof window !== 'undefined'
+      ? persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      : memoryLocalCache();
+  } catch (cacheErr) {
+    console.warn("[Firebase] Persistent cache not supported, falling back to memory cache:", cacheErr);
+    cacheConfig = memoryLocalCache();
+  }
 
   firestoreInstance = initializeFirestore(app, {
     localCache: cacheConfig

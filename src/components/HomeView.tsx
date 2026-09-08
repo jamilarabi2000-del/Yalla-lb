@@ -1,6 +1,7 @@
 import React from 'react';
 import { isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
 import { HeroBanner } from './HeroBanner';
+import { HomeTopContainer } from './HomeTopContainer';
 import { ProductCard } from './ProductCard';
 import { ProductCarousel } from './ProductCarousel';
 import { NewsSection } from './NewsSection';
@@ -132,7 +133,7 @@ export const HomeView: React.FC = () => {
                 <span>Section Hidden (Draft Preview)</span>
               </div>
             )}
-            <HeroBanner />
+            <HomeTopContainer />
           </div>
         ) : null;
 

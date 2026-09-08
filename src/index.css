@@ -1,11 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #F7F6F1;
+  --bg-primary: #F7F7F8;
   --bg-surface: #FFFFFF;
   --bg-card: #FFFFFF;
-  --text-main: #171717;
-  --text-muted: #737373;
+  --text-main: #111111;
+  --text-muted: #666666;
   --gold: #B89753;
   --gold-light: #F3E5AB;
   --gold-dark: #8F7137;
@@ -14,6 +14,8 @@
   --danger: #C62828;
   --glass: rgba(255, 255, 255, 0.92);
   --glass-border: rgba(184, 151, 83, 0.2);
+  --radius-lg: 20px;
+  --radius-md: 14px;
 }
 
 :is(a, button, input, select, textarea, summary, [role="button"], [role="tab"], [role="link"], [tabindex]):focus-visible {
