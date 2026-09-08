@@ -11,7 +11,6 @@ import {
 } from 'lucide-react';
 
 import lebaneseMountainTownImg from '../assets/images/rachaya_mountain_perfect_1786799009637.jpg';
-import raoucheSunsetImg from '../assets/images/raouche_rocks_sunset_1786799732002.jpg';
 
 interface ConsolidatedSlide {
   id: string;
@@ -68,7 +67,7 @@ export const HomeTopContainer: React.FC = () => {
     {
       id: 'slide_hero_1',
       type: 'image',
-      url: raoucheSunsetImg,
+      url: '',
       badgeEn: (heroData as any).badgeText,
       badgeAr: (heroData as any).badgeTextArabic,
       titleEn: (heroData as any).title,
