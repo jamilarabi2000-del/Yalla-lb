@@ -264,12 +264,14 @@ export const HomeTopContainer: React.FC = () => {
         >
           {/* Background Image with subtle dark overlay */}
           <div className="absolute inset-0 z-0">
-            <img
-              src={currentSlide.url}
-              alt={activeTitle || ''}
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
-            />
+            {currentSlide.url && (
+              <img
+                src={currentSlide.url}
+                alt={activeTitle || ''}
+                referrerPolicy="no-referrer"
+                className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
+              />
+            )}
             <div 
               className="absolute inset-0 pointer-events-none"
               style={{
