@@ -6,7 +6,7 @@ import { normalizeLebanesePhone, isValidLebanesePhone } from '../src/utils/phone
 import { checkDuplicateProductNumber } from '../src/lib/productValidation';
 import { Product } from '../src/types';
 import { validatePlaceOrderPayload, placeOrder } from '../functions/src/placeOrder';
-import { mapSafeUserProfile } from '../src/context/AuthContext';
+import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
 
 describe('Security Regression Suite - Application Controls', () => {
   describe('1. CSV / Formula Injection Mitigation', () => {
@@ -1039,70 +1039,93 @@ describe('Security Regression Suite - Application Controls', () => {
   describe('14. Firestore User Profile Isolation (AuthContext Hardening)', () => {
     const authCode = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthContext.tsx'), 'utf8');
 
-    it('Requirement 8: Forged Firestore user document with admin/seller/sellerId cannot modify authoritative state or UserProfile', () => {
-      const mockFirebaseUser = {
-        uid: 'victim-user-123',
-        displayName: 'Victim Customer',
-        email: 'victim@example.com',
-        emailVerified: true
-      } as any;
+    const mockFirebaseUser = {
+      uid: 'user-auth-123',
+      displayName: 'Legitimate User',
+      email: 'user@example.com',
+      emailVerified: true
+    } as any;
 
-      // Attacker attempts to elevate privileges via Firestore document content
-      const forgedFirestoreDoc = {
-        uid: 'attacker-injected-uid',
-        role: 'admin',
-        seller: true,
-        sellerId: 'ATTACKER',
-        admin: true,
-        isAdminUser: true,
-        isSellerUser: true,
-        email: 'attacker@evil.com',
-        name: 'Attacker Impersonator'
-      };
+    it('TEST 1: A Firestore user document containing { role: "admin" } cannot make isAdminUser === true', () => {
+      const forgedDoc = { role: 'admin' };
+      const tokenClaims = { admin: false, seller: false, sellerId: null };
 
-      // Real token claims for this normal user (authoritative: no claims)
-      const tokenClaims = {
-        admin: false,
-        seller: false,
-        sellerId: null
-      };
+      const isAdminUser = Boolean(tokenClaims.admin === true);
+      const profile = mapUserProfile(forgedDoc, mockFirebaseUser, tokenClaims.sellerId);
 
-      const authoritativeIsAdmin = Boolean(tokenClaims.admin === true);
-      const authoritativeIsSeller = Boolean(tokenClaims.seller === true);
-      const authoritativeSellerId = typeof tokenClaims.sellerId === 'string' ? tokenClaims.sellerId : null;
-
-      const safeProfile = mapSafeUserProfile(
-        mockFirebaseUser,
-        mockFirebaseUser.uid,
-        forgedFirestoreDoc,
-        authoritativeSellerId
-      );
-
-      // Verify that authoritative claims remain uncompromised
-      expect(authoritativeIsAdmin).toBe(false);
-      expect(authoritativeIsSeller).toBe(false);
-      expect(authoritativeSellerId).toBeNull();
-
-      // Verify that mapped safeProfile rejects forged authorization/identity fields
-      expect(safeProfile.uid).toBe('victim-user-123'); // Cannot be hijacked by forgedFirestoreDoc.uid
-      expect(safeProfile.role).toBe('customer'); // Forced to 'customer', NOT 'admin'
-      expect(safeProfile.sellerId).toBeUndefined(); // NOT 'ATTACKER'
-      expect((safeProfile as any).admin).toBeUndefined();
-      expect((safeProfile as any).seller).toBeUndefined();
-      expect((safeProfile as any).isAdminUser).toBeUndefined();
-      expect((safeProfile as any).isSellerUser).toBeUndefined();
+      expect(isAdminUser).toBe(false);
+      expect(profile.role).toBe('customer');
+      expect((profile as any).admin).toBeUndefined();
     });
 
-    it('Requirement 9: Source-level test: refreshUserProfile does NOT contain unrestricted spread ({ ...prev, ...data })', () => {
+    it('TEST 2: A Firestore user document containing { seller: true } cannot make isSellerUser === true', () => {
+      const forgedDoc = { seller: true, role: 'seller' };
+      const tokenClaims = { admin: false, seller: false, sellerId: null };
+
+      const isSellerUser = Boolean(tokenClaims.seller === true);
+      const profile = mapUserProfile(forgedDoc, mockFirebaseUser, tokenClaims.sellerId);
+
+      expect(isSellerUser).toBe(false);
+      expect(profile.role).toBe('customer');
+      expect((profile as any).seller).toBeUndefined();
+    });
+
+    it('TEST 3: A Firestore user document containing { sellerId: "ATTACKER" } cannot change sellerId when Auth claim lacks that value', () => {
+      const forgedDoc = { sellerId: 'ATTACKER' };
+      const tokenClaims = { admin: false, seller: false, sellerId: null };
+
+      const claimSellerId = typeof tokenClaims.sellerId === 'string' ? tokenClaims.sellerId : null;
+      const profile = mapUserProfile(forgedDoc, mockFirebaseUser, claimSellerId);
+
+      expect(claimSellerId).toBeNull();
+      expect(profile.sellerId).toBeUndefined();
+    });
+
+    it('TEST 4: A Firestore user document containing { role: "admin", admin: true, seller: true, sellerId: "ATTACKER" } cannot change ANY authorization state', () => {
+      const forgedDoc = {
+        uid: 'spoofed-uid',
+        role: 'admin',
+        admin: true,
+        seller: true,
+        sellerId: 'ATTACKER',
+        isAdminUser: true,
+        isSellerUser: true
+      };
+      // Authentic claims
+      const tokenClaims = { admin: false, seller: false, sellerId: null };
+
+      const isAdminUser = Boolean(tokenClaims.admin === true);
+      const isSellerUser = Boolean(tokenClaims.seller === true);
+      const sellerId = typeof tokenClaims.sellerId === 'string' ? tokenClaims.sellerId : null;
+
+      const profile = mapUserProfile(forgedDoc, mockFirebaseUser, sellerId);
+
+      // Authorization states remain completely unaffected
+      expect(isAdminUser).toBe(false);
+      expect(isSellerUser).toBe(false);
+      expect(sellerId).toBeNull();
+
+      // Profile object cannot be contaminated
+      expect(profile.uid).toBe('user-auth-123');
+      expect(profile.role).toBe('customer');
+      expect(profile.sellerId).toBeUndefined();
+      expect((profile as any).admin).toBeUndefined();
+      expect((profile as any).seller).toBeUndefined();
+      expect((profile as any).isAdminUser).toBeUndefined();
+      expect((profile as any).isSellerUser).toBeUndefined();
+    });
+
+    it('TEST 5: Source-code security test must reject unrestricted profile merging such as setUser(prev => prev ? ({ ...prev, ...data }) : null)', () => {
       // Must not spread raw firestore doc: { ...prev, ...data } or ...data
       expect(authCode).not.toMatch(/\{\s*\.\.\.prev\s*,\s*\.\.\.data\s*\}/);
       expect(authCode).not.toMatch(/setUser\(\s*prev\s*=>\s*prev\s*\?\s*\(\{\s*\.\.\.prev\s*,\s*\.\.\.data\s*\}\)\s*:\s*null\s*\)/);
       expect(authCode).not.toMatch(/setUser\(\s*\(\s*\{\s*\.\.\.prev/);
 
-      // Must explicitly use mapSafeUserProfile or allowlisted field mapping
-      expect(authCode).toMatch(/mapSafeUserProfile/);
+      // Must explicitly use mapUserProfile or allowlisted field mapping
+      expect(authCode).toMatch(/mapUserProfile/);
       expect(authCode).not.toMatch(/role:\s*data\.role/);
       expect(authCode).not.toMatch(/sellerId:\s*data\.sellerId/);
+      expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
     });
   });
 });
