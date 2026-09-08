@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Strictly enforce custom claims only, do not fallback to db fields or role values
             setIsAdminUser(hasAdminClaim);
             setIsSellerUser(hasSellerClaim);
-            setSellerId(claimSellerId || data.sellerId || null);
+            setSellerId(claimSellerId);
           } else {
             setUser({
               uid: fbUser.uid,

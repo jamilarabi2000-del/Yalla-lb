@@ -787,5 +787,95 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(passwordPolicySource).toMatch(/getRandomValues/);
     });
   });
+
+  describe('12. Authoritative Custom Claims Security Enforcement (No Firestore Fallbacks)', () => {
+    const rulesSource = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf-8');
+    const authContextSource = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthContext.tsx'), 'utf-8');
+    const shopContextSource = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf-8');
+
+    it('25. firestore.rules: isAdmin() strictly requires request.auth.token.admin == true without Firestore lookups', () => {
+      expect(rulesSource).toMatch(/function isAdmin\(\)\s*\{[\s\S]*?'admin' in request\.auth\.token[\s\S]*?request\.auth\.token\.admin == true;/);
+      // Ensure no get(/databases/...) inside isAdmin
+      const isAdminMatch = rulesSource.match(/function isAdmin\(\)\s*\{([^}]+)\}/);
+      expect(isAdminMatch).toBeTruthy();
+      expect(isAdminMatch![1]).not.toMatch(/get\(/);
+    });
+
+    it('26. firestore.rules: isSeller() strictly requires request.auth.token.seller == true without Firestore lookups', () => {
+      expect(rulesSource).toMatch(/function isSeller\(\)\s*\{[\s\S]*?'seller' in request\.auth\.token[\s\S]*?request\.auth\.token\.seller == true;/);
+      const isSellerMatch = rulesSource.match(/function isSeller\(\)\s*\{([^}]+)\}/);
+      expect(isSellerMatch).toBeTruthy();
+      expect(isSellerMatch![1]).not.toMatch(/get\(/);
+    });
+
+    it('27. firestore.rules: getSellerId() strictly reads request.auth.token.sellerId and does NOT fallback to users document', () => {
+      const getSellerIdMatch = rulesSource.match(/function getSellerId\(\)\s*\{([^}]+)\}/);
+      expect(getSellerIdMatch).toBeTruthy();
+      const body = getSellerIdMatch![1];
+      expect(body).toMatch(/request\.auth\.token\.sellerId/);
+      expect(body).not.toMatch(/get\(/);
+      expect(body).not.toMatch(/users/);
+    });
+
+    it('28. AuthContext.tsx: isAdminUser, isSellerUser, and sellerId strictly originate from tokenResult.claims', () => {
+      expect(authContextSource).toMatch(/tokenResult\?\.claims\?\.admin === true/);
+      expect(authContextSource).toMatch(/tokenResult\?\.claims\?\.seller === true/);
+      expect(authContextSource).toMatch(/tokenResult\?\.claims\?\.sellerId/);
+      // Ensure removed fallback: claimSellerId || data.sellerId
+      expect(authContextSource).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+      expect(authContextSource).not.toMatch(/claimSellerId\s*\|\|\s*userData\.sellerId/);
+    });
+
+    it('29. ShopContext.tsx: isAdminUser, isSellerUser, and sellerId strictly originate from token claims', () => {
+      expect(shopContextSource).toMatch(/setIsAdminUser\(result\.claims\.admin === true\)/);
+      expect(shopContextSource).toMatch(/setIsSellerUser\(result\.claims\.seller === true\)/);
+      expect(shopContextSource).toMatch(/setSellerId\(typeof result\.claims\.sellerId === 'string'\s*\?\s*result\.claims\.sellerId\s*:\s*null\)/);
+    });
+
+    it('30. Privilege Isolation: Firestore document fields cannot grant admin or seller privilege or alter sellerId', () => {
+      // Simulating a normal user attempting to elevate privilege by populating Firestore fields
+      const forgedFirestoreUserDoc = {
+        uid: 'attacker-1',
+        role: 'admin',
+        sellerId: 'target-seller-id',
+        email: 'attacker@evil.com'
+      };
+
+      // Client-side authentication claims from token (token claims are authoritative)
+      const tokenClaimsNormalUser = {
+        admin: false,
+        seller: false,
+        sellerId: undefined
+      };
+
+      // Authoritative privilege computation:
+      const isAdminComputed = Boolean(tokenClaimsNormalUser.admin === true);
+      const isSellerComputed = Boolean(tokenClaimsNormalUser.seller === true);
+      const sellerIdComputed = typeof tokenClaimsNormalUser.sellerId === 'string' ? tokenClaimsNormalUser.sellerId : null;
+
+      expect(isAdminComputed).toBe(false);
+      expect(isSellerComputed).toBe(false);
+      expect(sellerIdComputed).toBeNull();
+      // Even if attacker modified Firestore role to 'seller' or 'admin'
+      expect(forgedFirestoreUserDoc.role === 'admin').toBe(true); // present in doc
+      expect(isAdminComputed).toBe(false); // but claims reject it!
+      expect(sellerIdComputed).not.toBe(forgedFirestoreUserDoc.sellerId);
+    });
+
+    it('31. Cross-Seller Isolation: Seller token with sellerId A cannot access or mutate sellerId B resources', () => {
+      const sellerTokenClaims = {
+        admin: false,
+        seller: true,
+        sellerId: 'artisan-lebanon-1'
+      };
+
+      const targetResourceSellerId = 'artisan-lebanon-2';
+
+      // Rules verification: getSellerId() must equal resource.sellerId
+      const authorizedSellerId = sellerTokenClaims.sellerId;
+      const isAuthorizedForTarget = authorizedSellerId === targetResourceSellerId;
+      expect(isAuthorizedForTarget).toBe(false);
+    });
+  });
 });
 

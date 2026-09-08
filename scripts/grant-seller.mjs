@@ -16,16 +16,21 @@ try {
 }
 
 const email = process.argv[2];
+const sellerId = process.argv[3];
 if (!email) {
-  console.error('Usage: npm run grant-seller -- <email>');
+  console.error('Usage: npm run grant-seller -- <email> [sellerId]');
   process.exit(1);
 }
 
 try {
   const user = await getAuth().getUserByEmail(email);
   const currentClaims = user.customClaims || {};
-  await getAuth().setCustomUserClaims(user.uid, { ...currentClaims, seller: true });
-  console.log(`Successfully granted seller privileges to ${user.email} (${user.uid})`);
+  await getAuth().setCustomUserClaims(user.uid, { 
+    ...currentClaims, 
+    seller: true,
+    ...(sellerId ? { sellerId: sellerId.trim() } : {})
+  });
+  console.log(`Successfully granted seller privileges (seller: true${sellerId ? `, sellerId: "${sellerId.trim()}"` : ''}) to ${user.email} (${user.uid})`);
 } catch (error) {
   console.error(`Error granting seller privileges to ${email}:`, error instanceof Error ? error.message : error);
   process.exit(1);

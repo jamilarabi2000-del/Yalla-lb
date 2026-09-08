@@ -37,6 +37,7 @@ export const SellerLoginView: React.FC = () => {
     firebaseUser, 
     isAdminUser, 
     isSellerUser,
+    sellerId,
     signOutUser, 
     resetPassword, 
     showToast, 
@@ -134,7 +135,24 @@ export const SellerLoginView: React.FC = () => {
         const userSnap = await getDoc(userDocRef);
         const userData = userSnap.exists() ? userSnap.data() : null;
 
-        const isUserAdmin = isAdminUser;
+        // Verify custom claims authoritatively from Firebase Auth
+        const tokenResult = await userCredential.user.getIdTokenResult(true);
+        const hasAdminClaim = Boolean(tokenResult.claims.admin === true);
+        const hasSellerClaim = Boolean(tokenResult.claims.seller === true);
+        const claimSellerId = typeof tokenResult.claims.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+
+        if (!hasAdminClaim && !hasSellerClaim) {
+          await signOut(auth);
+          const deniedMsg = isArabic
+            ? 'عذراً، هذا الحساب ليس لديه صلاحيات البائع المعتمد. يرجى تسجيل الدخول بحساب بائع معتمد.'
+            : 'Access Denied: This account is not provisioned with authorized seller privileges.';
+          setErrorMessage(deniedMsg);
+          showToast(deniedMsg, 'error');
+          setIsLoading(false);
+          return;
+        }
+
+        const isUserAdmin = hasAdminClaim;
 
         // Email verification enforcement (OWASP / Enterprise Standard)
         if (!userCredential.user.emailVerified && !isUserAdmin) {
@@ -148,11 +166,11 @@ export const SellerLoginView: React.FC = () => {
           return;
         }
 
-        // 4. Find matching Seller exclusively via secure provisioned credentials (accountUid, accountEmail, or authorized user profile sellerId)
+        // 4. Find matching Seller exclusively via secure provisioned credentials (token claim sellerId, accountUid, or accountEmail)
         const matchedSeller = sellers.find(s => 
+          (claimSellerId && s.id === claimSellerId) ||
           s.accountUid === uid ||
-          (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase()) ||
-          (userData?.sellerId && s.id === userData.sellerId)
+          (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase())
         );
 
         if (!matchedSeller && !isUserAdmin) {
@@ -229,28 +247,11 @@ export const SellerLoginView: React.FC = () => {
     }
     setIsSendingReset(true);
     try {
-      // 1. Verify if target is an approved seller in local memory
-      const isMatchedSeller = sellers.some(s => 
+      // 1. Verify if target belongs to a recognized approved seller merchant account
+      const isAuthorizedSeller = sellers.some(s => 
         (s.accountEmail && s.accountEmail.toLowerCase() === target) ||
         ((s as any).email && (s as any).email.toLowerCase() === target)
       );
-
-      // 2. Query Firestore users collection for a registered seller document
-      let isMatchedSellerInDb = false;
-      try {
-        const qUsers = query(collection(db, 'users'), where('email', '==', target));
-        const qSnap = await getDocs(qUsers);
-        qSnap.forEach((d: any) => {
-          const u = d.data();
-          if (u?.role === 'seller' || u?.role === 'admin' || u?.sellerId) {
-            isMatchedSellerInDb = true;
-          }
-        });
-      } catch (checkErr) {
-        console.warn('[SellerLoginView] User check error:', checkErr);
-      }
-
-      const isAuthorizedSeller = isMatchedSeller || isMatchedSellerInDb;
 
       if (!isAuthorizedSeller) {
         const errorMsg = isArabic 
@@ -483,7 +484,7 @@ export const SellerLoginView: React.FC = () => {
         )}
 
         {/* Customer Account Notice (if logged in as normal customer) */}
-        {!isAdminUser && firebaseUser && user?.role !== 'seller' && (
+        {!isAdminUser && firebaseUser && !isSellerUser && (
           <div className="mb-6 p-4 rounded-2xl bg-indigo-950/50 border border-indigo-500/30 backdrop-blur-md flex items-center justify-between gap-4 animate-fadeIn">
             <div>
               <p className="text-xs font-bold text-indigo-200">

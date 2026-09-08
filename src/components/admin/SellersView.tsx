@@ -528,17 +528,13 @@ export const SellersView: React.FC = () => {
     try {
       if (!email) return;
       const target = email.trim().toLowerCase();
-      // Check if this email is in our users collection
-      const qUsers = query(collection(db, 'users'), where('email', '==', target));
-      const qSnap = await getDocs(qUsers);
-      
-      let isRegistered = false;
-      qSnap.forEach((d) => {
-        if (d.data().role === 'seller' || d.data().role === 'admin') isRegistered = true;
-      });
+      const isRegistered = sellers.some(s => 
+        (s.accountEmail && s.accountEmail.toLowerCase() === target) ||
+        ((s as any).email && (s as any).email.toLowerCase() === target)
+      );
 
       if (!isRegistered) {
-        showToast(`The email ${target} is not registered and saved in the database as a seller.`, 'error');
+        showToast(`The email ${target} is not registered in the database as an authorized seller.`, 'error');
         return;
       }
 

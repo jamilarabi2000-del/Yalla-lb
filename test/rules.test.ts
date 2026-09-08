@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds }
   from '@firebase/rules-unit-testing';
 import { doc, setDoc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { beforeAll, afterAll, test, expect } from 'vitest';
+import { beforeAll, afterAll, test, expect, describe } from 'vitest';
 
 let env: any;
 
@@ -661,6 +661,162 @@ test('adversarial: otps collection prohibits direct client access for all users 
   await assertFails(getDoc(otpRefCustomer));
   await assertFails(getDoc(otpRefSeller));
   await assertFails(getDoc(otpRefAdmin));
+});
+
+// 17. Multi-Role Custom Claims Authoritative Verification Tests (Requirement 10)
+describe('17. Authorization claims authoritative verification tests', () => {
+  test('adversarial: normal user + users/{uid}.sellerId in Firestore cannot access seller resources', async () => {
+    // A normal user who doesn't have custom claims, but has sellerId in their user document
+    const client = env.authenticatedContext('hacky-user', {
+      email: 'hacky@example.com',
+      email_verified: true
+      // No custom claims!
+    }).firestore();
+
+    // Ensure they cannot read from seller_private
+    await assertFails(getDoc(doc(client, 'seller_private', 'seller-tripoli')));
+
+    // Ensure they cannot create a product under that sellerId
+    await assertFails(
+      setDoc(
+        doc(client, 'products', 'p-forged-seller'),
+        {
+          id: 'p-forged-seller',
+          name: 'Forged Product',
+          priceUSD: 10,
+          stock: 5,
+          sellerId: 'seller-tripoli'
+        }
+      )
+    );
+  });
+
+  test('adversarial: normal user + users/{uid}.role="seller" in Firestore cannot access seller resources', async () => {
+    // User with role='seller' in firestore but no actual custom claims
+    const client = env.authenticatedContext('hacky-user-role', {
+      email: 'hacky-role@example.com',
+      email_verified: true
+    }).firestore();
+
+    await assertFails(getDoc(doc(client, 'seller_private', 'seller-tripoli')));
+    await assertFails(
+      setDoc(
+        doc(client, 'products', 'p-forged-seller-role'),
+        {
+          id: 'p-forged-seller-role',
+          name: 'Forged Product',
+          priceUSD: 10,
+          stock: 5,
+          sellerId: 'seller-tripoli'
+        }
+      )
+    );
+  });
+
+  test('adversarial: seller without matching sellerId claim cannot access another seller resources', async () => {
+    // Seller with sellerId: seller-sidon claim
+    const client = env.authenticatedContext('seller-sidon-uid', {
+      email: 'sidon@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'seller-sidon'
+    }).firestore();
+
+    // Attempting to read TRIPOLI's private resource -> DENY
+    await assertFails(getDoc(doc(client, 'seller_private', 'seller-tripoli')));
+
+    // Attempting to create product under TRIPOLI -> DENY
+    await assertFails(
+      setDoc(
+        doc(client, 'products', 'p-forged-tripoli-prod'),
+        {
+          id: 'p-forged-tripoli-prod',
+          name: 'Sidon Product under Tripoli',
+          priceUSD: 10,
+          stock: 5,
+          sellerId: 'seller-tripoli'
+        }
+      )
+    );
+  });
+
+  test('adversarial: seller with forged Firestore sellerId cannot change their authorization identity', async () => {
+    // Authenticated seller with 'seller-sidon' in custom claims
+    const client = env.authenticatedContext('seller-sidon-uid', {
+      email: 'sidon@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'seller-sidon'
+    }).firestore();
+
+    // Even if there exists a users profile doc for 'seller-sidon-uid' asserting sellerId='seller-tripoli',
+    // the security rules must strictly evaluate only the custom claims token.
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'seller-sidon-uid'), {
+        uid: 'seller-sidon-uid',
+        sellerId: 'seller-tripoli',
+        role: 'seller'
+      });
+    });
+
+    // Attempting to write TRIPOLI products -> DENY because claims sellerId is still 'seller-sidon'
+    await assertFails(
+      setDoc(
+        doc(client, 'products', 'p-forged-tripoli-from-sidon'),
+        {
+          id: 'p-forged-tripoli-from-sidon',
+          name: 'Forged Tripoli Product',
+          priceUSD: 10,
+          stock: 5,
+          sellerId: 'seller-tripoli'
+        }
+      )
+    );
+
+    // Attempting to write SIDON products -> ALLOW because claims sellerId matches 'seller-sidon'
+    await assertSucceeds(
+      setDoc(
+        doc(client, 'products', 'p-valid-sidon-prod'),
+        {
+          id: 'p-valid-sidon-prod',
+          name: 'Valid Sidon Product',
+          priceUSD: 10,
+          stock: 5,
+          sellerId: 'seller-sidon'
+        }
+      )
+    );
+  });
+
+  test('adversarial: only Firebase Auth custom claims determine seller privilege and sellerId ownership', async () => {
+    // Prove that a user without custom claims but with matching DB record sellerId 'seller-tripoli' cannot write Tripoli resources
+    const clientWithoutClaims = env.authenticatedContext('user-no-claims', {
+      email: 'noclaims@example.com',
+      email_verified: true
+    }).firestore();
+
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'user-no-claims'), {
+        uid: 'user-no-claims',
+        sellerId: 'seller-tripoli',
+        role: 'seller'
+      });
+    });
+
+    // Access to seller_private -> DENY
+    await assertFails(getDoc(doc(clientWithoutClaims, 'seller_private', 'seller-tripoli')));
+
+    // Now, with custom claims added
+    const clientWithClaims = env.authenticatedContext('user-no-claims', {
+      email: 'noclaims@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'seller-tripoli'
+    }).firestore();
+
+    // Access to seller_private -> ALLOW
+    await assertSucceeds(getDoc(doc(clientWithClaims, 'seller_private', 'seller-tripoli')));
+  });
 });
 
 

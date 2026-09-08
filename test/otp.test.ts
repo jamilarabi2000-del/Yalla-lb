@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { hashOtp } from '../functions/src/otp';
 
 interface OtpDoc {
@@ -381,5 +383,34 @@ describe('Comprehensive Production OTP & Authorization Security Suite (24 Test C
     const clientState = { isSeller: true };
     const serverCheck = server.users['customer-1'].role === 'seller';
     expect(serverCheck).toBe(false);
+  });
+
+  it('25. OTP verification response NEVER grants or returns admin claim, seller claim, sellerId claim, role, or privileged access', async () => {
+    const now = 2000000;
+    server.requestOtp('customer@yalla.lb', 'login', '654321', now, 'customer-1');
+    const result = await server.verifyOtpAtomic('customer@yalla.lb', 'login', '654321', now + 500, 'customer-1');
+    
+    // Check returned payload is strictly unprivileged confirmation
+    expect(result.success).toBe(true);
+    expect(result.verifiedAtMs).toBe(now + 500);
+    expect((result as any).admin).toBeUndefined();
+    expect((result as any).seller).toBeUndefined();
+    expect((result as any).sellerId).toBeUndefined();
+    expect((result as any).role).toBeUndefined();
+    expect((result as any).customClaims).toBeUndefined();
+
+    // Verify stored user object state has not been elevated
+    const userDoc = server.users['customer-1'];
+    expect(userDoc.role).toBe('customer');
+    expect((userDoc as any).admin).toBeUndefined();
+    expect((userDoc as any).seller).toBeUndefined();
+    expect((userDoc as any).sellerId).toBeUndefined();
+  });
+
+  it('26. OTP verification source code never imports or calls setCustomUserClaims', () => {
+    const otpSource = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf-8');
+    expect(otpSource).not.toMatch(/setCustomUserClaims/);
+    expect(otpSource).not.toMatch(/admin\.auth\(\)\.setCustomUserClaims/);
+    expect(otpSource).not.toMatch(/setCustomClaims/);
   });
 });

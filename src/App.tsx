@@ -200,7 +200,7 @@ const MainAppContent: React.FC = () => {
         : 0;
       window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', fullTarget);
     }
-  }, [activeTab, selectedProductDetail, selectedCategory, user?.role]);
+  }, [activeTab, selectedProductDetail, selectedCategory, isSellerUser]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1a1a2e] text-slate-100 selection:bg-[#c5a059] selection:text-[#1a1a2e] font-sans antialiased">

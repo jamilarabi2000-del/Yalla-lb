@@ -260,6 +260,7 @@ interface ShopContextType {
   firebaseUser: FirebaseUser | null;
   isAdminUser: boolean;
   isSellerUser: boolean;
+  sellerId: string | null;
   isEmailVerified: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, phone?: string) => Promise<void>;
@@ -372,6 +373,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAdminUser, setIsAdminUser] = useState(false);
   const [isSellerUser, setIsSellerUser] = useState(false);
+  const [sellerId, setSellerId] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   useEffect(() => {
@@ -388,14 +390,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .then(result => {
           setIsAdminUser(result.claims.admin === true);
           setIsSellerUser(result.claims.seller === true);
+          setSellerId(typeof result.claims.sellerId === 'string' ? result.claims.sellerId : null);
         })
         .catch(() => {
           setIsAdminUser(false);
           setIsSellerUser(false);
+          setSellerId(null);
         });
     } else {
       setIsAdminUser(false);
       setIsSellerUser(false);
+      setSellerId(null);
     }
   }, [firebaseUser]);
 
@@ -2256,8 +2261,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let q;
     if (isAdminUser) {
       q = query(collection(db, 'orders'), orderBy('date', 'desc'), limit(500));
-    } else if (isSellerUser && user?.sellerId) {
-      q = query(collectionGroup(db, 'sellers'), where('sellerId', '==', user.sellerId), limit(200));
+    } else if (isSellerUser && sellerId) {
+      q = query(collectionGroup(db, 'sellers'), where('sellerId', '==', sellerId), limit(200));
     } else {
       // Query solely by userId without composite index requirement, then sort in JS memory
       q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), limit(100));
@@ -2278,7 +2283,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               date: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()) : new Date().toISOString(),
               items: data.items || [],
               shipping: data.shipping || {},
-              sellerIds: user?.sellerId ? [user.sellerId] : [],
+              sellerIds: sellerId ? [sellerId] : [],
               subtotalUSD: 0,
               discountUSD: 0,
               deliveryFeeUSD: 0,
@@ -3416,8 +3421,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Persist status change to Firestore
     try {
-      const isSellerActive = isSellerUser && user?.sellerId;
-      const targetPath = isSellerActive ? `order_fulfillment/${orderId}/sellers/${user.sellerId}` : `orders/${orderId}`;
+      const isSellerActive = isSellerUser && sellerId;
+      const targetPath = isSellerActive ? `order_fulfillment/${orderId}/sellers/${sellerId}` : `orders/${orderId}`;
       await monitoredSetDoc(doc(db, targetPath), { status, updatedAt: serverTimestamp() }, { merge: true }, isSellerActive ? 'SellerDashboard:updateOrderStatus' : 'AdminView:updateOrderStatus');
       
       await logAdminActivity(
@@ -3541,12 +3546,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const addProduct = async (newProdData: Omit<Product, 'id'> & { id?: string }) => {
     // Seller authorization check: non-admin sellers can only create products for their own workshop
     if (!isAdminUser && isSellerUser) {
-      if (!user.sellerId) {
+      if (!sellerId) {
         const errorMsg = 'Unauthorized: Your account is not linked to a registered seller workshop.';
         showToast(errorMsg, 'error');
         throw new Error(errorMsg);
       }
-      newProdData.sellerId = user.sellerId;
+      newProdData.sellerId = sellerId;
     }
 
     // 1. Validation: Duplicate Product Number (sellerItemCode or custom ID)
@@ -3676,12 +3681,12 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Seller authorization check: non-admin sellers can only update their own products
     if (!isAdminUser && isSellerUser) {
-      if (!user.sellerId || !existing || existing.sellerId?.toLowerCase() !== user.sellerId?.toLowerCase()) {
+      if (!sellerId || !existing || existing.sellerId?.toLowerCase() !== sellerId?.toLowerCase()) {
         const errorMsg = 'Unauthorized: You can only edit products belonging to your workshop.';
         showToast(errorMsg, 'error');
         throw new Error(errorMsg);
       }
-      updates.sellerId = user.sellerId;
+      updates.sellerId = sellerId;
     }
 
     // 1. Validation: Duplicate Product Number
@@ -3794,7 +3799,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     // Seller authorization check: non-admin sellers can only delete their own products
     if (!isAdminUser && isSellerUser) {
-      if (!user.sellerId || !target || target.sellerId?.toLowerCase() !== user.sellerId?.toLowerCase()) {
+      if (!sellerId || !target || target.sellerId?.toLowerCase() !== sellerId?.toLowerCase()) {
         const errorMsg = 'Unauthorized: You can only delete products belonging to your workshop.';
         showToast(errorMsg, 'error');
         throw new Error(errorMsg);
@@ -4224,6 +4229,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     firebaseUser,
     isAdminUser,
     isSellerUser,
+    sellerId,
     isEmailVerified,
     signInWithEmail,
     signUpWithEmail,

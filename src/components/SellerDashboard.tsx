@@ -38,10 +38,13 @@ export const SellerDashboard: React.FC = () => {
     updateOrderStatus,
     showToast,
     language = 'en',
-    t
+    t,
+    isAdminUser,
+    isSellerUser,
+    sellerId: customClaimSellerId
   } = useShop();
 
-  const sellerId = user.sellerId;
+  const sellerId = customClaimSellerId || (isAdminUser ? user.sellerId : null);
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'profile'>('products');
   
   // Modals state
@@ -271,7 +274,7 @@ export const SellerDashboard: React.FC = () => {
     }
   };
 
-  if (!sellerId || (user?.role !== 'seller' && user?.role !== 'admin')) {
+  if (!isAdminUser && (!isSellerUser || !sellerId)) {
     return (
       <div className="max-w-xl mx-auto px-4 py-20 text-center text-slate-800">
         <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
