@@ -112,11 +112,11 @@ export const ProductDetailView: React.FC = () => {
 
   if (!product) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 bg-slate-50 text-slate-900 space-y-4">
+      <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 bg-[#F8F8F6] text-[#171717] space-y-4">
         <h2 className="text-xl font-bold">Product Not Found</h2>
         <button
           onClick={goBack}
-          className="flex items-center gap-2 px-5 py-2.5 bg-[#a37f35] text-white rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer"
+          className="flex items-center gap-2 px-5 py-2.5 bg-[#171717] hover:bg-[#8F7137] text-white rounded-lg text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors shadow-2xs"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>{t('backToProducts')}</span>
@@ -332,7 +332,7 @@ export const ProductDetailView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
+    <div className="min-h-screen bg-[#F8F8F6] text-[#171717] pb-20">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="product_detail" position="top" />

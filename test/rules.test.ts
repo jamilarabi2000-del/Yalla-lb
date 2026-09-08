@@ -78,8 +78,8 @@ const unauthenticated = () => env.unauthenticatedContext().firestore();
 const customer = () => env.authenticatedContext('cust-1', {
   email: 'c@example.com', email_verified: true,
 }).firestore();
-const seller = () => env.authenticatedContext('seller-uid-1', {
-  email: 'seller1@example.com', email_verified: true,
+const seller = (sellerId = 'seller-tripoli') => env.authenticatedContext('seller-uid-1', {
+  email: 'seller1@example.com', email_verified: true, seller: true, sellerId,
 }).firestore();
 const admin = () => env.authenticatedContext('admin-1', {
   email: 'a@example.com', email_verified: true, admin: true,
@@ -411,22 +411,24 @@ test('adversarial: test collection is locked down to connection diagnostic only'
     });
   });
 
-  // /test/connection can be read by unauthenticated and customer
+  // /test/connection can be read by unauthenticated, customer, and admin
   await assertSucceeds(getDoc(doc(unauthenticated(), 'test', 'connection')));
   await assertSucceeds(getDoc(doc(customer(), 'test', 'connection')));
+  await assertSucceeds(getDoc(doc(admin(), 'test', 'connection')));
 
-  // /test/internal_secrets CANNOT be read by unauthenticated or customer
+  // /test/anything-else CANNOT be read by anyone (unauthenticated, customer, admin)
   await assertFails(getDoc(doc(unauthenticated(), 'test', 'internal_secrets')));
   await assertFails(getDoc(doc(customer(), 'test', 'internal_secrets')));
+  await assertFails(getDoc(doc(admin(), 'test', 'internal_secrets')));
 
   // Non-admins cannot write to /test/*
   await assertFails(setDoc(doc(unauthenticated(), 'test', 'connection'), { status: 'hacked' }));
   await assertFails(setDoc(doc(customer(), 'test', 'connection'), { status: 'hacked' }));
   await assertFails(setDoc(doc(customer(), 'test', 'new_probe'), { status: 'hacked' }));
 
-  // Admin can read and write any test doc
-  await assertSucceeds(getDoc(doc(admin(), 'test', 'internal_secrets')));
+  // Admin can write to /test/*
   await assertSucceeds(setDoc(doc(admin(), 'test', 'connection'), { status: 'admin_ping' }));
+  await assertSucceeds(setDoc(doc(admin(), 'test', 'internal_secrets'), { secretData: 'admin_update' }));
 });
 
 // 3. Order / productIds mismatch attack
@@ -715,14 +717,14 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
       sellerIds: ['seller-tripoli', 'seller-other'],
       totalUSD: 100,
     });
-    await setDoc(doc(db, 'order_fulfillment/ord-1/sellers/seller-tripoli'), {
+    await setDoc(doc(db, 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli'), {
       orderId: 'ord-1',
       sellerId: 'seller-tripoli',
       status: 'pending',
       items: [{ product: { id: 'p-1' }, quantity: 1 }],
       shipping: { fullName: 'Test', phone: '+96170123456' }
     });
-    await setDoc(doc(db, 'order_fulfillment/ord-1/sellers/seller-other'), {
+    await setDoc(doc(db, 'order_fulfillment', 'ord-1', 'sellers', 'seller-other'), {
       orderId: 'ord-1',
       sellerId: 'seller-other',
       status: 'pending',
@@ -732,13 +734,16 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
   });
 
   // Seller A (seller-tripoli) reads own fulfillment doc -> ALLOW
-  await assertSucceeds(getDoc(doc(seller(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
+  await assertSucceeds(getDoc(doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
 
   // Seller A reads Seller B fulfillment doc -> DENY
-  await assertFails(getDoc(doc(seller(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-other')));
+  await assertFails(getDoc(doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-1', 'sellers', 'seller-other')));
 
-  // Seller A attempts to read full /orders/ord-1 directly -> DENY (enforced by new rules!)
-  await assertFails(getDoc(doc(seller(), 'orders', 'ord-1')));
+  // Seller A reads non-existent/different order fulfillment doc -> DENY
+  await assertFails(getDoc(doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-diff-order', 'sellers', 'seller-other')));
+
+  // Seller A attempts to read full /orders/ord-1 directly -> DENY (enforced by orders rules)
+  await assertFails(getDoc(doc(seller('seller-tripoli'), 'orders', 'ord-1')));
 
   // Customer (cust-1) reads own order -> ALLOW
   await assertSucceeds(getDoc(doc(customer(), 'orders', 'ord-1')));
@@ -746,37 +751,96 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
   // Customer cannot read seller fulfillment doc -> DENY
   await assertFails(getDoc(doc(customer(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
 
+  // Unauthenticated cannot read seller fulfillment doc -> DENY
+  await assertFails(getDoc(doc(unauthenticated(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
+
   // Admin reads full order & fulfillment -> ALLOW
   await assertSucceeds(getDoc(doc(admin(), 'orders', 'ord-1')));
   await assertSucceeds(getDoc(doc(admin(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
+
+  // Seller cannot create fulfillment documents directly (backend-only creation) -> DENY
+  await assertFails(
+    setDoc(doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-new', 'sellers', 'seller-tripoli'), {
+      orderId: 'ord-new',
+      sellerId: 'seller-tripoli',
+      status: 'pending',
+      items: [],
+    })
+  );
+
+  // Customer cannot create fulfillment documents directly -> DENY
+  await assertFails(
+    setDoc(doc(customer(), 'order_fulfillment', 'ord-new', 'sellers', 'seller-tripoli'), {
+      orderId: 'ord-new',
+      sellerId: 'seller-tripoli',
+      status: 'pending',
+      items: [],
+    })
+  );
 });
 
 // 15. Seller Fulfillment State Machine & Tracking Number Protection
 test('adversarial: seller fulfillment state machine transitions and tracking protection', async () => {
   await env.withSecurityRulesDisabled(async (ctx: any) => {
     const db = ctx.firestore();
-    await setDoc(doc(db, 'order_fulfillment/ord-state/sellers/seller-tripoli'), {
+    await setDoc(doc(db, 'order_fulfillment', 'ord-state', 'sellers', 'seller-tripoli'), {
       orderId: 'ord-state',
       sellerId: 'seller-tripoli',
       status: 'pending',
+      trackingNumber: 'AUTHLB-123',
       items: [{ productId: 'p-1', quantity: 1 }],
       shipping: { fullName: 'Test', phone: '+96170123456' }
     });
   });
 
-  const sellerDocRef = doc(seller(), 'order_fulfillment', 'ord-state', 'sellers', 'seller-tripoli');
+  const sellerDocRef = doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-state', 'sellers', 'seller-tripoli');
 
-  // Valid transition: pending -> confirmed
-  await assertSucceeds(setDoc(sellerDocRef, { status: 'confirmed', updatedAt: '2026-09-07' }, { merge: true }));
+  // Seller cannot change sellerId -> DENY
+  await assertFails(setDoc(sellerDocRef, { sellerId: 'seller-hacked', updatedAt: '2026-09-07' }, { merge: true }));
 
-  // Invalid transition: confirmed -> delivered (jumping over intermediate states)
-  await assertFails(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
+  // Seller cannot change orderId -> DENY
+  await assertFails(setDoc(sellerDocRef, { orderId: 'ord-hacked', updatedAt: '2026-09-07' }, { merge: true }));
 
-  // Seller tries to modify authoritative trackingNumber -> DENY
+  // Seller cannot change trackingNumber -> DENY
   await assertFails(setDoc(sellerDocRef, { trackingNumber: 'LB-EXP-HACKED', updatedAt: '2026-09-07' }, { merge: true }));
 
-  // Seller sets sellerTrackingNumber -> ALLOW
-  await assertSucceeds(setDoc(sellerDocRef, { sellerTrackingNumber: 'COURIER-123', updatedAt: '2026-09-07' }, { merge: true }));
+  // Seller cannot modify customer / shipping / items / pricing fields -> DENY
+  await assertFails(setDoc(sellerDocRef, { shipping: { fullName: 'Modified Name' }, updatedAt: '2026-09-07' }, { merge: true }));
+  await assertFails(setDoc(sellerDocRef, { items: [], updatedAt: '2026-09-07' }, { merge: true }));
+  await assertFails(setDoc(sellerDocRef, { priceUSD: 0, updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Invalid state transition: pending -> delivered (skipped intermediate states) -> DENY
+  await assertFails(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Invalid state transition: pending -> in_transit (skipped) -> DENY
+  await assertFails(setDoc(sellerDocRef, { status: 'in_transit', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Valid state transition: pending -> confirmed -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, { status: 'confirmed', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Seller can modify fulfillmentNotes and sellerTrackingNumber alongside status/updatedAt -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, {
+    status: 'crafting',
+    sellerTrackingNumber: 'COURIER-123',
+    fulfillmentNotes: 'Handmade item is currently in crafting stage',
+    updatedAt: '2026-09-07'
+  }, { merge: true }));
+
+  // Valid state transitions sequentially:
+  // crafting -> courier_assigned -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, { status: 'courier_assigned', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // courier_assigned -> in_transit -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, { status: 'in_transit', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // in_transit -> delivered -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Invalid reversed transition: delivered -> pending -> DENY
+  await assertFails(setDoc(sellerDocRef, { status: 'pending', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Valid transition from delivered: delivered -> returned -> ALLOW
+  await assertSucceeds(setDoc(sellerDocRef, { status: 'returned', updatedAt: '2026-09-07' }, { merge: true }));
 });
 
 // 16. Server-only OTP Collection Direct Access Prevention

@@ -649,7 +649,7 @@ service cloud.firestore {
         && isValidStatusTransition(oldStatus, newStatus);
     }
 
-    match /{path=**}/sellers/{sellerId} {
+    match /order_fulfillment/{orderId}/sellers/{sellerId} {
       allow get, list: if isAdmin()
         || (
           isSeller()
