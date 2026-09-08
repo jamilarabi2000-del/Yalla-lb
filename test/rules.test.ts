@@ -731,6 +731,13 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
       items: [{ product: { id: 'p-2' }, quantity: 1 }],
       shipping: { fullName: 'Test', phone: '+96170123456' }
     });
+    await setDoc(doc(db, 'order_fulfillment', 'ord-2', 'sellers', 'seller-other'), {
+      orderId: 'ord-2',
+      sellerId: 'seller-other',
+      status: 'pending',
+      items: [{ product: { id: 'p-2' }, quantity: 1 }],
+      shipping: { fullName: 'Test', phone: '+96170123456' }
+    });
   });
 
   // Seller A (seller-tripoli) reads own fulfillment doc -> ALLOW
@@ -741,6 +748,9 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
 
   // Seller A reads non-existent/different order fulfillment doc -> DENY
   await assertFails(getDoc(doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-diff-order', 'sellers', 'seller-other')));
+
+  // Seller A reads different order fulfillment doc for another seller -> DENY
+  await assertFails(getDoc(doc(seller('seller-tripoli'), 'order_fulfillment', 'ord-2', 'sellers', 'seller-other')));
 
   // Seller A attempts to read full /orders/ord-1 directly -> DENY (enforced by orders rules)
   await assertFails(getDoc(doc(seller('seller-tripoli'), 'orders', 'ord-1')));
@@ -757,6 +767,14 @@ test('adversarial: seller order data isolation and fulfillment access', async ()
   // Admin reads full order & fulfillment -> ALLOW
   await assertSucceeds(getDoc(doc(admin(), 'orders', 'ord-1')));
   await assertSucceeds(getDoc(doc(admin(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli')));
+
+  // Admin manages fulfillment -> ALLOW
+  await assertSucceeds(
+    setDoc(doc(admin(), 'order_fulfillment', 'ord-1', 'sellers', 'seller-tripoli'), {
+      status: 'delivered',
+      adminNotes: 'Admin override'
+    }, { merge: true })
+  );
 
   // Seller cannot create fulfillment documents directly (backend-only creation) -> DENY
   await assertFails(
@@ -809,6 +827,9 @@ test('adversarial: seller fulfillment state machine transitions and tracking pro
   await assertFails(setDoc(sellerDocRef, { items: [], updatedAt: '2026-09-07' }, { merge: true }));
   await assertFails(setDoc(sellerDocRef, { priceUSD: 0, updatedAt: '2026-09-07' }, { merge: true }));
 
+  // Seller cannot add arbitrary fields -> DENY
+  await assertFails(setDoc(sellerDocRef, { arbitraryField: 'malicious', updatedAt: '2026-09-07' }, { merge: true }));
+
   // Invalid state transition: pending -> delivered (skipped intermediate states) -> DENY
   await assertFails(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
 
@@ -817,6 +838,9 @@ test('adversarial: seller fulfillment state machine transitions and tracking pro
 
   // Valid state transition: pending -> confirmed -> ALLOW
   await assertSucceeds(setDoc(sellerDocRef, { status: 'confirmed', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Invalid state transition: confirmed -> delivered (skipped intermediate states) -> DENY
+  await assertFails(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
 
   // Seller can modify fulfillmentNotes and sellerTrackingNumber alongside status/updatedAt -> ALLOW
   await assertSucceeds(setDoc(sellerDocRef, {
@@ -836,11 +860,17 @@ test('adversarial: seller fulfillment state machine transitions and tracking pro
   // in_transit -> delivered -> ALLOW
   await assertSucceeds(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
 
+  // Invalid reversed transition: delivered -> crafting -> DENY
+  await assertFails(setDoc(sellerDocRef, { status: 'crafting', updatedAt: '2026-09-07' }, { merge: true }));
+
   // Invalid reversed transition: delivered -> pending -> DENY
   await assertFails(setDoc(sellerDocRef, { status: 'pending', updatedAt: '2026-09-07' }, { merge: true }));
 
   // Valid transition from delivered: delivered -> returned -> ALLOW
   await assertSucceeds(setDoc(sellerDocRef, { status: 'returned', updatedAt: '2026-09-07' }, { merge: true }));
+
+  // Invalid transition from returned: returned -> delivered -> DENY
+  await assertFails(setDoc(sellerDocRef, { status: 'delivered', updatedAt: '2026-09-07' }, { merge: true }));
 });
 
 // 16. Server-only OTP Collection Direct Access Prevention
