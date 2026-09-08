@@ -39,6 +39,7 @@ export const HomeView: React.FC = () => {
 
   const [email, setEmail] = React.useState('');
   const [subscribed, setSubscribed] = React.useState(false);
+  const [homeCategoryFilter, setHomeCategoryFilter] = React.useState('all');
 
   const visibility = siteContent.visibility || {
     homeHero: true,
@@ -318,6 +319,10 @@ export const HomeView: React.FC = () => {
         ) : null;
 
       case 'homeFeatured':
+        const filteredFeaturedProducts = homeCategoryFilter === 'all'
+          ? featuredProducts
+          : featuredProducts.filter(p => p.category === homeCategoryFilter);
+
         return (visibility.homeFeatured || isVisualEditMode) ? (
           <section key="homeFeatured" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
             <div className="flex flex-wrap items-end justify-between gap-4 mb-6 sm:mb-8">
@@ -368,7 +373,35 @@ export const HomeView: React.FC = () => {
                 </button>
               </div>
             </div>
-            <ProductCarousel products={featuredProducts} idPrefix="featured" />
+
+            {/* Category Filter Pills */}
+            <div className="flex overflow-x-auto gap-2 pb-3 mb-6 scrollbar-hide">
+              <button
+                onClick={() => setHomeCategoryFilter('all')}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap cursor-pointer border ${
+                  homeCategoryFilter === 'all'
+                    ? 'bg-[#171717] text-white border-[#171717]'
+                    : 'bg-white text-[#171717] border-[#E5E5E5] hover:border-[#8F7137]'
+                }`}
+              >
+                {language === 'ar' ? 'الكل' : 'All'}
+              </button>
+              {sortedCategories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setHomeCategoryFilter(cat.id)}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap cursor-pointer border ${
+                    homeCategoryFilter === cat.id
+                      ? 'bg-[#171717] text-white border-[#171717]'
+                      : 'bg-white text-[#171717] border-[#E5E5E5] hover:border-[#8F7137]'
+                  }`}
+                >
+                  {language === 'ar' ? cat.nameAr : cat.nameEn}
+                </button>
+              ))}
+            </div>
+
+            <ProductCarousel products={filteredFeaturedProducts} idPrefix="featured" />
           </section>
         ) : null;
 
@@ -686,7 +719,7 @@ export const HomeView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-12 sm:space-y-16 pb-12 bg-[#F8F8F6]">
+    <div className="space-y-12 sm:space-y-16 pb-12 bg-[#F7F6F1]">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="top" />
