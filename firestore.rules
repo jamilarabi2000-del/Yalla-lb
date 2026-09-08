@@ -76,7 +76,7 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
 
     match /test/{docId} {
-      allow read: if true;
+      allow read: if docId == 'connection';
       allow write: if isAdmin();
     }
 
@@ -688,6 +688,7 @@ service cloud.firestore {
       ).data;
 
       return order.get('userId', '') == request.auth.uid
+        && order.get('status', '') == 'delivered'
         && 'productIds' in order
         && order.productIds is list
         && order.productIds.hasAny([productId]);

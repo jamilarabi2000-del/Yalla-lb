@@ -199,16 +199,17 @@ export const ProductDetailView: React.FC = () => {
       return;
     }
 
-    // M-1: Bind reviews to fulfilled orders and to one per customer per product
+    // M-1: Bind reviews to fulfilled delivered orders and to one per customer per product
     const matchedOrder = orders.find(o => 
+      o.status === 'delivered' &&
       o.items.some(item => item.product.id === product.id)
     );
 
     if (IS_FIREBASE_ENABLED && !matchedOrder) {
       setSubmitError(
         language === 'ar'
-          ? 'عذراً، يمكنك فقط تقييم المنتجات التي قمت بشرائها من متجرنا.'
-          : 'Sorry, you can only review products that you have successfully purchased from our store.'
+          ? 'عذراً، يمكنك فقط تقييم المنتجات بعد استلام الطلب وتوصيله بنجاح.'
+          : 'You can only review products from orders that have been successfully delivered.'
       );
       setIsSubmitting(false);
       return;

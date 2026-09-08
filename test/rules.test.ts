@@ -265,7 +265,7 @@ test('adversarial: customer cannot arbitrarily inflate discountUSD to create a f
   );
 });
 
-// 2. Fake review creation without purchase
+// 2. Fake review creation without purchase or from non-delivered orders
 test('adversarial: customer cannot review a product they never purchased', async () => {
   await assertFails(
     setDoc(
@@ -283,6 +283,150 @@ test('adversarial: customer cannot review a product they never purchased', async
       }
     )
   );
+});
+
+test('adversarial: customer cannot review a product from a pending, shipped, or cancelled order', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    // Order 1: Pending order
+    await setDoc(doc(ctx.firestore(), 'orders', 'ord-pending-1'), {
+      ...validOrder('ord-pending-1'),
+      status: 'pending',
+      userId: 'cust-1',
+      productIds: ['p-order']
+    });
+    // Order 2: In transit order
+    await setDoc(doc(ctx.firestore(), 'orders', 'ord-transit-1'), {
+      ...validOrder('ord-transit-1'),
+      status: 'in_transit',
+      userId: 'cust-1',
+      productIds: ['p-order']
+    });
+    // Order 3: Cancelled order
+    await setDoc(doc(ctx.firestore(), 'orders', 'ord-cancelled-1'), {
+      ...validOrder('ord-cancelled-1'),
+      status: 'cancelled',
+      userId: 'cust-1',
+      productIds: ['p-order']
+    });
+    // Order 4: Delivered order belonging to OTHER customer (cust-2)
+    await setDoc(doc(ctx.firestore(), 'orders', 'ord-delivered-other'), {
+      ...validOrder('ord-delivered-other'),
+      status: 'delivered',
+      userId: 'cust-2',
+      productIds: ['p-order']
+    });
+    // Order 5: Successfully delivered order belonging to cust-1
+    await setDoc(doc(ctx.firestore(), 'orders', 'ord-delivered-cust1'), {
+      ...validOrder('ord-delivered-cust1'),
+      status: 'delivered',
+      userId: 'cust-1',
+      productIds: ['p-order']
+    });
+  });
+
+  // Review referencing pending order -> DENY
+  await assertFails(
+    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+      id: 'cust-1_p-order',
+      userId: 'cust-1',
+      userName: 'Customer 1',
+      productId: 'p-order',
+      orderId: 'ord-pending-1',
+      rating: 5,
+      comment: 'Attempt on pending order',
+      createdAt: '2026-09-07',
+      date: '2026-09-07',
+    })
+  );
+
+  // Review referencing in-transit order -> DENY
+  await assertFails(
+    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+      id: 'cust-1_p-order',
+      userId: 'cust-1',
+      userName: 'Customer 1',
+      productId: 'p-order',
+      orderId: 'ord-transit-1',
+      rating: 5,
+      comment: 'Attempt on in-transit order',
+      createdAt: '2026-09-07',
+      date: '2026-09-07',
+    })
+  );
+
+  // Review referencing cancelled order -> DENY
+  await assertFails(
+    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+      id: 'cust-1_p-order',
+      userId: 'cust-1',
+      userName: 'Customer 1',
+      productId: 'p-order',
+      orderId: 'ord-cancelled-1',
+      rating: 5,
+      comment: 'Attempt on cancelled order',
+      createdAt: '2026-09-07',
+      date: '2026-09-07',
+    })
+  );
+
+  // Review referencing other customer's delivered order -> DENY
+  await assertFails(
+    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+      id: 'cust-1_p-order',
+      userId: 'cust-1',
+      userName: 'Customer 1',
+      productId: 'p-order',
+      orderId: 'ord-delivered-other',
+      rating: 5,
+      comment: 'Attempt stealing other order',
+      createdAt: '2026-09-07',
+      date: '2026-09-07',
+    })
+  );
+
+  // Legitimate review referencing own delivered order -> ALLOW
+  await assertSucceeds(
+    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+      id: 'cust-1_p-order',
+      userId: 'cust-1',
+      userName: 'Customer 1',
+      productId: 'p-order',
+      orderId: 'ord-delivered-cust1',
+      rating: 5,
+      comment: 'Authentic handmade Lebanese craft! Delivered in perfect condition.',
+      createdAt: '2026-09-07',
+      date: '2026-09-07',
+    })
+  );
+});
+
+test('adversarial: test collection is locked down to connection diagnostic only', async () => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'test', 'connection'), {
+      status: 'ok',
+      timestamp: '2026-09-07'
+    });
+    await setDoc(doc(ctx.firestore(), 'test', 'internal_secrets'), {
+      secretData: 'do_not_read'
+    });
+  });
+
+  // /test/connection can be read by unauthenticated and customer
+  await assertSucceeds(getDoc(doc(unauthenticated(), 'test', 'connection')));
+  await assertSucceeds(getDoc(doc(customer(), 'test', 'connection')));
+
+  // /test/internal_secrets CANNOT be read by unauthenticated or customer
+  await assertFails(getDoc(doc(unauthenticated(), 'test', 'internal_secrets')));
+  await assertFails(getDoc(doc(customer(), 'test', 'internal_secrets')));
+
+  // Non-admins cannot write to /test/*
+  await assertFails(setDoc(doc(unauthenticated(), 'test', 'connection'), { status: 'hacked' }));
+  await assertFails(setDoc(doc(customer(), 'test', 'connection'), { status: 'hacked' }));
+  await assertFails(setDoc(doc(customer(), 'test', 'new_probe'), { status: 'hacked' }));
+
+  // Admin can read and write any test doc
+  await assertSucceeds(getDoc(doc(admin(), 'test', 'internal_secrets')));
+  await assertSucceeds(setDoc(doc(admin(), 'test', 'connection'), { status: 'admin_ping' }));
 });
 
 // 3. Order / productIds mismatch attack
