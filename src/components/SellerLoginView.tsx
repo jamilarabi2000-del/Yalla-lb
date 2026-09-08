@@ -366,7 +366,7 @@ export const SellerLoginView: React.FC = () => {
                 <Store className="w-3.5 h-3.5 text-amber-400" />
                 <span>{user.name || 'Seller Store'}</span>
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-200 font-mono uppercase">
-                  {user.sellerId || 'Seller Portal'}
+                  {sellerId || 'Seller Portal'}
                 </span>
               </div>
             </div>

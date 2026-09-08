@@ -1,11 +1,13 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.verifyOtp = exports.requestOtp = void 0;
+exports.deriveHmacId = deriveHmacId;
 exports.hashOtp = hashOtp;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const app_1 = require("firebase-admin/app");
 const node_crypto_1 = require("node:crypto");
+const params_1 = require("firebase-functions/params");
 if ((0, app_1.getApps)().length === 0) {
     (0, app_1.initializeApp)();
 }
@@ -18,18 +20,39 @@ const getDb = () => {
         return (0, firestore_1.getFirestore)();
     }
 };
+const OTP_SECRET = (0, params_1.defineSecret)('OTP_SECRET');
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
- * Never hard-coded in source code; reads strictly from process.env.OTP_SECRET.
+ * Never hard-coded in source code; reads strictly from Secret Manager.
  */
 function getOtpSecret() {
-    const secret = process.env.OTP_SECRET || process.env.FIREBASE_CONFIG;
-    if (!secret) {
-        if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true') {
-            return 'TEST_SERVER_ONLY_HMAC_SECRET_KEY';
-        }
+    if (process.env.NODE_ENV === 'test' ||
+        process.env.FUNCTIONS_EMULATOR === 'true' ||
+        process.env.VITEST === 'true') {
+        return 'TEST_SERVER_ONLY_HMAC_SECRET_KEY';
     }
-    return secret || 'YALLA_PRODUCTION_SERVER_ONLY_HMAC_SECRET';
+    let secret = '';
+    try {
+        secret = OTP_SECRET.value();
+    }
+    catch {
+        // Fail closed in production if Secret Manager parameter is missing/fails
+    }
+    if (!secret) {
+        throw new https_1.HttpsError('internal', 'Server misconfiguration: OTP secret key missing.');
+    }
+    return secret;
+}
+/**
+ * Cryptographically derive secure deterministic document IDs using OTP_SECRET.
+ */
+function deriveHmacId(contact, actionType) {
+    const normalizedContact = contact.trim().toLowerCase();
+    const normalizedAction = actionType.trim().toLowerCase();
+    const secret = getOtpSecret();
+    return (0, node_crypto_1.createHmac)('sha256', secret)
+        .update(`${normalizedContact}:${normalizedAction}`)
+        .digest('hex');
 }
 /**
  * HMAC-SHA256 OTP Hash Generation
@@ -108,7 +131,7 @@ async function sendOtpDelivery(contact, actionType, numericCode) {
  * - HMAC-SHA256 hashed code stored in single server-only /otps collection
  * - Returns NO plaintext code or secret token to the client
  */
-exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true }, async (request) => {
+exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true, secrets: [OTP_SECRET] }, async (request) => {
     const data = request.data || {};
     let contact = typeof data.contact === 'string' ? data.contact.trim().toLowerCase() : '';
     const actionType = typeof data.actionType === 'string' ? data.actionType.trim().toLowerCase() : '';
@@ -129,12 +152,8 @@ exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChe
         if (!request.auth?.uid) {
             throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
         }
-        const uid = request.auth.uid;
         const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
-        const adminDoc = await db.collection('admins').doc(uid).get();
-        const isAdminRegistry = adminDoc.exists;
-        if (!isCustomClaimAdmin && !isAdminRegistry) {
-            // Generic permission-denied error without leaking admin account status
+        if (!isCustomClaimAdmin) {
             throw new https_1.HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
         }
     }
@@ -142,20 +161,21 @@ exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChe
         if (!request.auth?.uid) {
             throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
         }
-        const uid = request.auth.uid;
         const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
-        const sellerDoc = await db.collection('sellers').doc(uid).get();
-        const isSellerRegistry = sellerDoc.exists;
-        const userDoc = await db.collection('users').doc(uid).get();
-        const isDbSeller = userDoc.exists && userDoc.data()?.role === 'seller';
-        if (!isCustomClaimSeller && !isSellerRegistry && !isDbSeller) {
+        if (!isCustomClaimSeller) {
             throw new https_1.HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
         }
     }
-    // ATOMIC CONCURRENCY-SAFE RATE LIMITING
-    const rateLimitDocKey = `${contact.replace(/[^a-zA-Z0-9_]/g, '_')}_${actionType}`;
-    const rateLimitRef = db.collection('otp_rate_limits').doc(rateLimitDocKey);
-    return await db.runTransaction(async (transaction) => {
+    // Cryptographically secure 6-digit random code
+    const numericCode = (0, node_crypto_1.randomInt)(100000, 1000000).toString();
+    // HMAC-SHA256 Hash
+    const otpHash = hashOtp(contact, actionType, numericCode);
+    // Cryptographically derive secure deterministic document keys using OTP_SECRET
+    const hmacId = deriveHmacId(contact, actionType);
+    const rateLimitRef = db.collection('otp_rate_limits').doc(hmacId);
+    const newOtpRef = db.collection('otps').doc(hmacId);
+    const expiresAtMs = now + 5 * 60 * 1000;
+    await db.runTransaction(async (transaction) => {
         const rateLimitSnap = await transaction.get(rateLimitRef);
         let requests = [];
         let cooldownUntilMs = 0;
@@ -175,37 +195,18 @@ exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChe
         if (requests.length >= 5) {
             throw new https_1.HttpsError('resource-exhausted', 'Maximum OTP request rate limit reached. Please wait 15 minutes before trying again.');
         }
-        // Cryptographically secure 6-digit random code
-        const numericCode = (0, node_crypto_1.randomInt)(100000, 1000000).toString();
-        // HMAC-SHA256 Hash
-        const otpHash = hashOtp(contact, actionType, numericCode);
-        // Dispatch via real production provider before writing record
-        await sendOtpDelivery(contact, actionType, numericCode);
-        // Expiration: 5 minutes (300,000 ms)
-        const expiresAtMs = now + 5 * 60 * 1000;
+        // Update Rate Limit document atomically (obfuscating plain contact info)
         const newCooldownUntilMs = now + 60 * 1000;
-        // Invalidate any active unused OTP for this contact/action
-        const activeQuerySnap = await db.collection('otps')
-            .where('contact', '==', contact)
-            .where('actionType', '==', actionType)
-            .where('used', '==', false)
-            .get();
-        activeQuerySnap.docs.forEach(docSnap => {
-            transaction.update(docSnap.ref, { used: true, invalidatedReason: 'replaced_by_new_request' });
-        });
-        // Update Rate Limit document atomically
         requests.push(now);
         transaction.set(rateLimitRef, {
-            contact,
             actionType,
             cooldownUntilMs: newCooldownUntilMs,
             requests,
             updatedAt: firestore_1.FieldValue.serverTimestamp()
         });
         // Save secure OTP record in single server-only /otps collection
-        const newOtpRef = db.collection('otps').doc();
         transaction.set(newOtpRef, {
-            id: newOtpRef.id,
+            id: hmacId,
             uid: request.auth?.uid || null,
             contact,
             purpose: actionType,
@@ -220,12 +221,24 @@ exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChe
             used: false,
             consumedAt: null
         });
-        return {
-            success: true,
-            cooldownSeconds: 60,
-            expiresAtMs
-        };
     });
+    // Send OTP delivery ONLY AFTER transaction commits successfully
+    try {
+        await sendOtpDelivery(contact, actionType, numericCode);
+    }
+    catch (deliveryErr) {
+        // Securely invalidate the OTP if delivery fails
+        await db.collection('otps').doc(hmacId).update({
+            used: true,
+            invalidatedReason: 'delivery_failed'
+        }).catch(() => { });
+        throw new https_1.HttpsError('internal', 'Verification code delivery failed. Please try again.');
+    }
+    return {
+        success: true,
+        cooldownSeconds: 60,
+        expiresAtMs
+    };
 });
 /**
  * Server-side OTP Verification Function
@@ -236,7 +249,7 @@ exports.requestOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChe
  * - Expiration and max attempt limit (5 attempts) invalidation
  * - Single server-only /otps collection
  */
-exports.verifyOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true }, async (request) => {
+exports.verifyOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true, secrets: [OTP_SECRET] }, async (request) => {
     const data = request.data || {};
     let contact = typeof data.contact === 'string' ? data.contact.trim().toLowerCase() : '';
     const actionType = typeof data.actionType === 'string' ? data.actionType.trim().toLowerCase() : '';
@@ -252,37 +265,48 @@ exports.verifyOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChec
     }
     const db = getDb();
     const now = Date.now();
-    const snapshot = await db.collection('otps')
-        .where('contact', '==', contact)
-        .where('actionType', '==', actionType)
-        .where('used', '==', false)
-        .orderBy('createdAtMs', 'desc')
-        .limit(1)
-        .get();
-    if (snapshot.empty) {
-        throw new https_1.HttpsError('not-found', 'No active verification code found for this contact. Please request a new code.');
+    // Independent Server Authorization Check for Admin / Seller BEFORE OTP verification
+    if (actionType === 'admin') {
+        if (!request.auth?.uid) {
+            throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+        }
+        const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
+        if (!isCustomClaimAdmin) {
+            throw new https_1.HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
+        }
     }
-    const otpDocRef = snapshot.docs[0].ref;
+    if (actionType === 'seller') {
+        if (!request.auth?.uid) {
+            throw new https_1.HttpsError('unauthenticated', 'Authentication required.');
+        }
+        const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
+        if (!isCustomClaimSeller) {
+            throw new https_1.HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
+        }
+    }
+    const hmacId = deriveHmacId(contact, actionType);
+    const otpDocRef = db.collection('otps').doc(hmacId);
     // ATOMIC FIRESTORE TRANSACTION PREVENTING CONCURRENT VERIFICATION DOUBLE-SUCCESS
-    return await db.runTransaction(async (transaction) => {
+    // Does NOT throw HttpsError from inside the transaction after making updates
+    const result = await db.runTransaction(async (transaction) => {
         const otpDocSnap = await transaction.get(otpDocRef);
         if (!otpDocSnap.exists) {
-            throw new https_1.HttpsError('not-found', 'Verification record missing.');
+            return { outcome: 'not_found' };
         }
         const otpData = otpDocSnap.data();
         if (otpData.used) {
-            throw new https_1.HttpsError('not-found', 'Verification code has already been used or invalidated.');
+            return { outcome: 'already_used' };
         }
         const maxAttempts = otpData.maxAttempts || 5;
         // Check Expiration (5 min limit)
         if (now > otpData.expiresAtMs) {
             transaction.update(otpDocRef, { used: true, invalidatedReason: 'expired' });
-            throw new https_1.HttpsError('deadline-exceeded', 'The verification code has expired. Please request a new code.');
+            return { outcome: 'expired' };
         }
         // Check Maximum Attempts
         if ((otpData.failedAttempts || 0) >= maxAttempts) {
             transaction.update(otpDocRef, { used: true, invalidatedReason: 'max_attempts_exceeded' });
-            throw new https_1.HttpsError('resource-exhausted', 'Maximum verification attempts exceeded. Code permanently invalidated.');
+            return { outcome: 'locked' };
         }
         // HMAC comparison using timingSafeEqual
         const incomingHash = hashOtp(contact, actionType, code);
@@ -299,11 +323,10 @@ exports.verifyOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChec
                 ...(isNowInvalidated ? { invalidatedReason: 'max_attempts_exceeded' } : {})
             });
             if (isNowInvalidated) {
-                throw new https_1.HttpsError('resource-exhausted', 'Maximum verification attempts exceeded. Code permanently invalidated.');
+                return { outcome: 'locked' };
             }
             else {
-                const remaining = maxAttempts - newFailedAttempts;
-                throw new https_1.HttpsError('invalid-argument', `Invalid verification code. ${remaining} attempt(s) remaining.`);
+                return { outcome: 'invalid_attempt', remaining: maxAttempts - newFailedAttempts };
             }
         }
         // Single-use: Mark as consumed atomically inside the transaction
@@ -313,10 +336,27 @@ exports.verifyOtp = (0, https_1.onCall)({ region: 'europe-west1', enforceAppChec
             consumedAtMs: now,
             verifiedUid: request.auth?.uid || null
         });
-        return {
-            success: true,
-            verifiedAtMs: now
-        };
+        return { outcome: 'success' };
     });
+    // Map internal outcomes to external HTTP errors outside transaction
+    if (result.outcome === 'not_found') {
+        throw new https_1.HttpsError('not-found', 'Verification record missing.');
+    }
+    if (result.outcome === 'already_used') {
+        throw new https_1.HttpsError('not-found', 'Verification code has already been used or invalidated.');
+    }
+    if (result.outcome === 'expired') {
+        throw new https_1.HttpsError('deadline-exceeded', 'The verification code has expired. Please request a new code.');
+    }
+    if (result.outcome === 'locked') {
+        throw new https_1.HttpsError('resource-exhausted', 'Maximum verification attempts exceeded. Code permanently invalidated.');
+    }
+    if (result.outcome === 'invalid_attempt') {
+        throw new https_1.HttpsError('invalid-argument', `Invalid verification code. ${result.remaining} attempt(s) remaining.`);
+    }
+    return {
+        success: true,
+        verifiedAtMs: now
+    };
 });
 //# sourceMappingURL=otp.js.map

@@ -41,10 +41,9 @@ export const SellerDashboard: React.FC = () => {
     t,
     isAdminUser,
     isSellerUser,
-    sellerId: customClaimSellerId
+    sellerId
   } = useShop();
 
-  const sellerId = customClaimSellerId || (isAdminUser ? user.sellerId : null);
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'profile'>('products');
   
   // Modals state

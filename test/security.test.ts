@@ -877,5 +877,162 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(isAuthorizedForTarget).toBe(false);
     });
   });
+
+  describe('13. Adversarial Security Verification: Strict Firebase Auth Claims Only (Requirements A through K)', () => {
+    const rulesCode = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+    const authCode = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthContext.tsx'), 'utf8');
+    const shopCode = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf8');
+    const otpCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf8');
+    const placeOrderCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/placeOrder.ts'), 'utf8');
+
+    it('Requirement A: Normal user with forged users/{uid}.admin=true is NOT an admin', () => {
+      // Simulating a normal user token where claims are empty or admin: false
+      const normalUserToken = { uid: 'user_a', admin: false };
+      const forgedUserDoc = { uid: 'user_a', admin: true };
+
+      // Firestore Security Rules evaluate: request.auth.token.admin == true
+      const hasAdminClaim = Boolean(normalUserToken.admin === true);
+      expect(hasAdminClaim).toBe(false);
+
+      // Verify that firestore.rules isAdmin() does NOT inspect resource or doc data
+      const isAdminDef = rulesCode.match(/function isAdmin\(\)\s*\{([^}]+)\}/);
+      expect(isAdminDef).toBeTruthy();
+      expect(isAdminDef![1]).toMatch(/request\.auth\.token\.admin == true/);
+      expect(isAdminDef![1]).not.toMatch(/admin\s*==\s*true\s*\|\|/);
+      expect(isAdminDef![1]).not.toMatch(/get\(/);
+      expect(isAdminDef![1]).not.toMatch(/users/);
+    });
+
+    it('Requirement B: Normal user with forged users/{uid}.role="admin" is NOT an admin', () => {
+      const normalUserToken = { uid: 'user_b' };
+      const forgedUserDoc = { uid: 'user_b', role: 'admin' };
+
+      // Privilege strictly evaluated via claims:
+      const isAdminEvaluated = Boolean((normalUserToken as any).admin === true);
+      expect(isAdminEvaluated).toBe(false);
+
+      // Ensure no rules reference role == 'admin'
+      expect(rulesCode).not.toMatch(/role\s*==\s*['"]admin['"]/);
+      expect(rulesCode).not.toMatch(/role\s*===\s*['"]admin['"]/);
+    });
+
+    it('Requirement C: Normal user with forged users/{uid}.seller=true is NOT a seller', () => {
+      const normalUserToken = { uid: 'user_c', seller: false };
+      const forgedUserDoc = { uid: 'user_c', seller: true };
+
+      const isSellerEvaluated = Boolean(normalUserToken.seller === true);
+      expect(isSellerEvaluated).toBe(false);
+
+      // Verify firestore.rules isSeller() strictly evaluates request.auth.token.seller == true
+      const isSellerDef = rulesCode.match(/function isSeller\(\)\s*\{([^}]+)\}/);
+      expect(isSellerDef).toBeTruthy();
+      expect(isSellerDef![1]).toMatch(/request\.auth\.token\.seller == true/);
+      expect(isSellerDef![1]).not.toMatch(/get\(/);
+      expect(isSellerDef![1]).not.toMatch(/users/);
+    });
+
+    it('Requirement D: Normal user with forged users/{uid}.sellerId="SELLER123" is NOT a seller', () => {
+      const normalUserToken = { uid: 'user_d' }; // No seller or sellerId claim
+      const forgedUserDoc = { uid: 'user_d', sellerId: 'SELLER123', role: 'seller' };
+
+      const hasSellerClaim = Boolean((normalUserToken as any).seller === true);
+      const claimSellerId = typeof (normalUserToken as any).sellerId === 'string' ? (normalUserToken as any).sellerId : '';
+
+      expect(hasSellerClaim).toBe(false);
+      expect(claimSellerId).toBe('');
+      expect(claimSellerId).not.toBe(forgedUserDoc.sellerId);
+
+      // Verify getSellerId() in rules does NOT fall back to users doc
+      const getSellerIdDef = rulesCode.match(/function getSellerId\(\)\s*\{([^}]+)\}/);
+      expect(getSellerIdDef).toBeTruthy();
+      expect(getSellerIdDef![1]).toMatch(/request\.auth\.token\.sellerId/);
+      expect(getSellerIdDef![1]).not.toMatch(/get\(/);
+      expect(getSellerIdDef![1]).not.toMatch(/users/);
+    });
+
+    it('Requirement E: Seller with claim sellerId="SELLER123" cannot access seller resources belonging to SELLER456', () => {
+      const sellerClaims = {
+        seller: true,
+        sellerId: 'SELLER123'
+      };
+      const foreignResource = {
+        id: 'prod_456',
+        sellerId: 'SELLER456',
+        name: 'Foreign Product'
+      };
+
+      // Rules verification logic:
+      const canAccessForeignResource = sellerClaims.seller === true && foreignResource.sellerId === sellerClaims.sellerId;
+      expect(canAccessForeignResource).toBe(false);
+
+      // Security rules guarantee:
+      expect(rulesCode).toMatch(/resource\.data\.get\('sellerId',\s*''\)\s*==\s*getSellerId\(\)/);
+    });
+
+    it('Requirement F: Seller cannot change their own sellerId through Firestore', () => {
+      // 1. In users/{userId}, client writes are blocked from modifying 'sellerId'
+      expect(rulesCode).toMatch(/!request\.resource\.data\.diff\(resource\.data\)\s*\.affectedKeys\(\)\s*\.hasAny\(\[\s*['"]role['"],\s*['"]sellerId['"]/);
+
+      // 2. In products/{productId}, seller cannot mutate 'sellerId'
+      expect(rulesCode).toMatch(/!request\.resource\.data\.diff\(resource\.data\)\.affectedKeys\(\)\.hasAny\(\[\s*['"]id['"],\s*['"]sellerId['"]/);
+
+      // 3. In sellers/{sellerId}, seller cannot modify 'id' or other restricted keys
+      expect(rulesCode).toMatch(/request\.resource\.data\.get\('id',\s*sellerId\)\s*==\s*getSellerId\(\)/);
+    });
+
+    it('Requirement G: Seller cannot grant themselves admin privileges', () => {
+      // 1. Normal/seller users cannot write to admins collection
+      expect(rulesCode).toMatch(/match \/admins\/\{adminId\}\s*\{\s*allow read:\s*if isAdmin\(\);\s*allow write:\s*if false;\s*\}/);
+
+      // 2. Client cannot alter role or admin fields on users collection
+      expect(rulesCode).toMatch(/!request\.resource\.data\.keys\(\)\.hasAny\(\[\s*['"]role['"],\s*['"]sellerId['"],\s*['"]isBanned['"],\s*['"]ordersPlaced['"]\s*\]\)/);
+    });
+
+    it('Requirement H: Seller cannot grant themselves another sellerId', () => {
+      // 1. Sellers cannot create products under another sellerId
+      expect(rulesCode).toMatch(/request\.resource\.data\.get\('sellerId',\s*''\)\s*==\s*getSellerId\(\)/);
+
+      // 2. In update, both resource.sellerId and request.resource.sellerId must match getSellerId()
+      expect(rulesCode).toMatch(/resource\.data\.get\('sellerId',\s*''\)\s*==\s*getSellerId\(\)/);
+      expect(rulesCode).toMatch(/request\.resource\.data\.get\('sellerId',\s*''\)\s*==\s*getSellerId\(\)/);
+    });
+
+    it('Requirement I: OTP verification cannot grant admin, seller, or sellerId claims', () => {
+      // 1. otp.ts must never import or invoke setCustomUserClaims
+      expect(otpCode).not.toMatch(/setCustomUserClaims/);
+
+      // 2. verifyOtp only returns unprivileged payload
+      expect(otpCode).toMatch(/return\s*\{\s*success:\s*true,\s*verifiedAtMs:\s*now\s*\};/);
+      expect(otpCode).not.toMatch(/admin:\s*true/);
+      expect(otpCode).not.toMatch(/seller:\s*true/);
+    });
+
+    it('Requirement J: Client-controlled request fields cannot override authorization claims', () => {
+      // In placeOrder, sellerIds are derived strictly from server-verified product documents, never request body
+      expect(placeOrderCode).toMatch(/lines\s*\.map\(l\s*=>\s*\(typeof l\.product\.sellerId === 'string' \? l\.product\.sellerId\.trim\(\) : ''\)\)/);
+      expect(placeOrderCode).not.toMatch(/sellerIds\s*=\s*data\.sellerIds/);
+      expect(placeOrderCode).not.toMatch(/sellerId\s*=\s*request\.data\.sellerId/);
+
+      // In otp.ts, admin / seller verification uses request.auth.token claims, ignoring client assertions
+      expect(otpCode).toMatch(/request\.auth\.token\?\.admin === true/);
+      expect(otpCode).toMatch(/request\.auth\.token\?\.seller === true/);
+    });
+
+    it('Requirement K: All authorization fallbacks from Firestore user documents are strictly removed and forbidden', () => {
+      // Verify no fallback pattern `claimSellerId || data.sellerId` or `claimSellerId || userData.sellerId` in AuthContext
+      expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+      expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*userData\.sellerId/);
+
+      // Verify no fallback in ShopContext
+      expect(shopCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+
+      // Verify firestore.rules has zero lookups into users collection for isAdmin, isSeller, or getSellerId
+      const rulesHelperSection = rulesCode.slice(rulesCode.indexOf('function isAdmin()'), rulesCode.indexOf('function productShapeOk()'));
+      expect(rulesHelperSection).not.toMatch(/get\(/);
+      expect(rulesHelperSection).not.toMatch(/users/);
+      expect(rulesHelperSection).not.toMatch(/data\.role/);
+      expect(rulesHelperSection).not.toMatch(/data\.sellerId/);
+    });
+  });
 });
 

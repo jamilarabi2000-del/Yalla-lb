@@ -655,10 +655,8 @@ service cloud.firestore {
       allow get, list: if isAdmin()
         || (
           isSeller()
-          && (
-            getSellerId() == sellerId
-            || (resource != null && resource.data.get('sellerId', '') == getSellerId())
-          )
+          && getSellerId() == sellerId
+          && (resource == null || resource.data.get('sellerId', '') == getSellerId())
         );
 
       allow create: if false;
@@ -667,6 +665,7 @@ service cloud.firestore {
         || (
           isSeller()
           && getSellerId() == sellerId
+          && resource.data.get('sellerId', '') == getSellerId()
           && sellerFulfillmentPatchOk()
         );
 

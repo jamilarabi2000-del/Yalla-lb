@@ -72,7 +72,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               defaultBuilding: data.defaultBuilding,
               defaultNotes: data.defaultNotes,
               role: data.role || 'customer',
-              sellerId: data.sellerId,
+              sellerId: claimSellerId || undefined,
               emailVerified: fbUser.emailVerified,
               isOtpVerified: data.isOtpVerified
             });

@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds }
   from '@firebase/rules-unit-testing';
-import { doc, setDoc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
+import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where } from 'firebase/firestore';
 import { beforeAll, afterAll, test, expect, describe } from 'vitest';
 
 let env: any;
@@ -816,6 +816,135 @@ describe('17. Authorization claims authoritative verification tests', () => {
 
     // Access to seller_private -> ALLOW
     await assertSucceeds(getDoc(doc(clientWithClaims, 'seller_private', 'seller-tripoli')));
+  });
+
+  test('adversarial: Requirements A & B - normal user with forged admin/role doc in users collection is NOT admin', async () => {
+    const clientAttacker = env.authenticatedContext('attacker-uid', {
+      email: 'attacker@example.com',
+      email_verified: true
+    }).firestore();
+
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'attacker-uid'), {
+        uid: 'attacker-uid',
+        admin: true,
+        role: 'admin',
+        isAdmin: true
+      });
+    });
+
+    // Writing to admin-protected collection 'coupons' -> DENY
+    await assertFails(
+      setDoc(doc(clientAttacker, 'coupons', 'coup-1'), {
+        code: 'EVIL',
+        discountUSD: 100
+      })
+    );
+
+    // Writing to admin-protected test ping doc -> DENY
+    await assertFails(
+      setDoc(doc(clientAttacker, 'test', 'ping'), {
+        status: 'hacked'
+      })
+    );
+  });
+
+  test('adversarial: Requirements C & D - normal user with forged seller/sellerId doc in users collection is NOT seller', async () => {
+    const clientAttacker = env.authenticatedContext('attacker-seller-doc', {
+      email: 'attacker-seller@example.com',
+      email_verified: true
+    }).firestore();
+
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'attacker-seller-doc'), {
+        uid: 'attacker-seller-doc',
+        seller: true,
+        sellerId: 'SELLER123',
+        role: 'seller'
+      });
+    });
+
+    // Creating a product under SELLER123 without custom claim -> DENY
+    await assertFails(
+      setDoc(doc(clientAttacker, 'products', 'p-forged-seller123'), {
+        id: 'p-forged-seller123',
+        name: 'Forged Honey',
+        priceUSD: 20,
+        stock: 10,
+        sellerId: 'SELLER123'
+      })
+    );
+
+    // Reading seller_private/SELLER123 -> DENY
+    await assertFails(getDoc(doc(clientAttacker, 'seller_private', 'SELLER123')));
+  });
+
+  test('adversarial: Requirement E - seller with claim sellerId=SELLER123 cannot access or mutate SELLER456 resources', async () => {
+    const clientSeller123 = env.authenticatedContext('seller-123-uid', {
+      email: 'seller123@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'SELLER123'
+    }).firestore();
+
+    // Create foreign product belonging to SELLER456 in DB
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'products', 'p-foreign-456'), {
+        id: 'p-foreign-456',
+        name: 'Foreign Pottery',
+        priceUSD: 35,
+        stock: 5,
+        sellerId: 'SELLER456'
+      });
+    });
+
+    // Reading seller_private/SELLER456 -> DENY
+    await assertFails(getDoc(doc(clientSeller123, 'seller_private', 'SELLER456')));
+
+    // Updating SELLER456 product -> DENY
+    await assertFails(
+      setDoc(doc(clientSeller123, 'products', 'p-foreign-456'), {
+        priceUSD: 5
+      }, { merge: true })
+    );
+
+    // Deleting SELLER456 product -> DENY
+    await assertFails(deleteDoc(doc(clientSeller123, 'products', 'p-foreign-456')));
+  });
+
+  test('adversarial: Requirements F, G & H - seller cannot change own sellerId, grant admin, or create under another sellerId', async () => {
+    const clientSeller123 = env.authenticatedContext('seller-123-uid', {
+      email: 'seller123@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'SELLER123'
+    }).firestore();
+
+    // G: Grant themselves admin -> DENY
+    await assertFails(
+      setDoc(doc(clientSeller123, 'admins', 'seller-123-uid'), {
+        uid: 'seller-123-uid',
+        email: 'seller123@example.com'
+      })
+    );
+
+    // H: Create product under another sellerId SELLER456 -> DENY
+    await assertFails(
+      setDoc(doc(clientSeller123, 'products', 'p-under-456'), {
+        id: 'p-under-456',
+        name: 'Illegal Product',
+        priceUSD: 10,
+        stock: 5,
+        sellerId: 'SELLER456'
+      })
+    );
+
+    // F: Change sellerId in user profile -> DENY
+    await assertFails(
+      setDoc(doc(clientSeller123, 'users', 'seller-123-uid'), {
+        sellerId: 'SELLER456'
+      }, { merge: true })
+    );
   });
 });
 
