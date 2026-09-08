@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
-import { getFeaturedStorefrontProduct } from '../lib/storefrontVisibility';
+import { getFeaturedStorefrontProduct, isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -19,7 +19,7 @@ interface ConsolidatedSlide {
   url: string;
   badgeEn?: string;
   badgeAr?: string;
-  titleEn: string;
+  titleEn?: string;
   titleAr?: string;
   subtitleEn?: string;
   subtitleAr?: string;
@@ -32,6 +32,7 @@ interface ConsolidatedSlide {
   targetUrl?: string;
   bundleId?: string;
   showButton?: boolean;
+  productId?: string;
 }
 
 export const HomeTopContainer: React.FC = () => {
@@ -57,15 +58,9 @@ export const HomeTopContainer: React.FC = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const heroData = siteContent?.hero || {
-    badgeText: 'Handcrafted with Love in Lebanon',
-    title: 'Authentic Lebanese Treasures, Handcrafted by Master Artisans',
-    subtitle: 'Connecting traditional craft workshops across Beirut, Tripoli, Sidon, and Mount Lebanon directly to lovers of authentic Levantine heritage worldwide.',
-    primaryBtnText: 'Explore Collection',
-    targetUrl: '/products'
-  };
+  const heroData = siteContent?.hero || {};
 
-  const cmsMediaItems = (siteContent?.hero as any)?.bgMediaItems?.filter((item: any) => item.isPublished !== false) || [];
+  const cmsMediaItems = (heroData as any)?.bgMediaItems?.filter((item: any) => item.isPublished !== false) || [];
   const cmsOfferSlides = (siteContent?.offers as any)?.slides?.filter((item: any) => item.isPublished !== false) || [];
 
   // defaultConsolidatedSlides contains ONLY the base CMS hero configuration (no hardcoded promotional campaigns)
@@ -74,14 +69,14 @@ export const HomeTopContainer: React.FC = () => {
       id: 'slide_hero_1',
       type: 'image',
       url: raoucheSunsetImg,
-      badgeEn: (heroData as any).badgeText || 'Handcrafted in Lebanon',
-      badgeAr: (heroData as any).badgeTextArabic || 'صُنع بحب في لبنان',
-      titleEn: (heroData as any).title || 'Authentic Lebanese Treasures, Handcrafted by Master Artisans',
-      titleAr: (heroData as any).titleArabic || 'كنوز لبنانية أصيلة، صُنعت بأيدي ماهرين',
-      subtitleEn: (heroData as any).subtitle || 'Connecting traditional craft workshops across Beirut, Tripoli, Sidon, and Mount Lebanon directly to lovers of Levantine heritage.',
-      subtitleAr: (heroData as any).subtitleArabic || 'نربط ورش الحرف التقليدية في بيروت وطرابلس وصيدا وجبل لبنان بمحبي التراث المشرقي الأصيل.',
-      buttonTextEn: (heroData as any).primaryBtnText || 'Explore Collection',
-      buttonTextAr: (heroData as any).primaryBtnTextArabic || 'تصفح التشكيلة',
+      badgeEn: (heroData as any).badgeText,
+      badgeAr: (heroData as any).badgeTextArabic,
+      titleEn: (heroData as any).title,
+      titleAr: (heroData as any).titleArabic,
+      subtitleEn: (heroData as any).subtitle,
+      subtitleAr: (heroData as any).subtitleArabic,
+      buttonTextEn: (heroData as any).primaryBtnText,
+      buttonTextAr: (heroData as any).primaryBtnTextArabic,
       targetCategory: 'all'
     }
   ];
@@ -108,18 +103,18 @@ export const HomeTopContainer: React.FC = () => {
       cmsConsolidatedSlides.push({
         id: slide.id || `offer-${idx}`,
         type: slide.bgVideoUrl ? 'video' : 'image',
-        url: slide.imageUrl || slide.desktopImageUrl || slide.bgVideoUrl || raoucheSunsetImg,
-        badgeEn: slide.badge || 'SPECIAL OFFER',
-        badgeAr: slide.badgeArabic || slide.badge || 'عرض خاص',
+        url: slide.imageUrl || slide.desktopImageUrl || slide.bgVideoUrl || '',
+        badgeEn: slide.badge,
+        badgeAr: slide.badgeArabic || slide.badge,
         titleEn: slide.title,
         titleAr: slide.titleArabic || slide.title,
         subtitleEn: slide.subtitle,
         subtitleAr: slide.subtitleArabic || slide.subtitle,
-        discountBadgeEn: slide.discountBadge || 'DISCOUNT',
-        discountBadgeAr: slide.discountBadgeArabic || slide.discountBadge || 'خصم',
+        discountBadgeEn: slide.discountBadge,
+        discountBadgeAr: slide.discountBadgeArabic || slide.discountBadge,
         promoCode: slide.discountBadge?.includes('CODE:') ? slide.discountBadge.split('CODE:')[1]?.trim() : undefined,
-        buttonTextEn: slide.buttonText || 'Shop Offer',
-        buttonTextAr: slide.buttonTextArabic || slide.buttonText || 'تسوق العرض',
+        buttonTextEn: slide.buttonText,
+        buttonTextAr: slide.buttonTextArabic || slide.buttonText,
         targetCategory: slide.targetUrl || 'all'
       });
     });
@@ -130,15 +125,15 @@ export const HomeTopContainer: React.FC = () => {
       cmsConsolidatedSlides.push({
         id: item.id || `media-${idx}`,
         type: item.type || 'image',
-        url: item.url,
+        url: item.url || '',
         badgeEn: item.badgeText || (heroData as any).badgeText,
         badgeAr: item.badgeTextArabic || (heroData as any).badgeTextArabic,
         titleEn: item.customTitle || item.title || (heroData as any).title,
         titleAr: item.customTitleArabic || (heroData as any).titleArabic,
         subtitleEn: item.customSubtitle || (heroData as any).subtitle,
         subtitleAr: item.customSubtitleArabic || (heroData as any).subtitleArabic,
-        buttonTextEn: (heroData as any).primaryBtnText || 'Explore Collection',
-        buttonTextAr: (heroData as any).primaryBtnTextArabic || 'تصفح التشكيلة',
+        buttonTextEn: (heroData as any).primaryBtnText,
+        buttonTextAr: (heroData as any).primaryBtnTextArabic,
         targetCategory: 'all'
       });
     });
@@ -148,19 +143,33 @@ export const HomeTopContainer: React.FC = () => {
   const bundleSlides: ConsolidatedSlide[] = activeBundles.map((bundle: any) => {
     // Use neutral Yalla fallback image instead of hardcoded external Unsplash URL
     const bgUrl = bundle.imageUrl?.trim() || lebaneseMountainTownImg;
+    
+    // Attempt to find a valid product from this bundle
+    let bundleProductId: string | undefined = undefined;
+    if (bundle.productIds && Array.isArray(bundle.productIds)) {
+      for (const pid of bundle.productIds) {
+        const prod = products.find((p: any) => p.id === pid);
+        if (prod && isProductVisibleOnStorefront(prod, sellers, isVisualEditMode)) {
+          bundleProductId = prod.id;
+          break;
+        }
+      }
+    }
+
     return {
       id: `bundle-${bundle.id}`,
       type: 'image',
       url: bgUrl,
-      badgeEn: bundle.badgeText || 'SPECIAL BUNDLE DEAL',
-      badgeAr: bundle.badgeTextAr || bundle.badgeText || 'صفقة حزمة خاصة',
+      badgeEn: bundle.badgeText,
+      badgeAr: bundle.badgeTextAr || bundle.badgeText,
       titleEn: bundle.name,
       titleAr: bundle.nameAr || bundle.name,
       subtitleEn: bundle.description || '',
       subtitleAr: bundle.descriptionAr || bundle.description || '',
-      buttonTextEn: bundle.sliderButtonText || 'Add Combo to Cart',
-      buttonTextAr: bundle.sliderButtonTextAr || 'إضافة الكومبو للسلة',
-      bundleId: bundle.id
+      buttonTextEn: bundle.sliderButtonText,
+      buttonTextAr: bundle.sliderButtonTextAr,
+      bundleId: bundle.id,
+      productId: bundleProductId
     };
   });
 
@@ -218,7 +227,6 @@ export const HomeTopContainer: React.FC = () => {
   };
 
   // Featured Product Selection using centralized shared helper
-  const publishedProducts = products.filter(p => p.isPublished !== false);
   const featuredProduct = getFeaturedStorefrontProduct(products, sellers, isVisualEditMode);
 
   const handleAddToCartFeatured = (e: React.MouseEvent) => {
@@ -237,7 +245,13 @@ export const HomeTopContainer: React.FC = () => {
   const activeSubtitle = isAr ? (currentSlide.subtitleAr || currentSlide.subtitleEn) : currentSlide.subtitleEn;
 
   // Thumbnail for the bottom glass hero control bar
-  const thumbProduct = publishedProducts[currentSlideIndex % (publishedProducts.length || 1)] || featuredProduct;
+  let thumbProduct: any = undefined;
+  if (currentSlide.productId) {
+    thumbProduct = products.find((p: any) => p.id === currentSlide.productId);
+    if (thumbProduct && !isProductVisibleOnStorefront(thumbProduct, sellers, isVisualEditMode)) {
+      thumbProduct = undefined;
+    }
+  }
 
   return (
     <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mt-6 sm:mt-8 mb-4">
@@ -267,14 +281,18 @@ export const HomeTopContainer: React.FC = () => {
 
           {/* Top-Left Compact Header with Glass Icon Container & Title */}
           <div className="relative z-20 flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-[28px] h-[28px] rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
-                <Sparkles className="w-3.5 h-3.5 text-[#F3E5AB]" />
+            {activeBadge ? (
+              <div className="flex items-center gap-3">
+                <div className="w-[28px] h-[28px] rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-[#F3E5AB]" />
+                </div>
+                <span className="text-[13px] sm:text-[14px] font-medium text-white max-w-[280px] sm:max-w-xs leading-[1.3] drop-shadow-sm line-clamp-1">
+                  {activeBadge}
+                </span>
               </div>
-              <span className="text-[13px] sm:text-[14px] font-medium text-white max-w-[280px] sm:max-w-xs leading-[1.3] drop-shadow-sm line-clamp-1">
-                {activeBadge}
-              </span>
-            </div>
+            ) : (
+              <div />
+            )}
 
             {currentSlide.promoCode && (
               <button
@@ -314,24 +332,35 @@ export const HomeTopContainer: React.FC = () => {
               {/* Left Side: Thumbnail + Product Name */}
               <div 
                 onClick={handleHeroAction}
-                className="flex items-center gap-3 cursor-pointer group/thumb min-w-0 pr-2"
+                className="flex items-center gap-3 cursor-pointer group/thumb min-w-0 pr-2 flex-1"
               >
-                <div className="w-[42px] h-[42px] rounded-[8px] overflow-hidden bg-white/30 border border-white/40 flex-shrink-0 flex items-center justify-center shadow-xs">
-                  <img
-                    src={thumbProduct?.image || lebaneseMountainTownImg}
-                    alt=""
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain group-hover/thumb:scale-110 transition-transform duration-300"
-                  />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
-                    {isAr ? 'مميز اليوم' : 'Featured Highlight'}
+                {thumbProduct && (
+                  <>
+                    <div className="w-[42px] h-[42px] rounded-[8px] overflow-hidden bg-white/30 border border-white/40 flex-shrink-0 flex items-center justify-center shadow-xs">
+                      <img
+                        src={thumbProduct.image}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-contain group-hover/thumb:scale-110 transition-transform duration-300"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
+                        {isAr ? 'عرض' : 'Featured'}
+                      </div>
+                      <div className="text-xs sm:text-sm font-bold text-white truncate group-hover/thumb:text-[#F3E5AB] transition-colors">
+                        {isAr ? (thumbProduct.arabicName || thumbProduct.name) : thumbProduct.name}
+                      </div>
+                    </div>
+                  </>
+                )}
+                {!thumbProduct && (
+                  <div className="min-w-0 h-[42px] flex items-center">
+                    <div className="text-xs sm:text-sm font-bold text-white truncate transition-colors">
+                      {isAr ? 'تصفح العرض' : 'Explore Offer'}
+                    </div>
                   </div>
-                  <div className="text-xs sm:text-sm font-bold text-white truncate group-hover/thumb:text-[#F3E5AB] transition-colors">
-                    {isAr ? (thumbProduct?.arabicName || thumbProduct?.name) : (thumbProduct?.name || (isAr ? 'تراث لبناني' : 'Lebanese Heritage'))}
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Right Side: Slider Controls & Counter */}
