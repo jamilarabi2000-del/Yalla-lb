@@ -39,3 +39,25 @@ export function isProductVisibleOnStorefront(
 
   return true;
 }
+
+/**
+ * Shared helper to select the top featured product using storefront visibility and sorting rules.
+ */
+export function getFeaturedStorefrontProduct(
+  products: Product[],
+  sellers: Seller[] = [],
+  isVisualEditMode: boolean = false
+): Product | undefined {
+  const publishedProducts = products.filter(p => isProductVisibleOnStorefront(p, sellers, isVisualEditMode));
+  const featuredProducts = publishedProducts
+    .filter(p => p.isFeatured || p.isBestseller || (p.displayOrder !== undefined && p.displayOrder <= 50))
+    .sort((a, b) => {
+      const orderA = a.displayOrder ?? 99999;
+      const orderB = b.displayOrder ?? 99999;
+      if (orderA !== orderB) return orderA - orderB;
+      if (a.isFeatured && !b.isFeatured) return -1;
+      if (!a.isFeatured && b.isFeatured) return 1;
+      return 0;
+    });
+  return featuredProducts[0] || publishedProducts[0];
+}

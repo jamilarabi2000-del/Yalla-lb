@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
-import { isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
+import { getFeaturedStorefrontProduct } from '../lib/storefrontVisibility';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -12,7 +12,6 @@ import {
 
 import lebaneseMountainTownImg from '../assets/images/rachaya_mountain_perfect_1786799009637.jpg';
 import raoucheSunsetImg from '../assets/images/raouche_rocks_sunset_1786799732002.jpg';
-import schoolBannerImg from '../assets/images/school_banner_1786797167259.jpg';
 
 interface ConsolidatedSlide {
   id: string;
@@ -69,6 +68,7 @@ export const HomeTopContainer: React.FC = () => {
   const cmsMediaItems = (siteContent?.hero as any)?.bgMediaItems?.filter((item: any) => item.isPublished !== false) || [];
   const cmsOfferSlides = (siteContent?.offers as any)?.slides?.filter((item: any) => item.isPublished !== false) || [];
 
+  // defaultConsolidatedSlides contains ONLY the base CMS hero configuration (no hardcoded promotional campaigns)
   const defaultConsolidatedSlides: ConsolidatedSlide[] = [
     {
       id: 'slide_hero_1',
@@ -83,37 +83,6 @@ export const HomeTopContainer: React.FC = () => {
       buttonTextEn: (heroData as any).primaryBtnText || 'Explore Collection',
       buttonTextAr: (heroData as any).primaryBtnTextArabic || 'تصفح التشكيلة',
       targetCategory: 'all'
-    },
-    {
-      id: 'slide_school_promo',
-      type: 'image',
-      url: schoolBannerImg,
-      badgeEn: 'School Essentials',
-      badgeAr: 'مستلزمات المدرسة',
-      titleEn: 'YOUR SCHOOL ESSENTIALS ALL IN ONE PLACE',
-      titleAr: 'مستلزمات المدرسة كلها في مكان واحد',
-      subtitleEn: 'OFFER IS VALID UNTIL 9 SEPTEMBER 2026 • ON SELECTED PRODUCTS',
-      subtitleAr: 'العرض سارٍ حتى ٩ سبتمبر ٢٠٢٦ • على منتجات مختارة',
-      discountBadgeEn: '50% OFF',
-      discountBadgeAr: 'خصم ٥٠٪',
-      promoCode: 'SCHOOL50',
-      buttonTextEn: 'Shop Essentials',
-      buttonTextAr: 'تسوق المستلزمات',
-      targetCategory: 'crafts'
-    },
-    {
-      id: 'slide_hero_2',
-      type: 'image',
-      url: lebaneseMountainTownImg,
-      badgeEn: 'Artisanal Mouneh & Pantry',
-      badgeAr: 'المونة اللبنانية الأصيلة',
-      titleEn: 'Fresh Harvest Mouneh & Levantine Pantry Delicacies',
-      titleAr: 'خيرات الطبيعة اللبنانية والمونة العريقة',
-      subtitleEn: 'Sustainably harvested za’atar, cold-pressed extra virgin olive oil, wild orange blossom water, and sun-dried figs.',
-      subtitleAr: 'زعتر جبلي، زيت زيتون معصور على البارد، ماء زهر بلدي، وتين مجفف تحت أشعة الشمس.',
-      buttonTextEn: 'Shop Pantry',
-      buttonTextAr: 'تسوق المونة',
-      targetCategory: 'pantry'
     }
   ];
 
@@ -177,7 +146,8 @@ export const HomeTopContainer: React.FC = () => {
 
   const activeBundles = productBundles.filter((b: any) => b.isActive !== false && b.showInSlider !== false);
   const bundleSlides: ConsolidatedSlide[] = activeBundles.map((bundle: any) => {
-    const bgUrl = bundle.imageUrl?.trim() || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1920&q=80';
+    // Use neutral Yalla fallback image instead of hardcoded external Unsplash URL
+    const bgUrl = bundle.imageUrl?.trim() || lebaneseMountainTownImg;
     return {
       id: `bundle-${bundle.id}`,
       type: 'image',
@@ -247,22 +217,9 @@ export const HomeTopContainer: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Featured Product Selection using HomeView rules
-  const publishedProducts = products.filter(p => isProductVisibleOnStorefront(p, sellers, isVisualEditMode));
-  const featuredProduct = publishedProducts
-    .filter(p => p.isFeatured || p.isBestseller || (p.displayOrder !== undefined && p.displayOrder <= 50))
-    .sort((a, b) => {
-      const orderA = a.displayOrder ?? 99999;
-      const orderB = b.displayOrder ?? 99999;
-      if (orderA !== orderB) return orderA - orderB;
-      if (a.isFeatured && !b.isFeatured) return -1;
-      if (!a.isFeatured && b.isFeatured) return 1;
-      return 0;
-    })[0] || publishedProducts[0];
-
-  const [selectedVariant, setSelectedVariant] = useState<string | undefined>(
-    (featuredProduct as any)?.variants?.[0]
-  );
+  // Featured Product Selection using centralized shared helper
+  const publishedProducts = products.filter(p => p.isPublished !== false);
+  const featuredProduct = getFeaturedStorefrontProduct(products, sellers, isVisualEditMode);
 
   const handleAddToCartFeatured = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -271,7 +228,7 @@ export const HomeTopContainer: React.FC = () => {
       showToast(isAr ? 'المنتج غير متوفر حالياً' : 'Product is out of stock', 'error');
       return;
     }
-    addToCart(featuredProduct, 1, selectedVariant);
+    addToCart(featuredProduct, 1);
     showToast(isAr ? 'تمت إضافة المنتج إلى السلة' : 'Added to cart successfully', 'success');
   };
 
@@ -410,31 +367,11 @@ export const HomeTopContainer: React.FC = () => {
             className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-5 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm"
             style={{ minHeight: '380px' }}
           >
-            {/* Top Swatches (if variants exist) */}
+            {/* Top Category Header */}
             <div className="flex items-center justify-between z-10">
               <div className="text-[11px] font-bold uppercase tracking-wider text-[#737373]">
                 {featuredProduct.category || (isAr ? 'منتج مميز' : 'Featured')}
               </div>
-              {(featuredProduct as any).variants && (featuredProduct as any).variants.length > 0 && (
-                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                  {(featuredProduct as any).variants.map((variant: string, idx: number) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedVariant(variant)}
-                      title={variant}
-                      className={`w-[18px] h-[18px] rounded-full border transition-all cursor-pointer ${
-                        selectedVariant === variant ? 'border-black scale-110 shadow-xs' : 'border-white/80 opacity-70 hover:opacity-100'
-                      }`}
-                      style={{
-                        backgroundColor: variant.toLowerCase().includes('gold') ? '#B89753' :
-                                         variant.toLowerCase().includes('black') ? '#171717' :
-                                         variant.toLowerCase().includes('red') ? '#C62828' :
-                                         variant.toLowerCase().includes('blue') ? '#1E40AF' : '#8F7137'
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Centered Product Image Container (height ~200px, object-contain) */}
