@@ -241,14 +241,14 @@ export const ProductsView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
+    <div className="min-h-screen bg-[#F8F8F6] pb-20">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="products" position="top" />
 
       {/* Header Banner */}
       {(visibility.productsHeader || isVisualEditMode) && (
-        <div className={`bg-slate-900 border-b border-slate-800 pt-6 pb-12 px-4 sm:px-6 lg:px-8 relative ${!visibility.productsHeader && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80' : ''}`}>
+        <div className={`bg-[#171717] border-b border-[#262626] pt-6 pb-12 px-4 sm:px-6 lg:px-8 relative ${!visibility.productsHeader && isVisualEditMode ? 'opacity-70 border-4 border-dashed border-rose-500/80' : ''}`}>
           {!visibility.productsHeader && isVisualEditMode && (
             <div className="absolute top-3 right-4 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
               <EyeOff className="w-3.5 h-3.5" />
@@ -259,7 +259,7 @@ export const ProductsView: React.FC = () => {
             <button
               id="products-page-back-btn"
               onClick={goBack}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold uppercase tracking-wider border border-slate-700 transition-colors cursor-pointer mb-2"
+              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold uppercase tracking-wider border border-white/15 transition-colors cursor-pointer mb-2"
             >
               <ArrowLeft className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
               <span>{t('back')}</span>
@@ -267,23 +267,23 @@ export const ProductsView: React.FC = () => {
 
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <div className="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-[0.2em] mb-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="flex items-center gap-2 text-[#B89753] text-xs font-bold uppercase tracking-widest mb-1">
+                  <span className="w-2 h-2 rounded-full bg-[#16803C] animate-pulse" />
                   <span>{t('verifiedProvenance')}</span>
                 </div>
-                <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-serif text-white tracking-tight">
                   {currentTitle}
                 </h1>
-                <p className="text-xs sm:text-sm text-slate-300 max-w-2xl mt-1">
+                <p className="text-xs sm:text-sm text-neutral-300 max-w-2xl mt-1.5 leading-relaxed">
                   {currentSubtitle}
                 </p>
               </div>
 
               {/* Quick stats badge */}
-              <div className="flex items-center gap-3 bg-slate-800/90 px-4 py-2.5 rounded-2xl border border-white/15">
+              <div className="flex items-center gap-3 bg-white/5 px-4 py-2.5 rounded-xl border border-white/10">
                 <div>
-                  <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">{language === 'ar' ? 'متوفر' : 'Available'}</p>
-                  <p className="text-lg font-black text-amber-400">{filteredProducts.length} {language === 'ar' ? 'منتج' : 'Items'}</p>
+                  <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-wider">{language === 'ar' ? 'متوفر' : 'Available'}</p>
+                  <p className="text-lg font-bold text-[#B89753]">{filteredProducts.length} {language === 'ar' ? 'منتج' : 'Items'}</p>
                 </div>
               </div>
             </div>
@@ -291,19 +291,19 @@ export const ProductsView: React.FC = () => {
             {/* Search bar inside header */}
             {(visibility.productsSearchFilter || isVisualEditMode) && (
               <div className="pt-3 relative max-w-2xl group">
-                <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} top-[26px] w-4 h-4 text-slate-400 group-focus-within:text-amber-500 transition-colors pointer-events-none`} />
+                <Search className={`absolute ${language === 'ar' ? 'right-4' : 'left-4'} top-[26px] w-4 h-4 text-[#737373] group-focus-within:text-[#B89753] transition-colors pointer-events-none`} />
                 <input
                   type="text"
                   id="products-search-input"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder={siteContent?.productsPage?.searchPlaceholder ?? t('searchPlaceholder')}
-                  className={`w-full ${language === 'ar' ? 'pr-11 pl-20' : 'pl-11 pr-20'} py-3.5 bg-white text-xs text-slate-900 placeholder:text-slate-400 rounded-2xl border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none transition-all shadow-lg font-medium`}
+                  className={`w-full ${language === 'ar' ? 'pr-11 pl-20' : 'pl-11 pr-20'} py-3 bg-white text-xs text-[#171717] placeholder:text-[#737373] rounded-lg border border-[#E5E5E5] focus:border-[#B89753] focus:outline-none transition-all shadow-2xs font-medium`}
                 />
                 {searchQuery && (
                   <button
                     onClick={() => setSearchQuery('')}
-                    className="absolute right-3.5 top-3 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition-all cursor-pointer"
+                    className="absolute right-3.5 top-3 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#737373] hover:text-[#171717] bg-neutral-100 hover:bg-neutral-200 border border-[#E5E5E5] rounded-md transition-all cursor-pointer"
                   >
                     {t('clear')}
                   </button>
@@ -318,20 +318,20 @@ export const ProductsView: React.FC = () => {
       <CustomBlocksRenderer page="products" position="middle" />
 
       {/* Main Content Layout */}
-      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+      <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
         
         {/* Category Filter Chips Bar */}
         {(visibility.productsCategoryTabs || isVisualEditMode) && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-3">
             {categories.map(cat => (
               <button
                 key={cat.id}
                 id={`filter-cat-${cat.id}`}
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${
                   selectedCategory === cat.id
-                    ? 'bg-amber-600 text-white shadow-md scale-102'
-                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-sm'
+                    ? 'bg-[#171717] text-white shadow-2xs'
+                    : 'bg-white hover:bg-neutral-50 text-[#171717] border border-[#E5E5E5]'
                 }`}
               >
                 <span>{cat.icon}</span>
@@ -343,10 +343,10 @@ export const ProductsView: React.FC = () => {
 
         {/* Secondary Controls: Sort Options, Items Per Page & Filters */}
         {(visibility.productsSort || isVisualEditMode) && (
-          <div className="mt-4 p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="mt-3 p-3 sm:p-4 rounded-xl bg-white border border-[#E5E5E5] shadow-2xs flex flex-wrap items-center justify-between gap-4">
             
-            <div className="text-xs font-semibold text-slate-700 flex items-center gap-2">
-              <Grid className="w-4 h-4 text-amber-600" />
+            <div className="text-xs font-semibold text-[#737373] flex items-center gap-2">
+              <Grid className="w-4 h-4 text-[#8F7137]" />
               <span>
                 {language === 'ar'
                   ? `عرض ${filteredProducts.length > 0 ? (safeCurrentPage - 1) * itemsPerPage + 1 : 0}–${Math.min(safeCurrentPage * itemsPerPage, filteredProducts.length)} من إجمالي ${filteredProducts.length} منتج`
@@ -359,13 +359,13 @@ export const ProductsView: React.FC = () => {
               
               {/* Sort selector */}
               <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-600" />
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-[10px]">{language === 'ar' ? 'الترتيب:' : 'Sort:'}</span>
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[#8F7137]" />
+                <span className="text-[#737373] uppercase tracking-wider text-[10px] font-bold">{language === 'ar' ? 'الترتيب:' : 'Sort:'}</span>
                 <select
                   id="sort-by-select"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as any)}
-                  className="bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 rounded-lg px-3 py-1.5 focus:border-amber-500 focus:outline-none"
+                  className="bg-[#F8F8F6] text-xs font-bold text-[#171717] border border-[#E5E5E5] rounded-lg px-3 py-1.5 focus:border-[#B89753] focus:outline-none"
                 >
                   <option value="featured">{language === 'ar' ? 'المنتجات المميزة' : 'Featured Items'}</option>
                   <option value="price_low">{language === 'ar' ? 'السعر: من الأقل للأعلى' : 'Price: Low to High'}</option>
@@ -374,13 +374,13 @@ export const ProductsView: React.FC = () => {
               </div>
 
               {/* Items Per Page dropdown */}
-              <div className="flex items-center gap-2 border-l border-slate-200 pl-3 dir-ltr:border-l dir-rtl:border-r dir-rtl:pr-3">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider text-[10px]">{language === 'ar' ? 'في الصفحة:' : 'Per Page:'}</span>
+              <div className="flex items-center gap-2 border-l border-[#E5E5E5] pl-3 dir-ltr:border-l dir-rtl:border-r dir-rtl:pr-3">
+                <span className="text-[#737373] uppercase tracking-wider text-[10px] font-bold">{language === 'ar' ? 'في الصفحة:' : 'Per Page:'}</span>
                 <select
                   id="items-per-page-select"
                   value={itemsPerPage}
                   onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                  className="bg-slate-50 text-xs font-semibold text-slate-800 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:border-amber-500 focus:outline-none"
+                  className="bg-[#F8F8F6] text-xs font-bold text-[#171717] border border-[#E5E5E5] rounded-lg px-2.5 py-1.5 focus:border-[#B89753] focus:outline-none"
                 >
                   <option value={8}>8</option>
                   <option value={12}>12</option>
@@ -392,13 +392,13 @@ export const ProductsView: React.FC = () => {
               </div>
 
               {/* In stock only toggle */}
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium select-none border-l border-slate-200 pl-3">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-[#171717] font-medium select-none border-l border-[#E5E5E5] pl-3">
                 <input
                   type="checkbox"
                   id="in-stock-only-checkbox"
                   checked={onlyInStock}
                   onChange={(e) => setOnlyInStock(e.target.checked)}
-                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                  className="rounded border-[#E5E5E5] text-[#8F7137] focus:ring-[#B89753]"
                 />
                 <span className="text-xs">{language === 'ar' ? 'المتوفر فقط' : 'In Stock Only'}</span>
               </label>
@@ -408,7 +408,7 @@ export const ProductsView: React.FC = () => {
                 <button
                   id="reset-filters-btn"
                   onClick={resetFilters}
-                  className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 font-semibold px-2 py-1 rounded bg-amber-50 border border-amber-200 cursor-pointer"
+                  className="flex items-center gap-1 text-xs text-[#8F7137] hover:text-[#171717] font-bold px-2 py-1 rounded-md bg-amber-50 border border-amber-200 cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   <span>{language === 'ar' ? 'إعادة ضبط' : 'Reset'}</span>
@@ -422,7 +422,7 @@ export const ProductsView: React.FC = () => {
 
         {/* Products Grid */}
         {(visibility.productsGrid || isVisualEditMode) && (
-          <div id="products-grid-section" className="mt-8 scroll-mt-6">
+          <div id="products-grid-section" className="mt-6 scroll-mt-6">
             {filteredProducts.length > 0 ? (
               <div className="space-y-10">
                 
@@ -435,10 +435,10 @@ export const ProductsView: React.FC = () => {
 
                 {/* Pagination Controls Bar */}
                 {totalPages > 1 && (
-                  <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="pt-6 border-t border-[#E5E5E5] flex flex-col sm:flex-row items-center justify-between gap-4">
                     
                     {/* Page counter summary */}
-                    <div className="text-xs font-semibold text-slate-500">
+                    <div className="text-xs font-semibold text-[#737373]">
                       {language === 'ar'
                         ? `الصفحة ${safeCurrentPage} من ${totalPages}`
                         : `Page ${safeCurrentPage} of ${totalPages}`}
@@ -452,7 +452,7 @@ export const ProductsView: React.FC = () => {
                         onClick={() => handlePageChange(1)}
                         disabled={safeCurrentPage === 1}
                         title={language === 'ar' ? 'الصفحة الأولى' : 'First Page'}
-                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                        className="p-2 rounded-lg border border-[#E5E5E5] bg-white text-[#171717] hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
                       >
                         <ChevronsLeft className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                       </button>
@@ -462,7 +462,7 @@ export const ProductsView: React.FC = () => {
                         onClick={() => handlePageChange(safeCurrentPage - 1)}
                         disabled={safeCurrentPage === 1}
                         title={language === 'ar' ? 'الصفحة السابقة' : 'Previous Page'}
-                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                        className="p-2 rounded-lg border border-[#E5E5E5] bg-white text-[#171717] hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
                       >
                         <ChevronLeft className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                       </button>
@@ -472,7 +472,7 @@ export const ProductsView: React.FC = () => {
                         {getPageNumbers().map((pageNum, idx) => {
                           if (pageNum === '...') {
                             return (
-                              <span key={`dots-${idx}`} className="px-2 py-1 text-slate-400 text-xs font-bold">
+                              <span key={`dots-${idx}`} className="px-2 py-1 text-[#737373] text-xs font-bold">
                                 ...
                               </span>
                             );
@@ -483,10 +483,10 @@ export const ProductsView: React.FC = () => {
                             <button
                               key={`page-${page}`}
                               onClick={() => handlePageChange(page)}
-                              className={`w-9 h-9 rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-2xs ${
+                              className={`w-9 h-9 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
                                 isActive
-                                  ? 'bg-amber-600 text-white shadow-md shadow-amber-600/20 scale-105'
-                                  : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                                  ? 'bg-[#171717] text-white shadow-xs scale-105'
+                                  : 'bg-white hover:bg-neutral-100 text-[#171717] border border-[#E5E5E5]'
                               }`}
                             >
                               {page}
@@ -500,7 +500,7 @@ export const ProductsView: React.FC = () => {
                         onClick={() => handlePageChange(safeCurrentPage + 1)}
                         disabled={safeCurrentPage === totalPages}
                         title={language === 'ar' ? 'الصفحة التالية' : 'Next Page'}
-                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                        className="p-2 rounded-lg border border-[#E5E5E5] bg-white text-[#171717] hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
                       >
                         <ChevronRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                       </button>
@@ -510,7 +510,7 @@ export const ProductsView: React.FC = () => {
                         onClick={() => handlePageChange(totalPages)}
                         disabled={safeCurrentPage === totalPages}
                         title={language === 'ar' ? 'الصفحة الأخيرة' : 'Last Page'}
-                        className="p-2 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
+                        className="p-2 rounded-lg border border-[#E5E5E5] bg-white text-[#171717] hover:bg-neutral-100 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs"
                       >
                         <ChevronsRight className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
                       </button>
@@ -518,12 +518,12 @@ export const ProductsView: React.FC = () => {
                     </div>
 
                     {/* Page Size Fast Select */}
-                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                    <div className="flex items-center gap-2 text-xs font-medium text-[#737373]">
                       <span>{language === 'ar' ? 'منتجات في الصفحة:' : 'Items per page:'}</span>
                       <select
                         value={itemsPerPage}
                         onChange={(e) => setItemsPerPage(Number(e.target.value))}
-                        className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
+                        className="bg-white border border-[#E5E5E5] rounded-lg px-2 py-1 text-xs font-bold text-[#171717]"
                       >
                         <option value={8}>8</option>
                         <option value={12}>12</option>
@@ -539,13 +539,13 @@ export const ProductsView: React.FC = () => {
               </div>
             ) : (
               <div className="py-20 text-center space-y-4 max-w-md mx-auto">
-                <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto text-amber-600">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-[#8F7137]">
                   <Search className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-[#171717]">
                   {language === 'ar' ? 'لم يتم العثور على نتائج مطابقة لجميع الفلاتر' : 'No Lebanese creations matched your search'}
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[#737373]">
                   {language === 'ar' ? 'جرب البحث عن كلمة أخرى أو تصفح الأقسام المختلفة.' : 'Try clearing your search keyword or switching territory/category filters.'}
                 </p>
                 <button
@@ -553,7 +553,7 @@ export const ProductsView: React.FC = () => {
                     setSelectedCategory('all');
                     resetFilters();
                   }}
-                  className="px-6 py-2.5 bg-amber-600 text-white font-bold uppercase text-xs tracking-widest cursor-pointer rounded-xl hover:bg-amber-700 transition-colors"
+                  className="px-6 py-2.5 bg-[#171717] hover:bg-[#8F7137] text-white font-bold uppercase text-xs tracking-widest cursor-pointer rounded-lg transition-colors"
                 >
                   {language === 'ar' ? 'عرض جميع المنتجات اللبنانية' : 'Show All Lebanese Products'}
                 </button>

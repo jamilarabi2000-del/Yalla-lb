@@ -33,18 +33,18 @@ export const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="bg-gradient-to-b from-[#10101e] via-[#131326] to-[#0c0c17] border-t border-[#c5a059]/25 text-slate-400 text-xs relative overflow-hidden select-none">
+    <footer className="bg-[#171717] border-t border-[#B89753]/30 text-neutral-400 text-xs relative overflow-hidden select-none">
       
       {/* Background Decorative Ambient Radial Pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(#c5a059_1px,transparent_1px)] [background-size:28px_28px] opacity-[0.035] pointer-events-none" />
-      <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-96 h-48 bg-[#c5a059]/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(#B89753_1px,transparent_1px)] [background-size:32px_32px] opacity-[0.03] pointer-events-none" />
+      <div className="absolute left-1/2 -top-24 -translate-x-1/2 w-96 h-48 bg-[#B89753]/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main Footer Central Content (About Us) */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-9 text-center relative z-10 flex flex-col items-center">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 text-center relative z-10 flex flex-col items-center">
         
         {/* Section Title & About Narrative */}
         {(visibility.footerAbout || isVisualEditMode) && (
-          <div className={`w-full relative mb-5 ${!visibility.footerAbout && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
+          <div className={`w-full relative mb-6 ${!visibility.footerAbout && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
             {!visibility.footerAbout && isVisualEditMode && (
               <div className="mb-2 bg-rose-600 text-white px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1">
                 <EyeOff className="w-3 h-3" />
@@ -52,14 +52,14 @@ export const Footer: React.FC = () => {
               </div>
             )}
             <div className="flex items-center justify-center gap-3 mb-3">
-              <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-r from-transparent to-[#c5a059]/60" />
-              <h3 className="text-sm sm:text-base font-bold tracking-wider uppercase gold-gradient font-sans">
+              <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-r from-transparent to-[#B89753]/60" />
+              <h3 className="text-sm sm:text-base font-bold tracking-wider uppercase text-[#B89753] font-sans">
                 {footerData.aboutTitle || (language === 'ar' ? 'من نحن' : 'About Us')}
               </h3>
-              <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-l from-transparent to-[#c5a059]/60" />
+              <span className="h-[1px] w-6 sm:w-10 bg-gradient-to-l from-transparent to-[#B89753]/60" />
             </div>
 
-            <p className="text-xs text-slate-300/90 leading-relaxed font-light max-w-xl mx-auto whitespace-pre-line">
+            <p className="text-xs text-neutral-300 leading-relaxed font-normal max-w-2xl mx-auto whitespace-pre-line">
               {footerData.aboutText || (
                 language === 'ar'
                   ? 'المنصة الرائدة للتجارة الحرفية اللبنانية، تجمع نخبة الحرفيين والمزارعين لتقديم أشهى منتجات المونة والتحف التراثية بأعلى معايير الجودة والأصالة.'
@@ -71,7 +71,7 @@ export const Footer: React.FC = () => {
 
         {/* Footer Contact & Support Coordinates */}
         {(visibility.footerContact || isVisualEditMode) && (footerData.phone || footerData.email || footerData.address || footerData.hours) && (
-          <div className={`w-full mb-6 py-4 px-6 rounded-2xl bg-white/[0.02] border border-white/5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center relative ${!visibility.footerContact && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
+          <div className={`w-full mb-6 py-4 px-6 rounded-xl bg-white/[0.03] border border-white/10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center relative ${!visibility.footerContact && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80' : ''}`}>
             {!visibility.footerContact && isVisualEditMode && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-rose-600 text-white px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 z-10 whitespace-nowrap">
                 <EyeOff className="w-3 h-3" />
@@ -80,40 +80,40 @@ export const Footer: React.FC = () => {
             )}
             {footerData.phone && (
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#B89753] mb-1">
                   {language === 'ar' ? 'الهاتف' : 'Phone'}
                 </span>
-                <a href={`tel:${footerData.phone}`} className="text-xs text-slate-300 hover:text-white transition-colors">
+                <a href={`tel:${footerData.phone}`} className="text-xs text-neutral-300 hover:text-white transition-colors">
                   {footerData.phone}
                 </a>
               </div>
             )}
             {footerData.email && (
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#B89753] mb-1">
                   {language === 'ar' ? 'البريد الإلكتروني' : 'Email'}
                 </span>
-                <a href={`mailto:${footerData.email}`} className="text-xs text-slate-300 hover:text-white transition-colors">
+                <a href={`mailto:${footerData.email}`} className="text-xs text-neutral-300 hover:text-white transition-colors">
                   {footerData.email}
                 </a>
               </div>
             )}
             {(footerData.address || footerData.addressArabic) && (
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#B89753] mb-1">
                   {language === 'ar' ? 'العنوان' : 'Address'}
                 </span>
-                <span className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                <span className="text-xs text-neutral-300 whitespace-pre-line leading-relaxed">
                   {language === 'ar' ? (footerData.addressArabic || footerData.address) : (footerData.address || footerData.addressArabic)}
                 </span>
               </div>
             )}
             {(footerData.hours || footerData.hoursArabic) && (
               <div className="flex flex-col items-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[#c5a059] mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#B89753] mb-1">
                   {language === 'ar' ? 'ساعات العمل' : 'Hours'}
                 </span>
-                <span className="text-xs text-slate-300 whitespace-pre-line leading-relaxed">
+                <span className="text-xs text-neutral-300 whitespace-pre-line leading-relaxed">
                   {language === 'ar' ? (footerData.hoursArabic || footerData.hours) : (footerData.hours || footerData.hoursArabic)}
                 </span>
               </div>
@@ -131,7 +131,7 @@ export const Footer: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Instagram"
-                className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-gradient-to-tr hover:from-amber-600 hover:via-rose-600 hover:to-purple-600 border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+                className="w-9 h-9 rounded-lg bg-white/[0.04] hover:bg-[#B89753] border border-white/10 hover:border-[#B89753] text-neutral-300 hover:text-black flex items-center justify-center transition-all duration-200 shadow-2xs cursor-pointer group"
               >
                 <Instagram className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </a>
@@ -144,7 +144,7 @@ export const Footer: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="WhatsApp"
-                className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-emerald-600 border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+                className="w-9 h-9 rounded-lg bg-white/[0.04] hover:bg-[#16803C] border border-white/10 hover:border-[#16803C] text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 shadow-2xs cursor-pointer group"
               >
                 <svg 
                   className="w-4 h-4 group-hover:scale-110 transition-transform fill-current" 
@@ -163,7 +163,7 @@ export const Footer: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Facebook"
-                className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-[#1877F2] border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+                className="w-9 h-9 rounded-lg bg-white/[0.04] hover:bg-[#1877F2] border border-white/10 hover:border-transparent text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 shadow-2xs cursor-pointer group"
               >
                 <Facebook className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </a>
@@ -174,7 +174,7 @@ export const Footer: React.FC = () => {
               <a
                 href={`mailto:${siteContent?.socialLinks?.email || footerData.email || 'concierge@yalla.lb'}`}
                 aria-label="Email"
-                className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-[#c5a059] border border-white/10 hover:border-transparent text-slate-300 hover:text-[#121222] flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+                className="w-9 h-9 rounded-lg bg-white/[0.04] hover:bg-[#B89753] border border-white/10 hover:border-[#B89753] text-neutral-300 hover:text-black flex items-center justify-center transition-all duration-200 shadow-2xs cursor-pointer group"
               >
                 <Mail className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </a>
@@ -185,7 +185,7 @@ export const Footer: React.FC = () => {
               <a
                 href={`tel:${siteContent?.socialLinks?.phone || footerData.phone || '+96170889234'}`}
                 aria-label="Call"
-                className="w-9 h-9 rounded-xl bg-white/[0.04] hover:bg-emerald-600 border border-white/10 hover:border-transparent text-slate-300 hover:text-white flex items-center justify-center transition-all duration-300 shadow-sm cursor-pointer group"
+                className="w-9 h-9 rounded-lg bg-white/[0.04] hover:bg-[#16803C] border border-white/10 hover:border-[#16803C] text-neutral-300 hover:text-white flex items-center justify-center transition-all duration-200 shadow-2xs cursor-pointer group"
               >
                 <PhoneCall className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </a>
@@ -195,7 +195,7 @@ export const Footer: React.FC = () => {
 
         {/* Copyright & Lebanese Heritage Attribution */}
         {(visibility.footerCopyright || isVisualEditMode) && (
-          <div className={`pt-4 border-t border-white/[0.06] w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-slate-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
+          <div className={`pt-4 border-t border-white/10 w-full flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-neutral-400 relative ${!visibility.footerCopyright && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-xl p-2' : ''}`}>
             <div className="flex items-center gap-2">
               <span className="whitespace-pre-line text-center sm:text-start leading-relaxed">
                 {language === 'ar'
@@ -209,7 +209,7 @@ export const Footer: React.FC = () => {
                 type="button"
                 id="footer-seller-portal-btn"
                 onClick={() => setActiveTab('seller')}
-                className="inline-flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-bold transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 text-[#B89753] hover:text-white font-bold transition-colors cursor-pointer"
               >
                 <Store className="w-3.5 h-3.5" />
                 <span>{language === 'ar' ? 'بوابة البائعين والتجار' : 'Seller & Merchant Portal'}</span>

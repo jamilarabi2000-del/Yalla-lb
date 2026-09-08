@@ -87,6 +87,8 @@ export const ProductDetailView: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
+  const [copiedLink, setCopiedLink] = useState(false);
+
   const visibility = siteContent.visibility || {
     detailBreadcrumbs: true,
     detailGallery: true,
@@ -337,21 +339,21 @@ export const ProductDetailView: React.FC = () => {
 
       {/* Top Header Navigation Bar with Prominent Back Button */}
       {(visibility.detailBreadcrumbs || isVisualEditMode) && (
-        <div className="bg-white border-b border-slate-200 sticky top-[72px] z-30 shadow-xs">
+        <div className="bg-white/90 backdrop-blur-md border-b border-[#E5E5E5] sticky top-[72px] z-30 shadow-2xs">
           <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between gap-4">
             <button
               id="product-detail-back-btn"
               onClick={goBack}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer border border-slate-300 shadow-2xs"
+              className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-[#F8F8F6] hover:bg-slate-200 text-[#171717] text-xs font-bold transition-all cursor-pointer border border-[#E5E5E5]"
             >
-              <ArrowLeft className={`w-4 h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+              <ArrowLeft className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
               <span>{t('back')}</span>
             </button>
 
-            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 truncate max-w-md">
-              <span>{t(product.category === 'all' ? 'cat_all' : (`cat_${product.category}` as any))}</span>
+            <div className="flex items-center gap-2 text-xs font-medium text-[#737373] truncate max-w-md">
+              <span className="hover:text-[#8F7137] cursor-pointer" onClick={goBack}>{t(product.category === 'all' ? 'cat_all' : (`cat_${product.category}` as any))}</span>
               <span>/</span>
-              <span className="font-bold text-slate-900 truncate">{displayTitle}</span>
+              <span className="font-bold text-[#171717] truncate">{displayTitle}</span>
             </div>
 
             <button
@@ -360,12 +362,24 @@ export const ProductDetailView: React.FC = () => {
                   navigator.share({ title: displayTitle, url: window.location.href }).catch(() => {});
                 } else {
                   navigator.clipboard.writeText(window.location.href);
+                  setCopiedLink(true);
+                  setTimeout(() => setCopiedLink(false), 2000);
                 }
               }}
-              className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-[#737373] hover:text-[#171717] hover:bg-[#F8F8F6] transition-colors cursor-pointer border border-[#E5E5E5]"
               title="Share product"
             >
-              <Share2 className="w-4 h-4" />
+              {copiedLink ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#16803C]" />
+                  <span className="text-[#16803C] text-[11px] font-bold">{language === 'ar' ? 'تم النسخ' : 'Copied!'}</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">{language === 'ar' ? 'مشاركة' : 'Share'}</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -378,13 +392,13 @@ export const ProductDetailView: React.FC = () => {
           {/* Left Column: Image & Video Media Gallery */}
           {(visibility.detailGallery || isVisualEditMode) && (
             <div className="lg:col-span-6 space-y-4">
-              <div className="relative aspect-square w-full rounded-3xl overflow-hidden bg-slate-950 border border-slate-200 shadow-md flex items-center justify-center p-4">
+              <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#F8F8F6] border border-[#E5E5E5] shadow-xs flex items-center justify-center p-6">
                 {activeMediaType === 'video' && currentVideoEmbed ? (
                   currentVideoEmbed.type === 'youtube' || currentVideoEmbed.type === 'vimeo' ? (
                     <iframe
                       src={currentVideoEmbed.embedUrl}
                       title={`${displayTitle} Video`}
-                      className="w-full h-full border-0"
+                      className="w-full h-full border-0 rounded-xl"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                       allowFullScreen
                     />
@@ -393,14 +407,14 @@ export const ProductDetailView: React.FC = () => {
                       src={currentVideoEmbed.embedUrl}
                       controls
                       autoPlay
-                      className="w-full h-full object-contain bg-black"
+                      className="w-full h-full object-contain rounded-xl bg-black"
                     />
                   )
                 ) : (
                   <img
                     src={currentImage}
                     alt={displayTitle}
-                    className="w-full h-full object-contain object-center transition-all duration-300"
+                    className="w-full h-full object-contain object-center transition-all duration-300 drop-shadow-xs"
                     referrerPolicy="no-referrer"
                   />
                 )}
@@ -410,27 +424,27 @@ export const ProductDetailView: React.FC = () => {
                   onClick={() => toggleWishlist(product.id)}
                   className={`absolute top-4 right-4 p-3 rounded-full transition-all z-10 cursor-pointer shadow-md ${
                     isLiked 
-                      ? 'bg-rose-500 text-white scale-105' 
-                      : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-white'
+                      ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                      : 'bg-white text-slate-700 hover:text-rose-600 hover:bg-white border border-[#E5E5E5]'
                   }`}
                 >
-                  <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
+                  <Heart className={`w-5 h-5 ${isLiked ? 'fill-current text-rose-600' : ''}`} />
                 </button>
 
                 {/* Badges */}
                 <div className="absolute top-4 left-4 flex flex-col gap-1.5 z-10 pointer-events-none">
                   {product.discountPercentage && (
-                    <span className="px-3 py-1 text-xs font-black uppercase tracking-wider bg-rose-600 text-white rounded-lg shadow-sm">
+                    <span className="px-2.5 py-1 text-xs font-black uppercase tracking-wider bg-[#C62828] text-white rounded-md shadow-xs">
                       -{product.discountPercentage}%
                     </span>
                   )}
                   {product.isBestseller && (
-                    <span className="px-3 py-1 text-xs font-black uppercase tracking-widest bg-emerald-600 text-white rounded-lg shadow-sm">
-                      Bestseller
+                    <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-[#16803C] text-white rounded-md shadow-xs">
+                      {t('bestseller')}
                     </span>
                   )}
                   {allVideos.length > 0 && activeMediaType === 'image' && (
-                    <span className="px-3 py-1 text-xs font-black uppercase tracking-wider bg-indigo-600 text-white rounded-lg shadow-sm flex items-center gap-1">
+                    <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider bg-slate-900 text-white rounded-md shadow-xs flex items-center gap-1">
                       <Video className="w-3 h-3" />
                       Video Available
                     </span>
@@ -448,13 +462,13 @@ export const ProductDetailView: React.FC = () => {
                         setSelectedImage(img);
                         setActiveMediaType('image');
                       }}
-                      className={`relative w-20 h-20 rounded-2xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all ${
+                      className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all ${
                         activeMediaType === 'image' && currentImage === img 
-                          ? 'border-[#a37f35] shadow-md scale-102 ring-2 ring-[#a37f35]/20' 
-                          : 'border-slate-200 opacity-70 hover:opacity-100'
+                          ? 'border-[#B89753] shadow-xs scale-102 ring-2 ring-[#B89753]/20' 
+                          : 'border-[#E5E5E5] bg-[#F8F8F6] opacity-75 hover:opacity-100'
                       }`}
                     >
-                      <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-contain p-1 bg-slate-50" referrerPolicy="no-referrer" />
+                      <img src={img} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-contain p-1" referrerPolicy="no-referrer" />
                     </button>
                   ))}
 
@@ -465,17 +479,17 @@ export const ProductDetailView: React.FC = () => {
                         setActiveVideoUrl(vid);
                         setActiveMediaType('video');
                       }}
-                      className={`relative w-20 h-20 rounded-2xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all bg-slate-900 flex flex-col items-center justify-center text-white ${
+                      className={`relative w-20 h-20 rounded-xl overflow-hidden border-2 flex-shrink-0 cursor-pointer transition-all bg-slate-900 flex flex-col items-center justify-center text-white ${
                         activeMediaType === 'video' && currentVideoUrl === vid 
-                          ? 'border-indigo-600 shadow-md scale-102 ring-2 ring-indigo-500/30' 
+                          ? 'border-[#B89753] shadow-xs scale-102 ring-2 ring-[#B89753]/30' 
                           : 'border-slate-300 opacity-80 hover:opacity-100'
                       }`}
                       title={`Play Video ${index + 1}`}
                     >
-                      <div className="w-8 h-8 rounded-full bg-indigo-600/90 flex items-center justify-center shadow-md">
-                        <Play className="w-4 h-4 text-white fill-current ml-0.5" />
+                      <div className="w-7 h-7 rounded-full bg-[#B89753] flex items-center justify-center shadow-xs">
+                        <Play className="w-3.5 h-3.5 text-white fill-current ml-0.5" />
                       </div>
-                      <span className="text-[9px] font-black uppercase tracking-wider mt-1 text-slate-200">Video</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider mt-1 text-slate-200">Video</span>
                     </button>
                   ))}
                 </div>
@@ -486,9 +500,9 @@ export const ProductDetailView: React.FC = () => {
           {/* Right Column: Product Meta, Price & Action */}
           <div className="lg:col-span-6 space-y-6">
             
-            <div className="space-y-3 pb-6 border-b border-slate-200">
+            <div className="space-y-3 pb-6 border-b border-[#E5E5E5]">
               {/* Main Product Title */}
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#171717] leading-tight">
                 {displayTitle}
               </h1>
 
@@ -509,10 +523,10 @@ export const ProductDetailView: React.FC = () => {
                         </svg>
                       ))}
                     </div>
-                    <span className="text-xs font-extrabold text-[#a37f35] bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-lg">
+                    <span className="text-xs font-bold text-[#8F7137] bg-amber-50 border border-amber-200/70 px-2 py-0.5 rounded-lg">
                       {averageRating} / 5.0
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs text-[#737373]">
                       ({totalReviewsCount} {language === 'ar' ? 'تقييم' : 'reviews'})
                     </span>
                   </>
@@ -529,7 +543,7 @@ export const ProductDetailView: React.FC = () => {
                         </svg>
                       ))}
                     </div>
-                    <span className="text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                    <span className="text-xs font-medium text-[#737373] bg-[#F8F8F6] border border-[#E5E5E5] px-2 py-0.5 rounded-lg">
                       {language === 'ar' ? 'لا توجد تقييمات بعد' : 'No reviews yet'}
                     </span>
                     <span className="text-xs text-slate-400">
@@ -541,11 +555,11 @@ export const ProductDetailView: React.FC = () => {
 
               {/* Artisan Name */}
               {(visibility.detailArtisanBio || isVisualEditMode) && (
-                <div className="text-xs sm:text-sm text-slate-600 flex items-center gap-1.5 flex-wrap">
+                <div className="text-xs sm:text-sm text-[#737373] flex items-center gap-1.5 flex-wrap">
                   <span>{language === 'ar' ? 'البائع:' : 'Seller:'}</span>
                   <button
                     onClick={() => discoverSellerProducts(product.artisan)}
-                    className="text-[#a37f35] hover:text-[#8c6b2a] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
+                    className="text-[#8F7137] hover:text-[#B89753] font-bold hover:underline transition-all cursor-pointer text-left focus:outline-none"
                     title={language === 'ar' ? 'اكتشف المزيد من منتجات هذا البائع' : 'Discover more products from this seller'}
                   >
                     {language === 'ar' && product.arabicSeller ? product.arabicSeller : (product.artisan.startsWith('Seller:') ? product.artisan.replace('Seller:', '').trim() : product.artisan)}
@@ -558,7 +572,7 @@ export const ProductDetailView: React.FC = () => {
             {(visibility.detailPriceBox || isVisualEditMode) && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3 flex-wrap">
-                  <span className="text-3xl sm:text-4xl font-black text-slate-950 tracking-tight">
+                  <span className="text-3xl sm:text-4xl font-extrabold text-[#171717] tracking-tight">
                     {formatPrice(product.priceUSD)}
                   </span>
                   {product.originalPriceUSD && (
@@ -570,27 +584,27 @@ export const ProductDetailView: React.FC = () => {
 
                 {/* Real Inventory Stock Quantity & Admin Low-Stock Notice */}
                 <div className="flex items-center gap-2 flex-wrap text-xs pt-0.5">
-                  <span className="font-semibold text-slate-600">
+                  <span className="font-semibold text-[#737373]">
                     {language === 'ar' ? 'المخزون المتوفر:' : 'Stock Quantity:'}
                   </span>
                   {stockQty > 0 ? (
-                    <span className="font-bold text-slate-900">
+                    <span className="font-bold text-[#16803C] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                       {stockQty} {language === 'ar' ? 'متوفر' : 'in stock'}
                     </span>
                   ) : (
-                    <span className="font-bold text-rose-600">
+                    <span className="font-bold text-[#C62828] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
                       {language === 'ar' ? 'نفد المخزون' : 'Out of stock'}
                     </span>
                   )}
 
                   {isLowStock && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-xs">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-300">
                       ⚠️ {product.lowStockNotice || (stockQty === 1 ? (language === 'ar' ? 'القطعة الأخيرة' : 'Last piece') : (language === 'ar' ? 'كمية محدودة' : 'Limited Stock'))}
                     </span>
                   )}
 
                   {!isLowStock && !isOutOfStock && product.lowStockNotice && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-xs font-medium bg-[#F8F8F6] text-[#737373] border border-[#E5E5E5]">
                       {product.lowStockNotice}
                     </span>
                   )}
@@ -598,13 +612,13 @@ export const ProductDetailView: React.FC = () => {
 
                 {/* Package Net Weight or Volume or Size (if specified by Admin) */}
                 {product.weightOrVolume && (
-                  <p className="text-xs text-slate-500 font-medium">
-                    <span className="font-semibold text-slate-600">{language === 'ar' ? 'الحجم / الوزن:' : 'Size / Volume:'}</span>{' '}
+                  <p className="text-xs text-[#737373] font-medium">
+                    <span className="font-semibold text-[#171717]">{language === 'ar' ? 'الحجم / الوزن:' : 'Size / Volume:'}</span>{' '}
                     {product.weightOrVolume}
                   </p>
                 )}
                 {product.sellerItemCode && (
-                  <p className="text-xs text-slate-500 font-medium font-mono">
+                  <p className="text-xs text-[#737373] font-medium font-mono">
                     {language === 'ar' ? 'رمز البائع: ' : 'Seller Code: '} {product.sellerItemCode}
                   </p>
                 )}
@@ -612,36 +626,36 @@ export const ProductDetailView: React.FC = () => {
             )}
 
             {/* Description & Craft Story */}
-            <div className="space-y-4 text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
-              <p className="whitespace-pre-line">{product.description}</p>
+            <div className="space-y-4 text-xs sm:text-sm text-[#737373] leading-relaxed font-normal">
+              <p className="whitespace-pre-line text-[#171717] leading-relaxed">{product.description}</p>
               {product.craftStory && (
-                <div className="mt-4 p-4 rounded-2xl bg-[#fdfbf7] border border-[#f5ece1] text-[#785b28] space-y-1.5">
-                  <h4 className="font-bold text-xs uppercase tracking-wider text-[#a37f35]">
+                <div className="mt-4 p-4 rounded-xl bg-[#F8F8F6] border border-[#E5E5E5] text-[#171717] space-y-1.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-[#8F7137]">
                     {siteContent.productDetailPage?.craftStoryTitle ?? 'Artisan Workshop & Provenance'}
                   </h4>
-                  <p className="text-xs leading-relaxed italic whitespace-pre-line">{product.craftStory}</p>
+                  <p className="text-xs leading-relaxed italic whitespace-pre-line text-[#737373]">{product.craftStory}</p>
                 </div>
               )}
             </div>
 
             {/* Quantity Selector & Add to Cart Action */}
             {(visibility.detailPriceBox || isVisualEditMode) && (
-              <div className="pt-4 border-t border-slate-200 space-y-4">
+              <div className="pt-4 border-t border-[#E5E5E5] space-y-4">
                 <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-2xl p-1">
+                  <div className="flex items-center gap-1 bg-[#F8F8F6] border border-[#E5E5E5] rounded-xl p-1">
                     <button
                       onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                      className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-700 hover:text-slate-900 hover:bg-white cursor-pointer transition-all"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-700 hover:text-black hover:bg-white cursor-pointer transition-all"
                       aria-label="Decrease quantity"
                     >
                       <Minus className="w-4 h-4" />
                     </button>
-                    <span className="text-sm font-bold text-slate-900 px-3 min-w-[32px] text-center">
+                    <span className="text-sm font-bold text-[#171717] px-3 min-w-[32px] text-center">
                       {quantity}
                     </span>
                     <button
                       onClick={() => setQuantity(quantity + 1)}
-                      className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-700 hover:text-slate-900 hover:bg-white cursor-pointer transition-all"
+                      className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-700 hover:text-black hover:bg-white cursor-pointer transition-all"
                       aria-label="Increase quantity"
                     >
                       <Plus className="w-4 h-4" />
@@ -653,10 +667,10 @@ export const ProductDetailView: React.FC = () => {
                     onClick={() => toggleWishlist(product.id)}
                     aria-label={isLiked ? "Remove from favorites" : "Add to favorites"}
                     title={isLiked ? "Remove from favorites" : "Add to favorites"}
-                    className={`p-4 rounded-2xl border transition-all cursor-pointer shadow-sm flex items-center justify-center ${
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs flex items-center justify-center ${
                       isLiked 
                         ? 'bg-rose-50 border-rose-300 text-rose-600 hover:bg-rose-100' 
-                        : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-rose-600 hover:bg-white'
+                        : 'bg-[#F8F8F6] border-[#E5E5E5] text-slate-600 hover:text-rose-600 hover:bg-white'
                     }`}
                   >
                     <Heart className={`w-5 h-5 transition-transform duration-200 ${isLiked ? 'fill-rose-600 text-rose-600 scale-110' : ''}`} />
@@ -665,10 +679,10 @@ export const ProductDetailView: React.FC = () => {
                   <button
                     id="detail-add-to-cart-btn"
                     onClick={handleAddToCart}
-                    className={`flex-1 py-4 px-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-98 ${
+                    className={`flex-1 py-3.5 px-6 rounded-xl font-bold uppercase text-xs tracking-wider transition-all cursor-pointer shadow-xs flex items-center justify-center gap-2 active:scale-98 ${
                       justAdded 
-                        ? 'bg-emerald-600 text-white' 
-                        : 'bg-[#a37f35] hover:bg-[#8c6b2a] text-white'
+                        ? 'bg-[#16803C] text-white' 
+                        : 'bg-[#171717] hover:bg-[#8F7137] text-white'
                     }`}
                   >
                     {justAdded ? (
@@ -689,7 +703,7 @@ export const ProductDetailView: React.FC = () => {
                 {((visibility.detailWhatsAppInquiry && siteContent.productDetailPage?.inquiryWhatsAppNumber) || isVisualEditMode) && (
                   <button
                     onClick={handleWhatsAppInquiry}
-                    className="w-full py-3 px-4 rounded-2xl font-bold text-xs uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                    className="w-full py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider bg-[#16803C] hover:bg-emerald-700 text-white transition-all shadow-2xs flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <MessageCircle className="w-4 h-4" />
                     <span>{siteContent.productDetailPage?.inquiryText ?? 'Inquire on WhatsApp with Master Artisan'}</span>
@@ -697,45 +711,45 @@ export const ProductDetailView: React.FC = () => {
                 )}
 
                 {/* Trust Badges Section */}
-                <div className="pt-4 border-t border-slate-200/80 space-y-3.5">
+                <div className="pt-4 border-t border-[#E5E5E5] space-y-3">
                   {siteContent.productDetailPage?.authenticityGuaranteeText && (
-                    <div className="flex items-start gap-2.5 text-xs text-slate-600">
-                      <div className="p-1 rounded-lg bg-amber-50 text-[#a37f35] border border-amber-100 flex-shrink-0 mt-0.5">
+                    <div className="flex items-start gap-2.5 text-xs text-[#737373]">
+                      <div className="p-1.5 rounded-lg bg-amber-50 text-[#8F7137] border border-amber-200/60 flex-shrink-0 mt-0.5">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
                       </div>
                       <div className="leading-tight">
-                        <span className="font-semibold text-slate-800 block">{language === 'ar' ? 'ضمان الأصالة' : 'Authenticity Guarantee'}</span>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{siteContent.productDetailPage.authenticityGuaranteeText}</p>
+                        <span className="font-bold text-[#171717] block">{language === 'ar' ? 'ضمان الأصالة' : 'Authenticity Guarantee'}</span>
+                        <p className="text-[11px] text-[#737373] mt-0.5">{siteContent.productDetailPage.authenticityGuaranteeText}</p>
                       </div>
                     </div>
                   )}
 
                   {siteContent.productDetailPage?.freeDeliveryBadgeText && (
-                    <div className="flex items-start gap-2.5 text-xs text-slate-600">
-                      <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex-shrink-0 mt-0.5">
+                    <div className="flex items-start gap-2.5 text-xs text-[#737373]">
+                      <div className="p-1.5 rounded-lg bg-emerald-50 text-[#16803C] border border-emerald-200 flex-shrink-0 mt-0.5">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                         </svg>
                       </div>
                       <div className="leading-tight">
-                        <span className="font-semibold text-slate-800 block">{language === 'ar' ? 'التسليم والشحن' : 'Delivery & Dispatch'}</span>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{siteContent.productDetailPage.freeDeliveryBadgeText}</p>
+                        <span className="font-bold text-[#171717] block">{language === 'ar' ? 'التسليم والشحن' : 'Delivery & Dispatch'}</span>
+                        <p className="text-[11px] text-[#737373] mt-0.5">{siteContent.productDetailPage.freeDeliveryBadgeText}</p>
                       </div>
                     </div>
                   )}
 
                   {siteContent.productDetailPage?.returnsPolicyText && (
-                    <div className="flex items-start gap-2.5 text-xs text-slate-600">
-                      <div className="p-1 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0 mt-0.5">
+                    <div className="flex items-start gap-2.5 text-xs text-[#737373]">
+                      <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 border border-blue-200 flex-shrink-0 mt-0.5">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.21" />
                         </svg>
                       </div>
                       <div className="leading-tight">
-                        <span className="font-semibold text-slate-800 block">{language === 'ar' ? 'سياسة الإرجاع' : 'Returns Policy'}</span>
-                        <p className="text-[11px] text-slate-500 mt-0.5">{siteContent.productDetailPage.returnsPolicyText}</p>
+                        <span className="font-bold text-[#171717] block">{language === 'ar' ? 'سياسة الإرجاع' : 'Returns Policy'}</span>
+                        <p className="text-[11px] text-[#737373] mt-0.5">{siteContent.productDetailPage.returnsPolicyText}</p>
                       </div>
                     </div>
                   )}
@@ -754,13 +768,13 @@ export const ProductDetailView: React.FC = () => {
 
         {/* Customer Reviews Section */}
         {(visibility.detailCustomerReviews || isVisualEditMode) && (
-          <div className="pt-12 border-t border-slate-200 space-y-8">
+          <div className="pt-12 border-t border-[#E5E5E5] space-y-8">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h3 className="text-xl font-bold text-slate-900">
+                <h3 className="text-xl font-bold text-[#171717]">
                   {language === 'ar' ? 'آراء وتقييمات العملاء' : 'Customer Reviews & Feedback'}
                 </h3>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-[#737373] mt-1">
                   {language === 'ar' 
                     ? 'اكتشف تجارب المشترين للمنتجات الحرفية اللبنانية الأصيلة.' 
                     : 'Discover authentic reviews from collectors of Lebanese craftsmanship.'}
@@ -768,16 +782,16 @@ export const ProductDetailView: React.FC = () => {
               </div>
 
               {/* Aggregated Average Stars Rating Badge */}
-              <div className="flex items-center gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs self-start sm:self-auto">
+              <div className="flex items-center gap-3 bg-white p-4 rounded-xl border border-[#E5E5E5] shadow-2xs self-start sm:self-auto">
                 <div className="text-center px-1">
-                  <p className="text-2xl font-black text-slate-900">
+                  <p className="text-2xl font-black text-[#171717]">
                     {hasReviews ? averageRating : '—'}
                   </p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                  <p className="text-[10px] text-[#737373] font-bold uppercase tracking-wider">
                     {hasReviews ? (language === 'ar' ? 'من 5 نجوم' : 'out of 5') : (language === 'ar' ? 'غير مقيّم' : 'Unrated')}
                   </p>
                 </div>
-                <div className="h-8 w-px bg-slate-200 font-normal"></div>
+                <div className="h-8 w-px bg-[#E5E5E5]"></div>
                 <div>
                   <div className="flex items-center text-amber-500 gap-0.5">
                     {[1, 2, 3, 4, 5].map((star) => (
@@ -792,7 +806,7 @@ export const ProductDetailView: React.FC = () => {
                       </svg>
                     ))}
                   </div>
-                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                  <p className="text-xs text-[#737373] mt-0.5 font-medium">
                     {hasReviews
                       ? `${totalReviewsCount} ${language === 'ar' ? 'تقييمات موثقة' : 'verified ratings'}`
                       : (language === 'ar' ? 'كن أول من يكتب تقييماً' : '0 reviews (Be the first to review!)')}
@@ -804,12 +818,12 @@ export const ProductDetailView: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
               
               {/* Left Column: Post a Review Form */}
-              <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="lg:col-span-5 bg-white p-6 rounded-2xl border border-[#E5E5E5] shadow-2xs space-y-4">
                 <div>
-                  <h4 className="text-sm font-bold text-slate-900">
+                  <h4 className="text-sm font-bold text-[#171717]">
                     {language === 'ar' ? 'أضف تقييمك للمنتج' : 'Share Your Experience'}
                   </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="text-xs text-[#737373] mt-0.5">
                     {language === 'ar' 
                       ? 'ملاحظاتك تساعد مجتمع الحرفيين اللبنانيين على النمو.' 
                       : 'Your feedback helps the Lebanese artisan community grow.'}
@@ -821,7 +835,7 @@ export const ProductDetailView: React.FC = () => {
                     {/* Star Rating Selector */}
                     <div className="space-y-1.5">
                       <label className="text-xs font-bold text-slate-700">
-                        {language === 'ar' ? 'الالتقييم بالنجوم:' : 'Your Rating:'}
+                        {language === 'ar' ? 'التقييم بالنجوم:' : 'Your Rating:'}
                       </label>
                       <div className="flex items-center gap-1.5">
                         {[1, 2, 3, 4, 5].map((star) => (
@@ -862,7 +876,7 @@ export const ProductDetailView: React.FC = () => {
                         }
                         value={commentInput}
                         onChange={(e) => setCommentInput(e.target.value)}
-                        className="w-full px-4 py-3 bg-slate-50 text-slate-900 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-slate-400 focus:bg-white transition-all resize-none"
+                        className="w-full px-4 py-3 bg-[#F8F8F6] text-[#171717] text-xs rounded-xl border border-[#E5E5E5] focus:outline-none focus:border-[#8F7137] focus:bg-white transition-all resize-none"
                       />
                     </div>
 
@@ -881,7 +895,7 @@ export const ProductDetailView: React.FC = () => {
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full py-3 bg-[#a37f35] hover:bg-[#8c6b2a] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-xs"
+                      className="w-full py-3 bg-[#171717] hover:bg-[#8F7137] disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 shadow-2xs"
                     >
                       {isSubmitting ? (
                         <>
@@ -894,7 +908,7 @@ export const ProductDetailView: React.FC = () => {
                     </button>
                   </form>
                 ) : (
-                  <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/60 text-center space-y-3">
+                  <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-200/60 text-center space-y-3">
                     <p className="text-xs text-slate-700 leading-relaxed font-medium">
                       {language === 'ar' 
                         ? 'يجب عليك تسجيل الدخول في حسابك لتتمكن من كتابة تقييم ومشاركة تجربتك.' 
@@ -902,7 +916,7 @@ export const ProductDetailView: React.FC = () => {
                     </p>
                     <button
                       onClick={() => setActiveTab('account')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#a37f35] hover:bg-[#8c6b2a] text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#8F7137] hover:bg-[#B89753] text-white text-xs font-bold uppercase tracking-wider rounded-lg transition-all cursor-pointer shadow-2xs"
                     >
                       <span>{language === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now'}</span>
                     </button>
@@ -913,36 +927,36 @@ export const ProductDetailView: React.FC = () => {
               {/* Right Column: List of Reviews */}
               <div className="lg:col-span-7 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-[#737373]">
                     {language === 'ar' ? 'التعليقات المنشورة' : 'Recent Reviews'}
                   </h4>
-                  <span className="text-xs text-slate-500 font-medium">
+                  <span className="text-xs text-[#737373] font-medium">
                     {reviews.length} {language === 'ar' ? 'تعليقات' : 'reviews'}
                   </span>
                 </div>
 
                 {isLoadingReviews ? (
                   <div className="py-12 flex justify-center items-center">
-                    <div className="w-8 h-8 border-3 border-[#a37f35]/20 border-t-[#a37f35] rounded-full animate-spin"></div>
+                    <div className="w-8 h-8 border-3 border-[#B89753]/20 border-t-[#B89753] rounded-full animate-spin"></div>
                   </div>
                 ) : reviews.length === 0 ? (
-                  <div className="text-center py-12 bg-white rounded-3xl border border-slate-200/80">
-                    <p className="text-xs text-slate-500">
+                  <div className="text-center py-12 bg-white rounded-2xl border border-[#E5E5E5]">
+                    <p className="text-xs text-[#737373]">
                       {language === 'ar' ? 'لا توجد تقييمات لهذا المنتج بعد. كن أول من يكتب تقييمًا!' : 'No reviews for this product yet. Be the first to leave one!'}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
                     {reviews.map((review) => (
-                      <div key={review.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+                      <div key={review.id} className="bg-white p-5 rounded-xl border border-[#E5E5E5] shadow-2xs space-y-3">
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-700">
+                            <div className="w-8 h-8 rounded-full bg-[#F8F8F6] border border-[#E5E5E5] flex items-center justify-center text-xs font-bold text-[#171717]">
                               {review.userName.slice(0, 2).toUpperCase()}
                             </div>
                             <div>
-                              <p className="text-xs font-bold text-slate-900">{review.userName}</p>
-                              <p className="text-[10px] text-slate-400 font-medium">
+                              <p className="text-xs font-bold text-[#171717]">{review.userName}</p>
+                              <p className="text-[10px] text-[#737373] font-medium">
                                 {new Date(review.createdAt).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
                                   month: 'short',
                                   day: 'numeric',
@@ -972,16 +986,16 @@ export const ProductDetailView: React.FC = () => {
                         </p>
 
                         {review.adminReply && (
-                          <div className="mt-3 pl-3.5 border-l-2 border-[#a37f35] bg-amber-50/70 p-3 rounded-xl space-y-1">
-                            <div className="flex items-center gap-1.5 text-xs font-bold text-[#a37f35]">
+                          <div className="mt-3 pl-3.5 border-l-2 border-[#8F7137] bg-amber-50/70 p-3 rounded-xl space-y-1">
+                            <div className="flex items-center gap-1.5 text-xs font-bold text-[#8F7137]">
                               <span>Store Admin Response</span>
                               {review.adminReplyAt && (
-                                <span className="text-[10px] font-normal text-slate-400">
+                                <span className="text-[10px] font-normal text-[#737373]">
                                   ({new Date(review.adminReplyAt).toLocaleDateString()})
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                            <p className="text-xs text-[#171717] leading-relaxed font-medium">
                               {review.adminReply}
                             </p>
                           </div>
@@ -998,8 +1012,8 @@ export const ProductDetailView: React.FC = () => {
 
         {/* Related Products Section */}
         {(visibility.detailRelatedProducts || isVisualEditMode) && relatedProducts.length > 0 && (
-          <div className="pt-12 border-t border-slate-200 space-y-6">
-            <h3 className="text-xl font-bold text-slate-900">
+          <div className="pt-12 border-t border-[#E5E5E5] space-y-6">
+            <h3 className="text-xl font-bold text-[#171717]">
               {siteContent.productDetailPage?.relatedItemsTitle ?? t('relatedProducts')}
             </h3>
 

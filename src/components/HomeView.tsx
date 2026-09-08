@@ -137,23 +137,23 @@ export const HomeView: React.FC = () => {
 
       case 'homeTrustBadges':
         return (visibility.homeTrustBadges || isVisualEditMode) ? (
-          <section key="homeTrustBadges" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeTrustBadges && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <section key="homeTrustBadges" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeTrustBadges && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
             {!visibility.homeTrustBadges && isVisualEditMode && (
               <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
                 <EyeOff className="w-3.5 h-3.5" />
                 <span>Section Hidden (Draft Preview)</span>
               </div>
             )}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 sm:p-8">
+            <div className="bg-white rounded-2xl border border-[#E5E5E5] shadow-2xs p-6 sm:p-8">
               {(siteContent.home?.trustBadgesTitle || siteContent.home?.trustBadgesTitleArabic) && (
                 <div className="text-center mb-6">
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                  <h3 className="text-base sm:text-lg font-bold text-[#171717]">
                     {language === 'ar' 
                       ? (siteContent.home?.trustBadgesTitleArabic || siteContent.home?.trustBadgesTitle) 
                       : (siteContent.home?.trustBadgesTitle || siteContent.home?.trustBadgesTitleArabic)}
                   </h3>
                   {(siteContent.home?.trustBadgesSubtitle || siteContent.home?.trustBadgesSubtitleArabic) && (
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-[#737373] mt-1">
                       {language === 'ar' 
                         ? (siteContent.home?.trustBadgesSubtitleArabic || siteContent.home?.trustBadgesSubtitle) 
                         : (siteContent.home?.trustBadgesSubtitle || siteContent.home?.trustBadgesSubtitleArabic)}
@@ -163,14 +163,14 @@ export const HomeView: React.FC = () => {
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-700 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/60 text-[#8F7137] flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    <h4 className="text-xs sm:text-sm font-bold text-[#171717]">
                       {language === 'ar' ? 'أصالة لبنانية موثقة 100%' : '100% Verified Lebanese'}
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-[#737373] mt-0.5 leading-relaxed">
                       {language === 'ar' ? 'منتجات أصلية من ورش الحرفيين والتعاونيات القروية' : 'Authentic artisan creations from village cooperatives'}
                     </p>
                   </div>
@@ -181,10 +181,10 @@ export const HomeView: React.FC = () => {
                     <Truck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    <h4 className="text-xs sm:text-sm font-bold text-[#171717]">
                       {language === 'ar' ? 'توصيل محلي وشحن دولي' : 'Domestic & Global Courier'}
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-[#737373] mt-0.5 leading-relaxed">
                       {language === 'ar' ? 'شحن سريع لجميع الأراضي اللبنانية وأكثر من 40 دولة' : 'Express door-to-door delivery across Lebanon & diaspora'}
                     </p>
                   </div>
@@ -195,10 +195,10 @@ export const HomeView: React.FC = () => {
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    <h4 className="text-xs sm:text-sm font-bold text-[#171717]">
                       {language === 'ar' ? 'مونة طازجة وحرفية نقية' : 'Fresh Batches & Mouneh'}
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-[#737373] mt-0.5 leading-relaxed">
                       {language === 'ar' ? 'محضرة من موسم القطاف بأعلى معايير النظافة والجودة' : 'Small seasonal batches packed at the height of freshness'}
                     </p>
                   </div>
@@ -209,10 +209,10 @@ export const HomeView: React.FC = () => {
                     <RotateCcw className="w-5 h-5" />
                   </div>
                   <div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900">
+                    <h4 className="text-xs sm:text-sm font-bold text-[#171717]">
                       {language === 'ar' ? 'دعم الحرفيين المباشر' : 'Direct Artisan Support'}
                     </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    <p className="text-[11px] text-[#737373] mt-0.5 leading-relaxed">
                       {language === 'ar' ? 'عوائد الشراء تدعم مباشرة استمرار الحرف اليدوية' : 'Empowering independent rural workshops & families'}
                     </p>
                   </div>
@@ -224,38 +224,38 @@ export const HomeView: React.FC = () => {
 
       case 'homeCategories':
         return (visibility.homeCategories || isVisualEditMode) ? (
-          <section key="homeCategories" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <section key="homeCategories" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeCategories && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
             {!visibility.homeCategories && isVisualEditMode && (
               <div className="absolute top-2 right-4 z-40 bg-rose-600 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
                 <EyeOff className="w-3.5 h-3.5" />
                 <span>Section Hidden (Draft Preview)</span>
               </div>
             )}
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-6 sm:mb-8">
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8F7137] mb-1">
                   {language === 'ar' ? (
                     siteContent.home?.categoriesSubtitleArabic || 'تصفح الأقسام'
                   ) : (
                     siteContent.home?.categoriesSubtitle || 'Browse Departments'
                   )}
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight">
                   {language === 'ar' ? (
                     siteContent.home?.categoriesTitleArabic ? (
                       <span>{siteContent.home.categoriesTitleArabic}</span>
                     ) : (
-                      <>تسوق حسب <span className="gold-gradient font-serif italic">الفئات</span></>
+                      <>تسوق حسب <span className="text-[#8F7137] italic">الفئات</span></>
                     )
                   ) : (
                     siteContent.home?.categoriesTitle ? (
                       <span>{siteContent.home.categoriesTitle}</span>
                     ) : (
-                      <>Explore by <span className="gold-gradient font-serif italic">Category</span></>
+                      <>Explore by <span className="text-[#8F7137] italic">Category</span></>
                     )
                   )}
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-[#737373] mt-1">
                   {language === 'ar' ? (
                     siteContent.home?.regionsSubtitleArabic || 'اكتشف الحرف اللبنانية، المؤونة، والأجهزة المنزلية بكل سهولة'
                   ) : (
@@ -273,9 +273,9 @@ export const HomeView: React.FC = () => {
                     key={cat.id}
                     id={`category-card-${cat.id}`}
                     onClick={() => handleCategoryClick(cat.id)}
-                    className="group relative flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden cursor-pointer text-start"
+                    className="group relative flex flex-col rounded-xl bg-white border border-[#E5E5E5] hover:border-[#B89753] shadow-2xs hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer text-start"
                   >
-                    <div className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center p-2">
+                    <div className="relative aspect-square w-full overflow-hidden bg-[#F8F8F6] flex items-center justify-center p-2">
                       <img
                         src={cat.image}
                         alt={cat.name}
@@ -283,7 +283,7 @@ export const HomeView: React.FC = () => {
                         loading="lazy"
                       />
                       <div className="absolute top-2.5 left-2.5 flex flex-col gap-1 z-10 pointer-events-none">
-                        <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-slate-900/85 backdrop-blur-xs text-amber-300 rounded-md shadow-sm border border-amber-400/20">
+                        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-[#171717]/85 backdrop-blur-xs text-[#B89753] rounded-md shadow-2xs border border-[#8F7137]/30">
                           {productCount > 0 
                             ? `${productCount} ${language === 'ar' ? 'منتجات' : 'items'}` 
                             : (language === 'ar' ? 'قسم' : 'Category')}
@@ -293,19 +293,19 @@ export const HomeView: React.FC = () => {
 
                     <div className="flex flex-1 flex-col p-3.5 sm:p-4 justify-between space-y-3 bg-white">
                       <div>
-                        <h3 className="text-xs sm:text-sm font-extrabold text-black group-hover:text-amber-700 transition-colors line-clamp-1 leading-snug">
+                        <h3 className="text-xs sm:text-sm font-bold text-[#171717] group-hover:text-[#8F7137] transition-colors line-clamp-1 leading-snug">
                           {cat.name}
                         </h3>
-                        <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
+                        <p className="text-[11px] text-[#737373] mt-1 line-clamp-1">
                           {cat.subtitle}
                         </p>
                       </div>
 
-                      <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 mt-auto">
-                        <span className="text-xs font-bold text-slate-900 group-hover:text-amber-700 transition-colors">
+                      <div className="pt-2.5 border-t border-[#E5E5E5] flex items-center justify-between gap-2 mt-auto">
+                        <span className="text-xs font-bold text-[#171717] group-hover:text-[#8F7137] transition-colors">
                           {language === 'ar' ? 'استكشف القسم' : 'Explore Category'}
                         </span>
-                        <div className="w-8 h-8 rounded-xl bg-slate-900 group-hover:bg-amber-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs flex-shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-[#171717] group-hover:bg-[#8F7137] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs flex-shrink-0">
                           <ArrowRight className={`w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 ${language === 'ar' ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
                         </div>
                       </div>
@@ -319,52 +319,52 @@ export const HomeView: React.FC = () => {
 
       case 'homeFeatured':
         return (visibility.homeFeatured || isVisualEditMode) ? (
-          <section key="homeFeatured" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+          <section key="homeFeatured" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeFeatured && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-6 sm:mb-8">
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8F7137] mb-1">
                   {language === 'ar' ? (
                     siteContent.home?.featuredSubtitleArabic || t('topPicks')
                   ) : (
                     siteContent.home?.featuredSubtitle || t('topPicks')
                   )}
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight">
                   {language === 'ar' ? (
                     siteContent.home?.featuredTitleArabic ? (
                       <span>{siteContent.home.featuredTitleArabic}</span>
                     ) : (
-                      <>المنتجات <span className="gold-gradient font-serif italic">المميزة</span></>
+                      <>المنتجات <span className="text-[#8F7137] italic">المميزة</span></>
                     )
                   ) : (
                     siteContent.home?.featuredTitle ? (
                       <span>{siteContent.home.featuredTitle}</span>
                     ) : (
-                      <>Featured <span className="gold-gradient font-serif italic">Products</span></>
+                      <>Featured <span className="text-[#8F7137] italic">Products</span></>
                     )
                   )}
                 </h2>
                 {language === 'ar' ? (
                   siteContent.home?.featuredDescriptionArabic ? (
-                    <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescriptionArabic}</p>
+                    <p className="text-xs text-[#737373] mt-1">{siteContent.home.featuredDescriptionArabic}</p>
                   ) : (
-                    <p className="text-xs text-slate-500 mt-1">مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة</p>
+                    <p className="text-xs text-[#737373] mt-1">مختارات مميزة تحتفي بالحرفية الأصيلة والمونة اللبنانية العريقة</p>
                   )
                 ) : (
                   siteContent.home?.featuredDescription ? (
-                    <p className="text-xs text-slate-500 mt-1">{siteContent.home.featuredDescription}</p>
+                    <p className="text-xs text-[#737373] mt-1">{siteContent.home.featuredDescription}</p>
                   ) : (
-                    <p className="text-xs text-slate-500 mt-1">Handpicked items celebrating timeless craftsmanship and Levantine gastronomy.</p>
+                    <p className="text-xs text-[#737373] mt-1">Handpicked items celebrating timeless craftsmanship and Levantine gastronomy.</p>
                   )
                 )}
               </div>
               <div className="flex-none">
                 <button 
                   onClick={handleViewAllProducts}
-                  className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#171717] hover:text-[#8F7137] transition-colors bg-white px-3.5 py-2 rounded-lg border border-[#E5E5E5] shadow-2xs hover:shadow-xs cursor-pointer"
                 >
                   {t('viewAllProducts')}
-                  <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  <ArrowRight className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                 </button>
               </div>
             </div>
@@ -374,10 +374,10 @@ export const HomeView: React.FC = () => {
 
       case 'homeDeals':
         return ((visibility.homeDeals || isVisualEditMode) && todaysDeals.length > 0) ? (
-          <section key="homeDeals" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeDeals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+          <section key="homeDeals" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeDeals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-6 sm:mb-8">
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 mb-1 flex items-center gap-1.5">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#C62828] mb-1 flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>
                     {language === 'ar' ? (
@@ -387,22 +387,22 @@ export const HomeView: React.FC = () => {
                     )}
                   </span>
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight">
                   {language === 'ar' ? (
                     siteContent.home?.dealsTitleArabic ? (
                       <span>{siteContent.home.dealsTitleArabic}</span>
                     ) : (
-                      <>عروض <span className="gold-gradient font-serif italic">اليوم</span></>
+                      <>عروض <span className="text-[#8F7137] italic">اليوم</span></>
                     )
                   ) : (
                     siteContent.home?.dealsTitle ? (
                       <span>{siteContent.home.dealsTitle}</span>
                     ) : (
-                      <>Today's <span className="gold-gradient font-serif italic">Deals</span></>
+                      <>Today's <span className="text-[#8F7137] italic">Deals</span></>
                     )
                   )}
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-[#737373] mt-1">
                   {language === 'ar' ? (
                     siteContent.home?.dealsDescriptionArabic || t('limitedTimeOffers')
                   ) : (
@@ -413,10 +413,10 @@ export const HomeView: React.FC = () => {
               <div className="flex-none">
                 <button 
                   onClick={handleViewAllProducts}
-                  className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#171717] hover:text-[#8F7137] transition-colors bg-white px-3.5 py-2 rounded-lg border border-[#E5E5E5] shadow-2xs hover:shadow-xs cursor-pointer"
                 >
                   {t('viewAllProducts')}
-                  <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  <ArrowRight className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                 </button>
               </div>
             </div>
@@ -427,29 +427,29 @@ export const HomeView: React.FC = () => {
       case 'homeBundles':
         return ((productBundles || []).filter(b => b.isActive !== false).length > 0) ? (
           <section key="homeBundles" className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-6 sm:mb-8">
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8F7137] mb-1">
                   {language === 'ar' 
                     ? (siteContent.home?.bundlesBadgeArabic || 'باقات توفير حصرية') 
                     : (siteContent.home?.bundlesBadge || 'Exclusive Curated Packs')}
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight">
                   {language === 'ar' ? (
                     siteContent.home?.bundlesTitleArabic ? (
                       <span>{siteContent.home.bundlesTitleArabic}</span>
                     ) : (
-                      <>مجموعات <span className="gold-gradient font-serif italic">الهدايا والكومبو</span> المميزة</>
+                      <>مجموعات <span className="text-[#8F7137] italic">الهدايا والكومبو</span> المميزة</>
                     )
                   ) : (
                     siteContent.home?.bundlesTitle ? (
                       <span>{siteContent.home.bundlesTitle}</span>
                     ) : (
-                      <>Lebanese <span className="gold-gradient font-serif italic">Combo & Gift Sets</span></>
+                      <>Lebanese <span className="text-[#8F7137] italic">Combo & Gift Sets</span></>
                     )
                   )}
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-[#737373] mt-1">
                   {language === 'ar' 
                     ? (siteContent.home?.bundlesSubtitleArabic || 'وفر أكثر مع هذه المجموعات المختارة بعناية من منتجاتنا التقليدية') 
                     : (siteContent.home?.bundlesSubtitle || 'Save more with our handpicked artisanal combinations and custom-packaged Lebanese treasures.')}
@@ -468,36 +468,36 @@ export const HomeView: React.FC = () => {
                   return (
                     <div
                       key={bundle.id}
-                      className="flex flex-col rounded-2xl bg-white border border-slate-200/90 hover:border-amber-400 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden text-start p-5 sm:p-6"
+                      className="flex flex-col rounded-xl bg-white border border-[#E5E5E5] hover:border-[#B89753] shadow-2xs hover:shadow-md transition-all duration-300 overflow-hidden text-start p-5 sm:p-6"
                     >
                       <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className="px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-widest bg-[#b89753]/20 text-[#8c6d2d] rounded-md border border-[#b89753]/30">
+                        <span className="px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-[#8F7137] rounded-md border border-amber-200">
                           {language === 'ar' ? (bundle.badgeTextAr || 'مجموعة توفير') : (bundle.badgeText || 'SPECIAL COMBO')}
                         </span>
                         {discountAmount > 0 && (
-                          <span className="px-2 py-0.5 text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded-md shadow-sm">
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-[#16803C] text-white rounded-md shadow-2xs">
                             {language === 'ar' ? `وفر ${formatPrice(discountAmount)}` : `Save ${formatPrice(discountAmount)}`}
                           </span>
                         )}
                       </div>
 
-                      <h3 className="text-lg font-bold text-slate-900 mb-1 leading-snug">
+                      <h3 className="text-lg font-bold text-[#171717] mb-1 leading-snug">
                         {language === 'ar' ? (bundle.nameAr || bundle.name) : bundle.name}
                       </h3>
 
                       {bundle.description && (
-                        <p className="text-xs text-slate-500 line-clamp-2 mb-4 leading-relaxed">
+                        <p className="text-xs text-[#737373] line-clamp-2 mb-4 leading-relaxed">
                           {language === 'ar' ? (bundle.descriptionAr || bundle.description) : bundle.description}
                         </p>
                       )}
 
-                      <div className="space-y-2.5 mb-6 border-y border-slate-100 py-4 flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                      <div className="space-y-2.5 mb-6 border-y border-[#E5E5E5] py-4 flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#737373] mb-1">
                           {language === 'ar' ? 'المنتجات المشمولة:' : 'Includes:'}
                         </p>
                         {bundleProds.map(prod => (
                           <div key={prod.id} className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg border border-slate-100 bg-slate-50 flex items-center justify-center p-0.5 shrink-0 overflow-hidden animate-fadeIn">
+                            <div className="w-8 h-8 rounded-lg border border-[#E5E5E5] bg-[#F8F8F6] flex items-center justify-center p-0.5 shrink-0 overflow-hidden">
                               <img
                                 src={prod.image}
                                 alt={prod.name}
@@ -506,11 +506,11 @@ export const HomeView: React.FC = () => {
                               />
                             </div>
                             <div className="min-w-0 flex-1">
-                              <p className="text-xs font-semibold text-slate-700 truncate">
+                              <p className="text-xs font-semibold text-[#171717] truncate">
                                 {language === 'ar' ? (prod.arabicName || prod.name) : prod.name}
                               </p>
                             </div>
-                            <span className="text-xs text-slate-500 font-medium">
+                            <span className="text-xs text-[#737373] font-medium">
                               {formatPrice(prod.priceUSD)}
                             </span>
                           </div>
@@ -520,11 +520,11 @@ export const HomeView: React.FC = () => {
                       <div className="flex items-center justify-between gap-4 mt-auto">
                         <div className="flex flex-col">
                           {originalTotal > bundle.bundlePriceUSD && (
-                            <span className="text-xs text-slate-400 line-through">
+                            <span className="text-xs text-[#737373] line-through">
                               {formatPrice(originalTotal)}
                             </span>
                           )}
-                          <span className="text-xl font-bold text-slate-900 leading-none">
+                          <span className="text-xl font-bold text-[#171717] leading-none">
                             {formatPrice(bundle.bundlePriceUSD)}
                           </span>
                         </div>
@@ -539,7 +539,7 @@ export const HomeView: React.FC = () => {
                               'success'
                             );
                           }}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-amber-600 text-white font-bold text-xs uppercase tracking-wider shadow-sm hover:shadow-md transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-[#171717] hover:bg-[#8F7137] text-white font-bold text-xs uppercase tracking-wider shadow-2xs transition-colors cursor-pointer"
                         >
                           <ShoppingBag className="w-4 h-4" />
                           <span>{language === 'ar' ? 'أضف المجموعة' : 'Add Pack'}</span>
@@ -554,35 +554,35 @@ export const HomeView: React.FC = () => {
 
       case 'homeNews':
         return (visibility.homeNews || isVisualEditMode) ? (
-          <div key="homeNews" className={`relative ${!visibility.homeNews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl' : ''}`}>
+          <div key="homeNews" className={`relative ${!visibility.homeNews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl' : ''}`}>
             <NewsSection />
           </div>
         ) : null;
 
       case 'homeNewArrivals':
         return (visibility.homeNewArrivals || isVisualEditMode) ? (
-          <section key="homeNewArrivals" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewArrivals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-            <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+          <section key="homeNewArrivals" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewArrivals && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 mb-6 sm:mb-8">
               <div>
-                <div className="text-xs font-bold uppercase tracking-[0.2em] text-[#b89753] mb-1">
+                <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#8F7137] mb-1">
                   {language === 'ar' ? (
                     siteContent.home?.newArrivalsSubtitleArabic || t('freshlyStocked')
                   ) : (
                     siteContent.home?.newArrivalsSubtitle || t('freshlyStocked')
                   )}
                 </div>
-                <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+                <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight">
                   {language === 'ar' ? (
                     siteContent.home?.newArrivalsTitleArabic ? (
                       <span>{siteContent.home.newArrivalsTitleArabic}</span>
                     ) : (
-                      <>وصل حديثاً <span className="gold-gradient font-serif italic">إلينا</span></>
+                      <>وصل حديثاً <span className="text-[#8F7137] italic">إلينا</span></>
                     )
                   ) : (
                     siteContent.home?.newArrivalsTitle ? (
                       <span>{siteContent.home.newArrivalsTitle}</span>
                     ) : (
-                      <>New <span className="gold-gradient font-serif italic">Arrivals</span></>
+                      <>New <span className="text-[#8F7137] italic">Arrivals</span></>
                     )
                   )}
                 </h2>
@@ -590,10 +590,10 @@ export const HomeView: React.FC = () => {
               <div className="flex-none">
                 <button 
                   onClick={handleViewAllProducts}
-                  className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-amber-600 transition-colors bg-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-full border border-slate-200 shadow-sm hover:shadow cursor-pointer"
+                  className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#171717] hover:text-[#8F7137] transition-colors bg-white px-3.5 py-2 rounded-lg border border-[#E5E5E5] shadow-2xs hover:shadow-xs cursor-pointer"
                 >
                   {t('viewAllProducts')}
-                  <ArrowRight className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${language === 'ar' ? 'rotate-180' : ''}`} />
+                  <ArrowRight className={`w-3.5 h-3.5 ${language === 'ar' ? 'rotate-180' : ''}`} />
                 </button>
               </div>
             </div>
@@ -603,12 +603,12 @@ export const HomeView: React.FC = () => {
 
       case 'homeHeritage':
         return (visibility.homeHeritage || isVisualEditMode) ? (
-          <section key="homeHeritage" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-            <div className="bg-[#fcfaf8] border border-[#f5ece1] rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto">
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight mb-4">
+          <section key="homeHeritage" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeHeritage && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
+            <div className="bg-white border border-[#E5E5E5] rounded-2xl p-8 sm:p-12 text-center max-w-4xl mx-auto shadow-2xs">
+              <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight mb-4">
                 {language === 'ar' ? (siteContent.home?.heritageTitleArabic || siteContent.home?.heritageTitle || 'تراثنا') : (siteContent.home?.heritageTitle || 'Our Heritage')}
               </h2>
-              <p className="text-sm sm:text-base text-slate-600 leading-relaxed mx-auto max-w-2xl">
+              <p className="text-sm sm:text-base text-[#737373] leading-relaxed mx-auto max-w-2xl">
                 {language === 'ar' ? (siteContent.home?.heritageTextArabic || siteContent.home?.heritageText || '') : (siteContent.home?.heritageText || '')}
               </p>
             </div>
@@ -617,36 +617,36 @@ export const HomeView: React.FC = () => {
 
       case 'homeReviews':
         return (visibility.homeReviews || isVisualEditMode) ? (
-          <section key="homeReviews" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
+          <section key="homeReviews" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeReviews && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
             <div className="text-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-light text-slate-900 tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-serif text-[#171717] tracking-tight">
                 {language === 'ar' ? (siteContent.home?.reviewsTitleArabic || siteContent.home?.reviewsTitle || 'آراء الزبائن') : (siteContent.home?.reviewsTitle || 'Customer Reviews')}
               </h2>
-              <p className="text-sm text-slate-500 mt-2 max-w-2xl mx-auto">
+              <p className="text-sm text-[#737373] mt-2 max-w-2xl mx-auto">
                 {language === 'ar' ? (siteContent.home?.reviewsSubtitleArabic || siteContent.home?.reviewsSubtitle || '') : (siteContent.home?.reviewsSubtitle || '')}
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="bg-white p-6 rounded-xl border border-[#E5E5E5] shadow-2xs">
                 <div className="flex gap-1 text-amber-400 mb-3">
                   {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
                 </div>
-                <p className="text-sm text-slate-600 italic mb-4">"Absolutely authentic and beautiful craftsmanship. Reminds me of home."</p>
-                <div className="font-bold text-xs text-slate-900">- Sarah K., Paris</div>
+                <p className="text-sm text-[#171717] italic mb-4 leading-relaxed">"Absolutely authentic and beautiful craftsmanship. Reminds me of home."</p>
+                <div className="font-bold text-xs text-[#8F7137]">- Sarah K., Paris</div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="bg-white p-6 rounded-xl border border-[#E5E5E5] shadow-2xs">
                 <div className="flex gap-1 text-amber-400 mb-3">
                   {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
                 </div>
-                <p className="text-sm text-slate-600 italic mb-4">"The mouneh products are exactly how my grandmother used to make them!"</p>
-                <div className="font-bold text-xs text-slate-900">- Elie M., Beirut</div>
+                <p className="text-sm text-[#171717] italic mb-4 leading-relaxed">"The mouneh products are exactly how my grandmother used to make them!"</p>
+                <div className="font-bold text-xs text-[#8F7137]">- Elie M., Beirut</div>
               </div>
-              <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+              <div className="bg-white p-6 rounded-xl border border-[#E5E5E5] shadow-2xs">
                 <div className="flex gap-1 text-amber-400 mb-3">
                   {[1,2,3,4,5].map(i => <Star key={i} className="w-4 h-4 fill-current" />)}
                 </div>
-                <p className="text-sm text-slate-600 italic mb-4">"Quick delivery to Dubai and the packaging was excellent. Highly recommended."</p>
-                <div className="font-bold text-xs text-slate-900">- Noor A., Dubai</div>
+                <p className="text-sm text-[#171717] italic mb-4 leading-relaxed">"Quick delivery to Dubai and the packaging was excellent. Highly recommended."</p>
+                <div className="font-bold text-xs text-[#8F7137]">- Noor A., Dubai</div>
               </div>
             </div>
           </section>
@@ -654,13 +654,13 @@ export const HomeView: React.FC = () => {
 
       case 'homeNewsletter':
         return (visibility.homeNewsletter || isVisualEditMode) ? (
-          <section key="homeNewsletter" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-3xl p-4' : ''}`}>
-            <div className="bg-slate-900 rounded-3xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center">
-              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight mb-2">
+          <section key="homeNewsletter" className={`max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 relative ${!visibility.homeNewsletter && isVisualEditMode ? 'opacity-70 border-2 border-dashed border-rose-500/80 rounded-2xl p-4' : ''}`}>
+            <div className="bg-[#171717] rounded-2xl p-8 sm:p-12 text-center max-w-4xl mx-auto flex flex-col items-center border border-[#8F7137]/30 shadow-md">
+              <h2 className="text-xl sm:text-2xl font-serif text-white tracking-tight mb-2">
                 {language === 'ar' ? (siteContent.home?.newsletterTitleArabic || siteContent.home?.newsletterTitle || 'النشرة البريدية') : (siteContent.home?.newsletterTitle || 'Join our Newsletter')}
               </h2>
               {(siteContent.home?.newsletterSubtitle || siteContent.home?.newsletterSubtitleArabic) && (
-                <p className="text-xs sm:text-sm text-slate-300 mb-6 max-w-md">
+                <p className="text-xs sm:text-sm text-neutral-300 mb-6 max-w-md">
                   {language === 'ar' 
                     ? (siteContent.home?.newsletterSubtitleArabic || siteContent.home?.newsletterSubtitle) 
                     : (siteContent.home?.newsletterSubtitle || siteContent.home?.newsletterSubtitleArabic)}
@@ -670,9 +670,9 @@ export const HomeView: React.FC = () => {
                 <input 
                   type="email" 
                   placeholder={language === 'ar' ? 'البريد الإلكتروني' : 'Email Address'} 
-                  className="flex-1 px-4 py-3 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:border-amber-400"
+                  className="flex-1 px-4 py-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-neutral-400 focus:outline-none focus:border-[#B89753] text-sm"
                 />
-                <button className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white font-bold text-sm rounded-xl transition-colors whitespace-nowrap">
+                <button className="px-6 py-3 bg-[#B89753] hover:bg-[#8F7137] text-white font-bold text-xs uppercase tracking-wider rounded-lg transition-colors whitespace-nowrap cursor-pointer shadow-2xs">
                   {language === 'ar' ? (siteContent.home?.newsletterButtonTextArabic || siteContent.home?.newsletterButtonText || 'اشترك') : (siteContent.home?.newsletterButtonText || 'Subscribe')}
                 </button>
               </div>
@@ -686,7 +686,7 @@ export const HomeView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-12 sm:space-y-14 pb-8 bg-slate-50">
+    <div className="space-y-12 sm:space-y-16 pb-12 bg-[#F8F8F6]">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="top" />

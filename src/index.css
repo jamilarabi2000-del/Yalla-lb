@@ -1,22 +1,25 @@
 @import "tailwindcss";
 
 :root {
-  --bg-primary: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-card: #ffffff;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --gold: #b89753;
-  --gold-light: #f3e5ab;
-  --gold-dark: #96783d;
-  --glass: rgba(255, 255, 255, 0.9);
-  --glass-border: rgba(184, 151, 83, 0.25);
+  --bg-primary: #F8F8F6;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --text-main: #171717;
+  --text-muted: #737373;
+  --gold: #B89753;
+  --gold-light: #F3E5AB;
+  --gold-dark: #8F7137;
+  --border-color: #E5E5E5;
+  --success: #16803C;
+  --danger: #C62828;
+  --glass: rgba(255, 255, 255, 0.92);
+  --glass-border: rgba(184, 151, 83, 0.2);
 }
 
 :is(a, button, input, select, textarea, summary, [role="button"], [role="tab"], [role="link"], [tabindex]):focus-visible {
-  outline: 3px solid #c5a059 !important;
-  box-shadow: 0 0 0 6px rgba(197, 160, 89, 0.2) !important;
-  border-radius: 4px;
+  outline: 2px solid #B89753 !important;
+  box-shadow: 0 0 0 4px rgba(184, 151, 83, 0.2) !important;
+  border-radius: 8px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -40,9 +43,11 @@
   left: 0;
   background: var(--gold-dark);
   color: white;
-  padding: 8px;
+  padding: 8px 16px;
   z-index: 100;
   transition: top 0.2s;
+  border-radius: 0 0 8px 8px;
+  font-weight: 600;
 }
 
 .skip-link:focus {
@@ -53,7 +58,7 @@
   body {
     background-color: var(--bg-primary);
     color: var(--text-main);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
@@ -61,38 +66,38 @@
 }
 
 .premium-card {
-  background: #ffffff;
-  border: 1px solid rgba(184, 151, 83, 0.25);
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background: #FFFFFF;
+  border: 1px solid #E5E5E5;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .premium-card:hover {
-  border-color: rgba(184, 151, 83, 0.6);
-  box-shadow: 0 12px 35px -10px rgba(184, 151, 83, 0.18);
+  border-color: rgba(184, 151, 83, 0.5);
+  box-shadow: 0 12px 24px -6px rgba(184, 151, 83, 0.12), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
   transform: translateY(-2px);
 }
 
 .gold-gradient {
-  background: linear-gradient(135deg, #96783d 0%, #b89753 50%, #755b29 100%);
+  background: linear-gradient(135deg, #8F7137 0%, #B89753 50%, #755B29 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .gold-gradient-bg {
-  background: linear-gradient(135deg, #b89753 0%, #d4b572 50%, #96783d 100%);
+  background: linear-gradient(135deg, #B89753 0%, #D4B572 50%, #8F7137 100%);
 }
 
 .gold-btn {
-  background: linear-gradient(135deg, #b89753 0%, #c8a865 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, #B89753 0%, #C8A865 100%);
+  color: #FFFFFF;
   font-weight: 700;
   transition: all 0.25s ease;
 }
 
 .gold-btn:hover {
-  background: linear-gradient(135deg, #c8a865 0%, #b89753 100%);
-  box-shadow: 0 8px 25px -6px rgba(184, 151, 83, 0.4);
+  background: linear-gradient(135deg, #C8A865 0%, #8F7137 100%);
+  box-shadow: 0 6px 20px -4px rgba(184, 151, 83, 0.35);
   transform: translateY(-1px);
 }
 
@@ -104,9 +109,9 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #10b981;
+  background: #16803C;
   display: inline-block;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 8px rgba(22, 128, 60, 0.4);
 }
 
 /* Custom subtle scrollbar */
@@ -116,16 +121,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #F1F1EF;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #D4D4D0;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #B89753;
 }
 
 @keyframes fadeIn {
@@ -156,14 +161,23 @@
   animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-@keyframes slideInLeft { from { transform: translateX(-100%); } to { transform: translateX(0); } }
-[dir="rtl"] .animate-slideInRight { animation-name: slideInLeft; }
+@keyframes slideInLeft { 
+  from { 
+    transform: translateX(-100%); 
+  } 
+  to { 
+    transform: translateX(0); 
+  } 
+}
+
+[dir="rtl"] .animate-slideInRight { 
+  animation-name: slideInLeft; 
+}
 
 /* Arabic typography support */
-.font-arabic {
-  font-family: 'Tajawal', 'Cairo', 'Amiri', 'Segoe UI', system-ui, sans-serif;
-  /* Arabic needs a little more line box than the Latin default */
-  line-height: 1.8;
+.font-arabic, [dir="rtl"] {
+  font-family: 'Cairo', 'Tajawal', 'Plus Jakarta Sans', -apple-system, sans-serif;
+  line-height: 1.7;
 }
 
 /* Explicit CMS custom-scrollbar styling */
