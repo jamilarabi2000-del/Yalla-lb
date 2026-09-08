@@ -15,6 +15,37 @@ export interface AuthContextType {
   refreshUserProfile: () => Promise<void>;
 }
 
+/**
+ * Maps allowlisted profile fields from Firestore user document, strictly isolating
+ * and preventing any overwrite of authoritative identity, roles, or claims.
+ */
+export function mapSafeUserProfile(
+  fbUser: FirebaseUser,
+  uid: string,
+  data: Record<string, any> | undefined,
+  claimSellerId: string | null
+): UserProfile {
+  const safeData = data || {};
+  return {
+    uid: fbUser.uid || uid,
+    name: typeof safeData.name === 'string' && safeData.name ? safeData.name : (fbUser.displayName || ''),
+    firstName: typeof safeData.firstName === 'string' ? safeData.firstName : undefined,
+    lastName: typeof safeData.lastName === 'string' ? safeData.lastName : undefined,
+    email: typeof safeData.email === 'string' && safeData.email ? safeData.email : (fbUser.email || ''),
+    phone: typeof safeData.phone === 'string' ? safeData.phone : '',
+    avatar: typeof safeData.avatar === 'string' ? safeData.avatar : '',
+    defaultGovernorate: typeof safeData.defaultGovernorate === 'string' ? safeData.defaultGovernorate : '',
+    defaultCity: typeof safeData.defaultCity === 'string' ? safeData.defaultCity : '',
+    defaultAddress: typeof safeData.defaultAddress === 'string' ? safeData.defaultAddress : '',
+    defaultBuilding: typeof safeData.defaultBuilding === 'string' ? safeData.defaultBuilding : undefined,
+    defaultNotes: typeof safeData.defaultNotes === 'string' ? safeData.defaultNotes : undefined,
+    role: 'customer',
+    sellerId: claimSellerId || undefined,
+    emailVerified: fbUser.emailVerified,
+    isOtpVerified: typeof safeData.isOtpVerified === 'boolean' ? safeData.isOtpVerified : undefined
+  };
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -57,25 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userDocRef = doc(db, 'users', fbUser.uid);
         const unsubProfile = onSnapshot(userDocRef, (snap) => {
           if (snap.exists()) {
-            const data = snap.data();
-            setUser({
-              uid: snap.id,
-              name: data.name || fbUser.displayName || '',
-              firstName: data.firstName,
-              lastName: data.lastName,
-              email: data.email || fbUser.email || '',
-              phone: data.phone || '',
-              avatar: data.avatar || '',
-              defaultGovernorate: data.defaultGovernorate || '',
-              defaultCity: data.defaultCity || '',
-              defaultAddress: data.defaultAddress || '',
-              defaultBuilding: data.defaultBuilding,
-              defaultNotes: data.defaultNotes,
-              role: data.role || 'customer',
-              sellerId: claimSellerId || undefined,
-              emailVerified: fbUser.emailVerified,
-              isOtpVerified: data.isOtpVerified
-            });
+            setUser(mapSafeUserProfile(fbUser, snap.id, snap.data(), claimSellerId));
             // Strictly enforce custom claims only, do not fallback to db fields or role values
             setIsAdminUser(hasAdminClaim);
             setIsSellerUser(hasSellerClaim);
@@ -122,10 +135,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshUserProfile = async () => {
     if (!firebaseUser || !db) return;
     try {
+      // Re-verify authoritative claims on refresh to ensure fresh state
+      const tokenResult = await firebaseUser.getIdTokenResult().catch(() => null);
+      const hasAdminClaim = Boolean(tokenResult?.claims?.admin === true);
+      const hasSellerClaim = Boolean(tokenResult?.claims?.seller === true);
+      const claimSellerId = typeof tokenResult?.claims?.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+
+      setIsAdminUser(hasAdminClaim);
+      setIsSellerUser(hasSellerClaim);
+      setSellerId(claimSellerId);
+
       const snap = await getDoc(doc(db, 'users', firebaseUser.uid));
       if (snap.exists()) {
         const data = snap.data();
-        setUser(prev => prev ? ({ ...prev, ...data }) : null);
+        setUser(mapSafeUserProfile(firebaseUser, snap.id, data, claimSellerId));
       }
     } catch {}
   };

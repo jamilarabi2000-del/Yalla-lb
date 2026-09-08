@@ -56,9 +56,7 @@ service cloud.firestore {
     }
 
     function getSellerId() {
-      return ('sellerId' in request.auth.token && request.auth.token.sellerId is string)
-        ? request.auth.token.sellerId 
-        : '';
+      return request.auth.token.sellerId;
     }
 
     // ---------------------------------------------------------------------
