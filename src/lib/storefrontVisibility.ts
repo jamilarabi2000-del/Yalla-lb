@@ -48,6 +48,18 @@ export function getFeaturedStorefrontProduct(
   sellers: Seller[] = [],
   isVisualEditMode: boolean = false
 ): Product | undefined {
+  const all = getFeaturedStorefrontProducts(products, sellers, isVisualEditMode);
+  return all[0];
+}
+
+/**
+ * Shared helper to select all featured products using storefront visibility and sorting rules.
+ */
+export function getFeaturedStorefrontProducts(
+  products: Product[],
+  sellers: Seller[] = [],
+  isVisualEditMode: boolean = false
+): Product[] {
   const publishedProducts = products.filter(p => isProductVisibleOnStorefront(p, sellers, isVisualEditMode));
   const featuredProducts = publishedProducts
     .filter(p => p.isFeatured || p.isBestseller || (p.displayOrder !== undefined && p.displayOrder <= 50))
@@ -59,5 +71,5 @@ export function getFeaturedStorefrontProduct(
       if (!a.isFeatured && b.isFeatured) return 1;
       return 0;
     });
-  return featuredProducts[0] || publishedProducts[0];
+  return featuredProducts.length > 0 ? featuredProducts : publishedProducts;
 }

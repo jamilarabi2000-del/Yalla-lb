@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
-import { getFeaturedStorefrontProduct, isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
+import { getFeaturedStorefrontProducts, getFeaturedStorefrontProduct, isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -54,8 +54,10 @@ export const HomeTopContainer: React.FC = () => {
   const isAr = language === 'ar';
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [currentFeaturedIndex, setCurrentFeaturedIndex] = useState(0);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const featuredTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const heroData = siteContent?.hero || {};
 
@@ -186,13 +188,6 @@ export const HomeTopContainer: React.FC = () => {
     }, slideIntervalSec * 1000);
   }, [slides.length, slideIntervalSec]);
 
-  useEffect(() => {
-    resetAutoplay();
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [resetAutoplay]);
-
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
     setCurrentSlideIndex((prev) => (prev - 1 + slides.length) % slides.length);
@@ -226,7 +221,25 @@ export const HomeTopContainer: React.FC = () => {
   };
 
   // Featured Product Selection using centralized shared helper
-  const featuredProduct = getFeaturedStorefrontProduct(products, sellers, isVisualEditMode);
+  const featuredProductsList = getFeaturedStorefrontProducts(products, sellers, isVisualEditMode).slice(0, 5); // Limit to top 5 for the slider
+  const featuredProduct = featuredProductsList[currentFeaturedIndex] || featuredProductsList[0];
+
+  const resetFeaturedAutoplay = useCallback(() => {
+    if (featuredTimerRef.current) clearInterval(featuredTimerRef.current);
+    if (featuredProductsList.length <= 1) return;
+    featuredTimerRef.current = setInterval(() => {
+      setCurrentFeaturedIndex((prev) => (prev + 1) % featuredProductsList.length);
+    }, 4000); // 4 seconds for featured products
+  }, [featuredProductsList.length]);
+
+  useEffect(() => {
+    resetAutoplay();
+    resetFeaturedAutoplay();
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (featuredTimerRef.current) clearInterval(featuredTimerRef.current);
+    };
+  }, [resetAutoplay, resetFeaturedAutoplay]);
 
   const handleAddToCartFeatured = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -254,12 +267,12 @@ export const HomeTopContainer: React.FC = () => {
 
   return (
     <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mt-10 sm:mt-12 mb-4">
-      {/* Top Grid: Hero Banner (1.8fr) & Featured Product Card (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.8fr_1fr] gap-[20px] items-stretch">
+      {/* Top Grid: Hero Banner (2fr) & Featured Product Card (1fr) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-[20px] items-stretch">
         
         {/* LEFT: Large Hero Banner */}
         <div 
-          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-5 sm:px-6 pt-7 sm:pt-8 pb-5 sm:pb-6 shadow-sm group"
+          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-5 sm:px-6 pt-7 sm:pt-8 pb-5 sm:pb-6 shadow-sm group min-w-0"
           style={{ minHeight: '380px' }}
         >
           {/* Background Image with subtle dark overlay */}
@@ -283,7 +296,7 @@ export const HomeTopContainer: React.FC = () => {
           {/* Top-Left Compact Header with Glass Icon Container & Title */}
           <div className="relative z-20 flex items-start justify-between gap-4">
             {activeBadge ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-[28px] h-[28px] rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
                   <Sparkles className="w-3.5 h-3.5 text-[#F3E5AB]" />
                 </div>
@@ -298,7 +311,7 @@ export const HomeTopContainer: React.FC = () => {
             {currentSlide.promoCode && (
               <button
                 onClick={(e) => handleCopyCode(e, currentSlide.promoCode!)}
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-[#B89753]/50 text-xs font-mono text-[#F3E5AB] hover:bg-black/70 transition-colors cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/50 backdrop-blur-md border border-[#B89753]/50 text-xs font-mono text-[#F3E5AB] hover:bg-black/70 transition-colors cursor-pointer flex-shrink-0"
               >
                 <Tag className="w-3 h-3" />
                 <span>{currentSlide.promoCode}</span>
@@ -308,7 +321,7 @@ export const HomeTopContainer: React.FC = () => {
           </div>
 
           {/* Center Main Content */}
-          <div className="relative z-20 my-auto py-4 space-y-2">
+          <div className="relative z-20 my-auto py-4 space-y-2 min-w-0">
             <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white tracking-tight leading-[1.15] drop-shadow-md line-clamp-2 max-w-xl">
               {activeTitle}
             </h2>
@@ -320,7 +333,7 @@ export const HomeTopContainer: React.FC = () => {
           </div>
 
           {/* Bottom Floating Glassmorphism Bar */}
-          <div className="relative z-20 mt-auto">
+          <div className="relative z-20 mt-auto min-w-0">
             <div 
               className="flex items-center justify-between rounded-[16px] px-3.5 py-2.5 sm:py-3 shadow-lg"
               style={{
@@ -394,24 +407,63 @@ export const HomeTopContainer: React.FC = () => {
         {featuredProduct ? (
           <div 
             onClick={() => openProductDetail(featuredProduct)}
-            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-5 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm"
+            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-5 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0"
             style={{ minHeight: '380px' }}
           >
-            {/* Top Category Header */}
+            {/* Top Category Header & Slider Dots */}
             <div className="flex items-center justify-between z-10">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-[#737373]">
-                {featuredProduct.category || (isAr ? 'منتج مميز' : 'Featured')}
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-[#737373] truncate">
+                  {featuredProduct.category || (isAr ? 'منتج مميز' : 'Featured')}
+                </div>
+                {Array.isArray((featuredProduct as any).colors) && (featuredProduct as any).colors.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    {((featuredProduct as any).colors as string[]).map((col, i) => (
+                      <span
+                        key={i}
+                        className="w-[18px] h-[18px] rounded-full border border-black/15 shadow-2xs flex-shrink-0"
+                        style={{ backgroundColor: col }}
+                        title={col}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
+              {featuredProductsList.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  {featuredProductsList.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCurrentFeaturedIndex(idx);
+                        resetFeaturedAutoplay();
+                      }}
+                      className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                        idx === currentFeaturedIndex ? 'bg-[#111111] w-3' : 'bg-[#111111]/20 hover:bg-[#111111]/40'
+                      }`}
+                      aria-label={`View featured product ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Centered Product Image Container (height ~200px, object-contain) */}
-            <div className="my-auto py-2 flex items-center justify-center overflow-hidden w-full" style={{ height: '200px' }}>
-              <img
-                src={featuredProduct.image}
-                alt={featuredProduct.name}
-                referrerPolicy="no-referrer"
-                className="max-h-full max-w-full object-contain object-center group-hover:scale-105 transition-transform duration-300"
-              />
+            <div className="my-auto py-2 flex items-center justify-center overflow-hidden w-full relative" style={{ height: '200px' }}>
+              {featuredProductsList.map((product, idx) => (
+                <img
+                  key={product.id}
+                  src={product.image}
+                  alt={product.name}
+                  referrerPolicy="no-referrer"
+                  className={`absolute max-h-full max-w-full object-contain object-center transition-all duration-500 ${
+                    idx === currentFeaturedIndex 
+                      ? 'opacity-100 scale-100 group-hover:scale-105 z-10' 
+                      : 'opacity-0 scale-95 -z-10'
+                  }`}
+                />
+              ))}
             </div>
 
             {/* Bottom: Product Info + Compact Add To Cart Pill Button */}
