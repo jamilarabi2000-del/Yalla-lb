@@ -292,7 +292,7 @@ export const HomeView: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex flex-1 flex-col p-3.5 sm:p-4 justify-between space-y-3 bg-white">
+                    <div className="flex flex-1 flex-col p-3 sm:p-4 justify-between space-y-2.5 sm:space-y-3 bg-white">
                       <div>
                         <h3 className="text-xs sm:text-sm font-bold text-[#171717] group-hover:text-[#8F7137] transition-colors line-clamp-1 leading-snug">
                           {cat.name}
@@ -302,12 +302,12 @@ export const HomeView: React.FC = () => {
                         </p>
                       </div>
 
-                      <div className="pt-2.5 border-t border-[#E5E5E5] flex items-center justify-between gap-2 mt-auto">
-                        <span className="text-xs font-bold text-[#171717] group-hover:text-[#8F7137] transition-colors">
+                      <div className="pt-2 sm:pt-2.5 border-t border-[#E5E5E5] flex items-center justify-between gap-1.5 sm:gap-2 mt-auto">
+                        <span className="text-[11px] sm:text-xs font-bold text-[#171717] group-hover:text-[#8F7137] transition-colors truncate">
                           {language === 'ar' ? 'استكشف القسم' : 'Explore Category'}
                         </span>
-                        <div className="w-7 h-7 rounded-lg bg-[#171717] group-hover:bg-[#8F7137] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs flex-shrink-0">
-                          <ArrowRight className={`w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 ${language === 'ar' ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
+                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#171717] group-hover:bg-[#8F7137] text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs flex-shrink-0">
+                          <ArrowRight className={`w-3 h-3 sm:w-3.5 sm:h-3.5 transition-transform group-hover:translate-x-0.5 ${language === 'ar' ? 'rotate-180 group-hover:-translate-x-0.5' : ''}`} />
                         </div>
                       </div>
                     </div>

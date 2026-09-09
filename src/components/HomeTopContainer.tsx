@@ -249,8 +249,7 @@ export const HomeTopContainer: React.FC = () => {
         
         {/* LEFT: Large Hero Banner */}
         <div 
-          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-5 sm:px-6 pt-7 sm:pt-8 pb-5 sm:pb-6 shadow-sm group min-w-0"
-          style={{ minHeight: '380px' }}
+          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-3.5 sm:px-6 pt-2.5 sm:pt-8 pb-2 sm:pb-6 shadow-sm group min-w-0 min-h-[175px] min-[360px]:min-h-[190px] sm:min-h-[380px]"
         >
           {/* Background Image with subtle dark overlay */}
           <div className="absolute inset-0 z-0">
@@ -271,13 +270,13 @@ export const HomeTopContainer: React.FC = () => {
           </div>
 
           {/* Top-Left Compact Header with Glass Icon Container & Title */}
-          <div className="relative z-20 flex items-start justify-between gap-4">
+          <div className="relative z-20 flex items-start justify-between gap-3 sm:gap-4">
             {activeBadge ? (
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-[28px] h-[28px] rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
-                  <Sparkles className="w-3.5 h-3.5 text-[#F3E5AB]" />
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-[22px] h-[22px] sm:w-[28px] sm:h-[28px] rounded-[6px] sm:rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
+                  <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#F3E5AB]" />
                 </div>
-                <span className="text-[13px] sm:text-[14px] font-medium text-white max-w-[280px] sm:max-w-xs leading-[1.3] drop-shadow-sm line-clamp-1">
+                <span className="text-[11px] sm:text-[14px] font-medium text-white max-w-[200px] sm:max-w-xs leading-[1.3] drop-shadow-sm line-clamp-1">
                   {activeBadge}
                 </span>
               </div>
@@ -298,12 +297,12 @@ export const HomeTopContainer: React.FC = () => {
           </div>
 
           {/* Center Main Content */}
-          <div className="relative z-20 my-auto py-4 space-y-2 min-w-0">
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-bold text-white tracking-tight leading-[1.15] drop-shadow-md line-clamp-2 max-w-xl">
+          <div className="relative z-20 my-auto py-1 sm:py-4 space-y-0.5 sm:space-y-2 min-w-0">
+            <h2 className="text-[18px] sm:text-2xl md:text-3xl font-serif font-bold text-white tracking-tight leading-[1.2] sm:leading-[1.15] drop-shadow-md line-clamp-2 max-w-xl">
               {activeTitle}
             </h2>
             {activeSubtitle && (
-              <p className="text-xs sm:text-sm text-neutral-200 line-clamp-2 max-w-lg font-normal drop-shadow-sm">
+              <p className="text-[11px] sm:text-sm text-neutral-200 line-clamp-1 sm:line-clamp-2 max-w-lg font-normal drop-shadow-sm">
                 {activeSubtitle}
               </p>
             )}
@@ -312,7 +311,7 @@ export const HomeTopContainer: React.FC = () => {
           {/* Bottom Floating Glassmorphism Bar */}
           <div className="relative z-20 mt-auto min-w-0">
             <div 
-              className="flex items-center justify-between rounded-[16px] px-3.5 py-2.5 sm:py-3 shadow-lg"
+              className="flex items-center justify-between rounded-[12px] sm:rounded-[16px] px-2.5 sm:px-3.5 py-1.5 sm:py-3 shadow-lg"
               style={{
                 background: 'rgba(255, 255, 255, 0.22)',
                 backdropFilter: 'blur(16px)',
@@ -321,10 +320,10 @@ export const HomeTopContainer: React.FC = () => {
               }}
             >
               {/* Left Side: CMS CTA Button */}
-              <div className="flex-1 min-w-0 flex items-center pr-4">
+              <div className="flex-1 min-w-0 flex items-center pe-2 sm:pr-4">
                 <button
                   onClick={handleHeroAction}
-                  className="px-4 sm:px-6 py-2 rounded-xl bg-white/20 hover:bg-white/30 border border-white/20 text-white text-[12px] sm:text-[13px] font-bold uppercase tracking-wide transition-all cursor-pointer truncate max-w-full"
+                  className="px-2.5 sm:px-6 py-1 sm:py-2 rounded-lg sm:rounded-xl bg-white/20 hover:bg-white/30 border border-white/20 text-white text-[11px] sm:text-[13px] font-bold uppercase tracking-wide transition-all cursor-pointer truncate max-w-full"
                 >
                   {isAr 
                     ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'تصفح العروض') 
@@ -334,23 +333,23 @@ export const HomeTopContainer: React.FC = () => {
               </div>
 
               {/* Right Side: Slider Controls & Counter */}
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={handlePrev}
                   aria-label="Previous slide"
-                  className="w-[28px] h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                  className="w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
 
-                <span className="text-xs font-mono font-bold text-white px-1">
+                <span className="text-[11px] sm:text-xs font-mono font-bold text-white px-0.5 sm:px-1">
                   {currentSlideIndex + 1}/{slides.length}
                 </span>
 
                 <button
                   onClick={handleNext}
                   aria-label="Next slide"
-                  className="w-[28px] h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                  className="w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
                 </button>
