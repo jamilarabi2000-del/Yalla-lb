@@ -43,10 +43,10 @@ export const IS_FIREBASE_ENABLED = import.meta.env.PROD ? true : (import.meta.en
 
 export const app = initializeApp(firebaseConfig);
 
-// Initialize App Check if configured
+// Initialize App Check if configured with a valid site key
 if (typeof window !== 'undefined') {
-  const siteKey = firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-  if (siteKey) {
+  const siteKey = (firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY || '').trim();
+  if (siteKey && siteKey.length > 5) {
     try {
       initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),
