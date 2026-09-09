@@ -1,11 +1,14 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.submitSellerApplication = exports.ALLOWED_SELLER_APP_KEYS = void 0;
+exports.submitSellerApplication = exports.onSellerApplicationWritten = exports.ALLOWED_SELLER_APP_KEYS = void 0;
+exports.hashIdentifier = hashIdentifier;
 exports.normalizeServerLebanesePhone = normalizeServerLebanesePhone;
 exports.validateSellerApplicationPayload = validateSellerApplicationPayload;
 exports.handleSellerApplicationSubmission = handleSellerApplicationSubmission;
+exports.syncSellerApplicationLockLifecycle = syncSellerApplicationLockLifecycle;
 const https_1 = require("firebase-functions/v2/https");
-const firestore_1 = require("firebase-admin/firestore");
+const firestore_1 = require("firebase-functions/v2/firestore");
+const firestore_2 = require("firebase-admin/firestore");
 const app_1 = require("firebase-admin/app");
 const node_crypto_1 = require("node:crypto");
 if ((0, app_1.getApps)().length === 0) {
@@ -14,12 +17,18 @@ if ((0, app_1.getApps)().length === 0) {
 const DATABASE_ID = 'ai-studio-yallalb-1415b490-9de7-4a31-acee-0f9c6439c18c';
 const getDb = () => {
     try {
-        return (0, firestore_1.getFirestore)(DATABASE_ID);
+        return (0, firestore_2.getFirestore)(DATABASE_ID);
     }
     catch {
-        return (0, firestore_1.getFirestore)();
+        return (0, firestore_2.getFirestore)();
     }
 };
+/**
+ * Creates a deterministic, non-reversible SHA-256 hash for PII identifiers (email/phone).
+ */
+function hashIdentifier(val) {
+    return (0, node_crypto_1.createHash)('sha256').update(val).digest('hex');
+}
 /**
  * Normalized Lebanese phone helper for server-side validation.
  */
@@ -161,13 +170,14 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
     const appId = `app_${(0, node_crypto_1.randomUUID)().replace(/-/g, '').slice(0, 16)}`;
     const appRef = db.collection('seller_applications').doc(appId);
     // 2. Concurrency-safe atomic deduplication locks
-    // Deterministic document IDs eliminate duplicate-submission race conditions
-    const emailHex = Buffer.from(validated.email).toString('hex');
-    const emailLockRef = db.collection('seller_application_locks').doc(`email_${emailHex}`);
-    const phoneLockRef = db.collection('seller_application_locks').doc(`phone_${validated.cleanPhone}`);
+    // Cryptographic SHA-256 hashes eliminate reversible PII exposure in document IDs
+    const emailHash = hashIdentifier(validated.email);
+    const phoneHash = hashIdentifier(validated.cleanPhone);
+    const emailLockRef = db.collection('seller_application_locks').doc(`email_${emailHash}`);
+    const phoneLockRef = db.collection('seller_application_locks').doc(`phone_${phoneHash}`);
     // 3. Abuse Protection & Rate Limiting keys
-    // Tracks phone identifier, App Check identity, and IP address
-    const rateLimitKeys = [`rate_phone_${validated.cleanPhone}`];
+    // Cryptographic hash ensures raw phone number is never exposed in Firestore document IDs
+    const rateLimitKeys = [`rate_phone_${phoneHash}`];
     if (context.appCheckId) {
         rateLimitKeys.push(`rate_app_${context.appCheckId.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
     }
@@ -196,7 +206,7 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
         bio: validated.bio || null,
         socialLink: validated.socialLink || null,
         status: 'pending',
-        createdAt: firestore_1.FieldValue.serverTimestamp(),
+        createdAt: firestore_2.FieldValue.serverTimestamp(),
         submittedAt: new Date().toISOString()
     };
     try {
@@ -212,11 +222,17 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
                 if (lockData?.status === 'pending') {
                     throw new https_1.HttpsError('already-exists', 'A seller application with this email is currently pending review. Our team will contact you shortly.');
                 }
+                if (lockData?.status === 'approved') {
+                    throw new https_1.HttpsError('already-exists', 'A seller account or application with this email has already been approved.');
+                }
             }
             if (phoneLockSnap.exists) {
                 const lockData = phoneLockSnap.data();
                 if (lockData?.status === 'pending') {
                     throw new https_1.HttpsError('already-exists', 'A seller application with this phone number is currently pending review. Our team will contact you shortly.');
+                }
+                if (lockData?.status === 'approved') {
+                    throw new https_1.HttpsError('already-exists', 'A seller account or application with this phone number has already been approved.');
                 }
             }
             // Step B: Read rate limits
@@ -238,16 +254,18 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
             // Step C: Atomically write application, locks, and minimal rate-limit state
             // 1. Write the authoritative application document
             tx.set(appRef, docPayload);
-            // 2. Write the atomic uniqueness lock documents
+            // 2. Write the atomic uniqueness lock documents (storing NO plaintext PII)
             tx.set(emailLockRef, {
                 applicationId: appId,
                 status: 'pending',
-                createdAt: firestore_1.FieldValue.serverTimestamp()
+                createdAt: firestore_2.FieldValue.serverTimestamp(),
+                updatedAt: firestore_2.FieldValue.serverTimestamp()
             });
             tx.set(phoneLockRef, {
                 applicationId: appId,
                 status: 'pending',
-                createdAt: firestore_1.FieldValue.serverTimestamp()
+                createdAt: firestore_2.FieldValue.serverTimestamp(),
+                updatedAt: firestore_2.FieldValue.serverTimestamp()
             });
             // 3. Update rate limits with strictly minimized data (timestamps only, NO applicant PII)
             for (let i = 0; i < rateLimitKeys.length; i++) {
@@ -261,7 +279,7 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
                 const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateKey);
                 tx.set(rateLimitRef, {
                     timestamps,
-                    updatedAt: firestore_1.FieldValue.serverTimestamp()
+                    updatedAt: firestore_2.FieldValue.serverTimestamp()
                 });
             }
         });
@@ -280,6 +298,107 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
         message: 'Seller application submitted successfully for review.'
     };
 }
+/**
+ * Synchronizes the seller application lock lifecycle based on application status changes:
+ * - PENDING: email + phone locks active (status: 'pending')
+ * - APPROVED: keeps uniqueness protection (status: 'approved')
+ * - REJECTED: releases/removes the email and phone pending locks
+ * - CANCELLED: releases/removes the email and phone pending locks
+ * - DELETED: releases/removes the email and phone pending locks
+ */
+async function syncSellerApplicationLockLifecycle(beforeData, afterData, dbInstance) {
+    const db = dbInstance || getDb();
+    const email = (afterData?.email || beforeData?.email || '').trim().toLowerCase();
+    const rawPhone = afterData?.cleanPhone || beforeData?.cleanPhone || afterData?.phone || beforeData?.phone || '';
+    const cleanPhone = rawPhone.replace(/\D/g, '');
+    const appId = afterData?.id || beforeData?.id;
+    const emailHash = email ? hashIdentifier(email) : null;
+    const phoneHash = cleanPhone ? hashIdentifier(cleanPhone) : null;
+    const emailLockRef = emailHash ? db.collection('seller_application_locks').doc(`email_${emailHash}`) : null;
+    const phoneLockRef = phoneHash ? db.collection('seller_application_locks').doc(`phone_${phoneHash}`) : null;
+    const newStatus = afterData?.status;
+    // Case 1: Application document deleted OR status changed to rejected/cancelled
+    if (!afterData || newStatus === 'rejected' || newStatus === 'cancelled') {
+        const promises = [];
+        if (emailLockRef) {
+            promises.push((async () => {
+                const snap = await emailLockRef.get();
+                if (snap.exists) {
+                    const data = snap.data();
+                    if (!appId || data?.applicationId === appId || data?.status === 'pending') {
+                        await emailLockRef.delete();
+                    }
+                }
+            })());
+        }
+        if (phoneLockRef) {
+            promises.push((async () => {
+                const snap = await phoneLockRef.get();
+                if (snap.exists) {
+                    const data = snap.data();
+                    if (!appId || data?.applicationId === appId || data?.status === 'pending') {
+                        await phoneLockRef.delete();
+                    }
+                }
+            })());
+        }
+        await Promise.all(promises);
+        return { success: true, action: `released_${newStatus || 'deleted'}` };
+    }
+    // Case 2: Application was approved - retain uniqueness protection
+    if (newStatus === 'approved') {
+        const promises = [];
+        if (emailLockRef) {
+            promises.push(emailLockRef.set({
+                applicationId: appId,
+                status: 'approved',
+                updatedAt: firestore_2.FieldValue.serverTimestamp()
+            }, { merge: true }));
+        }
+        if (phoneLockRef) {
+            promises.push(phoneLockRef.set({
+                applicationId: appId,
+                status: 'approved',
+                updatedAt: firestore_2.FieldValue.serverTimestamp()
+            }, { merge: true }));
+        }
+        await Promise.all(promises);
+        return { success: true, action: 'retained_approved' };
+    }
+    // Case 3: Application is pending - keep active locks
+    if (newStatus === 'pending') {
+        const promises = [];
+        if (emailLockRef) {
+            promises.push(emailLockRef.set({
+                applicationId: appId,
+                status: 'pending',
+                updatedAt: firestore_2.FieldValue.serverTimestamp()
+            }, { merge: true }));
+        }
+        if (phoneLockRef) {
+            promises.push(phoneLockRef.set({
+                applicationId: appId,
+                status: 'pending',
+                updatedAt: firestore_2.FieldValue.serverTimestamp()
+            }, { merge: true }));
+        }
+        await Promise.all(promises);
+        return { success: true, action: 'locked_pending' };
+    }
+    return { success: true, action: 'no_change' };
+}
+/**
+ * Firestore trigger: onSellerApplicationWritten
+ * Automatically updates or releases uniqueness locks when application documents are updated or deleted by admins.
+ */
+exports.onSellerApplicationWritten = (0, firestore_1.onDocumentWritten)({
+    region: 'europe-west1',
+    document: 'seller_applications/{appId}'
+}, async (event) => {
+    const beforeData = event.data?.before?.data() || null;
+    const afterData = event.data?.after?.data() || null;
+    await syncSellerApplicationLockLifecycle(beforeData, afterData);
+});
 /**
  * Callable Cloud Function: submitSellerApplication
  * - Requires Firebase App Check

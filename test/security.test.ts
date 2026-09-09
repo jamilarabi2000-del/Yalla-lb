@@ -6,7 +6,7 @@ import { normalizeLebanesePhone, isValidLebanesePhone } from '../src/utils/phone
 import { checkDuplicateProductNumber } from '../src/lib/productValidation';
 import { Product } from '../src/types';
 import { validatePlaceOrderPayload, placeOrder } from '../functions/src/placeOrder';
-import { validateSellerApplicationPayload, normalizeServerLebanesePhone, handleSellerApplicationSubmission } from '../functions/src/sellerApplication';
+import { validateSellerApplicationPayload, normalizeServerLebanesePhone, handleSellerApplicationSubmission, syncSellerApplicationLockLifecycle, hashIdentifier } from '../functions/src/sellerApplication';
 import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
 import { mapSafeShopUserProfile } from '../src/context/ShopContext';
 
@@ -1530,8 +1530,27 @@ describe('Security Regression Suite - Application Controls', () => {
         collection: (colName: string) => ({
           doc: (id: string) => ({
             id,
-            set: async (docData: any) => {
-              applications.push({ id, ...docData });
+            get: async () => {
+              const data = locks[id] || rateLimits[id] || applications.find((a) => a.id === id);
+              return {
+                exists: !!data,
+                data: () => data
+              };
+            },
+            set: async (docData: any, opts?: any) => {
+              if (colName === 'seller_application_locks' || id.startsWith('email_') || id.startsWith('phone_')) {
+                locks[id] = opts?.merge && locks[id] ? { ...locks[id], ...docData } : docData;
+              } else if (colName === 'seller_application_rate_limits' || id.startsWith('rate_')) {
+                rateLimits[id] = opts?.merge && rateLimits[id] ? { ...rateLimits[id], ...docData } : docData;
+              } else {
+                applications.push({ id, ...docData });
+              }
+            },
+            delete: async () => {
+              delete locks[id];
+              delete rateLimits[id];
+              const idx = applications.findIndex((a) => a.id === id);
+              if (idx !== -1) applications.splice(idx, 1);
             }
           })
         }),
@@ -1549,7 +1568,7 @@ describe('Security Regression Suite - Application Controls', () => {
             },
             set: (ref: any, data: any, opts?: any) => {
               if (ref.id.startsWith('email_') || ref.id.startsWith('phone_')) {
-                locks[ref.id] = data;
+                locks[ref.id] = opts?.merge && locks[ref.id] ? { ...locks[ref.id], ...data } : data;
               } else if (ref.id.startsWith('rate_')) {
                 if (opts?.merge && rateLimits[ref.id]) {
                   rateLimits[ref.id] = { ...rateLimits[ref.id], ...data };
@@ -1559,6 +1578,10 @@ describe('Security Regression Suite - Application Controls', () => {
               } else if (ref.id.startsWith('app_')) {
                 applications.push({ id: ref.id, ...data });
               }
+            },
+            delete: (ref: any) => {
+              delete locks[ref.id];
+              delete rateLimits[ref.id];
             }
           };
           return await updateFunction(tx);
@@ -1618,7 +1641,7 @@ describe('Security Regression Suite - Application Controls', () => {
       craftType: 'Artisanal Oil'
     };
 
-    it('valid callable submission → SUCCESS', async () => {
+    it('valid callable submission → SUCCESS with cryptographic SHA-256 locks and hashed rate-limit IDs', async () => {
       const mockDb = createMockDb();
       const result = await handleSellerApplicationSubmission(
         validPayload,
@@ -1638,23 +1661,70 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(stored.email).toBe('charbel@cedars.lb');
       expect(stored.submittedAt).toBeDefined();
 
-      // Verify lock documents created
-      const emailHex = Buffer.from('charbel@cedars.lb').toString('hex');
-      expect(mockDb.locks[`email_${emailHex}`]?.status).toBe('pending');
-      expect(mockDb.locks['phone_70123456']?.status).toBe('pending');
+      // Verify lock documents created with non-reversible SHA-256 hashes (64 hex characters)
+      const emailHash = hashIdentifier('charbel@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+      expect(emailHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(phoneHash).toMatch(/^[a-f0-9]{64}$/);
 
-      // Verify rate-limit data minimization: NO applicant PII stored in rate-limit records
-      const rateLimitRecord = mockDb.rateLimits['rate_phone_70123456'];
+      const emailLockDoc = mockDb.locks[`email_${emailHash}`];
+      const phoneLockDoc = mockDb.locks[`phone_${phoneHash}`];
+      expect(emailLockDoc).toBeDefined();
+      expect(phoneLockDoc).toBeDefined();
+      expect(emailLockDoc.status).toBe('pending');
+      expect(phoneLockDoc.status).toBe('pending');
+      expect(emailLockDoc.applicationId).toBe(result.applicationId);
+
+      // Verify lock bodies do NOT contain plaintext email or phone
+      expect(emailLockDoc.email).toBeUndefined();
+      expect(emailLockDoc.phone).toBeUndefined();
+      expect(phoneLockDoc.email).toBeUndefined();
+      expect(phoneLockDoc.phone).toBeUndefined();
+
+      // Verify rate-limit document ID uses phone hash (no raw phone in document ID)
+      const rateLimitRecord = mockDb.rateLimits[`rate_phone_${phoneHash}`];
       expect(rateLimitRecord).toBeDefined();
+      expect(mockDb.rateLimits['rate_phone_70123456']).toBeUndefined();
       expect(rateLimitRecord.email).toBeUndefined();
       expect(rateLimitRecord.phone).toBeUndefined();
       expect(Array.isArray(rateLimitRecord.timestamps)).toBe(true);
     });
 
-    it('same email concurrent submissions → only ONE application succeeds', async () => {
+    it('lock IDs and rate-limit IDs do not contain reversible email/phone data', async () => {
+      const mockDb = createMockDb();
+      await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-check-token-123' },
+        mockDb
+      );
+
+      const lockKeys = Object.keys(mockDb.locks);
+      const rateLimitKeys = Object.keys(mockDb.rateLimits);
+
+      for (const key of lockKeys) {
+        // Must match email_<64 hex> or phone_<64 hex>
+        expect(key).toMatch(/^(email|phone)_[a-f0-9]{64}$/);
+        // Must NOT contain raw email or raw phone
+        expect(key).not.toContain('charbel@cedars.lb');
+        expect(key).not.toContain('70123456');
+        expect(key).not.toContain('70123456');
+        // Must not be hex encoding of raw email string (Buffer.from(email).toString('hex'))
+        expect(key).not.toContain(Buffer.from('charbel@cedars.lb').toString('hex'));
+      }
+
+      for (const key of rateLimitKeys) {
+        // If phone-based rate limit, must use hash, not raw phone
+        if (key.startsWith('rate_phone_')) {
+          expect(key).toMatch(/^rate_phone_[a-f0-9]{64}$/);
+          expect(key).not.toContain('70123456');
+        }
+      }
+    });
+
+    it('concurrent same-email submissions → only ONE application succeeds', async () => {
       const mockDb = createConcurrentMockDb();
 
-      // Fire two concurrent submissions at the same time with identical email
+      // Two concurrent submissions with identical email, different phone
       const results = await Promise.allSettled([
         handleSellerApplicationSubmission(
           { ...validPayload, phone: '70 111 222' },
@@ -1676,10 +1746,10 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(mockDb.applications.length).toBe(1);
     });
 
-    it('same phone concurrent submissions → only ONE application succeeds', async () => {
+    it('concurrent same-phone submissions → only ONE application succeeds', async () => {
       const mockDb = createConcurrentMockDb();
 
-      // Fire two concurrent submissions at the same time with identical phone
+      // Two concurrent submissions with identical phone, different email
       const results = await Promise.allSettled([
         handleSellerApplicationSubmission(
           { ...validPayload, email: 'submitter1@cedars.lb' },
@@ -1699,6 +1769,182 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(fulfilled.length).toBe(1);
       expect(rejected.length).toBe(1);
       expect(mockDb.applications.length).toBe(1);
+    });
+
+    it('concurrent same-email + same-phone submissions → only ONE application succeeds', async () => {
+      const mockDb = createConcurrentMockDb();
+
+      // Two concurrent submissions with identical email AND identical phone
+      const results = await Promise.allSettled([
+        handleSellerApplicationSubmission(
+          { ...validPayload },
+          { appCheckId: 'app-1' },
+          mockDb
+        ),
+        handleSellerApplicationSubmission(
+          { ...validPayload },
+          { appCheckId: 'app-2' },
+          mockDb
+        )
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      expect(fulfilled.length).toBe(1);
+      expect(rejected.length).toBe(1);
+      expect(mockDb.applications.length).toBe(1);
+    });
+
+    it('rejected application releases locks so legitimate applicant can resubmit', async () => {
+      const mockDb = createMockDb();
+
+      // 1. Initial submission
+      const subResult = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-1' },
+        mockDb
+      );
+      expect(subResult.success).toBe(true);
+
+      const emailHash = hashIdentifier('charbel@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.status).toBe('pending');
+
+      // 2. Immediate duplicate is denied
+      await expect(
+        handleSellerApplicationSubmission(
+          validPayload,
+          { appCheckId: 'app-2' },
+          mockDb
+        )
+      ).rejects.toThrow(/pending review/);
+
+      // 3. Admin rejects the application
+      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
+      await syncSellerApplicationLockLifecycle(
+        pendingApp,
+        { ...pendingApp, status: 'rejected', rejectionReason: 'Incomplete documentation' },
+        mockDb
+      );
+
+      // 4. Locks are released/removed
+      expect(mockDb.locks[`email_${emailHash}`]).toBeUndefined();
+      expect(mockDb.locks[`phone_${phoneHash}`]).toBeUndefined();
+
+      // 5. Applicant submits a corrected application successfully
+      const resubmission = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-3' },
+        mockDb
+      );
+      expect(resubmission.success).toBe(true);
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.status).toBe('pending');
+    });
+
+    it('cancelled application releases locks so applicant can resubmit', async () => {
+      const mockDb = createMockDb();
+
+      const subResult = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-1' },
+        mockDb
+      );
+      expect(subResult.success).toBe(true);
+
+      const emailHash = hashIdentifier('charbel@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+
+      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
+      await syncSellerApplicationLockLifecycle(
+        pendingApp,
+        { ...pendingApp, status: 'cancelled' },
+        mockDb
+      );
+
+      expect(mockDb.locks[`email_${emailHash}`]).toBeUndefined();
+      expect(mockDb.locks[`phone_${phoneHash}`]).toBeUndefined();
+
+      const resubmission = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-2' },
+        mockDb
+      );
+      expect(resubmission.success).toBe(true);
+    });
+
+    it('deleted application releases locks so applicant can resubmit', async () => {
+      const mockDb = createMockDb();
+
+      const subResult = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-1' },
+        mockDb
+      );
+      expect(subResult.success).toBe(true);
+
+      const emailHash = hashIdentifier('charbel@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+
+      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
+      // Document deletion: afterData is null
+      await syncSellerApplicationLockLifecycle(pendingApp, null, mockDb);
+
+      expect(mockDb.locks[`email_${emailHash}`]).toBeUndefined();
+      expect(mockDb.locks[`phone_${phoneHash}`]).toBeUndefined();
+
+      const resubmission = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-2' },
+        mockDb
+      );
+      expect(resubmission.success).toBe(true);
+    });
+
+    it('approved application retains intended uniqueness protection against duplicate applications', async () => {
+      const mockDb = createMockDb();
+
+      const subResult = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-1' },
+        mockDb
+      );
+      expect(subResult.success).toBe(true);
+
+      const emailHash = hashIdentifier('charbel@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+
+      // Admin approves the application
+      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
+      await syncSellerApplicationLockLifecycle(
+        pendingApp,
+        { ...pendingApp, status: 'approved', createdSellerId: 'seller_123' },
+        mockDb
+      );
+
+      // Lock status is transitioned to 'approved'
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('approved');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.status).toBe('approved');
+
+      // Attempting to submit another application with the approved email is DENIED
+      await expect(
+        handleSellerApplicationSubmission(
+          { ...validPayload, phone: '70 999 000' },
+          { appCheckId: 'app-2' },
+          mockDb
+        )
+      ).rejects.toThrow(/already been approved/);
+
+      // Attempting to submit another application with the approved phone is DENIED
+      await expect(
+        handleSellerApplicationSubmission(
+          { ...validPayload, email: 'different@cedars.lb' },
+          { appCheckId: 'app-3' },
+          mockDb
+        )
+      ).rejects.toThrow(/already been approved/);
     });
 
     it('unexpected fields → DENIED', async () => {
