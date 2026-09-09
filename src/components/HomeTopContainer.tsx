@@ -31,7 +31,6 @@ interface ConsolidatedSlide {
   targetUrl?: string;
   bundleId?: string;
   showButton?: boolean;
-  productId?: string;
 }
 
 export const HomeTopContainer: React.FC = () => {
@@ -145,18 +144,6 @@ export const HomeTopContainer: React.FC = () => {
     // Use neutral Yalla fallback image instead of hardcoded external Unsplash URL
     const bgUrl = bundle.imageUrl?.trim() || lebaneseMountainTownImg;
     
-    // Attempt to find a valid product from this bundle
-    let bundleProductId: string | undefined = undefined;
-    if (bundle.productIds && Array.isArray(bundle.productIds)) {
-      for (const pid of bundle.productIds) {
-        const prod = products.find((p: any) => p.id === pid);
-        if (prod && isProductVisibleOnStorefront(prod, sellers, isVisualEditMode)) {
-          bundleProductId = prod.id;
-          break;
-        }
-      }
-    }
-
     return {
       id: `bundle-${bundle.id}`,
       type: 'image',
@@ -169,8 +156,7 @@ export const HomeTopContainer: React.FC = () => {
       subtitleAr: bundle.descriptionAr || bundle.description || '',
       buttonTextEn: bundle.sliderButtonText,
       buttonTextAr: bundle.sliderButtonTextAr,
-      bundleId: bundle.id,
-      productId: bundleProductId
+      bundleId: bundle.id
     };
   });
 
@@ -256,15 +242,6 @@ export const HomeTopContainer: React.FC = () => {
   const activeTitle = isAr ? (currentSlide.titleAr || currentSlide.titleEn) : currentSlide.titleEn;
   const activeSubtitle = isAr ? (currentSlide.subtitleAr || currentSlide.subtitleEn) : currentSlide.subtitleEn;
 
-  // Thumbnail for the bottom glass hero control bar
-  let thumbProduct: any = undefined;
-  if (currentSlide.productId) {
-    thumbProduct = products.find((p: any) => p.id === currentSlide.productId);
-    if (thumbProduct && !isProductVisibleOnStorefront(thumbProduct, sellers, isVisualEditMode)) {
-      thumbProduct = undefined;
-    }
-  }
-
   return (
     <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mb-4">
       {/* Top Grid: Hero Banner (2fr) & Featured Product Card (1fr) */}
@@ -343,38 +320,17 @@ export const HomeTopContainer: React.FC = () => {
                 border: '1px solid rgba(255, 255, 255, 0.3)'
               }}
             >
-              {/* Left Side: Thumbnail + Product Name */}
-              <div 
-                onClick={handleHeroAction}
-                className="flex items-center gap-3 cursor-pointer group/thumb min-w-0 pr-2 flex-1"
-              >
-                {thumbProduct && (
-                  <>
-                    <div className="w-[42px] h-[42px] rounded-[8px] overflow-hidden bg-white/30 border border-white/40 flex-shrink-0 flex items-center justify-center shadow-xs">
-                      <img
-                        src={thumbProduct.image}
-                        alt=""
-                        referrerPolicy="no-referrer"
-                        className="w-full h-full object-contain group-hover/thumb:scale-110 transition-transform duration-300"
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-white/80">
-                        {isAr ? 'عرض' : 'Featured'}
-                      </div>
-                      <div className="text-xs sm:text-sm font-bold text-white truncate group-hover/thumb:text-[#F3E5AB] transition-colors">
-                        {isAr ? (thumbProduct.arabicName || thumbProduct.name) : thumbProduct.name}
-                      </div>
-                    </div>
-                  </>
-                )}
-                {!thumbProduct && (
-                  <div className="min-w-0 h-[42px] flex items-center">
-                    <div className="text-xs sm:text-sm font-bold text-white truncate transition-colors">
-                      {isAr ? 'تصفح العرض' : 'Explore Offer'}
-                    </div>
-                  </div>
-                )}
+              {/* Left Side: CMS CTA Button */}
+              <div className="flex-1 min-w-0 flex items-center pr-4">
+                <button
+                  onClick={handleHeroAction}
+                  className="px-4 sm:px-6 py-2 rounded-xl bg-white/20 hover:bg-white/30 border border-white/20 text-white text-[12px] sm:text-[13px] font-bold uppercase tracking-wide transition-all cursor-pointer truncate max-w-full"
+                >
+                  {isAr 
+                    ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'تصفح العروض') 
+                    : (currentSlide.buttonTextEn || currentSlide.buttonTextAr || 'Explore Products')
+                  }
+                </button>
               </div>
 
               {/* Right Side: Slider Controls & Counter */}
