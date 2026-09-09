@@ -257,7 +257,7 @@ const MainAppContent: React.FC = () => {
       {activeTab !== 'admin' && activeTab !== 'seller' && <Navbar />}
 
       {/* Dynamic View Display */}
-      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none pt-4 sm:pt-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 focus:outline-none">
         {activeTab === 'home' && <HomeView />}
         {activeTab === 'products' && <ProductsView />}
         {activeTab === 'product_detail' && <ProductDetailView />}

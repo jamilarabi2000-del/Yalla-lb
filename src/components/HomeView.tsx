@@ -719,7 +719,7 @@ export const HomeView: React.FC = () => {
   };
 
   return (
-    <div className="pb-12 bg-[#F7F6F1]">
+    <div className="pb-12 bg-[#F7F6F1] pt-4 sm:pt-6">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="top" />

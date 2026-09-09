@@ -652,7 +652,7 @@ export const CheckoutView: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F8F6] pb-24">
+    <div className="min-h-screen bg-[#F8F8F6] pb-24 pt-4 sm:pt-6">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="checkout" position="top" />

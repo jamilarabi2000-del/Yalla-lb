@@ -332,7 +332,7 @@ export const ProductDetailView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F8F6] text-[#171717] pb-20">
+    <div className="min-h-screen bg-[#F8F8F6] text-[#171717] pb-20 pt-4 sm:pt-6">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="product_detail" position="top" />
