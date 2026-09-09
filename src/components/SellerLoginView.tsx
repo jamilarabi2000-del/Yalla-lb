@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { LebanonFlag } from './LebanonFlag';
 import { collection, addDoc, doc, getDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
-import { db, auth, signInWithEmailAndPassword, signOut } from '../firebase';
+import { db, auth, signInWithEmailAndPassword, signOut, functionsInstance, httpsCallable } from '../firebase';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
 
 export const SellerLoginView: React.FC = () => {
@@ -319,18 +319,24 @@ export const SellerLoginView: React.FC = () => {
 
     setIsSubmittingApp(true);
     try {
-      await addDoc(collection(db, 'seller_applications'), {
-        sellerCompany: company,
-        workshopName: company, // backwards compatibility
-        firstName: fName,
-        middleName: mName,
-        lastName: lName,
-        contactName: fullName,
-        phone: normPhone.formatted,
-        email: email,
-        status: 'pending',
-        submittedAt: new Date().toISOString()
-      });
+      if (functionsInstance) {
+        const submitSellerAppFn = httpsCallable<any, { success: boolean; applicationId: string }>(
+          functionsInstance,
+          'submitSellerApplication'
+        );
+        await submitSellerAppFn({
+          sellerCompany: company,
+          workshopName: company,
+          firstName: fName,
+          middleName: mName || undefined,
+          lastName: lName,
+          contactName: fullName,
+          phone: normPhone.formatted,
+          email: email.trim().toLowerCase(),
+        });
+      } else {
+        throw new Error('Firebase Functions service unavailable. Please check your internet connection.');
+      }
 
       setAppSubmittedSuccess(true);
       showToast(

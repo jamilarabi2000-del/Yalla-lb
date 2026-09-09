@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && 'admin' in request.auth.token
+        && request.auth.token.admin == true;
+    }
+
+    function isSeller() {
+      return isSignedIn()
+        && 'seller' in request.auth.token
+        && request.auth.token.seller == true;
+    }
+
+    function getSellerId() {
+      return request.auth.token.sellerId;
+    }
+
+    function isSafeImage() {
+      // Content-type must be raster images only: JPEG, PNG, or WebP.
+      // Explicitly reject SVG, HTML, scripts, and executables to prevent XSS/stored attacks.
+      return request.resource.contentType.matches('image/(jpeg|png|webp)')
+        && !request.resource.contentType.matches('image/svg\\+xml');
+    }
+
+    // Public product images: readable by everyone, uploaded by Admin or Seller
+    match /products/{sellerId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin()
+        || (
+          isSeller()
+          && getSellerId() == sellerId
+          && isSafeImage()
+          && request.resource.size <= 5 * 1024 * 1024 // 5MB max
+        );
+      allow delete: if isAdmin()
+        || (
+          isSeller()
+          && getSellerId() == sellerId
+        );
+    }
+
+    // User avatars: readable by public, uploadable only by the owner
+    match /avatars/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && isSafeImage()
+          && request.resource.size <= 2 * 1024 * 1024 // 2MB max
+        );
+      allow delete: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+        );
+    }
+
+    // Store CMS assets: uploaded only by Admin
+    match /cms/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin()
+        && isSafeImage()
+        && request.resource.size <= 10 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+
+    // Catch-all: Deny all unauthenticated or unauthorized writes
+    match /{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

@@ -1186,5 +1186,49 @@ describe('17. Authorization claims authoritative verification tests', () => {
   });
 });
 
+// 18. Seller Applications Server-Side Lockdown Tests
+describe('18. Seller Applications collection server-only creation enforcement', () => {
+  const sampleApp = {
+    id: 'app-test-123',
+    sellerCompany: 'Cedars Craft',
+    firstName: 'Karim',
+    lastName: 'Khoury',
+    phone: '+961 70 123456',
+    email: 'karim@example.com',
+    status: 'pending'
+  };
+
+  test('Anonymous client cannot directly create a seller application in Firestore', async () => {
+    await assertFails(
+      setDoc(doc(unauthenticated(), 'seller_applications', 'app-test-123'), sampleApp)
+    );
+  });
+
+  test('Authenticated customer cannot directly create a seller application in Firestore', async () => {
+    await assertFails(
+      setDoc(doc(customer(), 'seller_applications', 'app-test-123'), sampleApp)
+    );
+  });
+
+  test('Authenticated seller cannot directly create a seller application in Firestore', async () => {
+    await assertFails(
+      setDoc(doc(seller(), 'seller_applications', 'app-test-123'), sampleApp)
+    );
+  });
+
+  test('Non-admin users cannot read seller applications', async () => {
+    await assertFails(getDoc(doc(unauthenticated(), 'seller_applications', 'app-test-123')));
+    await assertFails(getDoc(doc(customer(), 'seller_applications', 'app-test-123')));
+    await assertFails(getDoc(doc(seller(), 'seller_applications', 'app-test-123')));
+  });
+
+  test('Nobody can read or write to seller_application_rate_limits collection', async () => {
+    await assertFails(setDoc(doc(unauthenticated(), 'seller_application_rate_limits', 'rate_test'), { hits: 1 }));
+    await assertFails(setDoc(doc(customer(), 'seller_application_rate_limits', 'rate_test'), { hits: 1 }));
+    await assertFails(setDoc(doc(seller(), 'seller_application_rate_limits', 'rate_test'), { hits: 1 }));
+    await assertFails(getDoc(doc(customer(), 'seller_application_rate_limits', 'rate_test')));
+  });
+});
+
 
 

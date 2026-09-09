@@ -266,113 +266,18 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------------------
-    // Seller applications
+    // Seller applications: Server-only creation via submitSellerApplication Cloud Function
+    // Direct client creation (including anonymous and authenticated users) is strictly forbidden.
+    // Applications are read, approved, or rejected exclusively by administrators.
     // ---------------------------------------------------------------------
 
     match /seller_applications/{appId} {
       allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
 
-      allow create: if request.resource.data.keys().hasOnly([
-          'id',
-          'sellerCompany',
-          'workshopName',
-          'workshopNameAr',
-          'nameEn',
-          'nameAr',
-          'firstName',
-          'middleName',
-          'lastName',
-          'contactName',
-          'email',
-          'phone',
-          'village',
-          'governorate',
-          'craftType',
-          'craftCategory',
-          'story',
-          'bio',
-          'socialLink',
-          'status',
-          'createdAt',
-          'submittedAt'
-        ])
-        && request.resource.data.status == 'pending'
-        && request.resource.data.get('id', appId) == appId
-        && boundedString(request.resource.data.get('id', appId), 100)
-        && boundedString(request.resource.data.sellerCompany, 200)
-        && request.resource.data.sellerCompany.size() > 0
-        && boundedString(request.resource.data.email, 200)
-        && request.resource.data.email.size() > 0
-        && boundedString(request.resource.data.phone, 60)
-        && request.resource.data.phone.size() > 0
-        && boundedString(
-          request.resource.data.get('workshopName', ''),
-          200
-        )
-        && boundedString(
-          request.resource.data.get('workshopNameAr', ''),
-          200
-        )
-        && boundedString(
-          request.resource.data.get('nameEn', ''),
-          200
-        )
-        && boundedString(
-          request.resource.data.get('nameAr', ''),
-          200
-        )
-        && boundedString(
-          request.resource.data.get('firstName', ''),
-          100
-        )
-        && boundedString(
-          request.resource.data.get('middleName', ''),
-          100
-        )
-        && boundedString(
-          request.resource.data.get('lastName', ''),
-          100
-        )
-        && boundedString(
-          request.resource.data.get('contactName', ''),
-          300
-        )
-        && boundedString(
-          request.resource.data.get('village', ''),
-          120
-        )
-        && boundedString(
-          request.resource.data.get('governorate', ''),
-          120
-        )
-        && boundedString(
-          request.resource.data.get('craftType', ''),
-          120
-        )
-        && boundedString(
-          request.resource.data.get('craftCategory', ''),
-          120
-        )
-        && boundedString(
-          request.resource.data.get('story', ''),
-          2000
-        )
-        && boundedString(
-          request.resource.data.get('bio', ''),
-          2000
-        )
-        && boundedString(
-          request.resource.data.get('socialLink', ''),
-          500
-        )
-        && boundedString(
-          request.resource.data.get('submittedAt', ''),
-          40
-        )
-        && boundedString(
-          request.resource.data.get('createdAt', ''),
-          40
-        );
+    match /seller_application_rate_limits/{docId} {
+      allow read, write: if false;
     }
 
     // ---------------------------------------------------------------------

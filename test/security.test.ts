@@ -6,6 +6,7 @@ import { normalizeLebanesePhone, isValidLebanesePhone } from '../src/utils/phone
 import { checkDuplicateProductNumber } from '../src/lib/productValidation';
 import { Product } from '../src/types';
 import { validatePlaceOrderPayload, placeOrder } from '../functions/src/placeOrder';
+import { validateSellerApplicationPayload, normalizeServerLebanesePhone } from '../functions/src/sellerApplication';
 import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
 import { mapSafeShopUserProfile } from '../src/context/ShopContext';
 
@@ -1267,5 +1268,211 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(rules).toMatch(/match\s+\/order_idempotency\/\{idempotencyId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
     });
   });
+
+  describe('12. Seller Application Cloud Function & Invariant Defense', () => {
+    it('TEST 1: Rejects missing required fields', () => {
+      expect(() => validateSellerApplicationPayload(null as any)).toThrow(/Request payload must be a non-null object/);
+      expect(() => validateSellerApplicationPayload({})).toThrow(/Company or workshop name is required/);
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft'
+      })).toThrow(/First name is required/);
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi'
+      })).toThrow(/Last name is required/);
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar'
+      })).toThrow(/Email address is required/);
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'fadi@example.com'
+      })).toThrow(/Phone number is required/);
+    });
+
+    it('TEST 2: Rejects invalid Lebanese phone numbers', () => {
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'fadi@example.com',
+        phone: '1234'
+      })).toThrow(/Please enter a valid 8-digit Lebanese mobile phone number/);
+
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'fadi@example.com',
+        phone: 'abcdefgh'
+      })).toThrow(/Please enter a valid 8-digit Lebanese mobile phone number/);
+    });
+
+    it('TEST 3: Rejects invalid email formats', () => {
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'invalid-email',
+        phone: '70 123 456'
+      })).toThrow(/A valid email address is required/);
+    });
+
+    it('TEST 4: Rejects unexpected fields not in allowlist (prevents parameter injection)', () => {
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'fadi@example.com',
+        phone: '70 123 456',
+        isAdmin: true // attacker attempting privilege injection
+      })).toThrow(/Unexpected property in seller application: "isAdmin"/);
+
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'fadi@example.com',
+        phone: '70 123 456',
+        status: 'approved' // attacker attempting auto-approval injection
+      })).toThrow(/Unexpected property in seller application: "status"/);
+    });
+
+    it('TEST 5: Rejects oversized field lengths', () => {
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'A'.repeat(201),
+        firstName: 'Fadi',
+        lastName: 'Nassar',
+        email: 'fadi@example.com',
+        phone: '70 123 456'
+      })).toThrow(/Company name must not exceed 200 characters/);
+
+      expect(() => validateSellerApplicationPayload({
+        sellerCompany: 'Cedars Craft',
+        firstName: 'F'.repeat(101),
+        lastName: 'Nassar',
+        email: 'fadi@example.com',
+        phone: '70 123 456'
+      })).toThrow(/First name must not exceed 100 characters/);
+    });
+
+    it('TEST 6: Validates, cleans, and normalizes a valid submission payload', () => {
+      const validated = validateSellerApplicationPayload({
+        sellerCompany: '   Cedars Workshop   ',
+        firstName: '  Fadi  ',
+        lastName: '  Nassar  ',
+        email: '  FADI@EXAMPLE.COM  ',
+        phone: '+961 70 123 456',
+        village: ' Ehden ',
+        governorate: ' North ',
+        craftType: ' Woodcarving '
+      });
+
+      expect(validated.sellerCompany).toBe('Cedars Workshop');
+      expect(validated.firstName).toBe('Fadi');
+      expect(validated.lastName).toBe('Nassar');
+      expect(validated.email).toBe('fadi@example.com');
+      expect(validated.phone).toBe('+961 70123456');
+      expect(validated.cleanPhone).toBe('70123456');
+      expect(validated.contactName).toBe('Fadi Nassar');
+      expect(validated.village).toBe('Ehden');
+      expect(validated.governorate).toBe('North');
+      expect(validated.craftType).toBe('Woodcarving');
+    });
+
+    it('TEST 7: Source code check - Firestore rules enforce allow create: if false on seller_applications', () => {
+      const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+      expect(rules).toMatch(/match\s+\/seller_applications\/\{appId\}\s*\{[\s\S]*?allow\s+create:\s*if\s+false;/);
+      expect(rules).toMatch(/match\s+\/seller_applications\/\{appId\}\s*\{[\s\S]*?allow\s+read,\s*update,\s*delete:\s*if\s+isAdmin\(\);/);
+      expect(rules).toMatch(/match\s+\/seller_application_rate_limits\/\{docId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
+    });
+
+    it('TEST 8: Source code check - SellerLoginView uses Cloud Function and does not directly addDoc', () => {
+      const viewCode = fs.readFileSync(path.resolve(__dirname, '../src/components/SellerLoginView.tsx'), 'utf8');
+      expect(viewCode).toMatch(/submitSellerApplication/);
+      expect(viewCode).not.toMatch(/addDoc\(\s*collection\(\s*db\s*,\s*['"]seller_applications['"]\s*\)/);
+    });
+  });
+
+  describe('13. Storage Rules Hardening & Asset Upload Security', () => {
+    it('TEST 1: storage.rules exists and is registered in firebase.json', () => {
+      const storageRulesPath = path.resolve(__dirname, '../storage.rules');
+      expect(fs.existsSync(storageRulesPath)).toBe(true);
+
+      const firebaseJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../firebase.json'), 'utf8'));
+      expect(firebaseJson.storage).toBeDefined();
+      expect(firebaseJson.storage.rules).toBe('storage.rules');
+    });
+
+    it('TEST 2: storage.rules enforces raster-only image uploads and bans SVGs/executables', () => {
+      const rules = fs.readFileSync(path.resolve(__dirname, '../storage.rules'), 'utf8');
+      expect(rules).toContain("request.resource.contentType.matches('image/(jpeg|png|webp)')");
+      expect(rules).toContain('svg');
+    });
+
+    it('TEST 3: storage.rules enforces size limits and owner authorization', () => {
+      const rules = fs.readFileSync(path.resolve(__dirname, '../storage.rules'), 'utf8');
+      // Max 5MB on product images
+      expect(rules).toMatch(/request\.resource\.size\s*<=\s*5\s*\*\s*1024\s*\*\s*1024/);
+      // Max 2MB on user avatars
+      expect(rules).toMatch(/request\.resource\.size\s*<=\s*2\s*\*\s*1024\s*\*\s*1024/);
+      // Avatar upload requires matching auth uid
+      expect(rules).toMatch(/request\.auth\.uid\s*==\s*userId/);
+      // Product upload requires matching sellerId claim
+      expect(rules).toMatch(/getSellerId\(\)\s*==\s*sellerId/);
+    });
+  });
+
+  describe('14. Phone Registry Security & Anti-Takeover Hardening', () => {
+    it('TEST 1: Firestore rules strictly require resource.data.uid == request.auth.uid for phone updates and deletes', () => {
+      const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+      // Update and delete must verify existing document belongs to current user
+      expect(rules).toMatch(/resource\.data\.get\(\s*['"]uid['"]\s*,\s*['"]['"]\s*\)\s*==\s*request\.auth\.uid/);
+      // List operation is restricted to admin only
+      expect(rules).toMatch(/allow\s+list:\s*if\s+isAdmin\(\);/);
+      // Document ID must match clean phone key format
+      expect(rules).toMatch(/phoneKey\s*==\s*['"]phone_['"]/);
+    });
+
+    it('TEST 2: Users collection update strictly forbids updating role, sellerId, isBanned, or ordersPlaced', () => {
+      const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+      expect(rules).toMatch(/!request\.resource\.data\.diff\(resource\.data\)[\s\S]*?\.affectedKeys\(\)[\s\S]*?\.hasAny\(\[[\s\S]*?['"]role['"][\s\S]*?['"]sellerId['"][\s\S]*?['"]isBanned['"][\s\S]*?['"]ordersPlaced['"]/);
+    });
+  });
+
+  describe('15. Zero-Trust Authorization & Shadow Attack Red Team Defense', () => {
+    it('TEST 1: Frontend admin state is strictly unforgeable via client-side profile injection', () => {
+      // If an attacker sets their profile document in /users/{uid} with role: 'admin' or admin: true:
+      const maliciousDocData = {
+        uid: 'attacker-123',
+        email: 'attacker@evil.com',
+        role: 'admin',
+        admin: true,
+        seller: true,
+        sellerId: 'forged-seller-id'
+      };
+
+      // mapSafeUserProfile MUST NOT populate admin role from doc data
+      const fakeFbUser = { uid: 'attacker-123', email: 'attacker@evil.com', emailVerified: true } as any;
+      const mappedAuthProfile = mapSafeUserProfile(fakeFbUser, 'attacker-123', maliciousDocData, null);
+      expect(mappedAuthProfile.role).toBe('customer');
+      expect((mappedAuthProfile as any).admin).toBeUndefined();
+
+      // mapSafeShopUserProfile MUST NOT populate admin role from doc data
+      const mappedShopProfile = mapSafeShopUserProfile(maliciousDocData, fakeFbUser, null);
+      expect(mappedShopProfile.role).toBe('customer');
+      expect(mappedShopProfile.sellerId).toBeUndefined();
+    });
+
+    it('TEST 2: Neither coupons nor OTP documents can be read or listed by customers', () => {
+      const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+      expect(rules).toMatch(/match\s+\/coupons\/\{couponId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+isAdmin\(\);/);
+      expect(rules).toMatch(/match\s+\/otps\/\{otpId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
+    });
+  });
 });
+
 
