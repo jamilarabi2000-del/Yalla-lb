@@ -43,11 +43,15 @@ export const IS_FIREBASE_ENABLED = import.meta.env.PROD ? true : (import.meta.en
 
 export const app = initializeApp(firebaseConfig);
 
-// Initialize App Check if configured with a valid site key
+// Initialize App Check only if configured with a valid site key
 if (typeof window !== 'undefined') {
   const siteKey = (firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY || '').trim();
   if (siteKey && siteKey.length > 5) {
     try {
+      // Enable debug token for local/preview development if needed
+      if (import.meta.env.DEV) {
+        (window as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+      }
       initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),
         isTokenAutoRefreshEnabled: true
@@ -56,6 +60,9 @@ if (typeof window !== 'undefined') {
     } catch (err) {
       console.warn("[Firebase] Non-blocking App Check registration note:", err);
     }
+  } else {
+    // If no site key is configured (e.g. preview environment), do not attempt to initialize App Check to avoid recaptcha-error
+    console.info("[Firebase] App Check skipped (no reCAPTCHA site key configured).");
   }
 }
 
