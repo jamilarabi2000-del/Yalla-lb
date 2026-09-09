@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
-import { getFeaturedStorefrontProducts, getFeaturedStorefrontProduct, isProductVisibleOnStorefront } from '../lib/storefrontVisibility';
+import { getFeaturedStorefrontProducts } from '../lib/storefrontVisibility';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -243,13 +243,13 @@ export const HomeTopContainer: React.FC = () => {
   const activeSubtitle = isAr ? (currentSlide.subtitleAr || currentSlide.subtitleEn) : currentSlide.subtitleEn;
 
   return (
-    <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mb-4">
+    <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mb-3 sm:mb-4">
       {/* Top Grid: Hero Banner (2fr) & Featured Product Card (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-[20px] items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 sm:gap-[20px] items-stretch">
         
         {/* LEFT: Large Hero Banner */}
         <div 
-          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-3.5 sm:px-6 pt-2.5 sm:pt-8 pb-2 sm:pb-6 shadow-sm group min-w-0 min-h-[175px] min-[360px]:min-h-[190px] sm:min-h-[380px]"
+          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-3.5 sm:px-6 pt-3.5 sm:pt-8 pb-2.5 sm:pb-6 shadow-sm group min-w-0 min-h-[200px] min-[360px]:min-h-[220px] sm:min-h-[380px]"
         >
           {/* Background Image with subtle dark overlay */}
           <div className="absolute inset-0 z-0">
@@ -323,51 +323,51 @@ export const HomeTopContainer: React.FC = () => {
               <div className="flex-1 min-w-0 flex items-center pe-2 sm:pr-4">
                 <button
                   onClick={handleHeroAction}
-                  className="px-2.5 sm:px-6 py-1 sm:py-2 rounded-lg sm:rounded-xl bg-white/20 hover:bg-white/30 border border-white/20 text-white text-[11px] sm:text-[13px] font-bold uppercase tracking-wide transition-all cursor-pointer truncate max-w-full"
+                  className="px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/25 hover:bg-white/35 border border-white/30 text-white text-[12px] sm:text-[13px] font-bold uppercase tracking-wide transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98]"
                 >
                   {isAr 
                     ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'تصفح العروض') 
-                    : (currentSlide.buttonTextEn || currentSlide.buttonTextAr || 'Explore Products')
+                    : (currentSlide.buttonTextEn || 'Explore Products')
                   }
                 </button>
               </div>
 
-              {/* Right Side: Slider Controls & Counter */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Right Side: Slider Controls & Counter (Visually secondary to CTA) */}
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={handlePrev}
                   aria-label="Previous slide"
-                  className="w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/30 hover:bg-black/50 border border-white/15 text-white/90 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
 
-                <span className="text-[11px] sm:text-xs font-mono font-bold text-white px-0.5 sm:px-1">
+                <span className="text-[10px] sm:text-xs font-mono font-medium text-white/85 px-0.5 sm:px-1">
                   {currentSlideIndex + 1}/{slides.length}
                 </span>
 
                 <button
                   onClick={handleNext}
                   aria-label="Next slide"
-                  className="w-[26px] h-[26px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/20 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/30 hover:bg-black/50 border border-white/15 text-white/90 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
                 >
-                  <ChevronRight className="w-3.5 h-3.5" />
+                  <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT: Featured Product Card */}
+        {/* RIGHT: Featured Product Card (Desktop: spacious vertical card; Mobile: streamlined compact card) */}
         {featuredProduct ? (
           <div 
             onClick={() => openProductDetail(featuredProduct)}
-            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-4 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 min-h-[330px] min-[360px]:min-h-[340px] sm:min-h-[380px]"
+            className="rounded-[16px] sm:rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-3 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 min-h-[135px] sm:min-h-[380px]"
           >
             {/* Top Category Header & Slider Dots */}
-            <div className="flex items-center justify-between z-10">
+            <div className="flex items-center justify-between z-10 mb-1.5 sm:mb-0">
               <div className="flex items-center gap-2 min-w-0">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-[#737373] truncate">
+                <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#737373] truncate">
                   {featuredProduct.category || (isAr ? 'منتج مميز' : 'Featured')}
                 </div>
                 {Array.isArray((featuredProduct as any).colors) && (featuredProduct as any).colors.length > 0 && (
@@ -375,7 +375,7 @@ export const HomeTopContainer: React.FC = () => {
                     {((featuredProduct as any).colors as string[]).map((col, i) => (
                       <span
                         key={i}
-                        className="w-[18px] h-[18px] rounded-full border border-black/15 shadow-2xs flex-shrink-0"
+                        className="w-3.5 h-3.5 sm:w-[18px] sm:h-[18px] rounded-full border border-black/15 shadow-2xs flex-shrink-0"
                         style={{ backgroundColor: col }}
                         title={col}
                       />
@@ -384,7 +384,7 @@ export const HomeTopContainer: React.FC = () => {
                 )}
               </div>
               {featuredProductsList.length > 1 && (
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 sm:gap-1.5">
                   {featuredProductsList.map((_, idx) => (
                     <button
                       key={idx}
@@ -393,8 +393,8 @@ export const HomeTopContainer: React.FC = () => {
                         setCurrentFeaturedIndex(idx);
                         resetFeaturedAutoplay();
                       }}
-                      className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                        idx === currentFeaturedIndex ? 'bg-[#111111] w-3' : 'bg-[#111111]/20 hover:bg-[#111111]/40'
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        idx === currentFeaturedIndex ? 'bg-[#111111] w-2.5 sm:w-3' : 'bg-[#111111]/20 hover:bg-[#111111]/40 w-1.5'
                       }`}
                       aria-label={`View featured product ${idx + 1}`}
                     />
@@ -403,51 +403,54 @@ export const HomeTopContainer: React.FC = () => {
               )}
             </div>
 
-            {/* Centered Product Image Container (height ~180px on mobile, 200px on desktop, object-contain) */}
-            <div className="my-auto py-2 flex items-center justify-center overflow-hidden w-full relative h-[180px] sm:h-[200px]">
-              {featuredProductsList.map((product, idx) => (
-                <img
-                  key={product.id}
-                  src={product.image}
-                  alt={product.name}
-                  referrerPolicy="no-referrer"
-                  className={`absolute max-h-full max-w-full object-contain object-center transition-all duration-500 ${
-                    idx === currentFeaturedIndex 
-                      ? 'opacity-100 scale-100 group-hover:scale-105 z-10' 
-                      : 'opacity-0 scale-95 -z-10'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Bottom: Product Info + Compact Add To Cart Pill Button */}
-            <div className="flex items-end justify-between gap-2.5 sm:gap-3 pt-3 mt-auto">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-[14px] sm:text-[15px] font-bold text-[#111111] line-clamp-2 sm:truncate leading-snug">
-                  {isAr ? (featuredProduct.arabicName || featuredProduct.name) : featuredProduct.name}
-                </h3>
-                <p className="text-[11px] sm:text-[12px] text-[#666666] truncate mt-0.5">
-                  {featuredProduct.artisan || featuredProduct.seller || (isAr ? 'حرفي لبناني' : 'Lebanese Artisan')}
-                </p>
+            {/* Mobile: Row Layout for Image + Info. Desktop: Full Vertical Stack */}
+            <div className="flex flex-row items-center gap-3 sm:contents">
+              {/* Product Image Container (height 84-90px on mobile, 200px on desktop, object-contain strictly preserved) */}
+              <div className="relative flex-shrink-0 w-[84px] h-[84px] min-[360px]:w-[90px] min-[360px]:h-[90px] sm:w-full sm:h-[200px] sm:my-auto sm:py-2 flex items-center justify-center overflow-hidden bg-white/70 sm:bg-transparent rounded-xl sm:rounded-none border border-black/5 sm:border-none p-1 sm:p-0">
+                {featuredProductsList.map((product, idx) => (
+                  <img
+                    key={product.id}
+                    src={product.image}
+                    alt={product.name}
+                    referrerPolicy="no-referrer"
+                    className={`absolute max-h-full max-w-full object-contain object-center transition-all duration-500 ${
+                      idx === currentFeaturedIndex 
+                        ? 'opacity-100 scale-100 group-hover:scale-105 z-10' 
+                        : 'opacity-0 scale-95 -z-10'
+                    }`}
+                  />
+                ))}
               </div>
 
-              <button
-                type="button"
-                id={`featured-add-to-cart-${featuredProduct.id}`}
-                onClick={handleAddToCartFeatured}
-                aria-label={isAr ? 'إضافة إلى السلة' : 'Add to cart'}
-                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[11px] sm:text-[12px] font-medium tracking-wide shadow-sm transition-colors cursor-pointer flex-shrink-0"
-              >
-                <span>{isAr ? 'إضافة' : 'Add'}</span>
-                <span className="opacity-40">|</span>
-                <span className="font-bold text-[#F3E5AB] font-mono">
-                  {formatPrice(featuredProduct.priceUSD)}
-                </span>
-              </button>
+              {/* Product Info + Add To Cart Pill Button */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between sm:flex-row sm:items-end sm:gap-3 sm:pt-3 sm:mt-auto">
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[13px] sm:text-[15px] font-bold text-[#111111] line-clamp-2 sm:truncate leading-snug">
+                    {isAr ? (featuredProduct.arabicName || featuredProduct.name) : featuredProduct.name}
+                  </h3>
+                  <p className="text-[10px] sm:text-[12px] text-[#666666] truncate mt-0.5">
+                    {featuredProduct.artisan || featuredProduct.seller || (isAr ? 'حرفي لبناني' : 'Lebanese Artisan')}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  id={`featured-add-to-cart-${featuredProduct.id}`}
+                  onClick={handleAddToCartFeatured}
+                  aria-label={isAr ? 'إضافة إلى السلة' : 'Add to cart'}
+                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 min-[360px]:px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[10px] min-[360px]:text-[11px] sm:text-[12px] font-medium tracking-wide shadow-sm transition-colors cursor-pointer flex-shrink-0 mt-1 sm:mt-0 self-start sm:self-auto"
+                >
+                  <span>{isAr ? 'إضافة' : 'Add'}</span>
+                  <span className="opacity-40">|</span>
+                  <span className="font-bold text-[#F3E5AB] font-mono">
+                    {formatPrice(featuredProduct.priceUSD)}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         ) : (
-          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] min-h-[330px] min-[360px]:min-h-[340px] sm:min-h-[380px]">
+          <div className="rounded-[16px] sm:rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] min-h-[115px] sm:min-h-[380px]">
             {isAr ? 'لا توجد منتجات مميزة' : 'No featured products available'}
           </div>
         )}
