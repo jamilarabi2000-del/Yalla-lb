@@ -1243,5 +1243,57 @@ describe('18. Seller Applications collection server-only creation enforcement', 
   });
 });
 
+describe('19. Public/Private Firestore Data Separation Security Hardening', () => {
+  test('unauthenticated user cannot read product_private data', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'product_private', 'p1'), { sellerItemCode: 'SECRET-CODE', costPriceUSD: 5 });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'product_private', 'p1')));
+    await assertFails(getDoc(doc(customer(), 'product_private', 'p1')));
+  });
+
+  test('unauthenticated user cannot read unpublished products', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'products', 'p-unpublished'), { name: 'Draft', isPublished: false, priceUSD: 10 });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'products', 'p-unpublished')));
+  });
+
+  test('unauthenticated user cannot read seller_private data', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'seller_private', 'seller-123'), { exactAddress: 'Secret St', accountEmail: 'secret@cedars.lb' });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'seller_private', 'seller-123')));
+    await assertFails(getDoc(doc(customer(), 'seller_private', 'seller-123')));
+  });
+
+  test('unauthenticated user cannot read review_private data', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'review_private', 'r1'), { userId: 'cust-1', orderId: 'ord-1' });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'review_private', 'r1')));
+    await assertFails(getDoc(doc(customer(), 'review_private', 'r1')));
+  });
+
+  test('unauthenticated user cannot read admin CMS collection directly (must use cms_public)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'cms', 'main'), { internalAdminConfig: 'secret' });
+      await setDoc(doc(ctx.firestore(), 'cms_public', 'main'), { siteName: 'Yalla' });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'cms', 'main')));
+    await assertSucceeds(getDoc(doc(unauthenticated(), 'cms_public', 'main')));
+  });
+
+  test('unauthenticated user cannot read inactive discounts or shipping rules', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'discounts', 'd-inactive'), { name: 'Inactive', isActive: false });
+      await setDoc(doc(ctx.firestore(), 'shipping_rules', 's-inactive'), { name: 'Inactive', isActive: false });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'discounts', 'd-inactive')));
+    await assertFails(getDoc(doc(unauthenticated(), 'shipping_rules', 's-inactive')));
+  });
+});
+
+
 
 

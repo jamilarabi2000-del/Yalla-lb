@@ -26,9 +26,6 @@
         "description": { "type": "string", "maxLength": 2000 },
         "craftStory": { "type": "string", "maxLength": 2000 },
         "stock": { "type": "number" },
-        "lowStockThreshold": { "type": "number" },
-        "lowStockNotice": { "type": "string" },
-        "customStockLabel": { "type": "string" },
         "isFeatured": { "type": "boolean" },
         "isBestseller": { "type": "boolean" },
         "isPublished": { "type": "boolean" },
@@ -40,11 +37,26 @@
         "seoArabicTitle": { "type": "string" },
         "seoDescription": { "type": "string" },
         "weightOrVolume": { "type": "string", "maxLength": 50 },
-        "sellerItemCode": { "type": "string", "maxLength": 100 },
         "createdAt": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
       "required": ["id", "name", "category", "priceUSD"]
+    },
+    "ProductPrivate": {
+      "title": "ProductPrivate",
+      "description": "Private operational product inventory and internal merchandising details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "sellerId": { "type": "string" },
+        "sellerItemCode": { "type": "string" },
+        "lowStockThreshold": { "type": "number" },
+        "lowStockNotice": { "type": "string" },
+        "customStockLabel": { "type": "string" },
+        "costPriceUSD": { "type": "number" }
+      },
+      "required": ["id", "productId"]
     },
     "Seller": {
       "title": "Seller",
