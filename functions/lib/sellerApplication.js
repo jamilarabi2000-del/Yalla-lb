@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.submitSellerApplication = exports.ALLOWED_SELLER_APP_KEYS = void 0;
 exports.normalizeServerLebanesePhone = normalizeServerLebanesePhone;
 exports.validateSellerApplicationPayload = validateSellerApplicationPayload;
+exports.handleSellerApplicationSubmission = handleSellerApplicationSubmission;
 const https_1 = require("firebase-functions/v2/https");
 const firestore_1 = require("firebase-admin/firestore");
 const app_1 = require("firebase-admin/app");
@@ -144,19 +145,17 @@ function validateSellerApplicationPayload(data) {
     };
 }
 /**
- * Callable Cloud Function: submitSellerApplication
- * - Requires Firebase App Check
- * - Validates all inputs server-side
- * - Enforces rate-limiting and duplicate submission prevention
- * - Generates secure server-side ID
- * - Writes to Firestore using Admin SDK
+ * Core business and security logic for seller application submission.
+ * - Enforces server-side validation and allowlist
+ * - Enforces duplicate submission prevention
+ * - Enforces rate limiting per phone, App Check ID, and IP
+ * - Fails closed if rate-limit state cannot be verified
+ * - Forces status = "pending"
+ * - Generates server-side ID and timestamps
  */
-exports.submitSellerApplication = (0, https_1.onCall)({
-    region: 'europe-west1',
-    enforceAppCheck: true,
-}, async (req) => {
-    const validated = validateSellerApplicationPayload(req.data);
-    const db = getDb();
+async function handleSellerApplicationSubmission(data, context = {}, dbInstance) {
+    const validated = validateSellerApplicationPayload(data);
+    const db = dbInstance || getDb();
     const now = Date.now();
     // 1. Anti-spam / Duplicate prevention: check if this email or phone already has an active 'pending' application
     const [existingEmailSnap, existingPhoneSnap] = await Promise.all([
@@ -177,30 +176,50 @@ exports.submitSellerApplication = (0, https_1.onCall)({
     if (!existingPhoneSnap.empty) {
         throw new https_1.HttpsError('already-exists', 'A seller application with this phone number is currently pending review. Our team will contact you shortly.');
     }
-    // 2. Server-side Rate Limiting: Max 3 applications per contact identifier per 24 hours
-    const rateLimitDocId = `rate_${validated.cleanPhone}`;
-    const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateLimitDocId);
-    await db.runTransaction(async (tx) => {
-        const rlSnap = await tx.get(rateLimitRef);
-        const oneDayAgo = now - 24 * 60 * 60 * 1000;
-        let timestamps = [];
-        if (rlSnap.exists) {
-            const rlData = rlSnap.data();
-            if (Array.isArray(rlData?.timestamps)) {
-                timestamps = rlData.timestamps.filter((t) => t > oneDayAgo);
+    // 2. Abuse Protection & Rate Limiting: Max 3 applications per contact/app identifier per 24 hours
+    // Tracks phone identifier, App Check identity, and IP address
+    const rateLimitKeys = [`rate_phone_${validated.cleanPhone}`];
+    if (context.appCheckId) {
+        rateLimitKeys.push(`rate_app_${context.appCheckId.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+    }
+    if (context.ip) {
+        rateLimitKeys.push(`rate_ip_${context.ip.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+    }
+    try {
+        await db.runTransaction(async (tx) => {
+            const oneDayAgo = now - 24 * 60 * 60 * 1000;
+            for (const rateKey of rateLimitKeys) {
+                const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateKey);
+                const rlSnap = await tx.get(rateLimitRef);
+                let timestamps = [];
+                if (rlSnap.exists) {
+                    const rlData = rlSnap.data();
+                    if (Array.isArray(rlData?.timestamps)) {
+                        timestamps = rlData.timestamps.filter((t) => typeof t === 'number' && t > oneDayAgo);
+                    }
+                }
+                if (timestamps.length >= 3) {
+                    throw new https_1.HttpsError('resource-exhausted', 'Too many application requests. Please wait before submitting another seller application.');
+                }
+                timestamps.push(now);
+                tx.set(rateLimitRef, {
+                    key: rateKey,
+                    phone: validated.cleanPhone,
+                    email: validated.email,
+                    timestamps,
+                    updatedAt: firestore_1.FieldValue.serverTimestamp()
+                }, { merge: true });
             }
-        }
-        if (timestamps.length >= 3) {
-            throw new https_1.HttpsError('resource-exhausted', 'Too many application requests. Please wait before submitting another seller application.');
-        }
-        timestamps.push(now);
-        tx.set(rateLimitRef, {
-            phone: validated.cleanPhone,
-            email: validated.email,
-            timestamps,
-            updatedAt: firestore_1.FieldValue.serverTimestamp()
         });
-    });
+    }
+    catch (err) {
+        if (err instanceof https_1.HttpsError) {
+            throw err;
+        }
+        // Fail closed: if rate-limit verification fails, deny the submission
+        console.error('[submitSellerApplication] Rate-limit transaction failed (fail-closed):', err);
+        throw new https_1.HttpsError('resource-exhausted', 'Unable to verify submission rate limits. Please try again in a few moments.');
+    }
     // 3. Generate server-side application ID
     const appId = `app_${(0, node_crypto_1.randomUUID)().replace(/-/g, '').slice(0, 16)}`;
     const appRef = db.collection('seller_applications').doc(appId);
@@ -235,5 +254,23 @@ exports.submitSellerApplication = (0, https_1.onCall)({
         applicationId: appId,
         message: 'Seller application submitted successfully for review.'
     };
+}
+/**
+ * Callable Cloud Function: submitSellerApplication
+ * - Requires Firebase App Check
+ * - Validates all inputs server-side
+ * - Enforces rate-limiting and duplicate submission prevention
+ * - Generates secure server-side ID
+ * - Writes to Firestore using Admin SDK
+ */
+exports.submitSellerApplication = (0, https_1.onCall)({
+    region: 'europe-west1',
+    enforceAppCheck: true,
+}, async (req) => {
+    return handleSellerApplicationSubmission(req.data, {
+        appCheckId: req.app?.appId,
+        uid: req.auth?.uid,
+        ip: req.rawRequest?.ip
+    }, getDb());
 });
 //# sourceMappingURL=sellerApplication.js.map

@@ -1216,6 +1216,12 @@ describe('18. Seller Applications collection server-only creation enforcement', 
     );
   });
 
+  test('Admin client direct Firestore create is strictly DENIED (only Cloud Function creates)', async () => {
+    await assertFails(
+      setDoc(doc(admin(), 'seller_applications', 'app-test-123'), sampleApp)
+    );
+  });
+
   test('Non-admin users cannot read seller applications', async () => {
     await assertFails(getDoc(doc(unauthenticated(), 'seller_applications', 'app-test-123')));
     await assertFails(getDoc(doc(customer(), 'seller_applications', 'app-test-123')));

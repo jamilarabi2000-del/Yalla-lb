@@ -228,6 +228,158 @@ export function validateSellerApplicationPayload(data: any): ValidatedSellerAppl
   };
 }
 
+export interface SubmissionContext {
+  appCheckId?: string;
+  uid?: string;
+  ip?: string;
+}
+
+export interface SubmissionResult {
+  success: boolean;
+  applicationId: string;
+  message: string;
+}
+
+/**
+ * Core business and security logic for seller application submission.
+ * - Enforces server-side validation and allowlist
+ * - Enforces duplicate submission prevention
+ * - Enforces rate limiting per phone, App Check ID, and IP
+ * - Fails closed if rate-limit state cannot be verified
+ * - Forces status = "pending"
+ * - Generates server-side ID and timestamps
+ */
+export async function handleSellerApplicationSubmission(
+  data: any,
+  context: SubmissionContext = {},
+  dbInstance?: any
+): Promise<SubmissionResult> {
+  const validated = validateSellerApplicationPayload(data);
+  const db = dbInstance || getDb();
+  const now = Date.now();
+
+  // 1. Anti-spam / Duplicate prevention: check if this email or phone already has an active 'pending' application
+  const [existingEmailSnap, existingPhoneSnap] = await Promise.all([
+    db.collection('seller_applications')
+      .where('email', '==', validated.email)
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get(),
+    db.collection('seller_applications')
+      .where('cleanPhone', '==', validated.cleanPhone)
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get()
+  ]);
+
+  if (!existingEmailSnap.empty) {
+    throw new HttpsError(
+      'already-exists',
+      'A seller application with this email is currently pending review. Our team will contact you shortly.'
+    );
+  }
+
+  if (!existingPhoneSnap.empty) {
+    throw new HttpsError(
+      'already-exists',
+      'A seller application with this phone number is currently pending review. Our team will contact you shortly.'
+    );
+  }
+
+  // 2. Abuse Protection & Rate Limiting: Max 3 applications per contact/app identifier per 24 hours
+  // Tracks phone identifier, App Check identity, and IP address
+  const rateLimitKeys: string[] = [`rate_phone_${validated.cleanPhone}`];
+  if (context.appCheckId) {
+    rateLimitKeys.push(`rate_app_${context.appCheckId.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+  }
+  if (context.ip) {
+    rateLimitKeys.push(`rate_ip_${context.ip.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+  }
+
+  try {
+    await db.runTransaction(async (tx: any) => {
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+
+      for (const rateKey of rateLimitKeys) {
+        const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateKey);
+        const rlSnap = await tx.get(rateLimitRef);
+        let timestamps: number[] = [];
+
+        if (rlSnap.exists) {
+          const rlData = rlSnap.data();
+          if (Array.isArray(rlData?.timestamps)) {
+            timestamps = rlData.timestamps.filter((t: number) => typeof t === 'number' && t > oneDayAgo);
+          }
+        }
+
+        if (timestamps.length >= 3) {
+          throw new HttpsError(
+            'resource-exhausted',
+            'Too many application requests. Please wait before submitting another seller application.'
+          );
+        }
+
+        timestamps.push(now);
+        tx.set(rateLimitRef, {
+          key: rateKey,
+          phone: validated.cleanPhone,
+          email: validated.email,
+          timestamps,
+          updatedAt: FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+    });
+  } catch (err: any) {
+    if (err instanceof HttpsError) {
+      throw err;
+    }
+    // Fail closed: if rate-limit verification fails, deny the submission
+    console.error('[submitSellerApplication] Rate-limit transaction failed (fail-closed):', err);
+    throw new HttpsError(
+      'resource-exhausted',
+      'Unable to verify submission rate limits. Please try again in a few moments.'
+    );
+  }
+
+  // 3. Generate server-side application ID
+  const appId = `app_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+  const appRef = db.collection('seller_applications').doc(appId);
+
+  const docPayload = {
+    id: appId,
+    sellerCompany: validated.sellerCompany,
+    workshopName: validated.workshopName,
+    workshopNameAr: validated.workshopNameAr || null,
+    nameEn: validated.nameEn || null,
+    nameAr: validated.nameAr || null,
+    firstName: validated.firstName,
+    middleName: validated.middleName || null,
+    lastName: validated.lastName,
+    contactName: validated.contactName,
+    email: validated.email,
+    phone: validated.phone,
+    cleanPhone: validated.cleanPhone,
+    village: validated.village || null,
+    governorate: validated.governorate || null,
+    craftType: validated.craftType || null,
+    craftCategory: validated.craftCategory || null,
+    story: validated.story || null,
+    bio: validated.bio || null,
+    socialLink: validated.socialLink || null,
+    status: 'pending',
+    createdAt: FieldValue.serverTimestamp(),
+    submittedAt: new Date().toISOString()
+  };
+
+  await appRef.set(docPayload);
+
+  return {
+    success: true,
+    applicationId: appId,
+    message: 'Seller application submitted successfully for review.'
+  };
+}
+
 /**
  * Callable Cloud Function: submitSellerApplication
  * - Requires Firebase App Check
@@ -242,106 +394,14 @@ export const submitSellerApplication = onCall<SellerApplicationInput>(
     enforceAppCheck: true,
   },
   async (req) => {
-    const validated = validateSellerApplicationPayload(req.data);
-    const db = getDb();
-    const now = Date.now();
-
-    // 1. Anti-spam / Duplicate prevention: check if this email or phone already has an active 'pending' application
-    const [existingEmailSnap, existingPhoneSnap] = await Promise.all([
-      db.collection('seller_applications')
-        .where('email', '==', validated.email)
-        .where('status', '==', 'pending')
-        .limit(1)
-        .get(),
-      db.collection('seller_applications')
-        .where('cleanPhone', '==', validated.cleanPhone)
-        .where('status', '==', 'pending')
-        .limit(1)
-        .get()
-    ]);
-
-    if (!existingEmailSnap.empty) {
-      throw new HttpsError(
-        'already-exists',
-        'A seller application with this email is currently pending review. Our team will contact you shortly.'
-      );
-    }
-
-    if (!existingPhoneSnap.empty) {
-      throw new HttpsError(
-        'already-exists',
-        'A seller application with this phone number is currently pending review. Our team will contact you shortly.'
-      );
-    }
-
-    // 2. Server-side Rate Limiting: Max 3 applications per contact identifier per 24 hours
-    const rateLimitDocId = `rate_${validated.cleanPhone}`;
-    const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateLimitDocId);
-
-    await db.runTransaction(async (tx) => {
-      const rlSnap = await tx.get(rateLimitRef);
-      const oneDayAgo = now - 24 * 60 * 60 * 1000;
-      let timestamps: number[] = [];
-
-      if (rlSnap.exists) {
-        const rlData = rlSnap.data();
-        if (Array.isArray(rlData?.timestamps)) {
-          timestamps = rlData.timestamps.filter((t: number) => t > oneDayAgo);
-        }
-      }
-
-      if (timestamps.length >= 3) {
-        throw new HttpsError(
-          'resource-exhausted',
-          'Too many application requests. Please wait before submitting another seller application.'
-        );
-      }
-
-      timestamps.push(now);
-      tx.set(rateLimitRef, {
-        phone: validated.cleanPhone,
-        email: validated.email,
-        timestamps,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-    });
-
-    // 3. Generate server-side application ID
-    const appId = `app_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
-    const appRef = db.collection('seller_applications').doc(appId);
-
-    const docPayload = {
-      id: appId,
-      sellerCompany: validated.sellerCompany,
-      workshopName: validated.workshopName,
-      workshopNameAr: validated.workshopNameAr || null,
-      nameEn: validated.nameEn || null,
-      nameAr: validated.nameAr || null,
-      firstName: validated.firstName,
-      middleName: validated.middleName || null,
-      lastName: validated.lastName,
-      contactName: validated.contactName,
-      email: validated.email,
-      phone: validated.phone,
-      cleanPhone: validated.cleanPhone,
-      village: validated.village || null,
-      governorate: validated.governorate || null,
-      craftType: validated.craftType || null,
-      craftCategory: validated.craftCategory || null,
-      story: validated.story || null,
-      bio: validated.bio || null,
-      socialLink: validated.socialLink || null,
-      status: 'pending',
-      createdAt: FieldValue.serverTimestamp(),
-      submittedAt: new Date().toISOString()
-    };
-
-    await appRef.set(docPayload);
-
-    return {
-      success: true,
-      applicationId: appId,
-      message: 'Seller application submitted successfully for review.'
-    };
+    return handleSellerApplicationSubmission(
+      req.data,
+      {
+        appCheckId: req.app?.appId,
+        uid: req.auth?.uid,
+        ip: req.rawRequest?.ip
+      },
+      getDb()
+    );
   }
 );

@@ -6,7 +6,7 @@ import { normalizeLebanesePhone, isValidLebanesePhone } from '../src/utils/phone
 import { checkDuplicateProductNumber } from '../src/lib/productValidation';
 import { Product } from '../src/types';
 import { validatePlaceOrderPayload, placeOrder } from '../functions/src/placeOrder';
-import { validateSellerApplicationPayload, normalizeServerLebanesePhone } from '../functions/src/sellerApplication';
+import { validateSellerApplicationPayload, normalizeServerLebanesePhone, handleSellerApplicationSubmission } from '../functions/src/sellerApplication';
 import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
 import { mapSafeShopUserProfile } from '../src/context/ShopContext';
 
@@ -1471,6 +1471,271 @@ describe('Security Regression Suite - Application Controls', () => {
       const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
       expect(rules).toMatch(/match\s+\/coupons\/\{couponId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+isAdmin\(\);/);
       expect(rules).toMatch(/match\s+\/otps\/\{otpId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
+    });
+  });
+
+  describe('16. Seller Application Security & Invariant Suite (Requirement 19)', () => {
+    const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
+
+    // Rule inspection tests verifying direct Firestore create is DENIED for all roles
+    it('UNAUTHENTICATED: direct Firestore create → DENIED', () => {
+      expect(rules).toMatch(/match\s+\/seller_applications\/\{appId\}\s*\{[\s\S]*?allow\s+create:\s*if\s+false;/);
+    });
+
+    it('CUSTOMER: direct Firestore create → DENIED', () => {
+      // The rule explicitly uses "allow create: if false;" with NO bypass for customers or authenticated users
+      const sellerAppsBlock = rules.match(/match\s+\/seller_applications\/\{appId\}\s*\{([^}]+)\}/)?.[1] || '';
+      expect(sellerAppsBlock).toMatch(/allow\s+create:\s*if\s+false;/);
+      expect(sellerAppsBlock).not.toMatch(/allow\s+create:[\s\S]*?isSignedIn/);
+    });
+
+    it('SELLER: direct Firestore create → DENIED', () => {
+      const sellerAppsBlock = rules.match(/match\s+\/seller_applications\/\{appId\}\s*\{([^}]+)\}/)?.[1] || '';
+      expect(sellerAppsBlock).toMatch(/allow\s+create:\s*if\s+false;/);
+      expect(sellerAppsBlock).not.toMatch(/allow\s+create:[\s\S]*?isSeller/);
+    });
+
+    it('ADMIN: direct Firestore create → DENIED', () => {
+      const sellerAppsBlock = rules.match(/match\s+\/seller_applications\/\{appId\}\s*\{([^}]+)\}/)?.[1] || '';
+      expect(sellerAppsBlock).toMatch(/allow\s+create:\s*if\s+false;/);
+      expect(sellerAppsBlock).not.toMatch(/allow\s+create:[\s\S]*?isAdmin/);
+    });
+
+    // Mock Firestore helper for Cloud Function execution tests
+    function createMockDb(initialData: {
+      applications?: any[];
+      rateLimits?: Record<string, any>;
+      failTransaction?: boolean;
+    } = {}) {
+      const applications = [...(initialData.applications || [])];
+      const rateLimits: Record<string, any> = { ...(initialData.rateLimits || {}) };
+
+      return {
+        applications,
+        rateLimits,
+        collection: (colName: string) => {
+          if (colName === 'seller_applications') {
+            return {
+              where: (field1: string, op1: string, val1: any) => ({
+                where: (field2: string, op2: string, val2: any) => ({
+                  limit: () => ({
+                    get: async () => {
+                      const matches = applications.filter(
+                        (a) => a[field1] === val1 && a[field2] === val2
+                      );
+                      return {
+                        empty: matches.length === 0,
+                        docs: matches.map((d) => ({ data: () => d }))
+                      };
+                    }
+                  })
+                })
+              }),
+              doc: (id: string) => ({
+                id,
+                set: async (docData: any) => {
+                  applications.push({ id, ...docData });
+                }
+              })
+            };
+          }
+          if (colName === 'seller_application_rate_limits') {
+            return {
+              doc: (docId: string) => ({
+                id: docId
+              })
+            };
+          }
+          throw new Error(`Unknown mock collection: ${colName}`);
+        },
+        runTransaction: async (updateFunction: (tx: any) => Promise<any>) => {
+          if (initialData.failTransaction) {
+            throw new Error('Database transaction lock error');
+          }
+          const tx = {
+            get: async (ref: any) => {
+              const data = rateLimits[ref.id];
+              return {
+                exists: !!data,
+                data: () => data
+              };
+            },
+            set: (ref: any, data: any, opts?: any) => {
+              if (opts?.merge && rateLimits[ref.id]) {
+                rateLimits[ref.id] = { ...rateLimits[ref.id], ...data };
+              } else {
+                rateLimits[ref.id] = data;
+              }
+            }
+          };
+          return await updateFunction(tx);
+        }
+      };
+    }
+
+    const validPayload = {
+      sellerCompany: 'Cedars Olive Oil Co.',
+      firstName: 'Charbel',
+      lastName: 'Haddad',
+      email: 'charbel@cedars.lb',
+      phone: '70 123 456',
+      governorate: 'Mount Lebanon',
+      craftType: 'Artisanal Oil'
+    };
+
+    it('FUNCTION: valid request → SUCCESS', async () => {
+      const mockDb = createMockDb();
+      const result = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'app-check-token-123' },
+        mockDb
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.applicationId).toMatch(/^app_[a-f0-9]{16}$/);
+
+      // Verify stored document in Firestore
+      const stored = mockDb.applications.find((a) => a.id === result.applicationId);
+      expect(stored).toBeDefined();
+      expect(stored.status).toBe('pending');
+      expect(stored.cleanPhone).toBe('70123456');
+      expect(stored.phone).toBe('+961 70123456');
+      expect(stored.email).toBe('charbel@cedars.lb');
+      expect(stored.submittedAt).toBeDefined();
+    });
+
+    it('FUNCTION: invalid payload → DENIED', async () => {
+      const mockDb = createMockDb();
+
+      // Missing required field 'firstName'
+      const missingNamePayload = { ...validPayload, firstName: '' };
+      await expect(
+        handleSellerApplicationSubmission(missingNamePayload, {}, mockDb)
+      ).rejects.toThrow();
+
+      // Invalid Lebanese phone format
+      const invalidPhonePayload = { ...validPayload, phone: '123' };
+      await expect(
+        handleSellerApplicationSubmission(invalidPhonePayload, {}, mockDb)
+      ).rejects.toThrow();
+
+      // Unknown property not in allowlist
+      const maliciousFieldPayload = { ...validPayload, hackerPayload: true };
+      await expect(
+        handleSellerApplicationSubmission(maliciousFieldPayload, {}, mockDb)
+      ).rejects.toThrow(/Unexpected property in seller application/);
+    });
+
+    it('FUNCTION: oversized payload → DENIED', async () => {
+      const mockDb = createMockDb();
+
+      // Oversized company name (> 200 chars)
+      const oversizedCompanyPayload = {
+        ...validPayload,
+        sellerCompany: 'A'.repeat(205)
+      };
+      await expect(
+        handleSellerApplicationSubmission(oversizedCompanyPayload, {}, mockDb)
+      ).rejects.toThrow(/Company name must not exceed 200 characters/);
+
+      // Oversized first name (> 100 chars)
+      const oversizedFirstNamePayload = {
+        ...validPayload,
+        firstName: 'B'.repeat(105)
+      };
+      await expect(
+        handleSellerApplicationSubmission(oversizedFirstNamePayload, {}, mockDb)
+      ).rejects.toThrow(/First name must not exceed 100 characters/);
+    });
+
+    it('FUNCTION: invalid status → DENIED', async () => {
+      const mockDb = createMockDb();
+
+      // Attempting to inject status: 'approved' must be strictly rejected
+      const forgedStatusPayload = {
+        ...validPayload,
+        status: 'approved'
+      };
+      await expect(
+        handleSellerApplicationSubmission(forgedStatusPayload, {}, mockDb)
+      ).rejects.toThrow(/Unexpected property in seller application: "status"/);
+    });
+
+    it('FUNCTION: excessive submissions → DENIED', async () => {
+      const mockDb = createMockDb();
+
+      // 1st submission from App Check identity: SUCCESS
+      await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'app1@cedars.lb', phone: '70 111 001' },
+        { appCheckId: 'same-app-check-id' },
+        mockDb
+      );
+
+      // 2nd submission from same App Check identity: SUCCESS
+      await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'app2@cedars.lb', phone: '70 111 002' },
+        { appCheckId: 'same-app-check-id' },
+        mockDb
+      );
+
+      // 3rd submission from same App Check identity: SUCCESS
+      await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'app3@cedars.lb', phone: '70 111 003' },
+        { appCheckId: 'same-app-check-id' },
+        mockDb
+      );
+
+      // 4th submission within 24h from same App Check identity: DENIED with resource-exhausted
+      await expect(
+        handleSellerApplicationSubmission(
+          { ...validPayload, email: 'app4@cedars.lb', phone: '70 111 004' },
+          { appCheckId: 'same-app-check-id' },
+          mockDb
+        )
+      ).rejects.toThrow(/Too many application requests/);
+    });
+
+    it('FUNCTION: duplicate application → DENIED', async () => {
+      // Mock DB with an already existing application for this email in 'pending' status
+      const mockDb = createMockDb({
+        applications: [
+          {
+            id: 'app_existing_1',
+            email: 'charbel@cedars.lb',
+            cleanPhone: '03999888',
+            status: 'pending'
+          }
+        ]
+      });
+
+      // Attempting to submit another application with the same email must be denied
+      await expect(
+        handleSellerApplicationSubmission(
+          { ...validPayload, email: 'charbel@cedars.lb' },
+          {},
+          mockDb
+        )
+      ).rejects.toThrow(/A seller application with this email is currently pending review/);
+
+      // Attempting to submit another application with the same phone must also be denied
+      const mockDbPhoneDuplicate = createMockDb({
+        applications: [
+          {
+            id: 'app_existing_2',
+            email: 'other@cedars.lb',
+            cleanPhone: '70123456',
+            status: 'pending'
+          }
+        ]
+      });
+
+      await expect(
+        handleSellerApplicationSubmission(
+          { ...validPayload, email: 'different@cedars.lb' },
+          {},
+          mockDbPhoneDuplicate
+        )
+      ).rejects.toThrow(/A seller application with this phone number is currently pending review/);
     });
   });
 });
