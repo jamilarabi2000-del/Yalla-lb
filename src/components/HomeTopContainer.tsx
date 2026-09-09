@@ -245,11 +245,11 @@ export const HomeTopContainer: React.FC = () => {
   return (
     <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mb-3 sm:mb-4">
       {/* Top Grid: Hero Banner (2fr) & Featured Product Card (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 sm:gap-[20px] items-stretch">
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 sm:gap-[20px] items-stretch">
         
         {/* LEFT: Large Hero Banner */}
         <div 
-          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between px-3.5 sm:px-6 pt-3.5 sm:pt-8 pb-2.5 sm:pb-6 shadow-sm group min-w-0 min-h-[200px] min-[360px]:min-h-[220px] sm:min-h-[380px]"
+          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between p-3.5 sm:p-6 sm:pt-8 sm:pb-6 shadow-sm group min-w-0 h-[220px] sm:h-auto sm:min-h-[380px]"
         >
           {/* Background Image with subtle dark overlay */}
           <div className="absolute inset-0 z-0">
@@ -261,8 +261,16 @@ export const HomeTopContainer: React.FC = () => {
                 className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
               />
             )}
+            {/* Mobile subtle gradient overlay: ensures bottom controls and text are readable directly over images without needing a frosted glass box */}
             <div 
-              className="absolute inset-0 pointer-events-none"
+              className="absolute inset-0 pointer-events-none sm:hidden"
+              style={{
+                background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0.18) 100%)'
+              }}
+            />
+            {/* Desktop gradient preserved */}
+            <div 
+              className="absolute inset-0 pointer-events-none hidden sm:block"
               style={{
                 background: 'linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.30))'
               }}
@@ -270,11 +278,11 @@ export const HomeTopContainer: React.FC = () => {
           </div>
 
           {/* Top-Left Compact Header with Glass Icon Container & Title */}
-          <div className="relative z-20 flex items-start justify-between gap-3 sm:gap-4">
+          <div className="relative z-20 flex items-start justify-between gap-2 sm:gap-4">
             {activeBadge ? (
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-[22px] h-[22px] sm:w-[28px] sm:h-[28px] rounded-[6px] sm:rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
-                  <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-[#F3E5AB]" />
+              <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                <div className="w-[20px] h-[20px] sm:w-[28px] sm:h-[28px] rounded-[6px] sm:rounded-[8px] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white flex-shrink-0 shadow-xs">
+                  <Sparkles className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-[#F3E5AB]" />
                 </div>
                 <span className="text-[11px] sm:text-[14px] font-medium text-white max-w-[200px] sm:max-w-xs leading-[1.3] drop-shadow-sm line-clamp-1">
                   {activeBadge}
@@ -298,7 +306,7 @@ export const HomeTopContainer: React.FC = () => {
 
           {/* Center Main Content */}
           <div className="relative z-20 my-auto py-1 sm:py-4 space-y-0.5 sm:space-y-2 min-w-0">
-            <h2 className="text-[18px] sm:text-2xl md:text-3xl font-serif font-bold text-white tracking-tight leading-[1.2] sm:leading-[1.15] drop-shadow-md line-clamp-2 max-w-xl">
+            <h2 className="text-[17px] min-[360px]:text-[18px] sm:text-2xl md:text-3xl font-serif font-bold text-white tracking-tight leading-[1.2] sm:leading-[1.15] drop-shadow-md line-clamp-2 max-w-xl">
               {activeTitle}
             </h2>
             {activeSubtitle && (
@@ -308,48 +316,42 @@ export const HomeTopContainer: React.FC = () => {
             )}
           </div>
 
-          {/* Bottom Floating Glassmorphism Bar */}
+          {/* Bottom Controls: Direct over image on mobile; Desktop retains subtle glass styling */}
           <div className="relative z-20 mt-auto min-w-0">
             <div 
-              className="flex items-center justify-between rounded-[12px] sm:rounded-[16px] px-2.5 sm:px-3.5 py-1.5 sm:py-3 shadow-lg"
-              style={{
-                background: 'rgba(255, 255, 255, 0.22)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: '1px solid rgba(255, 255, 255, 0.3)'
-              }}
+              className="flex items-center justify-between w-full min-w-0 sm:rounded-[16px] sm:px-3.5 sm:py-3 sm:shadow-lg sm:border sm:border-white/30 sm:backdrop-blur-[16px] sm:bg-white/[0.22]"
             >
-              {/* Left Side: CMS CTA Button */}
-              <div className="flex-1 min-w-0 flex items-center pe-2 sm:pr-4">
+              {/* Left Side: CTA Button */}
+              <div className="min-w-0 flex items-center pe-2 sm:pr-4">
                 <button
                   onClick={handleHeroAction}
-                  className="px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/25 hover:bg-white/35 border border-white/30 text-white text-[12px] sm:text-[13px] font-bold uppercase tracking-wide transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98]"
+                  className="px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/25 hover:bg-white/35 border border-white/35 sm:border-white/30 text-white text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-bold uppercase tracking-wider transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98] drop-shadow-sm backdrop-blur-xs"
                 >
                   {isAr 
                     ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'تصفح العروض') 
-                    : (currentSlide.buttonTextEn || 'Explore Products')
+                    : (currentSlide.buttonTextEn || 'Explore Collection')
                   }
                 </button>
               </div>
 
-              {/* Right Side: Slider Controls & Counter (Visually secondary to CTA) */}
+              {/* Right Side: Slider Controls & Counter */}
               <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={handlePrev}
                   aria-label="Previous slide"
-                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/30 hover:bg-black/50 border border-white/15 text-white/90 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
+                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 sm:bg-black/30 hover:bg-black/60 sm:hover:bg-black/50 border border-white/25 sm:border-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 drop-shadow-sm"
                 >
                   <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
 
-                <span className="text-[10px] sm:text-xs font-mono font-medium text-white/85 px-0.5 sm:px-1">
+                <span className="text-[10px] sm:text-xs font-mono font-medium text-white/95 px-0.5 sm:px-1 drop-shadow-sm">
                   {currentSlideIndex + 1}/{slides.length}
                 </span>
 
                 <button
                   onClick={handleNext}
                   aria-label="Next slide"
-                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/30 hover:bg-black/50 border border-white/15 text-white/90 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95"
+                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 sm:bg-black/30 hover:bg-black/60 sm:hover:bg-black/50 border border-white/25 sm:border-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 drop-shadow-sm"
                 >
                   <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
@@ -358,14 +360,14 @@ export const HomeTopContainer: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT: Featured Product Card (Desktop: spacious vertical card; Mobile: streamlined compact card) */}
+        {/* RIGHT: Featured Product Card (Matching 220px height on mobile; Spacious vertical card on desktop) */}
         {featuredProduct ? (
           <div 
             onClick={() => openProductDetail(featuredProduct)}
-            className="rounded-[16px] sm:rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-3 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 min-h-[135px] sm:min-h-[380px]"
+            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-3.5 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 h-[220px] sm:h-auto sm:min-h-[380px]"
           >
             {/* Top Category Header & Slider Dots */}
-            <div className="flex items-center justify-between z-10 mb-1.5 sm:mb-0">
+            <div className="flex items-center justify-between z-10">
               <div className="flex items-center gap-2 min-w-0">
                 <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#737373] truncate">
                   {featuredProduct.category || (isAr ? 'منتج مميز' : 'Featured')}
@@ -403,54 +405,51 @@ export const HomeTopContainer: React.FC = () => {
               )}
             </div>
 
-            {/* Mobile: Row Layout for Image + Info. Desktop: Full Vertical Stack */}
-            <div className="flex flex-row items-center gap-3 sm:contents">
-              {/* Product Image Container (height 84-90px on mobile, 200px on desktop, object-contain strictly preserved) */}
-              <div className="relative flex-shrink-0 w-[84px] h-[84px] min-[360px]:w-[90px] min-[360px]:h-[90px] sm:w-full sm:h-[200px] sm:my-auto sm:py-2 flex items-center justify-center overflow-hidden bg-white/70 sm:bg-transparent rounded-xl sm:rounded-none border border-black/5 sm:border-none p-1 sm:p-0">
-                {featuredProductsList.map((product, idx) => (
-                  <img
-                    key={product.id}
-                    src={product.image}
-                    alt={product.name}
-                    referrerPolicy="no-referrer"
-                    className={`absolute max-h-full max-w-full object-contain object-center transition-all duration-500 ${
-                      idx === currentFeaturedIndex 
-                        ? 'opacity-100 scale-100 group-hover:scale-105 z-10' 
-                        : 'opacity-0 scale-95 -z-10'
-                    }`}
-                  />
-                ))}
+            {/* Product Image Container (height 100-105px on mobile, 200px on desktop, object-contain strictly preserved) */}
+            <div className="relative w-full h-[98px] min-[360px]:h-[104px] sm:h-[200px] my-auto py-1 sm:py-2 flex items-center justify-center overflow-hidden">
+              {featuredProductsList.map((product, idx) => (
+                <img
+                  key={product.id}
+                  src={product.image}
+                  alt={product.name}
+                  referrerPolicy="no-referrer"
+                  className={`absolute max-h-full max-w-full object-contain object-center transition-all duration-500 ${
+                    idx === currentFeaturedIndex 
+                      ? 'opacity-100 scale-100 group-hover:scale-105 z-10' 
+                      : 'opacity-0 scale-95 -z-10'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Product Info + Add To Cart Pill Button */}
+            <div className="flex items-end justify-between gap-2 sm:gap-3 z-10 sm:pt-3 sm:mt-auto">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[12px] min-[360px]:text-[13px] sm:text-[15px] font-bold text-[#111111] line-clamp-2 leading-[1.25] sm:leading-snug">
+                  {isAr ? (featuredProduct.arabicName || featuredProduct.name) : featuredProduct.name}
+                </h3>
+                <p className="text-[10px] sm:text-[12px] text-[#666666] truncate mt-0.5">
+                  {featuredProduct.artisan || featuredProduct.seller || (isAr ? 'حرفي لبناني' : 'Lebanese Artisan')}
+                </p>
               </div>
 
-              {/* Product Info + Add To Cart Pill Button */}
-              <div className="flex-1 min-w-0 flex flex-col justify-between sm:flex-row sm:items-end sm:gap-3 sm:pt-3 sm:mt-auto">
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-[13px] sm:text-[15px] font-bold text-[#111111] line-clamp-2 sm:truncate leading-snug">
-                    {isAr ? (featuredProduct.arabicName || featuredProduct.name) : featuredProduct.name}
-                  </h3>
-                  <p className="text-[10px] sm:text-[12px] text-[#666666] truncate mt-0.5">
-                    {featuredProduct.artisan || featuredProduct.seller || (isAr ? 'حرفي لبناني' : 'Lebanese Artisan')}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  id={`featured-add-to-cart-${featuredProduct.id}`}
-                  onClick={handleAddToCartFeatured}
-                  aria-label={isAr ? 'إضافة إلى السلة' : 'Add to cart'}
-                  className="flex items-center gap-1.5 sm:gap-2 px-2.5 min-[360px]:px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[10px] min-[360px]:text-[11px] sm:text-[12px] font-medium tracking-wide shadow-sm transition-colors cursor-pointer flex-shrink-0 mt-1 sm:mt-0 self-start sm:self-auto"
-                >
-                  <span>{isAr ? 'إضافة' : 'Add'}</span>
-                  <span className="opacity-40">|</span>
-                  <span className="font-bold text-[#F3E5AB] font-mono">
-                    {formatPrice(featuredProduct.priceUSD)}
-                  </span>
-                </button>
-              </div>
+              <button
+                type="button"
+                id={`featured-add-to-cart-${featuredProduct.id}`}
+                onClick={handleAddToCartFeatured}
+                aria-label={isAr ? 'إضافة إلى السلة' : 'Add to cart'}
+                className="flex items-center gap-1 min-[360px]:gap-1.5 sm:gap-2 px-2.5 min-[360px]:px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[10px] min-[360px]:text-[11px] sm:text-[12px] font-medium tracking-wide shadow-xs transition-colors cursor-pointer flex-shrink-0 active:scale-95"
+              >
+                <span className="whitespace-nowrap">{isAr ? 'إضافة' : 'Add'}</span>
+                <span className="opacity-40">|</span>
+                <span className="font-bold text-[#F3E5AB] font-mono whitespace-nowrap">
+                  {formatPrice(featuredProduct.priceUSD)}
+                </span>
+              </button>
             </div>
           </div>
         ) : (
-          <div className="rounded-[16px] sm:rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] min-h-[115px] sm:min-h-[380px]">
+          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] h-[220px] sm:h-auto sm:min-h-[380px]">
             {isAr ? 'لا توجد منتجات مميزة' : 'No featured products available'}
           </div>
         )}
