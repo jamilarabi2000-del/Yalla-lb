@@ -18,10 +18,12 @@ const getDb = () => {
 };
 
 const OTP_SECRET = defineSecret('OTP_SECRET');
+const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
+const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
+const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
 
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
- * Never hard-coded in source code; reads strictly from Secret Manager.
  */
 function getOtpSecret(): string {
   if (
@@ -69,15 +71,133 @@ export function hashOtp(contact: string, actionType: string, code: string): stri
     .digest('hex');
 }
 
+export interface NormalizedContact {
+  type: 'email' | 'phone';
+  value: string;
+}
+
 /**
- * Dispatch OTP via real production email/SMS provider.
- * The plaintext OTP is NEVER:
- * - returned to the client
- * - stored in Firestore
- * - logged to console/logs
- * - exposed in errors or analytics
+ * Detect whether contact is email or phone, normalize phone numbers (including Lebanese +961),
+ * and reject malformed contacts.
  */
-async function sendOtpDelivery(contact: string, actionType: string, numericCode: string): Promise<void> {
+export function normalizeContact(input: string): NormalizedContact {
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.length > 128) {
+    throw new HttpsError('invalid-argument', 'A valid contact identifier is required.');
+  }
+
+  // Check if valid email
+  if (trimmed.includes('@') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    return { type: 'email', value: trimmed.toLowerCase() };
+  }
+
+  // Otherwise, treat as phone number. Remove spaces, dashes, parentheses.
+  let cleaned = trimmed.replace(/[\s\-\(\)]/g, '');
+
+  if (cleaned.startsWith('00')) {
+    cleaned = '+' + cleaned.slice(2);
+  }
+
+  // Lebanese number normalization & validation (+961)
+  if (cleaned.startsWith('+961')) {
+    const localPart = cleaned.slice(4);
+    if (!/^\d{7,8}$/.test(localPart)) {
+      throw new HttpsError('invalid-argument', 'Invalid Lebanese phone number format.');
+    }
+    return { type: 'phone', value: cleaned };
+  }
+
+  if (cleaned.startsWith('961') && cleaned.length >= 10 && cleaned.length <= 12) {
+    const localPart = cleaned.slice(3);
+    if (!/^\d{7,8}$/.test(localPart)) {
+      throw new HttpsError('invalid-argument', 'Invalid Lebanese phone number format.');
+    }
+    return { type: 'phone', value: '+' + cleaned };
+  }
+
+  if (cleaned.startsWith('0') && cleaned.length >= 8 && cleaned.length <= 9) {
+    const localPart = cleaned.slice(1);
+    if (!/^\d{7,8}$/.test(localPart)) {
+      throw new HttpsError('invalid-argument', 'Invalid phone number format.');
+    }
+    return { type: 'phone', value: '+961' + localPart };
+  }
+
+  if (/^\d{7,8}$/.test(cleaned)) {
+    return { type: 'phone', value: '+961' + cleaned };
+  }
+
+  // General E.164 check for other international numbers
+  if (/^\+[1-9]\d{1,14}$/.test(cleaned)) {
+    return { type: 'phone', value: cleaned };
+  }
+
+  throw new HttpsError('invalid-argument', 'Invalid email address or phone number.');
+}
+
+/**
+ * Dispatch SMS via real production SMS provider (Twilio).
+ * Credentials loaded securely from Secret Manager or environment variables.
+ */
+async function sendSmsOtp(phone: string, actionType: string, numericCode: string): Promise<void> {
+  let accountSid = '';
+  let authToken = '';
+  let fromNumber = '';
+
+  try {
+    accountSid = process.env.TWILIO_ACCOUNT_SID || TWILIO_ACCOUNT_SID.value();
+  } catch {
+    accountSid = process.env.TWILIO_ACCOUNT_SID || '';
+  }
+
+  try {
+    authToken = process.env.TWILIO_AUTH_TOKEN || TWILIO_AUTH_TOKEN.value();
+  } catch {
+    authToken = process.env.TWILIO_AUTH_TOKEN || '';
+  }
+
+  try {
+    fromNumber = process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER || TWILIO_PHONE_NUMBER.value();
+  } catch {
+    fromNumber = process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER || '';
+  }
+
+  if (!accountSid || !authToken || !fromNumber) {
+    if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true' || process.env.VITEST === 'true') {
+      return; // Allow test/emulator execution if credentials are not configured
+    }
+    throw new HttpsError('failed-precondition', 'SMS dispatch failed: Twilio SMS provider credentials missing.');
+  }
+
+  const messageBody = `Your Yalla Lebanon verification code is ${numericCode}. Valid for 5 minutes.`;
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+
+  const authHeader = 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64');
+  const bodyParams = new URLSearchParams();
+  bodyParams.append('To', phone);
+  bodyParams.append('From', fromNumber);
+  bodyParams.append('Body', messageBody);
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': authHeader,
+      'Content-Type': 'application/x-www-form-urlencoded'
+    },
+    body: bodyParams.toString()
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error('[Twilio API Error]:', errText);
+    throw new HttpsError('internal', 'Failed to dispatch verification code via SMS provider.');
+  }
+}
+
+/**
+ * Dispatch Email via Resend or SendGrid.
+ */
+async function sendEmailOtp(email: string, actionType: string, numericCode: string): Promise<void> {
   const resendApiKey = process.env.RESEND_API_KEY;
   const sendgridKey = process.env.SENDGRID_API_KEY;
 
@@ -94,7 +214,7 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
       },
       body: JSON.stringify({
         from: sender,
-        to: contact,
+        to: email,
         subject: `Your Verification Code (${actionType.toUpperCase()})`,
         html: `<p>Your single-use verification code is: <strong>${numericCode}</strong>. It expires in 5 minutes.</p>`
       })
@@ -102,7 +222,7 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
     if (!response.ok) {
       const errText = await response.text();
       console.error("[Resend API Error]:", errText);
-      throw new HttpsError('internal', `Failed to dispatch verification code via Resend provider: ${errText}`);
+      throw new HttpsError('internal', 'Failed to dispatch verification code via email provider.');
     }
     return;
   }
@@ -115,7 +235,7 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: contact }] }],
+        personalizations: [{ to: [{ email }] }],
         from: { email: process.env.SENDER_EMAIL || 'security@yalla.lb' },
         subject: `Your Verification Code (${actionType.toUpperCase()})`,
         content: [{ type: 'text/html', value: `<p>Your verification code is: <strong>${numericCode}</strong></p>` }]
@@ -127,42 +247,50 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
     return;
   }
 
-  // Allow automated unit testing and emulator execution without failing
-  if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true') {
+  if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true' || process.env.VITEST === 'true') {
     return;
   }
 
-  // FAIL SAFELY IF NO PRODUCTION SERVICE PROVIDER IS CONFIGURED
-  // Do NOT fake delivery, do NOT log code, do NOT return code to client.
-  throw new HttpsError(
-    'failed-precondition',
-    'OTP dispatch failed: No production email/SMS service provider credentials configured on the server.'
-  );
+  throw new HttpsError('failed-precondition', 'Email provider credentials not configured.');
+}
+
+/**
+ * Dispatch OTP via real production email/SMS delivery abstraction.
+ */
+async function sendOtpDelivery(contactObj: NormalizedContact, actionType: string, numericCode: string): Promise<void> {
+  if (contactObj.type === 'phone') {
+    await sendSmsOtp(contactObj.value, actionType, numericCode);
+  } else {
+    await sendEmailOtp(contactObj.value, actionType, numericCode);
+  }
 }
 
 /**
  * Server-side OTP Request Function
- * - Enforces App Check & Token Consumption (enforceAppCheck: true, consumeAppCheckToken: true)
- * - Concurrency-safe atomic rate limiting via Firestore transaction lock on /otp_rate_limits
- * - Server-side independent authentication & authorization for admin/seller (no email leaks)
- * - Cryptographically secure 6-digit code generation via randomInt
- * - HMAC-SHA256 hashed code stored in single server-only /otps collection
- * - Returns NO plaintext code or secret token to the client
+ * - Enforces App Check & Token Consumption
+ * - Validates and normalizes contact (Email vs Phone / SMS)
+ * - Checks rate limiting and cooldown BEFORE permanently consuming rate limit slot
+ * - Attempts delivery BEFORE saving OTP or updating rate limit request history
+ * - If delivery fails, rate limit slot is not permanently consumed and OTP is not saved
  */
 export const requestOtp = onCall(
-  { region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true, secrets: [OTP_SECRET] },
+  {
+    region: 'europe-west1',
+    enforceAppCheck: true,
+    consumeAppCheckToken: true,
+    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER]
+  },
   async (request) => {
     const data = request.data || {};
-    let contact = typeof data.contact === 'string' ? data.contact.trim().toLowerCase() : '';
+    let rawContact = typeof data.contact === 'string' ? data.contact : '';
     const actionType = typeof data.actionType === 'string' ? data.actionType.trim().toLowerCase() : '';
 
     if (request.auth?.token?.email) {
-      contact = request.auth.token.email.trim().toLowerCase();
+      rawContact = request.auth.token.email;
     }
 
-    if (!contact || contact.length > 128) {
-      throw new HttpsError('invalid-argument', 'A valid contact identifier is required.');
-    }
+    const contactObj = normalizeContact(rawContact);
+    const contact = contactObj.value;
 
     const validActionTypes = ['login', 'signup', 'admin', 'seller'];
     if (!actionType || !validActionTypes.includes(actionType)) {
@@ -178,7 +306,6 @@ export const requestOtp = onCall(
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
       const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
-
       if (!isCustomClaimAdmin) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
       }
@@ -189,58 +316,71 @@ export const requestOtp = onCall(
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
       const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
-
       if (!isCustomClaimSeller) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
       }
     }
 
-    // Cryptographically secure 6-digit random code
-    const numericCode = randomInt(100000, 1000000).toString();
-
-    // HMAC-SHA256 Hash
-    const otpHash = hashOtp(contact, actionType, numericCode);
-
-    // Cryptographically derive secure deterministic document keys using OTP_SECRET
     const hmacId = deriveHmacId(contact, actionType);
     const rateLimitRef = db.collection('otp_rate_limits').doc(hmacId);
-    const newOtpRef = db.collection('otps').doc(hmacId);
-    const expiresAtMs = now + 5 * 60 * 1000;
 
+    // 1. Check Cooldown & Sliding Window Rate Limit inside a read-only check (or transaction check)
+    // without permanently committing yet until delivery is confirmed.
+    await db.runTransaction(async (transaction) => {
+      const rateLimitSnap = await transaction.get(rateLimitRef);
+      if (rateLimitSnap.exists) {
+        const rlData = rateLimitSnap.data()!;
+        const cooldownUntilMs = rlData.cooldownUntilMs || 0;
+        let requests = Array.isArray(rlData.requests) ? rlData.requests : [];
+
+        if (now < cooldownUntilMs) {
+          const remainingSecs = Math.ceil((cooldownUntilMs - now) / 1000);
+          throw new HttpsError(
+            'resource-exhausted',
+            `Resend cooldown active. Please wait ${remainingSecs} second(s) before requesting a new code.`
+          );
+        }
+
+        const fifteenMinsAgo = now - 15 * 60 * 1000;
+        requests = requests.filter((ts: number) => ts > fifteenMinsAgo);
+
+        if (requests.length >= 5) {
+          throw new HttpsError(
+            'resource-exhausted',
+            'Maximum OTP request rate limit reached. Please wait 15 minutes before trying again.'
+          );
+        }
+      }
+    });
+
+    // 2. Generate secure code and hash
+    const numericCode = randomInt(100000, 1000000).toString();
+    const otpHash = hashOtp(contact, actionType, numericCode);
+    const expiresAtMs = now + 5 * 60 * 1000;
+    const newOtpRef = db.collection('otps').doc(hmacId);
+
+    // 3. Attempt delivery BEFORE permanently consuming the rate limit slot or saving OTP
+    try {
+      await sendOtpDelivery(contactObj, actionType, numericCode);
+    } catch (deliveryErr) {
+      console.error('[OTP Delivery Error]:', deliveryErr);
+      throw new HttpsError('internal', 'Verification code delivery failed. Please try again.');
+    }
+
+    // 4. Delivery succeeded! Now commit rate limit update and save OTP record atomically
     await db.runTransaction(async (transaction) => {
       const rateLimitSnap = await transaction.get(rateLimitRef);
       let requests: number[] = [];
-      let cooldownUntilMs = 0;
-
       if (rateLimitSnap.exists) {
         const rlData = rateLimitSnap.data()!;
-        cooldownUntilMs = rlData.cooldownUntilMs || 0;
         requests = Array.isArray(rlData.requests) ? rlData.requests : [];
       }
-
-      // 1. Resend Cooldown Check (60 seconds)
-      if (now < cooldownUntilMs) {
-        const remainingSecs = Math.ceil((cooldownUntilMs - now) / 1000);
-        throw new HttpsError(
-          'resource-exhausted',
-          `Resend cooldown active. Please wait ${remainingSecs} second(s) before requesting a new code.`
-        );
-      }
-
-      // 2. Sliding Window Rate Limit Check (5 requests per 15 minutes)
       const fifteenMinsAgo = now - 15 * 60 * 1000;
-      requests = requests.filter(ts => ts > fifteenMinsAgo);
-
-      if (requests.length >= 5) {
-        throw new HttpsError(
-          'resource-exhausted',
-          'Maximum OTP request rate limit reached. Please wait 15 minutes before trying again.'
-        );
-      }
-
-      // Update Rate Limit document atomically (obfuscating plain contact info)
-      const newCooldownUntilMs = now + 60 * 1000;
+      requests = requests.filter((ts: number) => ts > fifteenMinsAgo);
       requests.push(now);
+
+      const newCooldownUntilMs = now + 60 * 1000;
+
       transaction.set(rateLimitRef, {
         actionType,
         cooldownUntilMs: newCooldownUntilMs,
@@ -248,7 +388,6 @@ export const requestOtp = onCall(
         updatedAt: FieldValue.serverTimestamp()
       });
 
-      // Save secure OTP record in single server-only /otps collection
       transaction.set(newOtpRef, {
         id: hmacId,
         uid: request.auth?.uid || null,
@@ -267,19 +406,6 @@ export const requestOtp = onCall(
       });
     });
 
-    // Send OTP delivery ONLY AFTER transaction commits successfully
-    try {
-      await sendOtpDelivery(contact, actionType, numericCode);
-    } catch (deliveryErr) {
-      // Securely invalidate the OTP if delivery fails
-      await db.collection('otps').doc(hmacId).update({
-        used: true,
-        invalidatedReason: 'delivery_failed'
-      }).catch(() => {});
-
-      throw new HttpsError('internal', 'Verification code delivery failed. Please try again.');
-    }
-
     return {
       success: true,
       cooldownSeconds: 60,
@@ -290,32 +416,34 @@ export const requestOtp = onCall(
 
 /**
  * Server-side OTP Verification Function
- * - Enforces App Check & Token Consumption (enforceAppCheck: true, consumeAppCheckToken: true)
- * - Atomic Firestore Transaction for race-safe consumption and attempt counting
- * - Constant-time HMAC-SHA256 comparison using timingSafeEqual
- * - Single-use enforcement (immediate consumption)
- * - Expiration and max attempt limit (5 attempts) invalidation
- * - Single server-only /otps collection
  */
 export const verifyOtp = onCall(
-  { region: 'europe-west1', enforceAppCheck: true, consumeAppCheckToken: true, secrets: [OTP_SECRET] },
+  {
+    region: 'europe-west1',
+    enforceAppCheck: true,
+    consumeAppCheckToken: true,
+    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER]
+  },
   async (request) => {
     const data = request.data || {};
-    let contact = typeof data.contact === 'string' ? data.contact.trim().toLowerCase() : '';
+    let rawContact = typeof data.contact === 'string' ? data.contact : '';
     const actionType = typeof data.actionType === 'string' ? data.actionType.trim().toLowerCase() : '';
     const code = typeof data.code === 'string' ? data.code.trim() : '';
 
     if (request.auth?.token?.email) {
-      contact = request.auth.token.email.trim().toLowerCase();
+      rawContact = request.auth.token.email;
     }
 
-    if (!contact || !actionType || !code) {
+    if (!rawContact || !actionType || !code) {
       throw new HttpsError('invalid-argument', 'Missing required parameters: contact, actionType, and code.');
     }
 
     if (!/^\d{6}$/.test(code)) {
       throw new HttpsError('invalid-argument', 'Verification code must be a 6-digit numeric string.');
     }
+
+    const contactObj = normalizeContact(rawContact);
+    const contact = contactObj.value;
 
     const db = getDb();
     const now = Date.now();
@@ -326,7 +454,6 @@ export const verifyOtp = onCall(
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
       const isCustomClaimAdmin = Boolean(request.auth.token?.admin === true);
-
       if (!isCustomClaimAdmin) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for administrator operations.');
       }
@@ -337,7 +464,6 @@ export const verifyOtp = onCall(
         throw new HttpsError('unauthenticated', 'Authentication required.');
       }
       const isCustomClaimSeller = Boolean(request.auth.token?.seller === true);
-
       if (!isCustomClaimSeller) {
         throw new HttpsError('permission-denied', 'Access Denied: Not authorized for seller merchant operations.');
       }
@@ -346,8 +472,6 @@ export const verifyOtp = onCall(
     const hmacId = deriveHmacId(contact, actionType);
     const otpDocRef = db.collection('otps').doc(hmacId);
 
-    // ATOMIC FIRESTORE TRANSACTION PREVENTING CONCURRENT VERIFICATION DOUBLE-SUCCESS
-    // Does NOT throw HttpsError from inside the transaction after making updates
     const result = await db.runTransaction(async (transaction) => {
       const otpDocSnap = await transaction.get(otpDocRef);
       if (!otpDocSnap.exists) {
@@ -361,19 +485,16 @@ export const verifyOtp = onCall(
 
       const maxAttempts = otpData.maxAttempts || 5;
 
-      // Check Expiration (5 min limit)
       if (now > otpData.expiresAtMs) {
         transaction.update(otpDocRef, { used: true, invalidatedReason: 'expired' });
         return { outcome: 'expired' };
       }
 
-      // Check Maximum Attempts
       if ((otpData.failedAttempts || 0) >= maxAttempts) {
         transaction.update(otpDocRef, { used: true, invalidatedReason: 'max_attempts_exceeded' });
         return { outcome: 'locked' };
       }
 
-      // HMAC comparison using timingSafeEqual
       const incomingHash = hashOtp(contact, actionType, code);
       const expectedHash = otpData.otpHash;
 
@@ -397,7 +518,6 @@ export const verifyOtp = onCall(
         }
       }
 
-      // Single-use: Mark as consumed atomically inside the transaction
       transaction.update(otpDocRef, {
         used: true,
         consumedAt: FieldValue.serverTimestamp(),
@@ -408,7 +528,6 @@ export const verifyOtp = onCall(
       return { outcome: 'success' };
     });
 
-    // Map internal outcomes to external HTTP errors outside transaction
     if (result.outcome === 'not_found') {
       throw new HttpsError('not-found', 'Verification record missing.');
     }

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { hashOtp } from '../functions/src/otp';
+import { hashOtp, normalizeContact } from '../functions/src/otp';
 
 interface OtpDoc {
   id: string;
@@ -412,5 +412,17 @@ describe('Comprehensive Production OTP & Authorization Security Suite (24 Test C
     expect(otpSource).not.toMatch(/setCustomUserClaims/);
     expect(otpSource).not.toMatch(/admin\.auth\(\)\.setCustomUserClaims/);
     expect(otpSource).not.toMatch(/setCustomClaims/);
+  });
+
+  it('27. Contact normalization correctly handles email and Lebanese/international phone numbers', () => {
+    expect(normalizeContact('Customer@Yalla.LB')).toEqual({ type: 'email', value: 'customer@yalla.lb' });
+    expect(normalizeContact('03123456')).toEqual({ type: 'phone', value: '+9613123456' });
+    expect(normalizeContact('+961 70 123 456')).toEqual({ type: 'phone', value: '+96170123456' });
+    expect(normalizeContact('71123456')).toEqual({ type: 'phone', value: '+96171123456' });
+    expect(normalizeContact('0096176123456')).toEqual({ type: 'phone', value: '+96176123456' });
+    expect(normalizeContact('+15551234567')).toEqual({ type: 'phone', value: '+15551234567' });
+
+    expect(() => normalizeContact('invalid-phone')).toThrow();
+    expect(() => normalizeContact('+961123')).toThrow();
   });
 });
