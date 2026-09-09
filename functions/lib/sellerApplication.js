@@ -157,26 +157,15 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
     const validated = validateSellerApplicationPayload(data);
     const db = dbInstance || getDb();
     const now = Date.now();
-    // 1. Anti-spam / Duplicate prevention: check if this email or phone already has an active 'pending' application
-    const [existingEmailSnap, existingPhoneSnap] = await Promise.all([
-        db.collection('seller_applications')
-            .where('email', '==', validated.email)
-            .where('status', '==', 'pending')
-            .limit(1)
-            .get(),
-        db.collection('seller_applications')
-            .where('cleanPhone', '==', validated.cleanPhone)
-            .where('status', '==', 'pending')
-            .limit(1)
-            .get()
-    ]);
-    if (!existingEmailSnap.empty) {
-        throw new https_1.HttpsError('already-exists', 'A seller application with this email is currently pending review. Our team will contact you shortly.');
-    }
-    if (!existingPhoneSnap.empty) {
-        throw new https_1.HttpsError('already-exists', 'A seller application with this phone number is currently pending review. Our team will contact you shortly.');
-    }
-    // 2. Abuse Protection & Rate Limiting: Max 3 applications per contact/app identifier per 24 hours
+    // 1. Generate server-side application ID
+    const appId = `app_${(0, node_crypto_1.randomUUID)().replace(/-/g, '').slice(0, 16)}`;
+    const appRef = db.collection('seller_applications').doc(appId);
+    // 2. Concurrency-safe atomic deduplication locks
+    // Deterministic document IDs eliminate duplicate-submission race conditions
+    const emailHex = Buffer.from(validated.email).toString('hex');
+    const emailLockRef = db.collection('seller_application_locks').doc(`email_${emailHex}`);
+    const phoneLockRef = db.collection('seller_application_locks').doc(`phone_${validated.cleanPhone}`);
+    // 3. Abuse Protection & Rate Limiting keys
     // Tracks phone identifier, App Check identity, and IP address
     const rateLimitKeys = [`rate_phone_${validated.cleanPhone}`];
     if (context.appCheckId) {
@@ -185,44 +174,6 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
     if (context.ip) {
         rateLimitKeys.push(`rate_ip_${context.ip.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
     }
-    try {
-        await db.runTransaction(async (tx) => {
-            const oneDayAgo = now - 24 * 60 * 60 * 1000;
-            for (const rateKey of rateLimitKeys) {
-                const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateKey);
-                const rlSnap = await tx.get(rateLimitRef);
-                let timestamps = [];
-                if (rlSnap.exists) {
-                    const rlData = rlSnap.data();
-                    if (Array.isArray(rlData?.timestamps)) {
-                        timestamps = rlData.timestamps.filter((t) => typeof t === 'number' && t > oneDayAgo);
-                    }
-                }
-                if (timestamps.length >= 3) {
-                    throw new https_1.HttpsError('resource-exhausted', 'Too many application requests. Please wait before submitting another seller application.');
-                }
-                timestamps.push(now);
-                tx.set(rateLimitRef, {
-                    key: rateKey,
-                    phone: validated.cleanPhone,
-                    email: validated.email,
-                    timestamps,
-                    updatedAt: firestore_1.FieldValue.serverTimestamp()
-                }, { merge: true });
-            }
-        });
-    }
-    catch (err) {
-        if (err instanceof https_1.HttpsError) {
-            throw err;
-        }
-        // Fail closed: if rate-limit verification fails, deny the submission
-        console.error('[submitSellerApplication] Rate-limit transaction failed (fail-closed):', err);
-        throw new https_1.HttpsError('resource-exhausted', 'Unable to verify submission rate limits. Please try again in a few moments.');
-    }
-    // 3. Generate server-side application ID
-    const appId = `app_${(0, node_crypto_1.randomUUID)().replace(/-/g, '').slice(0, 16)}`;
-    const appRef = db.collection('seller_applications').doc(appId);
     const docPayload = {
         id: appId,
         sellerCompany: validated.sellerCompany,
@@ -248,7 +199,81 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
         createdAt: firestore_1.FieldValue.serverTimestamp(),
         submittedAt: new Date().toISOString()
     };
-    await appRef.set(docPayload);
+    try {
+        // Execute atomic deduplication and rate limiting inside a single transaction
+        await db.runTransaction(async (tx) => {
+            // Step A: Read locks and rate-limit records within the transaction
+            const [emailLockSnap, phoneLockSnap] = await Promise.all([
+                tx.get(emailLockRef),
+                tx.get(phoneLockRef)
+            ]);
+            if (emailLockSnap.exists) {
+                const lockData = emailLockSnap.data();
+                if (lockData?.status === 'pending') {
+                    throw new https_1.HttpsError('already-exists', 'A seller application with this email is currently pending review. Our team will contact you shortly.');
+                }
+            }
+            if (phoneLockSnap.exists) {
+                const lockData = phoneLockSnap.data();
+                if (lockData?.status === 'pending') {
+                    throw new https_1.HttpsError('already-exists', 'A seller application with this phone number is currently pending review. Our team will contact you shortly.');
+                }
+            }
+            // Step B: Read rate limits
+            const rlSnaps = await Promise.all(rateLimitKeys.map((key) => tx.get(db.collection('seller_application_rate_limits').doc(key))));
+            const oneDayAgo = now - 24 * 60 * 60 * 1000;
+            for (let i = 0; i < rateLimitKeys.length; i++) {
+                const rlSnap = rlSnaps[i];
+                let timestamps = [];
+                if (rlSnap.exists) {
+                    const rlData = rlSnap.data();
+                    if (Array.isArray(rlData?.timestamps)) {
+                        timestamps = rlData.timestamps.filter((t) => typeof t === 'number' && t > oneDayAgo);
+                    }
+                }
+                if (timestamps.length >= 3) {
+                    throw new https_1.HttpsError('resource-exhausted', 'Too many application requests. Please wait before submitting another seller application.');
+                }
+            }
+            // Step C: Atomically write application, locks, and minimal rate-limit state
+            // 1. Write the authoritative application document
+            tx.set(appRef, docPayload);
+            // 2. Write the atomic uniqueness lock documents
+            tx.set(emailLockRef, {
+                applicationId: appId,
+                status: 'pending',
+                createdAt: firestore_1.FieldValue.serverTimestamp()
+            });
+            tx.set(phoneLockRef, {
+                applicationId: appId,
+                status: 'pending',
+                createdAt: firestore_1.FieldValue.serverTimestamp()
+            });
+            // 3. Update rate limits with strictly minimized data (timestamps only, NO applicant PII)
+            for (let i = 0; i < rateLimitKeys.length; i++) {
+                const rateKey = rateLimitKeys[i];
+                const rlSnap = rlSnaps[i];
+                let timestamps = [];
+                if (rlSnap.exists && Array.isArray(rlSnap.data()?.timestamps)) {
+                    timestamps = rlSnap.data().timestamps.filter((t) => typeof t === 'number' && t > oneDayAgo);
+                }
+                timestamps.push(now);
+                const rateLimitRef = db.collection('seller_application_rate_limits').doc(rateKey);
+                tx.set(rateLimitRef, {
+                    timestamps,
+                    updatedAt: firestore_1.FieldValue.serverTimestamp()
+                });
+            }
+        });
+    }
+    catch (err) {
+        if (err instanceof https_1.HttpsError) {
+            throw err;
+        }
+        // Fail closed: if rate-limit or lock verification fails, deny the submission
+        console.error('[submitSellerApplication] Atomic submission transaction failed (fail-closed):', err);
+        throw new https_1.HttpsError('resource-exhausted', 'Unable to verify submission rate limits. Please try again in a few moments.');
+    }
     return {
         success: true,
         applicationId: appId,

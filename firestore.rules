@@ -280,6 +280,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /seller_application_locks/{lockId} {
+      allow read, write: if false;
+    }
+
     // ---------------------------------------------------------------------
     // CMS / configuration
     // ---------------------------------------------------------------------

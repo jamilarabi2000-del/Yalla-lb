@@ -27,7 +27,7 @@ import {
   BadgeCheck
 } from 'lucide-react';
 import { LebanonFlag } from './LebanonFlag';
-import { collection, addDoc, doc, getDoc, getDocs, query, where, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db, auth, signInWithEmailAndPassword, signOut, functionsInstance, httpsCallable } from '../firebase';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
 

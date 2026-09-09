@@ -1234,6 +1234,13 @@ describe('18. Seller Applications collection server-only creation enforcement', 
     await assertFails(setDoc(doc(seller(), 'seller_application_rate_limits', 'rate_test'), { hits: 1 }));
     await assertFails(getDoc(doc(customer(), 'seller_application_rate_limits', 'rate_test')));
   });
+
+  test('Nobody can read or write to seller_application_locks collection', async () => {
+    await assertFails(setDoc(doc(unauthenticated(), 'seller_application_locks', 'lock_test'), { status: 'pending' }));
+    await assertFails(setDoc(doc(customer(), 'seller_application_locks', 'lock_test'), { status: 'pending' }));
+    await assertFails(setDoc(doc(seller(), 'seller_application_locks', 'lock_test'), { status: 'pending' }));
+    await assertFails(getDoc(doc(customer(), 'seller_application_locks', 'lock_test')));
+  });
 });
 
 

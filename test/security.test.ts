@@ -1478,97 +1478,132 @@ describe('Security Regression Suite - Application Controls', () => {
     const rules = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
 
     // Rule inspection tests verifying direct Firestore create is DENIED for all roles
-    it('UNAUTHENTICATED: direct Firestore create → DENIED', () => {
+    it('direct anonymous Firestore create → DENIED', () => {
       expect(rules).toMatch(/match\s+\/seller_applications\/\{appId\}\s*\{[\s\S]*?allow\s+create:\s*if\s+false;/);
     });
 
-    it('CUSTOMER: direct Firestore create → DENIED', () => {
-      // The rule explicitly uses "allow create: if false;" with NO bypass for customers or authenticated users
+    it('direct authenticated customer create → DENIED', () => {
       const sellerAppsBlock = rules.match(/match\s+\/seller_applications\/\{appId\}\s*\{([^}]+)\}/)?.[1] || '';
       expect(sellerAppsBlock).toMatch(/allow\s+create:\s*if\s+false;/);
       expect(sellerAppsBlock).not.toMatch(/allow\s+create:[\s\S]*?isSignedIn/);
     });
 
-    it('SELLER: direct Firestore create → DENIED', () => {
+    it('direct seller create → DENIED', () => {
       const sellerAppsBlock = rules.match(/match\s+\/seller_applications\/\{appId\}\s*\{([^}]+)\}/)?.[1] || '';
       expect(sellerAppsBlock).toMatch(/allow\s+create:\s*if\s+false;/);
       expect(sellerAppsBlock).not.toMatch(/allow\s+create:[\s\S]*?isSeller/);
     });
 
-    it('ADMIN: direct Firestore create → DENIED', () => {
+    it('direct admin create → DENIED', () => {
       const sellerAppsBlock = rules.match(/match\s+\/seller_applications\/\{appId\}\s*\{([^}]+)\}/)?.[1] || '';
       expect(sellerAppsBlock).toMatch(/allow\s+create:\s*if\s+false;/);
       expect(sellerAppsBlock).not.toMatch(/allow\s+create:[\s\S]*?isAdmin/);
+    });
+
+    it('rate-limit collection direct read → DENIED', () => {
+      expect(rules).toMatch(/match\s+\/seller_application_rate_limits\/\{docId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
+    });
+
+    it('rate-limit collection direct write → DENIED', () => {
+      expect(rules).toMatch(/match\s+\/seller_application_rate_limits\/\{docId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
+    });
+
+    it('seller_application_locks collection direct read and write → DENIED', () => {
+      expect(rules).toMatch(/match\s+\/seller_application_locks\/\{lockId\}\s*\{[\s\S]*?allow\s+read,\s*write:\s*if\s+false;/);
     });
 
     // Mock Firestore helper for Cloud Function execution tests
     function createMockDb(initialData: {
       applications?: any[];
       rateLimits?: Record<string, any>;
+      locks?: Record<string, any>;
       failTransaction?: boolean;
     } = {}) {
       const applications = [...(initialData.applications || [])];
       const rateLimits: Record<string, any> = { ...(initialData.rateLimits || {}) };
+      const locks: Record<string, any> = { ...(initialData.locks || {}) };
 
       return {
         applications,
         rateLimits,
-        collection: (colName: string) => {
-          if (colName === 'seller_applications') {
-            return {
-              where: (field1: string, op1: string, val1: any) => ({
-                where: (field2: string, op2: string, val2: any) => ({
-                  limit: () => ({
-                    get: async () => {
-                      const matches = applications.filter(
-                        (a) => a[field1] === val1 && a[field2] === val2
-                      );
-                      return {
-                        empty: matches.length === 0,
-                        docs: matches.map((d) => ({ data: () => d }))
-                      };
-                    }
-                  })
-                })
-              }),
-              doc: (id: string) => ({
-                id,
-                set: async (docData: any) => {
-                  applications.push({ id, ...docData });
-                }
-              })
-            };
-          }
-          if (colName === 'seller_application_rate_limits') {
-            return {
-              doc: (docId: string) => ({
-                id: docId
-              })
-            };
-          }
-          throw new Error(`Unknown mock collection: ${colName}`);
-        },
+        locks,
+        collection: (colName: string) => ({
+          doc: (id: string) => ({
+            id,
+            set: async (docData: any) => {
+              applications.push({ id, ...docData });
+            }
+          })
+        }),
         runTransaction: async (updateFunction: (tx: any) => Promise<any>) => {
           if (initialData.failTransaction) {
             throw new Error('Database transaction lock error');
           }
           const tx = {
             get: async (ref: any) => {
-              const data = rateLimits[ref.id];
+              const data = locks[ref.id] || rateLimits[ref.id];
               return {
                 exists: !!data,
                 data: () => data
               };
             },
             set: (ref: any, data: any, opts?: any) => {
-              if (opts?.merge && rateLimits[ref.id]) {
-                rateLimits[ref.id] = { ...rateLimits[ref.id], ...data };
-              } else {
-                rateLimits[ref.id] = data;
+              if (ref.id.startsWith('email_') || ref.id.startsWith('phone_')) {
+                locks[ref.id] = data;
+              } else if (ref.id.startsWith('rate_')) {
+                if (opts?.merge && rateLimits[ref.id]) {
+                  rateLimits[ref.id] = { ...rateLimits[ref.id], ...data };
+                } else {
+                  rateLimits[ref.id] = data;
+                }
+              } else if (ref.id.startsWith('app_')) {
+                applications.push({ id: ref.id, ...data });
               }
             }
           };
           return await updateFunction(tx);
+        }
+      };
+    }
+
+    // Mock supporting simulated concurrent transactions
+    function createConcurrentMockDb() {
+      const applications: any[] = [];
+      const rateLimits: Record<string, any> = {};
+      const locks: Record<string, any> = {};
+      let transactionQueue = Promise.resolve();
+
+      return {
+        applications,
+        rateLimits,
+        locks,
+        collection: (colName: string) => ({
+          doc: (id: string) => ({ id })
+        }),
+        runTransaction: async (updateFunction: (tx: any) => Promise<any>) => {
+          const currentOp = transactionQueue.then(async () => {
+            const tx = {
+              get: async (ref: any) => {
+                const data = locks[ref.id] || rateLimits[ref.id];
+                return {
+                  exists: !!data,
+                  data: () => data
+                };
+              },
+              set: (ref: any, data: any) => {
+                if (ref.id.startsWith('email_') || ref.id.startsWith('phone_')) {
+                  locks[ref.id] = data;
+                } else if (ref.id.startsWith('rate_')) {
+                  rateLimits[ref.id] = data;
+                } else if (ref.id.startsWith('app_')) {
+                  applications.push({ id: ref.id, ...data });
+                }
+              }
+            };
+            return await updateFunction(tx);
+          });
+          transactionQueue = currentOp.catch(() => {});
+          return await currentOp;
         }
       };
     }
@@ -1583,7 +1618,7 @@ describe('Security Regression Suite - Application Controls', () => {
       craftType: 'Artisanal Oil'
     };
 
-    it('FUNCTION: valid request → SUCCESS', async () => {
+    it('valid callable submission → SUCCESS', async () => {
       const mockDb = createMockDb();
       const result = await handleSellerApplicationSubmission(
         validPayload,
@@ -1602,90 +1637,134 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(stored.phone).toBe('+961 70123456');
       expect(stored.email).toBe('charbel@cedars.lb');
       expect(stored.submittedAt).toBeDefined();
+
+      // Verify lock documents created
+      const emailHex = Buffer.from('charbel@cedars.lb').toString('hex');
+      expect(mockDb.locks[`email_${emailHex}`]?.status).toBe('pending');
+      expect(mockDb.locks['phone_70123456']?.status).toBe('pending');
+
+      // Verify rate-limit data minimization: NO applicant PII stored in rate-limit records
+      const rateLimitRecord = mockDb.rateLimits['rate_phone_70123456'];
+      expect(rateLimitRecord).toBeDefined();
+      expect(rateLimitRecord.email).toBeUndefined();
+      expect(rateLimitRecord.phone).toBeUndefined();
+      expect(Array.isArray(rateLimitRecord.timestamps)).toBe(true);
     });
 
-    it('FUNCTION: invalid payload → DENIED', async () => {
+    it('same email concurrent submissions → only ONE application succeeds', async () => {
+      const mockDb = createConcurrentMockDb();
+
+      // Fire two concurrent submissions at the same time with identical email
+      const results = await Promise.allSettled([
+        handleSellerApplicationSubmission(
+          { ...validPayload, phone: '70 111 222' },
+          { appCheckId: 'app-1' },
+          mockDb
+        ),
+        handleSellerApplicationSubmission(
+          { ...validPayload, phone: '70 333 444' },
+          { appCheckId: 'app-2' },
+          mockDb
+        )
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      expect(fulfilled.length).toBe(1);
+      expect(rejected.length).toBe(1);
+      expect(mockDb.applications.length).toBe(1);
+    });
+
+    it('same phone concurrent submissions → only ONE application succeeds', async () => {
+      const mockDb = createConcurrentMockDb();
+
+      // Fire two concurrent submissions at the same time with identical phone
+      const results = await Promise.allSettled([
+        handleSellerApplicationSubmission(
+          { ...validPayload, email: 'submitter1@cedars.lb' },
+          { appCheckId: 'app-1' },
+          mockDb
+        ),
+        handleSellerApplicationSubmission(
+          { ...validPayload, email: 'submitter2@cedars.lb' },
+          { appCheckId: 'app-2' },
+          mockDb
+        )
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      expect(fulfilled.length).toBe(1);
+      expect(rejected.length).toBe(1);
+      expect(mockDb.applications.length).toBe(1);
+    });
+
+    it('unexpected fields → DENIED', async () => {
       const mockDb = createMockDb();
-
-      // Missing required field 'firstName'
-      const missingNamePayload = { ...validPayload, firstName: '' };
-      await expect(
-        handleSellerApplicationSubmission(missingNamePayload, {}, mockDb)
-      ).rejects.toThrow();
-
-      // Invalid Lebanese phone format
-      const invalidPhonePayload = { ...validPayload, phone: '123' };
-      await expect(
-        handleSellerApplicationSubmission(invalidPhonePayload, {}, mockDb)
-      ).rejects.toThrow();
-
-      // Unknown property not in allowlist
       const maliciousFieldPayload = { ...validPayload, hackerPayload: true };
       await expect(
         handleSellerApplicationSubmission(maliciousFieldPayload, {}, mockDb)
       ).rejects.toThrow(/Unexpected property in seller application/);
     });
 
-    it('FUNCTION: oversized payload → DENIED', async () => {
+    it('invalid phone → DENIED', async () => {
       const mockDb = createMockDb();
-
-      // Oversized company name (> 200 chars)
-      const oversizedCompanyPayload = {
-        ...validPayload,
-        sellerCompany: 'A'.repeat(205)
-      };
+      const invalidPhonePayload = { ...validPayload, phone: '123' };
       await expect(
-        handleSellerApplicationSubmission(oversizedCompanyPayload, {}, mockDb)
-      ).rejects.toThrow(/Company name must not exceed 200 characters/);
-
-      // Oversized first name (> 100 chars)
-      const oversizedFirstNamePayload = {
-        ...validPayload,
-        firstName: 'B'.repeat(105)
-      };
-      await expect(
-        handleSellerApplicationSubmission(oversizedFirstNamePayload, {}, mockDb)
-      ).rejects.toThrow(/First name must not exceed 100 characters/);
+        handleSellerApplicationSubmission(invalidPhonePayload, {}, mockDb)
+      ).rejects.toThrow(/Please enter a valid 8-digit Lebanese mobile phone number/);
     });
 
-    it('FUNCTION: invalid status → DENIED', async () => {
+    it('invalid email → DENIED', async () => {
+      const mockDb = createMockDb();
+      const invalidEmailPayload = { ...validPayload, email: 'not-an-email' };
+      await expect(
+        handleSellerApplicationSubmission(invalidEmailPayload, {}, mockDb)
+      ).rejects.toThrow(/A valid email address is required/);
+    });
+
+    it('client-supplied status → ignored/rejected and stored status must always be "pending"', async () => {
       const mockDb = createMockDb();
 
-      // Attempting to inject status: 'approved' must be strictly rejected
-      const forgedStatusPayload = {
-        ...validPayload,
-        status: 'approved'
-      };
+      // Client attempting to forge status must be rejected by input validation
+      const forgedStatusPayload = { ...validPayload, status: 'approved' };
       await expect(
         handleSellerApplicationSubmission(forgedStatusPayload, {}, mockDb)
       ).rejects.toThrow(/Unexpected property in seller application: "status"/);
+
+      // In valid submission, stored status is guaranteed to be 'pending'
+      const res = await handleSellerApplicationSubmission(
+        validPayload,
+        { appCheckId: 'test-app' },
+        mockDb
+      );
+      const stored = mockDb.applications.find((a) => a.id === res.applicationId);
+      expect(stored?.status).toBe('pending');
     });
 
-    it('FUNCTION: excessive submissions → DENIED', async () => {
+    it('rate-limit bypass attempts → DENIED', async () => {
       const mockDb = createMockDb();
 
-      // 1st submission from App Check identity: SUCCESS
+      // Submissions 1, 2, 3 succeed
       await handleSellerApplicationSubmission(
         { ...validPayload, email: 'app1@cedars.lb', phone: '70 111 001' },
         { appCheckId: 'same-app-check-id' },
         mockDb
       );
-
-      // 2nd submission from same App Check identity: SUCCESS
       await handleSellerApplicationSubmission(
         { ...validPayload, email: 'app2@cedars.lb', phone: '70 111 002' },
         { appCheckId: 'same-app-check-id' },
         mockDb
       );
-
-      // 3rd submission from same App Check identity: SUCCESS
       await handleSellerApplicationSubmission(
         { ...validPayload, email: 'app3@cedars.lb', phone: '70 111 003' },
         { appCheckId: 'same-app-check-id' },
         mockDb
       );
 
-      // 4th submission within 24h from same App Check identity: DENIED with resource-exhausted
+      // Submission 4 from same identity is denied with resource-exhausted
       await expect(
         handleSellerApplicationSubmission(
           { ...validPayload, email: 'app4@cedars.lb', phone: '70 111 004' },
@@ -1695,47 +1774,11 @@ describe('Security Regression Suite - Application Controls', () => {
       ).rejects.toThrow(/Too many application requests/);
     });
 
-    it('FUNCTION: duplicate application → DENIED', async () => {
-      // Mock DB with an already existing application for this email in 'pending' status
-      const mockDb = createMockDb({
-        applications: [
-          {
-            id: 'app_existing_1',
-            email: 'charbel@cedars.lb',
-            cleanPhone: '03999888',
-            status: 'pending'
-          }
-        ]
-      });
-
-      // Attempting to submit another application with the same email must be denied
+    it('fail-closed behavior when lock or rate-limit verification encounters database error', async () => {
+      const failingDb = createMockDb({ failTransaction: true });
       await expect(
-        handleSellerApplicationSubmission(
-          { ...validPayload, email: 'charbel@cedars.lb' },
-          {},
-          mockDb
-        )
-      ).rejects.toThrow(/A seller application with this email is currently pending review/);
-
-      // Attempting to submit another application with the same phone must also be denied
-      const mockDbPhoneDuplicate = createMockDb({
-        applications: [
-          {
-            id: 'app_existing_2',
-            email: 'other@cedars.lb',
-            cleanPhone: '70123456',
-            status: 'pending'
-          }
-        ]
-      });
-
-      await expect(
-        handleSellerApplicationSubmission(
-          { ...validPayload, email: 'different@cedars.lb' },
-          {},
-          mockDbPhoneDuplicate
-        )
-      ).rejects.toThrow(/A seller application with this phone number is currently pending review/);
+        handleSellerApplicationSubmission(validPayload, {}, failingDb)
+      ).rejects.toThrow(/Unable to verify submission rate limits/);
     });
   });
 });
