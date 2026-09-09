@@ -362,8 +362,7 @@ export const HomeTopContainer: React.FC = () => {
         {featuredProduct ? (
           <div 
             onClick={() => openProductDetail(featuredProduct)}
-            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-5 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0"
-            style={{ minHeight: '380px' }}
+            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-4 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 min-h-[330px] min-[360px]:min-h-[340px] sm:min-h-[380px]"
           >
             {/* Top Category Header & Slider Dots */}
             <div className="flex items-center justify-between z-10">
@@ -404,8 +403,8 @@ export const HomeTopContainer: React.FC = () => {
               )}
             </div>
 
-            {/* Centered Product Image Container (height ~200px, object-contain) */}
-            <div className="my-auto py-2 flex items-center justify-center overflow-hidden w-full relative" style={{ height: '200px' }}>
+            {/* Centered Product Image Container (height ~180px on mobile, 200px on desktop, object-contain) */}
+            <div className="my-auto py-2 flex items-center justify-center overflow-hidden w-full relative h-[180px] sm:h-[200px]">
               {featuredProductsList.map((product, idx) => (
                 <img
                   key={product.id}
@@ -422,12 +421,12 @@ export const HomeTopContainer: React.FC = () => {
             </div>
 
             {/* Bottom: Product Info + Compact Add To Cart Pill Button */}
-            <div className="flex items-end justify-between gap-3 pt-3 mt-auto">
-              <div className="min-w-0">
-                <h3 className="text-[15px] font-bold text-[#111111] truncate leading-snug">
+            <div className="flex items-end justify-between gap-2.5 sm:gap-3 pt-3 mt-auto">
+              <div className="min-w-0 flex-1">
+                <h3 className="text-[14px] sm:text-[15px] font-bold text-[#111111] line-clamp-2 sm:truncate leading-snug">
                   {isAr ? (featuredProduct.arabicName || featuredProduct.name) : featuredProduct.name}
                 </h3>
-                <p className="text-[12px] text-[#666666] truncate mt-0.5">
+                <p className="text-[11px] sm:text-[12px] text-[#666666] truncate mt-0.5">
                   {featuredProduct.artisan || featuredProduct.seller || (isAr ? 'حرفي لبناني' : 'Lebanese Artisan')}
                 </p>
               </div>
@@ -437,7 +436,7 @@ export const HomeTopContainer: React.FC = () => {
                 id={`featured-add-to-cart-${featuredProduct.id}`}
                 onClick={handleAddToCartFeatured}
                 aria-label={isAr ? 'إضافة إلى السلة' : 'Add to cart'}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[12px] font-medium tracking-wide shadow-sm transition-colors cursor-pointer flex-shrink-0"
+                className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[11px] sm:text-[12px] font-medium tracking-wide shadow-sm transition-colors cursor-pointer flex-shrink-0"
               >
                 <span>{isAr ? 'إضافة' : 'Add'}</span>
                 <span className="opacity-40">|</span>
@@ -448,7 +447,7 @@ export const HomeTopContainer: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373]" style={{ minHeight: '380px' }}>
+          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] min-h-[330px] min-[360px]:min-h-[340px] sm:min-h-[380px]">
             {isAr ? 'لا توجد منتجات مميزة' : 'No featured products available'}
           </div>
         )}
