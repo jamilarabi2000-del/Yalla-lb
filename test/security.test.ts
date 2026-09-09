@@ -1796,111 +1796,271 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(mockDb.applications.length).toBe(1);
     });
 
-    it('rejected application releases locks so legitimate applicant can resubmit', async () => {
+    it('rejected application releases only its own locks', async () => {
       const mockDb = createMockDb();
 
-      // 1. Initial submission
-      const subResult = await handleSellerApplicationSubmission(
-        validPayload,
+      // Submit Application A
+      const subResultA = await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'artisan.a@cedars.lb', phone: '70111111' },
         { appCheckId: 'app-1' },
         mockDb
       );
-      expect(subResult.success).toBe(true);
+      expect(subResultA.success).toBe(true);
 
-      const emailHash = hashIdentifier('charbel@cedars.lb');
-      const phoneHash = hashIdentifier('70123456');
-      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
-      expect(mockDb.locks[`phone_${phoneHash}`]?.status).toBe('pending');
-
-      // 2. Immediate duplicate is denied
-      await expect(
-        handleSellerApplicationSubmission(
-          validPayload,
-          { appCheckId: 'app-2' },
-          mockDb
-        )
-      ).rejects.toThrow(/pending review/);
-
-      // 3. Admin rejects the application
-      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
-      await syncSellerApplicationLockLifecycle(
-        pendingApp,
-        { ...pendingApp, status: 'rejected', rejectionReason: 'Incomplete documentation' },
-        mockDb
-      );
-
-      // 4. Locks are released/removed
-      expect(mockDb.locks[`email_${emailHash}`]).toBeUndefined();
-      expect(mockDb.locks[`phone_${phoneHash}`]).toBeUndefined();
-
-      // 5. Applicant submits a corrected application successfully
-      const resubmission = await handleSellerApplicationSubmission(
-        validPayload,
-        { appCheckId: 'app-3' },
-        mockDb
-      );
-      expect(resubmission.success).toBe(true);
-      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
-      expect(mockDb.locks[`phone_${phoneHash}`]?.status).toBe('pending');
-    });
-
-    it('cancelled application releases locks so applicant can resubmit', async () => {
-      const mockDb = createMockDb();
-
-      const subResult = await handleSellerApplicationSubmission(
-        validPayload,
-        { appCheckId: 'app-1' },
-        mockDb
-      );
-      expect(subResult.success).toBe(true);
-
-      const emailHash = hashIdentifier('charbel@cedars.lb');
-      const phoneHash = hashIdentifier('70123456');
-
-      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
-      await syncSellerApplicationLockLifecycle(
-        pendingApp,
-        { ...pendingApp, status: 'cancelled' },
-        mockDb
-      );
-
-      expect(mockDb.locks[`email_${emailHash}`]).toBeUndefined();
-      expect(mockDb.locks[`phone_${phoneHash}`]).toBeUndefined();
-
-      const resubmission = await handleSellerApplicationSubmission(
-        validPayload,
+      // Submit Application B
+      const subResultB = await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'artisan.b@cedars.lb', phone: '70222222' },
         { appCheckId: 'app-2' },
         mockDb
       );
-      expect(resubmission.success).toBe(true);
+      expect(subResultB.success).toBe(true);
+
+      const emailHashA = hashIdentifier('artisan.a@cedars.lb');
+      const phoneHashA = hashIdentifier('70111111');
+      const emailHashB = hashIdentifier('artisan.b@cedars.lb');
+      const phoneHashB = hashIdentifier('70222222');
+
+      expect(mockDb.locks[`email_${emailHashA}`]?.applicationId).toBe(subResultA.applicationId);
+      expect(mockDb.locks[`email_${emailHashB}`]?.applicationId).toBe(subResultB.applicationId);
+
+      // Admin rejects Application A
+      const appA = mockDb.applications.find((a) => a.id === subResultA.applicationId);
+      const res = await syncSellerApplicationLockLifecycle(
+        subResultA.applicationId,
+        appA,
+        { ...appA, status: 'rejected', rejectionReason: 'Incomplete documentation' },
+        mockDb
+      );
+      expect(res.success).toBe(true);
+
+      // Application A locks are released
+      expect(mockDb.locks[`email_${emailHashA}`]).toBeUndefined();
+      expect(mockDb.locks[`phone_${phoneHashA}`]).toBeUndefined();
+
+      // Application B locks remain untouched and active
+      expect(mockDb.locks[`email_${emailHashB}`]?.status).toBe('pending');
+      expect(mockDb.locks[`email_${emailHashB}`]?.applicationId).toBe(subResultB.applicationId);
+      expect(mockDb.locks[`phone_${phoneHashB}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHashB}`]?.applicationId).toBe(subResultB.applicationId);
     });
 
-    it('deleted application releases locks so applicant can resubmit', async () => {
+    it('cancelled application releases only its own locks', async () => {
       const mockDb = createMockDb();
 
-      const subResult = await handleSellerApplicationSubmission(
-        validPayload,
+      // Submit Application A
+      const subResultA = await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'artisan.a@cedars.lb', phone: '70111111' },
         { appCheckId: 'app-1' },
         mockDb
       );
-      expect(subResult.success).toBe(true);
+      // Submit Application B
+      const subResultB = await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'artisan.b@cedars.lb', phone: '70222222' },
+        { appCheckId: 'app-2' },
+        mockDb
+      );
 
-      const emailHash = hashIdentifier('charbel@cedars.lb');
-      const phoneHash = hashIdentifier('70123456');
+      const emailHashA = hashIdentifier('artisan.a@cedars.lb');
+      const phoneHashA = hashIdentifier('70111111');
+      const emailHashB = hashIdentifier('artisan.b@cedars.lb');
+      const phoneHashB = hashIdentifier('70222222');
 
-      const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
+      const appA = mockDb.applications.find((a) => a.id === subResultA.applicationId);
+      const res = await syncSellerApplicationLockLifecycle(
+        subResultA.applicationId,
+        appA,
+        { ...appA, status: 'cancelled' },
+        mockDb
+      );
+      expect(res.success).toBe(true);
+
+      // Application A locks released
+      expect(mockDb.locks[`email_${emailHashA}`]).toBeUndefined();
+      expect(mockDb.locks[`phone_${phoneHashA}`]).toBeUndefined();
+
+      // Application B locks remain intact
+      expect(mockDb.locks[`email_${emailHashB}`]?.status).toBe('pending');
+      expect(mockDb.locks[`email_${emailHashB}`]?.applicationId).toBe(subResultB.applicationId);
+      expect(mockDb.locks[`phone_${phoneHashB}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHashB}`]?.applicationId).toBe(subResultB.applicationId);
+    });
+
+    it('deleted application releases only its own locks', async () => {
+      const mockDb = createMockDb();
+
+      // Submit Application A
+      const subResultA = await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'artisan.a@cedars.lb', phone: '70111111' },
+        { appCheckId: 'app-1' },
+        mockDb
+      );
+      // Submit Application B
+      const subResultB = await handleSellerApplicationSubmission(
+        { ...validPayload, email: 'artisan.b@cedars.lb', phone: '70222222' },
+        { appCheckId: 'app-2' },
+        mockDb
+      );
+
+      const emailHashA = hashIdentifier('artisan.a@cedars.lb');
+      const phoneHashA = hashIdentifier('70111111');
+      const emailHashB = hashIdentifier('artisan.b@cedars.lb');
+      const phoneHashB = hashIdentifier('70222222');
+
+      const appA = mockDb.applications.find((a) => a.id === subResultA.applicationId);
       // Document deletion: afterData is null
-      await syncSellerApplicationLockLifecycle(pendingApp, null, mockDb);
+      const res = await syncSellerApplicationLockLifecycle(subResultA.applicationId, appA, null, mockDb);
+      expect(res.success).toBe(true);
 
-      expect(mockDb.locks[`email_${emailHash}`]).toBeUndefined();
-      expect(mockDb.locks[`phone_${phoneHash}`]).toBeUndefined();
+      // Application A locks released
+      expect(mockDb.locks[`email_${emailHashA}`]).toBeUndefined();
+      expect(mockDb.locks[`phone_${phoneHashA}`]).toBeUndefined();
 
-      const resubmission = await handleSellerApplicationSubmission(
-        validPayload,
-        { appCheckId: 'app-2' },
+      // Application B locks remain intact
+      expect(mockDb.locks[`email_${emailHashB}`]?.status).toBe('pending');
+      expect(mockDb.locks[`email_${emailHashB}`]?.applicationId).toBe(subResultB.applicationId);
+      expect(mockDb.locks[`phone_${phoneHashB}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHashB}`]?.applicationId).toBe(subResultB.applicationId);
+    });
+
+    it('application A cannot delete application B\'s lock', async () => {
+      const mockDb = createMockDb();
+
+      const emailHash = hashIdentifier('shared@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+
+      // Seed Lock owned by Application B (status is pending)
+      mockDb.locks[`email_${emailHash}`] = {
+        applicationId: 'app_B',
+        status: 'pending'
+      };
+      mockDb.locks[`phone_${phoneHash}`] = {
+        applicationId: 'app_B',
+        status: 'pending'
+      };
+
+      const maliciousAppAPayload = {
+        id: 'app_A',
+        email: 'shared@cedars.lb',
+        phone: '70123456'
+      };
+
+      // 1. Attempt rejection of App A referencing App B's lock
+      await syncSellerApplicationLockLifecycle(
+        'app_A',
+        maliciousAppAPayload,
+        { ...maliciousAppAPayload, status: 'rejected' },
         mockDb
       );
-      expect(resubmission.success).toBe(true);
+
+      // Lock MUST NOT be deleted even though status was 'pending'!
+      expect(mockDb.locks[`email_${emailHash}`]).toBeDefined();
+      expect(mockDb.locks[`email_${emailHash}`]?.applicationId).toBe('app_B');
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.applicationId).toBe('app_B');
+
+      // 2. Attempt cancellation of App A referencing App B's lock
+      await syncSellerApplicationLockLifecycle(
+        'app_A',
+        maliciousAppAPayload,
+        { ...maliciousAppAPayload, status: 'cancelled' },
+        mockDb
+      );
+      expect(mockDb.locks[`email_${emailHash}`]?.applicationId).toBe('app_B');
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+
+      // 3. Attempt deletion of App A referencing App B's lock
+      await syncSellerApplicationLockLifecycle('app_A', maliciousAppAPayload, null, mockDb);
+      expect(mockDb.locks[`email_${emailHash}`]?.applicationId).toBe('app_B');
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.applicationId).toBe('app_B');
+    });
+
+    it('application A cannot change application B\'s lock to approved', async () => {
+      const mockDb = createMockDb();
+
+      const emailHash = hashIdentifier('shared@cedars.lb');
+      const phoneHash = hashIdentifier('70123456');
+
+      // Seed Lock owned by Application B
+      mockDb.locks[`email_${emailHash}`] = {
+        applicationId: 'app_B',
+        status: 'pending'
+      };
+      mockDb.locks[`phone_${phoneHash}`] = {
+        applicationId: 'app_B',
+        status: 'pending'
+      };
+
+      const appAPayload = {
+        id: 'app_A',
+        email: 'shared@cedars.lb',
+        phone: '70123456'
+      };
+
+      // Lifecycle event for App A being approved
+      await syncSellerApplicationLockLifecycle(
+        'app_A',
+        appAPayload,
+        { ...appAPayload, status: 'approved', createdSellerId: 'seller_a' },
+        mockDb
+      );
+
+      // Application B's lock MUST NOT be updated to approved or hijacked by App A!
+      expect(mockDb.locks[`email_${emailHash}`]?.applicationId).toBe('app_B');
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.applicationId).toBe('app_B');
+      expect(mockDb.locks[`phone_${phoneHash}`]?.status).toBe('pending');
+    });
+
+    it('missing/mismatched applicationId fails closed', async () => {
+      const mockDb = createMockDb();
+      const emailHash = hashIdentifier('charbel@cedars.lb');
+
+      mockDb.locks[`email_${emailHash}`] = {
+        applicationId: 'app_legit',
+        status: 'pending'
+      };
+
+      // 1. Missing empty string appId -> fails closed
+      const resEmpty = await syncSellerApplicationLockLifecycle(
+        '',
+        { email: 'charbel@cedars.lb' },
+        { email: 'charbel@cedars.lb', status: 'rejected' },
+        mockDb
+      );
+      expect(resEmpty.success).toBe(false);
+      expect(mockDb.locks[`email_${emailHash}`]).toBeDefined();
+
+      // 2. Null appId -> fails closed
+      const resNull = await syncSellerApplicationLockLifecycle(
+        null as any,
+        { email: 'charbel@cedars.lb' },
+        { email: 'charbel@cedars.lb', status: 'rejected' },
+        mockDb
+      );
+      expect(resNull.success).toBe(false);
+      expect(mockDb.locks[`email_${emailHash}`]).toBeDefined();
+
+      // 3. Mismatched appId -> lock untouched
+      const resMismatch = await syncSellerApplicationLockLifecycle(
+        'app_different',
+        { email: 'charbel@cedars.lb' },
+        { email: 'charbel@cedars.lb', status: 'rejected' },
+        mockDb
+      );
+      expect(resMismatch.success).toBe(true);
+      expect(mockDb.locks[`email_${emailHash}`]?.applicationId).toBe('app_legit');
+      expect(mockDb.locks[`email_${emailHash}`]?.status).toBe('pending');
+
+      // 4. Non-existent lock approval -> does NOT silently create an unrelated lock
+      const nonExistentEmailHash = hashIdentifier('never_submitted@cedars.lb');
+      await syncSellerApplicationLockLifecycle(
+        'app_ghost',
+        { email: 'never_submitted@cedars.lb' },
+        { email: 'never_submitted@cedars.lb', status: 'approved' },
+        mockDb
+      );
+      expect(mockDb.locks[`email_${nonExistentEmailHash}`]).toBeUndefined();
     });
 
     it('approved application retains intended uniqueness protection against duplicate applications', async () => {
@@ -1919,6 +2079,7 @@ describe('Security Regression Suite - Application Controls', () => {
       // Admin approves the application
       const pendingApp = mockDb.applications.find((a) => a.id === subResult.applicationId);
       await syncSellerApplicationLockLifecycle(
+        subResult.applicationId,
         pendingApp,
         { ...pendingApp, status: 'approved', createdSellerId: 'seller_123' },
         mockDb

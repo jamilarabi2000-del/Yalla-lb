@@ -249,7 +249,7 @@ export const HomeTopContainer: React.FC = () => {
         
         {/* LEFT: Large Hero Banner */}
         <div 
-          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between p-3.5 sm:p-6 sm:pt-8 sm:pb-6 shadow-sm group min-w-0 h-[220px] sm:h-auto sm:min-h-[380px]"
+          className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between p-3.5 sm:p-5 md:p-6 shadow-sm group min-w-0 h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]"
         >
           {/* Background Image with subtle dark overlay */}
           <div className="absolute inset-0 z-0">
@@ -261,18 +261,11 @@ export const HomeTopContainer: React.FC = () => {
                 className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
               />
             )}
-            {/* Mobile subtle gradient overlay: ensures bottom controls and text are readable directly over images without needing a frosted glass box */}
+            {/* Subtle gradient overlay: ensures bottom controls and text are readable directly over images without needing a frosted glass box */}
             <div 
-              className="absolute inset-0 pointer-events-none sm:hidden"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0.18) 100%)'
-              }}
-            />
-            {/* Desktop gradient preserved */}
-            <div 
-              className="absolute inset-0 pointer-events-none hidden sm:block"
-              style={{
-                background: 'linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.30))'
               }}
             />
           </div>
@@ -316,16 +309,16 @@ export const HomeTopContainer: React.FC = () => {
             )}
           </div>
 
-          {/* Bottom Controls: Direct over image on mobile; Desktop retains subtle glass styling */}
+          {/* Bottom Controls: Direct over image across all breakpoints; matching mobile design without glass container */}
           <div className="relative z-20 mt-auto min-w-0">
             <div 
-              className="flex items-center justify-between w-full min-w-0 sm:rounded-[16px] sm:px-3.5 sm:py-3 sm:shadow-lg sm:border sm:border-white/30 sm:backdrop-blur-[16px] sm:bg-white/[0.22]"
+              className="flex items-center justify-between w-full min-w-0"
             >
               {/* Left Side: CTA Button */}
               <div className="min-w-0 flex items-center pe-2 sm:pr-4">
                 <button
                   onClick={handleHeroAction}
-                  className="px-3 sm:px-6 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/25 hover:bg-white/35 border border-white/35 sm:border-white/30 text-white text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-bold uppercase tracking-wider transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98] drop-shadow-sm backdrop-blur-xs"
+                  className="px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/25 hover:bg-white/35 border border-white/35 sm:border-white/30 text-white text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-bold uppercase tracking-wider transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98] drop-shadow-sm backdrop-blur-xs"
                 >
                   {isAr 
                     ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'تصفح العروض') 
@@ -339,7 +332,7 @@ export const HomeTopContainer: React.FC = () => {
                 <button
                   onClick={handlePrev}
                   aria-label="Previous slide"
-                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 sm:bg-black/30 hover:bg-black/60 sm:hover:bg-black/50 border border-white/25 sm:border-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 drop-shadow-sm"
+                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/25 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 drop-shadow-sm"
                 >
                   <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
@@ -351,7 +344,7 @@ export const HomeTopContainer: React.FC = () => {
                 <button
                   onClick={handleNext}
                   aria-label="Next slide"
-                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 sm:bg-black/30 hover:bg-black/60 sm:hover:bg-black/50 border border-white/25 sm:border-white/15 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 drop-shadow-sm"
+                  className="w-[24px] h-[24px] sm:w-[28px] sm:h-[28px] rounded-full bg-black/40 hover:bg-black/60 border border-white/25 text-white flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 drop-shadow-sm"
                 >
                   <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
@@ -360,11 +353,11 @@ export const HomeTopContainer: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT: Featured Product Card (Matching 220px height on mobile; Spacious vertical card on desktop) */}
+        {/* RIGHT: Featured Product Card (Responsive height matching Hero module) */}
         {featuredProduct ? (
           <div 
             onClick={() => openProductDetail(featuredProduct)}
-            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-3.5 sm:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 h-[220px] sm:h-auto sm:min-h-[380px]"
+            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-3.5 sm:p-5 md:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]"
           >
             {/* Top Category Header & Slider Dots */}
             <div className="flex items-center justify-between z-10">
@@ -405,8 +398,8 @@ export const HomeTopContainer: React.FC = () => {
               )}
             </div>
 
-            {/* Product Image Container (height 100-105px on mobile, 200px on desktop, object-contain strictly preserved) */}
-            <div className="relative w-full h-[98px] min-[360px]:h-[104px] sm:h-[200px] my-auto py-1 sm:py-2 flex items-center justify-center overflow-hidden">
+            {/* Product Image Container (height proportional across mobile, tablet, desktop) */}
+            <div className="relative w-full h-[98px] min-[360px]:h-[104px] sm:h-[130px] lg:h-[200px] xl:h-[220px] my-auto py-1 sm:py-2 flex items-center justify-center overflow-hidden">
               {featuredProductsList.map((product, idx) => (
                 <img
                   key={product.id}
@@ -449,7 +442,7 @@ export const HomeTopContainer: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] h-[220px] sm:h-auto sm:min-h-[380px]">
+          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]">
             {isAr ? 'لا توجد منتجات مميزة' : 'No featured products available'}
           </div>
         )}

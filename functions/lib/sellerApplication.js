@@ -305,99 +305,158 @@ async function handleSellerApplicationSubmission(data, context = {}, dbInstance)
  * - REJECTED: releases/removes the email and phone pending locks
  * - CANCELLED: releases/removes the email and phone pending locks
  * - DELETED: releases/removes the email and phone pending locks
+ *
+ * STRICT SECURITY INVARIANTS:
+ * 1. authoritativeAppId is strictly required and sourced from the Firestore trigger event path (event.params.appId).
+ *    Locks are NEVER deleted or modified based on untrusted snapshot payload id fields.
+ * 2. Locks are ONLY deleted or modified if lock.applicationId === authoritativeAppId.
+ * 3. Never delete a lock merely because lock.status === 'pending'.
+ * 4. Application A cannot delete, overwrite, or mutate Application B's locks.
+ * 5. On approval, locks are only updated if they exist and match authoritativeAppId; never silently create locks for non-existent ones.
+ * 6. Missing or mismatched authoritativeAppId fails closed.
+ * 7. Executed inside an atomic transaction where practical.
  */
-async function syncSellerApplicationLockLifecycle(beforeData, afterData, dbInstance) {
+async function syncSellerApplicationLockLifecycle(authoritativeAppId, beforeData, afterData, dbInstance) {
+    // Fail-closed validation: authoritativeAppId must be a non-empty string
+    if (!authoritativeAppId || typeof authoritativeAppId !== 'string' || !authoritativeAppId.trim()) {
+        console.warn('[syncSellerApplicationLockLifecycle] Security denial: Missing or invalid authoritativeAppId. Failing closed.');
+        return { success: false, action: 'denied_missing_authoritative_app_id' };
+    }
+    const cleanAppId = authoritativeAppId.trim();
     const db = dbInstance || getDb();
-    const email = (afterData?.email || beforeData?.email || '').trim().toLowerCase();
-    const rawPhone = afterData?.cleanPhone || beforeData?.cleanPhone || afterData?.phone || beforeData?.phone || '';
-    const cleanPhone = rawPhone.replace(/\D/g, '');
-    const appId = afterData?.id || beforeData?.id;
-    const emailHash = email ? hashIdentifier(email) : null;
-    const phoneHash = cleanPhone ? hashIdentifier(cleanPhone) : null;
-    const emailLockRef = emailHash ? db.collection('seller_application_locks').doc(`email_${emailHash}`) : null;
-    const phoneLockRef = phoneHash ? db.collection('seller_application_locks').doc(`phone_${phoneHash}`) : null;
+    // Extract all distinct email and phone values from before and after snapshots
+    const emails = new Set();
+    if (beforeData?.email && typeof beforeData.email === 'string') {
+        const trimmed = beforeData.email.trim().toLowerCase();
+        if (trimmed)
+            emails.add(trimmed);
+    }
+    if (afterData?.email && typeof afterData.email === 'string') {
+        const trimmed = afterData.email.trim().toLowerCase();
+        if (trimmed)
+            emails.add(trimmed);
+    }
+    const phones = new Set();
+    const beforeRawPhone = beforeData?.cleanPhone || beforeData?.phone;
+    if (beforeRawPhone && typeof beforeRawPhone === 'string') {
+        const digits = beforeRawPhone.replace(/\D/g, '');
+        if (digits)
+            phones.add(digits);
+    }
+    const afterRawPhone = afterData?.cleanPhone || afterData?.phone;
+    if (afterRawPhone && typeof afterRawPhone === 'string') {
+        const digits = afterRawPhone.replace(/\D/g, '');
+        if (digits)
+            phones.add(digits);
+    }
+    if (emails.size === 0 && phones.size === 0) {
+        return { success: false, action: 'no_identifiers_found' };
+    }
+    // Collect lock references
+    const lockRefs = [];
+    emails.forEach((em) => {
+        lockRefs.push(db.collection('seller_application_locks').doc(`email_${hashIdentifier(em)}`));
+    });
+    phones.forEach((ph) => {
+        lockRefs.push(db.collection('seller_application_locks').doc(`phone_${hashIdentifier(ph)}`));
+    });
     const newStatus = afterData?.status;
-    // Case 1: Application document deleted OR status changed to rejected/cancelled
-    if (!afterData || newStatus === 'rejected' || newStatus === 'cancelled') {
-        const promises = [];
-        if (emailLockRef) {
-            promises.push((async () => {
-                const snap = await emailLockRef.get();
-                if (snap.exists) {
-                    const data = snap.data();
-                    if (!appId || data?.applicationId === appId || data?.status === 'pending') {
-                        await emailLockRef.delete();
-                    }
+    // Use transaction if supported by the DB instance for atomic lock lifecycle management
+    if (typeof db.runTransaction === 'function') {
+        return await db.runTransaction(async (tx) => {
+            // Step 1: Read all lock documents first (Firestore transaction requirement: all reads before writes)
+            const lockSnapshots = await Promise.all(lockRefs.map(async (ref) => ({ ref, snap: await tx.get(ref) })));
+            // Step 2: Perform authorized modifications based on lifecycle state and strict ownership verification
+            for (const { ref, snap } of lockSnapshots) {
+                if (!snap.exists) {
+                    // If the lock does not exist:
+                    // Rule 6: Do NOT silently create an unrelated lock on approval
+                    // Rule 7: Do NOT create locks for pending applications during lifecycle sync
+                    continue;
                 }
-            })());
-        }
-        if (phoneLockRef) {
-            promises.push((async () => {
-                const snap = await phoneLockRef.get();
-                if (snap.exists) {
-                    const data = snap.data();
-                    if (!appId || data?.applicationId === appId || data?.status === 'pending') {
-                        await phoneLockRef.delete();
-                    }
+                const lockData = snap.data();
+                // Strict ownership check: lock MUST belong to authoritativeAppId
+                if (!lockData || lockData.applicationId !== cleanAppId) {
+                    // Rule 8: Do not allow one application lifecycle event to delete, overwrite, or modify another application's locks
+                    console.warn(`[syncSellerApplicationLockLifecycle] Refusing operation on lock ${ref.id}: Owned by '${lockData?.applicationId}', not '${cleanAppId}'`);
+                    continue;
                 }
-            })());
-        }
-        await Promise.all(promises);
-        return { success: true, action: `released_${newStatus || 'deleted'}` };
+                // Case 1: Application deleted or marked as rejected/cancelled -> release lock
+                if (!afterData || newStatus === 'rejected' || newStatus === 'cancelled') {
+                    tx.delete(ref);
+                }
+                // Case 2: Application approved -> retain uniqueness protection with approved status
+                else if (newStatus === 'approved') {
+                    tx.set(ref, {
+                        status: 'approved',
+                        updatedAt: firestore_2.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                }
+                // Case 3: Application pending -> maintain lock with pending status
+                else if (newStatus === 'pending') {
+                    tx.set(ref, {
+                        status: 'pending',
+                        updatedAt: firestore_2.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                }
+            }
+            const action = !afterData || newStatus === 'rejected' || newStatus === 'cancelled'
+                ? `released_${newStatus || 'deleted'}`
+                : newStatus === 'approved'
+                    ? 'retained_approved'
+                    : newStatus === 'pending'
+                        ? 'locked_pending'
+                        : 'no_change';
+            return { success: true, action };
+        });
     }
-    // Case 2: Application was approved - retain uniqueness protection
-    if (newStatus === 'approved') {
-        const promises = [];
-        if (emailLockRef) {
-            promises.push(emailLockRef.set({
-                applicationId: appId,
+    // Non-transactional fallback if db does not support runTransaction
+    for (const ref of lockRefs) {
+        const snap = await ref.get();
+        if (!snap.exists)
+            continue;
+        const lockData = snap.data();
+        if (!lockData || lockData.applicationId !== cleanAppId) {
+            continue;
+        }
+        if (!afterData || newStatus === 'rejected' || newStatus === 'cancelled') {
+            await ref.delete();
+        }
+        else if (newStatus === 'approved') {
+            await ref.set({
                 status: 'approved',
                 updatedAt: firestore_2.FieldValue.serverTimestamp()
-            }, { merge: true }));
+            }, { merge: true });
         }
-        if (phoneLockRef) {
-            promises.push(phoneLockRef.set({
-                applicationId: appId,
-                status: 'approved',
-                updatedAt: firestore_2.FieldValue.serverTimestamp()
-            }, { merge: true }));
-        }
-        await Promise.all(promises);
-        return { success: true, action: 'retained_approved' };
-    }
-    // Case 3: Application is pending - keep active locks
-    if (newStatus === 'pending') {
-        const promises = [];
-        if (emailLockRef) {
-            promises.push(emailLockRef.set({
-                applicationId: appId,
+        else if (newStatus === 'pending') {
+            await ref.set({
                 status: 'pending',
                 updatedAt: firestore_2.FieldValue.serverTimestamp()
-            }, { merge: true }));
+            }, { merge: true });
         }
-        if (phoneLockRef) {
-            promises.push(phoneLockRef.set({
-                applicationId: appId,
-                status: 'pending',
-                updatedAt: firestore_2.FieldValue.serverTimestamp()
-            }, { merge: true }));
-        }
-        await Promise.all(promises);
-        return { success: true, action: 'locked_pending' };
     }
-    return { success: true, action: 'no_change' };
+    const action = !afterData || newStatus === 'rejected' || newStatus === 'cancelled'
+        ? `released_${newStatus || 'deleted'}`
+        : newStatus === 'approved'
+            ? 'retained_approved'
+            : newStatus === 'pending'
+                ? 'locked_pending'
+                : 'no_change';
+    return { success: true, action };
 }
 /**
  * Firestore trigger: onSellerApplicationWritten
  * Automatically updates or releases uniqueness locks when application documents are updated or deleted by admins.
+ * Uses the authoritative event.params.appId to guarantee lock ownership verification.
  */
 exports.onSellerApplicationWritten = (0, firestore_1.onDocumentWritten)({
     region: 'europe-west1',
     document: 'seller_applications/{appId}'
 }, async (event) => {
+    const appId = event.params.appId;
     const beforeData = event.data?.before?.data() || null;
     const afterData = event.data?.after?.data() || null;
-    await syncSellerApplicationLockLifecycle(beforeData, afterData);
+    await syncSellerApplicationLockLifecycle(appId, beforeData, afterData);
 });
 /**
  * Callable Cloud Function: submitSellerApplication
