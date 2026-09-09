@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
-import { getFeaturedStorefrontProducts } from '../lib/storefrontVisibility';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -9,6 +8,7 @@ import {
   Check,
   Tag
 } from 'lucide-react';
+import { HomePromoBanner } from './HomePromoBanner';
 
 import lebaneseMountainTownImg from '../assets/images/rachaya_mountain_perfect_1786799009637.jpg';
 
@@ -40,23 +40,16 @@ export const HomeTopContainer: React.FC = () => {
     showToast, 
     language, 
     siteContent,
-    products = [],
-    sellers = [],
     productBundles = [],
     isVisualEditMode,
-    addToCart,
-    addBundleToCart,
-    openProductDetail,
-    formatPrice
+    addBundleToCart
   } = useShop();
 
   const isAr = language === 'ar';
 
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [currentFeaturedIndex, setCurrentFeaturedIndex] = useState(0);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const featuredTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const heroData = siteContent?.hero || {};
 
@@ -206,37 +199,46 @@ export const HomeTopContainer: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Featured Product Selection using centralized shared helper
-  const featuredProductsList = getFeaturedStorefrontProducts(products, sellers, isVisualEditMode).slice(0, 5); // Limit to top 5 for the slider
-  const featuredProduct = featuredProductsList[currentFeaturedIndex] || featuredProductsList[0];
+  const promoConfig = siteContent?.promoBanner;
+  const isPromoBannerScheduleActive = () => {
+    if (!promoConfig) return false;
+    if (promoConfig.isPublished === false) return false;
+    if (promoConfig.scheduleActive) {
+      const now = new Date();
+      if (promoConfig.startDate) {
+        const start = new Date(promoConfig.startDate);
+        if (!isNaN(start.getTime()) && now < start) return false;
+      }
+      if (promoConfig.endDate) {
+        const end = new Date(promoConfig.endDate);
+        if (!isNaN(end.getTime()) && now > end) return false;
+      }
+    }
+    return true;
+  };
 
-  const resetFeaturedAutoplay = useCallback(() => {
-    if (featuredTimerRef.current) clearInterval(featuredTimerRef.current);
-    if (featuredProductsList.length <= 1) return;
-    featuredTimerRef.current = setInterval(() => {
-      setCurrentFeaturedIndex((prev) => (prev + 1) % featuredProductsList.length);
-    }, 4000); // 4 seconds for featured products
-  }, [featuredProductsList.length]);
+  const hasPromoContent = Boolean(
+    promoConfig && (
+      promoConfig.title || 
+      promoConfig.titleArabic || 
+      promoConfig.imageUrl || 
+      promoConfig.description || 
+      promoConfig.descriptionArabic || 
+      promoConfig.badge || 
+      promoConfig.badgeArabic ||
+      promoConfig.selectedProductId ||
+      promoConfig.targetCategory
+    )
+  );
+
+  const showPromoBanner = (promoConfig?.enabled !== false && isPromoBannerScheduleActive() && hasPromoContent) || isVisualEditMode;
 
   useEffect(() => {
     resetAutoplay();
-    resetFeaturedAutoplay();
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      if (featuredTimerRef.current) clearInterval(featuredTimerRef.current);
     };
-  }, [resetAutoplay, resetFeaturedAutoplay]);
-
-  const handleAddToCartFeatured = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!featuredProduct) return;
-    if (featuredProduct.stock === 0) {
-      showToast(isAr ? 'المنتج غير متوفر حالياً' : 'Product is out of stock', 'error');
-      return;
-    }
-    addToCart(featuredProduct, 1);
-    showToast(isAr ? 'تمت إضافة المنتج إلى السلة' : 'Added to cart successfully', 'success');
-  };
+  }, [resetAutoplay]);
 
   const activeBadge = isAr ? (currentSlide.badgeAr || currentSlide.badgeEn) : currentSlide.badgeEn;
   const activeTitle = isAr ? (currentSlide.titleAr || currentSlide.titleEn) : currentSlide.titleEn;
@@ -244,10 +246,14 @@ export const HomeTopContainer: React.FC = () => {
 
   return (
     <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mb-3 sm:mb-4">
-      {/* Top Grid: Hero Banner (2fr) & Featured Product Card (1fr) */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 sm:gap-[20px] items-stretch">
+      {/* Top Layout: Hero Banner + Generic Promotional Content Banner */}
+      <div className={`items-stretch ${
+        showPromoBanner 
+          ? 'grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4 sm:gap-[20px]' 
+          : 'w-full'
+      }`}>
         
-        {/* LEFT: Large Hero Banner */}
+        {/* LEFT / MAIN: Hero Banner */}
         <div 
           className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between p-3.5 sm:p-5 md:p-6 shadow-sm group min-w-0 h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]"
         >
@@ -353,98 +359,9 @@ export const HomeTopContainer: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT: Featured Product Card (Responsive height matching Hero module) */}
-        {featuredProduct ? (
-          <div 
-            onClick={() => openProductDetail(featuredProduct)}
-            className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-3.5 sm:p-5 md:p-6 flex flex-col justify-between relative cursor-pointer group hover:border-[#B89753]/60 transition-all shadow-sm min-w-0 h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]"
-          >
-            {/* Top Category Header & Slider Dots */}
-            <div className="flex items-center justify-between z-10">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-[#737373] truncate">
-                  {featuredProduct.category || (isAr ? 'منتج مميز' : 'Featured')}
-                </div>
-                {Array.isArray((featuredProduct as any).colors) && (featuredProduct as any).colors.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {((featuredProduct as any).colors as string[]).map((col, i) => (
-                      <span
-                        key={i}
-                        className="w-3.5 h-3.5 sm:w-[18px] sm:h-[18px] rounded-full border border-black/15 shadow-2xs flex-shrink-0"
-                        style={{ backgroundColor: col }}
-                        title={col}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-              {featuredProductsList.length > 1 && (
-                <div className="flex items-center gap-1 sm:gap-1.5">
-                  {featuredProductsList.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setCurrentFeaturedIndex(idx);
-                        resetFeaturedAutoplay();
-                      }}
-                      className={`h-1.5 rounded-full transition-all duration-300 ${
-                        idx === currentFeaturedIndex ? 'bg-[#111111] w-2.5 sm:w-3' : 'bg-[#111111]/20 hover:bg-[#111111]/40 w-1.5'
-                      }`}
-                      aria-label={`View featured product ${idx + 1}`}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Product Image Container (height proportional across mobile, tablet, desktop) */}
-            <div className="relative w-full h-[98px] min-[360px]:h-[104px] sm:h-[130px] lg:h-[200px] xl:h-[220px] my-auto py-1 sm:py-2 flex items-center justify-center overflow-hidden">
-              {featuredProductsList.map((product, idx) => (
-                <img
-                  key={product.id}
-                  src={product.image}
-                  alt={product.name}
-                  referrerPolicy="no-referrer"
-                  className={`absolute max-h-full max-w-full object-contain object-center transition-all duration-500 ${
-                    idx === currentFeaturedIndex 
-                      ? 'opacity-100 scale-100 group-hover:scale-105 z-10' 
-                      : 'opacity-0 scale-95 -z-10'
-                  }`}
-                />
-              ))}
-            </div>
-
-            {/* Product Info + Add To Cart Pill Button */}
-            <div className="flex items-end justify-between gap-2 sm:gap-3 z-10 sm:pt-3 sm:mt-auto">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-[12px] min-[360px]:text-[13px] sm:text-[15px] font-bold text-[#111111] line-clamp-2 leading-[1.25] sm:leading-snug">
-                  {isAr ? (featuredProduct.arabicName || featuredProduct.name) : featuredProduct.name}
-                </h3>
-                <p className="text-[10px] sm:text-[12px] text-[#666666] truncate mt-0.5">
-                  {featuredProduct.artisan || featuredProduct.seller || (isAr ? 'حرفي لبناني' : 'Lebanese Artisan')}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                id={`featured-add-to-cart-${featuredProduct.id}`}
-                onClick={handleAddToCartFeatured}
-                aria-label={isAr ? 'إضافة إلى السلة' : 'Add to cart'}
-                className="flex items-center gap-1 min-[360px]:gap-1.5 sm:gap-2 px-2.5 min-[360px]:px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-full bg-[#111111] hover:bg-[#8F7137] text-white text-[10px] min-[360px]:text-[11px] sm:text-[12px] font-medium tracking-wide shadow-xs transition-colors cursor-pointer flex-shrink-0 active:scale-95"
-              >
-                <span className="whitespace-nowrap">{isAr ? 'إضافة' : 'Add'}</span>
-                <span className="opacity-40">|</span>
-                <span className="font-bold text-[#F3E5AB] font-mono whitespace-nowrap">
-                  {formatPrice(featuredProduct.priceUSD)}
-                </span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-[20px] bg-[#ededed] border border-[#E5E5E5] p-6 flex items-center justify-center text-xs text-[#737373] h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]">
-            {isAr ? 'لا توجد منتجات مميزة' : 'No featured products available'}
-          </div>
+        {/* RIGHT: Generic Admin-Controlled Homepage Promotional Content Banner */}
+        {showPromoBanner && (
+          <HomePromoBanner />
         )}
 
       </div>

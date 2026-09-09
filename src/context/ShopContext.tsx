@@ -1934,6 +1934,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 ...DEFAULT_SITE_CONTENT.offers,
                 ...(data.offers || {})
               },
+              promoBanner: {
+                ...DEFAULT_SITE_CONTENT.promoBanner,
+                ...(data.promoBanner || {})
+              },
               home: {
                 ...DEFAULT_SITE_CONTENT.home,
                 ...(data.home || {})

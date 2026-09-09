@@ -26,6 +26,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
     
     // Home Page Sections
     homeHero: true,
+    homePromoBanner: true,
     homeCategories: true,
     homeOffers: true,
     homeFeatured: true,
@@ -178,6 +179,27 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
         isPublished: true,
       }
     ]
+  },
+  promoBanner: {
+    enabled: true,
+    type: 'custom',
+    badge: 'Artisan Spotlight',
+    badgeArabic: 'تسليط الضوء الحرفي',
+    title: 'Authentic Heritage Crafts & Mouneh',
+    titleArabic: 'حرف ومونة تراثية أصيلة',
+    description: 'Directly supporting independent Lebanese artisans, cooperatives, and traditional workshops.',
+    descriptionArabic: 'دعم مباشر للحرفيين والتعاونيات والمشاغل اللبنانية الأصيلة في مختلف المناطق.',
+    imageUrl: 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800',
+    imageFit: 'contain',
+    bgStyle: 'default',
+    showCta: true,
+    ctaText: 'Explore Collection',
+    ctaTextArabic: 'تصفح التشكيلة',
+    ctaUrl: '/products',
+    ctaType: 'button',
+    contentAlignment: 'left',
+    isPublished: true,
+    scheduleActive: false
   },
   home: {
     featuredTitle: 'Featured Lebanese Treasures',

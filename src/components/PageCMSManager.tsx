@@ -663,6 +663,7 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'ho
                 homeData={cmsForm.home as any}
                 heroData={cmsForm.hero as any}
                 offersData={cmsForm.offers as any}
+                promoBannerData={cmsForm.promoBanner as any}
                 onChangeHomeField={(field, value) => {
                   handleUpdate(prev => ({
                     ...prev,
@@ -687,6 +688,15 @@ export const PageCMSManager: React.FC<PageCMSManagerProps> = ({ initialTab = 'ho
                     offers: {
                       ...(prev.offers as any),
                       [field]: value
+                    }
+                  }));
+                }}
+                onChangePromoBannerField={(updates) => {
+                  handleUpdate(prev => ({
+                    ...prev,
+                    promoBanner: {
+                      ...(prev.promoBanner as any),
+                      ...updates
                     }
                   }));
                 }}

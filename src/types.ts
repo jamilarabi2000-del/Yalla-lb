@@ -292,6 +292,36 @@ export interface CMSCustomBlock {
   order: number;
 }
 
+export interface CMSPromoBannerConfig {
+  id?: string;
+  enabled?: boolean;
+  type?: 'custom' | 'product_promotion' | 'category_promotion' | 'image_only' | 'text_only';
+  badge?: string;
+  badgeArabic?: string;
+  title?: string;
+  titleArabic?: string;
+  description?: string;
+  descriptionArabic?: string;
+  imageUrl?: string;
+  imageFit?: 'cover' | 'contain' | 'fill';
+  bgStyle?: 'default' | 'dark' | 'light' | 'gold_gradient' | 'emerald_gradient' | 'custom_color';
+  customBgColor?: string;
+  customTextColor?: string;
+  showCta?: boolean;
+  ctaText?: string;
+  ctaTextArabic?: string;
+  ctaUrl?: string;
+  ctaType?: 'button' | 'link';
+  targetCategory?: string;
+  selectedProductId?: string;
+  selectedProductIds?: string[];
+  contentAlignment?: 'left' | 'center' | 'right';
+  isPublished?: boolean;
+  scheduleActive?: boolean;
+  startDate?: string;
+  endDate?: string;
+}
+
 export interface SectionVisibilityConfig {
   // Global & Navbar
   announcementTicker: boolean;
@@ -302,6 +332,7 @@ export interface SectionVisibilityConfig {
   
   // Home Page
   homeHero: boolean;
+  homePromoBanner?: boolean;
   homeCategories: boolean;
   homeOffers: boolean;
   homeFeatured: boolean;
@@ -419,6 +450,7 @@ export interface SiteContent {
     sectionSubtitleArabic?: string;
     slides: CMSOfferSlide[];
   };
+  promoBanner?: CMSPromoBannerConfig;
   home: {
     featuredTitle: string;
     featuredTitleArabic?: string;

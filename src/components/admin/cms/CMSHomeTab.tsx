@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CMSHeroStat, CMSOfferSlide, CMSHeroMediaItem } from '../../../types';
+import { CMSHeroStat, CMSOfferSlide, CMSHeroMediaItem, CMSPromoBannerConfig } from '../../../types';
 import { 
   Sparkles, 
   Tag, 
@@ -29,11 +29,13 @@ import {
   ExternalLink,
   Calendar,
   Clock,
-  Maximize2
+  Maximize2,
+  Layers
 } from 'lucide-react';
 import { BilingualField } from './BilingualField';
 import { MediaAssetPicker } from './MediaAssetPicker';
 import { CMSFieldGroup } from './CMSFieldGroup';
+import { CMSPromoBannerEditor } from './CMSPromoBannerEditor';
 
 // Helper to determine slide visibility and scheduling status
 export const getSlideScheduleStatus = (item: { 
@@ -188,18 +190,22 @@ interface CMSHomeTabProps {
     sectionSubtitleArabic?: string;
     slides: CMSOfferSlide[];
   };
+  promoBannerData?: CMSPromoBannerConfig;
   onChangeHomeField: (field: string, value: string) => void;
   onChangeHeroField: (field: string, value: any) => void;
   onChangeOffersField: (field: string, value: any) => void;
+  onChangePromoBannerField?: (updates: Partial<CMSPromoBannerConfig>) => void;
 }
 
 export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
   homeData,
   heroData,
   offersData,
+  promoBannerData,
   onChangeHomeField,
   onChangeHeroField,
   onChangeOffersField,
+  onChangePromoBannerField,
 }) => {
   const [editingSlide, setEditingSlide] = useState<CMSOfferSlide | null>(null);
   const [isCreatingSlide, setIsCreatingSlide] = useState(false);
@@ -429,6 +435,7 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
   // Section collapse states (all expanded by default for full visibility)
   const [sectionExpansion, setSectionExpansion] = useState<Record<string, boolean>>({
     hero: true,
+    promoBanner: true,
     offers: true,
     trust: true,
     categories: true,
@@ -489,6 +496,14 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
                 {heroMediaItems.length}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToSection('promo-banner')}
+            className="px-2.5 py-1 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold border border-white/5 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <Layers className="w-3 h-3 text-amber-400" />
+            <span>Promo Banner</span>
           </button>
           <button
             type="button"
@@ -1425,7 +1440,29 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
         )}
       </div>
 
-      {/* 2. Promotional Offers & Carousel Slides */}
+      {/* 2. Generic Homepage Promotional Banner Section */}
+      <div id="sec-promo-banner">
+        <CMSFieldGroup
+          id="sec-promo-banner-group"
+          title="Homepage Promotional Content Banner"
+          description="Fully admin-controlled banner block positioned alongside the homepage hero slider (Image, text, CTA, product, or category promo)"
+          icon={<Layers className="w-5 h-5 text-amber-400 shrink-0" aria-hidden="true" />}
+          badge={
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-bold border border-amber-500/20">
+              Hero Companion Block
+            </span>
+          }
+          isExpanded={sectionExpansion['promoBanner']}
+          onToggle={() => toggleSection('promoBanner')}
+        >
+          <CMSPromoBannerEditor
+            promoBannerData={promoBannerData}
+            onChangePromoBanner={onChangePromoBannerField || (() => {})}
+          />
+        </CMSFieldGroup>
+      </div>
+
+      {/* 3. Promotional Offers & Carousel Slides */}
       <div id="sec-offers" className="bg-[#121222] border border-white/10 rounded-3xl p-6 space-y-5 transition-all duration-300">
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-2">
