@@ -719,7 +719,7 @@ export const HomeView: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 sm:space-y-12 pb-12 bg-[#F7F6F1]">
+    <div className="pb-12 bg-[#F7F6F1]">
       
       {/* Top Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="top" />
@@ -727,11 +727,15 @@ export const HomeView: React.FC = () => {
       {/* Middle Custom Divs / Banners */}
       <CustomBlocksRenderer page="home" position="middle" />
 
-      {/* Dynamic Ordered Homepage Sections */}
-      {activeSectionOrder.map(sectionId => renderSectionItem(sectionId))}
+      <div className="space-y-8 sm:space-y-12">
+        {/* Dynamic Ordered Homepage Sections */}
+        {activeSectionOrder.map(sectionId => renderSectionItem(sectionId))}
+      </div>
 
       {/* Bottom Custom Divs / Banners */}
-      <CustomBlocksRenderer page="home" position="bottom" />
+      <div className="mt-8 sm:mt-12">
+        <CustomBlocksRenderer page="home" position="bottom" />
+      </div>
 
     </div>
   );
