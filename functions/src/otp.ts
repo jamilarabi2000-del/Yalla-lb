@@ -82,6 +82,10 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
   const sendgridKey = process.env.SENDGRID_API_KEY;
 
   if (resendApiKey) {
+    let sender = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
+    if (sender.includes('@gmail.com') || sender.includes('@yahoo.com') || sender.includes('@hotmail.com')) {
+      sender = 'onboarding@resend.dev';
+    }
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -89,14 +93,16 @@ async function sendOtpDelivery(contact: string, actionType: string, numericCode:
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: process.env.SENDER_EMAIL || 'security@yalla.lb',
+        from: sender,
         to: contact,
         subject: `Your Verification Code (${actionType.toUpperCase()})`,
         html: `<p>Your single-use verification code is: <strong>${numericCode}</strong>. It expires in 5 minutes.</p>`
       })
     });
     if (!response.ok) {
-      throw new HttpsError('internal', 'Failed to dispatch verification code via Resend provider.');
+      const errText = await response.text();
+      console.error("[Resend API Error]:", errText);
+      throw new HttpsError('internal', `Failed to dispatch verification code via Resend provider: ${errText}`);
     }
     return;
   }
