@@ -8,7 +8,7 @@ import {
   Check,
   Tag
 } from 'lucide-react';
-import { HomePromoBanner } from './HomePromoBanner';
+import { HomepagePromoSlider } from './HomepagePromoSlider';
 
 import lebaneseMountainTownImg from '../assets/images/rachaya_mountain_perfect_1786799009637.jpg';
 
@@ -200,38 +200,44 @@ export const HomeTopContainer: React.FC = () => {
   };
 
   const promoConfig = siteContent?.promoBanner;
-  const isPromoBannerScheduleActive = () => {
-    if (!promoConfig) return false;
-    if (promoConfig.isPublished === false) return false;
-    if (promoConfig.scheduleActive) {
-      const now = new Date();
-      if (promoConfig.startDate) {
-        const start = new Date(promoConfig.startDate);
-        if (!isNaN(start.getTime()) && now < start) return false;
+  const hasValidPromoSlide = () => {
+    if (!promoConfig || promoConfig.enabled === false) return false;
+    
+    const isSlideValid = (slide: any) => {
+      if (!slide) return false;
+      if (slide.isPublished === false) return false;
+      if (slide.scheduleActive) {
+        const now = new Date();
+        if (slide.startDate) {
+          const start = new Date(slide.startDate);
+          if (!isNaN(start.getTime()) && now < start) return false;
+        }
+        if (slide.endDate) {
+          const end = new Date(slide.endDate);
+          if (!isNaN(end.getTime()) && now > end) return false;
+        }
       }
-      if (promoConfig.endDate) {
-        const end = new Date(promoConfig.endDate);
-        if (!isNaN(end.getTime()) && now > end) return false;
-      }
+      return Boolean(
+        slide.title || 
+        slide.titleArabic || 
+        slide.imageUrl || 
+        slide.description || 
+        slide.descriptionArabic || 
+        slide.badge || 
+        slide.badgeArabic ||
+        slide.selectedProductId ||
+        slide.targetCategory ||
+        slide.ctaUrl
+      );
+    };
+
+    if (Array.isArray(promoConfig.slides) && promoConfig.slides.length > 0) {
+      return promoConfig.slides.some(isSlideValid);
     }
-    return true;
+    return isSlideValid(promoConfig);
   };
 
-  const hasPromoContent = Boolean(
-    promoConfig && (
-      promoConfig.title || 
-      promoConfig.titleArabic || 
-      promoConfig.imageUrl || 
-      promoConfig.description || 
-      promoConfig.descriptionArabic || 
-      promoConfig.badge || 
-      promoConfig.badgeArabic ||
-      promoConfig.selectedProductId ||
-      promoConfig.targetCategory
-    )
-  );
-
-  const showPromoBanner = (promoConfig?.enabled !== false && isPromoBannerScheduleActive() && hasPromoContent) || isVisualEditMode;
+  const showPromoBanner = hasValidPromoSlide() || isVisualEditMode;
 
   useEffect(() => {
     resetAutoplay();
@@ -359,9 +365,9 @@ export const HomeTopContainer: React.FC = () => {
           </div>
         </div>
 
-        {/* RIGHT: Generic Admin-Controlled Homepage Promotional Content Banner */}
+        {/* RIGHT: Generic Admin-Controlled Homepage Promotional Content Slider */}
         {showPromoBanner && (
-          <HomePromoBanner />
+          <HomepagePromoSlider />
         )}
 
       </div>

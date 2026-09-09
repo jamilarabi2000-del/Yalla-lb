@@ -292,9 +292,48 @@ export interface CMSCustomBlock {
   order: number;
 }
 
-export interface CMSPromoBannerConfig {
+export interface CMSPromoSlide {
+  id: string;
+  isPublished?: boolean;
+  type?: 'custom' | 'product_promotion' | 'category_promotion' | 'image_only' | 'text_only';
+  badge?: string;
+  badgeArabic?: string;
+  title?: string;
+  titleArabic?: string;
+  description?: string;
+  descriptionArabic?: string;
+  imageUrl?: string;
+  imageFit?: 'cover' | 'contain' | 'fill';
+  bgStyle?: 'default' | 'dark' | 'light' | 'gold_gradient' | 'emerald_gradient' | 'custom_color';
+  customBgColor?: string;
+  customTextColor?: string;
+  showCta?: boolean;
+  ctaText?: string;
+  ctaTextArabic?: string;
+  ctaUrl?: string;
+  ctaType?: 'button' | 'link';
+  targetCategory?: string;
+  selectedProductId?: string;
+  selectedProductIds?: string[];
+  contentAlignment?: 'left' | 'center' | 'right';
+  scheduleActive?: boolean;
+  startDate?: string;
+  endDate?: string;
+  order?: number;
+}
+
+export interface CMSPromoSliderConfig {
   id?: string;
   enabled?: boolean;
+  autoplay?: boolean;
+  autoplayInterval?: number; // In milliseconds, default 5000
+  showArrows?: boolean;
+  showDots?: boolean;
+  loop?: boolean;
+  transitionEffect?: 'slide' | 'fade';
+  slides?: CMSPromoSlide[];
+  
+  // Single slide backward-compatibility fields:
   type?: 'custom' | 'product_promotion' | 'category_promotion' | 'image_only' | 'text_only';
   badge?: string;
   badgeArabic?: string;
@@ -321,6 +360,8 @@ export interface CMSPromoBannerConfig {
   startDate?: string;
   endDate?: string;
 }
+
+export type CMSPromoBannerConfig = CMSPromoSliderConfig;
 
 export interface SectionVisibilityConfig {
   // Global & Navbar

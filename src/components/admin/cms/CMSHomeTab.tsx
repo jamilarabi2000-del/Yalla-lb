@@ -1444,12 +1444,12 @@ export const CMSHomeTab: React.FC<CMSHomeTabProps> = ({
       <div id="sec-promo-banner">
         <CMSFieldGroup
           id="sec-promo-banner-group"
-          title="Homepage Promotional Content Banner"
-          description="Fully admin-controlled banner block positioned alongside the homepage hero slider (Image, text, CTA, product, or category promo)"
+          title="Homepage Promotional Content Slider & Carousel"
+          description="Fully admin-controlled responsive slider/carousel positioned alongside the homepage hero (Multiple slides, autoplay, arrows, dots, loop, image/text/product/category promos)"
           icon={<Layers className="w-5 h-5 text-amber-400 shrink-0" aria-hidden="true" />}
           badge={
             <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 font-bold border border-amber-500/20">
-              Hero Companion Block
+              Responsive Slider Block
             </span>
           }
           isExpanded={sectionExpansion['promoBanner']}
