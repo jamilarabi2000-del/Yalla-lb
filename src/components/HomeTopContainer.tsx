@@ -266,7 +266,7 @@ export const HomeTopContainer: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mt-10 sm:mt-12 mb-4">
+    <div className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 mb-4">
       {/* Top Grid: Hero Banner (2fr) & Featured Product Card (1fr) */}
       <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-[20px] items-stretch">
         
