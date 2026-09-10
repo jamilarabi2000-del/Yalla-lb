@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { auth } from '../firebase';
 import { secureRandomInt } from '../utils/uuid';
 import { sanitizeRowForCsv } from '../utils/csvSafe';
 import { useShop } from '../context/ShopContext';
@@ -321,6 +322,8 @@ export const AdminView: React.FC = () => {
     user = null,
     firebaseUser = null,
     isAdminUser = false,
+    isLoadingAuth = false,
+    refreshUserProfile = async () => {},
     signInWithEmail = async (e: string, p: string) => {},
     signOutUser = async () => {},
     isDbSyncing = false, resetPassword = async (email: string) => {}
@@ -726,7 +729,7 @@ export const AdminView: React.FC = () => {
   // Active Carts count backed by database
   const activeCartsCount = dbActiveCartsCount;
 
-  if (isVerifyingAuth) {
+  if (isLoadingAuth || isVerifyingAuth) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 text-white">
         <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-sm w-full space-y-6 shadow-2xl text-center">
@@ -915,11 +918,26 @@ export const AdminView: React.FC = () => {
               Access Denied
             </h1>
             <p className="text-xs text-slate-500 pt-2 leading-relaxed">
-              Signed in as <span className="font-semibold text-slate-800">{firebaseUser.email || firebaseUser.uid}</span>. Only the registered administrator email is permitted.
+              Your account is authenticated but does not have administrator privileges. Please refresh your session or contact the system administrator.
             </p>
           </div>
 
           <div className="space-y-3 pt-2">
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (auth.currentUser) {
+                  await auth.currentUser.getIdToken(true);
+                  await refreshUserProfile();
+                }
+              }}
+              className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs tracking-wide transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Refresh Session</span>
+            </button>
+
             <button
               type="button"
               onClick={async (e) => { e.stopPropagation();

@@ -85,8 +85,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Check custom claims ONLY
-      const tokenResult = await fbUser.getIdTokenResult().catch(() => null);
+      // Force refresh ID token to get latest custom claims
+      await fbUser.getIdToken(true).catch(() => {});
+      const tokenResult = await fbUser.getIdTokenResult(true).catch(() => null);
       const hasAdminClaim = Boolean(tokenResult?.claims?.admin === true);
       const hasSellerClaim = Boolean(tokenResult?.claims?.seller === true);
       const claimSellerId = typeof tokenResult?.claims?.sellerId === 'string' ? tokenResult.claims.sellerId : null;
@@ -148,9 +149,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!firebaseUser || !db) return;
 
     try {
+      await firebaseUser.getIdToken(true).catch(() => {});
       const [snap, tokenResult] = await Promise.all([
         getDoc(doc(db, 'users', firebaseUser.uid)),
-        firebaseUser.getIdTokenResult()
+        firebaseUser.getIdTokenResult(true)
       ]);
 
       const hasAdminClaim = tokenResult.claims.admin === true;

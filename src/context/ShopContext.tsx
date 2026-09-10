@@ -262,6 +262,7 @@ interface ShopContextType {
   isSellerUser: boolean;
   sellerId: string | null;
   isEmailVerified: boolean;
+  isLoadingAuth: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, phone?: string) => Promise<void>;
   sendEmailSignInLink: (email: string) => Promise<void>;
@@ -270,6 +271,7 @@ interface ShopContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
   signOutUser: () => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
 
   // Search & Filtering
   searchQuery: string;
@@ -460,6 +462,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isSellerUser, setIsSellerUser] = useState(false);
   const [sellerId, setSellerId] = useState<string | null>(null);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
     if (!firebaseUser) { setIsEmailVerified(false); return; }
@@ -2440,6 +2443,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(INITIAL_USER);
         setIsAdminUser(false);
         setIsLocalAdminUnlockedState(false);
+        setIsLoadingAuth(false);
         setOrders([]);
         try {
           localStorage.removeItem('yallalb_orders');
@@ -2508,8 +2512,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch {}
 
-          // Obtain authoritative claims from Firebase Auth token
-          const tokenResult = await userObj.getIdTokenResult().catch(() => null);
+          // Force refresh ID token to ensure latest claims (e.g. admin claim) are fetched immediately
+          await userObj.getIdToken(true).catch(() => {});
+          const tokenResult = await userObj.getIdTokenResult(true).catch(() => null);
           const hasAdminClaim = tokenResult?.claims?.admin === true;
           const hasSellerClaim = tokenResult?.claims?.seller === true;
           const claimSellerId =
@@ -2520,6 +2525,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setIsAdminUser(hasAdminClaim);
           setIsSellerUser(hasSellerClaim);
           setSellerId(claimSellerId);
+          setIsLoadingAuth(false);
 
           if (userSnap.exists()) {
             const data = (userSnap.data() || {}) as Record<string, any>;
@@ -2969,6 +2975,35 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'auth');
     }
+  };
+
+  const refreshUserProfile = async () => {
+    if (!firebaseUser || !db) return;
+    try {
+      await firebaseUser.getIdToken(true);
+      const [userSnap, tokenResult] = await Promise.all([
+        safeGetDoc(doc(db, 'users', firebaseUser.uid)),
+        firebaseUser.getIdTokenResult(true)
+      ]);
+      const hasAdminClaim = tokenResult.claims.admin === true;
+      const hasSellerClaim = tokenResult.claims.seller === true;
+      const claimSellerId = typeof tokenResult.claims.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+
+      setIsAdminUser(hasAdminClaim);
+      setIsSellerUser(hasSellerClaim);
+      setSellerId(claimSellerId);
+
+      if (userSnap.exists()) {
+        const data = (userSnap.data() || {}) as Record<string, any>;
+        let cachedShipping: Partial<UserProfile> = {};
+        try {
+          const rawCache = localStorage.getItem('yallalb_saved_checkout_data');
+          if (rawCache) cachedShipping = JSON.parse(rawCache);
+        } catch {}
+        const fallbackNames = { firstName: '', lastName: '', name: firebaseUser.displayName || '' };
+        setUser(mapSafeShopUserProfile(data, firebaseUser, claimSellerId, cachedShipping, fallbackNames));
+      }
+    } catch {}
   };
 
 
@@ -4421,6 +4456,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signInWithGoogle,
     signInWithApple,
     signOutUser,
+    refreshUserProfile,
+    isLoadingAuth,
     searchQuery,
     setSearchQuery,
     logSearchQuery,
