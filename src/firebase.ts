@@ -43,8 +43,42 @@ export const IS_FIREBASE_ENABLED = import.meta.env.PROD ? true : (import.meta.en
 
 export const app = initializeApp(firebaseConfig);
 
-// App Check / reCAPTCHA disabled in preview environment to prevent recaptcha-error
-console.info("[Firebase] App Check disabled.");
+// Initialize Firebase App Check immediately after initializeApp and BEFORE Auth, Firestore, Functions, etc.
+if (typeof window !== 'undefined') {
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  // If an explicit App Check debug token is provided, activate it for non-production environments
+  const explicitDebugToken = typeof import.meta.env.VITE_APPCHECK_DEBUG_TOKEN === 'string' 
+    ? import.meta.env.VITE_APPCHECK_DEBUG_TOKEN.trim() 
+    : '';
+
+  if (!import.meta.env.PROD && explicitDebugToken) {
+    (window as any).FIREBASE_APPCHECK_DEBUG_TOKEN = explicitDebugToken;
+    console.info("[Firebase] App Check configured with explicit debug token.");
+  } else if (import.meta.env.DEV && isLocalhost) {
+    (window as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+    console.info("[Firebase] App Check debug mode active on localhost.");
+  }
+
+  const siteKey = (firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY || '').trim();
+
+  if (!siteKey) {
+    console.warn("[Firebase] Warning: reCAPTCHA Enterprise site key is not configured.");
+  }
+
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(siteKey),
+      isTokenAutoRefreshEnabled: true
+    });
+    console.info(`[Firebase] App Check initialized with ReCaptchaEnterpriseProvider (siteKey: ${siteKey ? siteKey.slice(0, 6) + '...' : 'missing'}). Origin domain: ${window.location.hostname}. (Note: Ensure "${window.location.hostname}" or "run.app" is in your reCAPTCHA Enterprise key's allowed domains).`);
+  } catch (err: any) {
+    console.error("[Firebase] App Check initialization failed:", err?.message || err);
+    if (import.meta.env.PROD && siteKey) {
+      throw err;
+    }
+  }
+}
 
 let firestoreInstance: Firestore;
 try {

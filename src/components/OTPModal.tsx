@@ -47,8 +47,15 @@ export const OTPModal: React.FC<OTPModalProps> = ({
         setCanResend(false);
       }
     } catch (err: any) {
-      console.error('[OTPModal] requestOtp failed:', err);
-      const msg = err?.message || (isArabic ? 'فشل إرسال رمز التحقق. يرجى إعادة المحاولة.' : 'Failed to send OTP code. Please try again.');
+      const isAppCheckError = err?.message?.includes('AppCheck') || err?.message?.includes('appCheck');
+      if (isAppCheckError) {
+        console.warn('[OTPModal] App Check token acquisition failed:', err?.message || err);
+      } else {
+        console.error('[OTPModal] requestOtp failed:', err);
+      }
+      const msg = isAppCheckError 
+        ? (isArabic ? 'فشل التحقق الأمني (App Check). يرجى التأكد من الإعدادات وإعادة المحاولة.' : 'App Check security verification failed. Please try again.')
+        : (err?.message || (isArabic ? 'فشل إرسال رمز التحقق. يرجى إعادة المحاولة.' : 'Failed to send OTP code. Please try again.'));
       setErrorMsg(msg);
     } finally {
       setIsRequesting(false);
@@ -150,8 +157,15 @@ export const OTPModal: React.FC<OTPModalProps> = ({
         throw new Error(isArabic ? 'فشل التحقق من رمز OTP.' : 'OTP verification failed.');
       }
     } catch (err: any) {
-      console.error('[OTPModal] verifyOtp error:', err);
-      const msg = err?.message || (isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.');
+      const isAppCheckError = err?.message?.includes('AppCheck') || err?.message?.includes('appCheck');
+      if (isAppCheckError) {
+        console.warn('[OTPModal] App Check token acquisition failed during verifyOtp:', err?.message || err);
+      } else {
+        console.error('[OTPModal] verifyOtp error:', err);
+      }
+      const msg = isAppCheckError
+        ? (isArabic ? 'فشل التحقق الأمني (App Check). يرجى إعادة المحاولة.' : 'App Check security verification failed. Please try again.')
+        : (err?.message || (isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.'));
       setErrorMsg(msg);
       setOtpDigits(['', '', '', '', '', '']);
       if (inputRefs.current[0]) {
