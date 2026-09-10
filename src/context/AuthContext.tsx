@@ -4,6 +4,8 @@ import { auth, db, IS_FIREBASE_ENABLED } from '../firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { UserProfile } from '../types';
 
+export type AuthStatus = 'loading' | 'unauthenticated' | 'authenticated_non_admin' | 'authenticated_admin';
+
 export interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   user: UserProfile | null;
@@ -11,6 +13,7 @@ export interface AuthContextType {
   isSellerUser: boolean;
   sellerId: string | null;
   isLoadingAuth: boolean;
+  authStatus: AuthStatus;
   logout: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
 }
@@ -85,27 +88,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      // Force refresh ID token to get latest custom claims
-      await fbUser.getIdToken(true).catch(() => {});
-      const tokenResult = await fbUser.getIdTokenResult(true).catch(() => null);
-      const hasAdminClaim = Boolean(tokenResult?.claims?.admin === true);
-      const hasSellerClaim = Boolean(tokenResult?.claims?.seller === true);
-      const claimSellerId = typeof tokenResult?.claims?.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+      let hasAdminClaim = false;
+      let hasSellerClaim = false;
+      let claimSellerId: string | null = null;
+
+      try {
+        await fbUser.getIdToken(true);
+        const tokenResult = await fbUser.getIdTokenResult(true);
+        hasAdminClaim = Boolean(tokenResult?.claims?.admin === true);
+        hasSellerClaim = Boolean(tokenResult?.claims?.seller === true);
+        claimSellerId = typeof tokenResult?.claims?.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+      } catch {
+        // Token refresh failed
+      }
 
       setIsAdminUser(hasAdminClaim);
       setIsSellerUser(hasSellerClaim);
       setSellerId(claimSellerId);
+      setIsLoadingAuth(false); // Independent of Firestore user document existence
 
-      // Listen to user profile document
+      // Listen to user profile document asynchronously
       if (db) {
         const userDocRef = doc(db, 'users', fbUser.uid);
         const unsubProfile = onSnapshot(userDocRef, (snap) => {
           if (snap.exists()) {
             setUser(mapUserProfile(snap.data(), fbUser, claimSellerId));
-            // Strictly enforce custom claims only, do not fallback to db fields or role values
-            setIsAdminUser(hasAdminClaim);
-            setIsSellerUser(hasSellerClaim);
-            setSellerId(claimSellerId);
           } else {
             setUser({
               uid: fbUser.uid,
@@ -120,14 +127,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               emailVerified: fbUser.emailVerified
             });
           }
-          setIsLoadingAuth(false);
-        }, () => {
-          setIsLoadingAuth(false);
-        });
+        }, () => {});
 
         return () => unsubProfile();
-      } else {
-        setIsLoadingAuth(false);
       }
     });
 
@@ -182,6 +184,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const authStatus: AuthStatus = isLoadingAuth
+    ? 'loading'
+    : !firebaseUser
+    ? 'unauthenticated'
+    : isAdminUser
+    ? 'authenticated_admin'
+    : 'authenticated_non_admin';
+
   return (
     <AuthContext.Provider value={{
       firebaseUser,
@@ -190,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isSellerUser,
       sellerId,
       isLoadingAuth,
+      authStatus,
       logout,
       refreshUserProfile
     }}>

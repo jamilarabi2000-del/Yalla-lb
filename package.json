@@ -17,8 +17,9 @@
     "test:uuid": "vitest run test/uuid.test.ts",
     "test:otp": "vitest run test/otp.test.ts",
     "test:appcheck": "vitest run test/appCheck.test.ts",
+    "test:admin-auth": "vitest run test/adminAuth.test.ts",
     "test:rules": "command -v java >/dev/null 2>&1 && npx firebase emulators:exec --only firestore \"vitest run test/rules.test.ts\" || echo \"[Note] Java not installed in current environment - skipping emulator test:rules (runs in GitHub Actions CI)\"",
-    "verify": "npm run lint && npm run test:delivery && npm run test:pricing && npm run test:catalog && npm run test:security && npm run test:uuid && npm run test:otp && npm run test:appcheck && npm run test:rules",
+    "verify": "npm run lint && npm run test:delivery && npm run test:pricing && npm run test:catalog && npm run test:security && npm run test:uuid && npm run test:otp && npm run test:appcheck && npm run test:admin-auth && npm run test:rules",
     "grant-admin": "node scripts/grant-admin.mjs",
     "grant-seller": "node scripts/grant-seller.mjs"
   },

@@ -263,6 +263,7 @@ interface ShopContextType {
   sellerId: string | null;
   isEmailVerified: boolean;
   isLoadingAuth: boolean;
+  authStatus: 'loading' | 'unauthenticated' | 'authenticated_non_admin' | 'authenticated_admin';
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, phone?: string) => Promise<void>;
   sendEmailSignInLink: (email: string) => Promise<void>;
@@ -4458,6 +4459,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signOutUser,
     refreshUserProfile,
     isLoadingAuth,
+    authStatus: (isLoadingAuth
+      ? 'loading'
+      : !firebaseUser
+      ? 'unauthenticated'
+      : isAdminUser
+      ? 'authenticated_admin'
+      : 'authenticated_non_admin') as 'loading' | 'unauthenticated' | 'authenticated_non_admin' | 'authenticated_admin',
     searchQuery,
     setSearchQuery,
     logSearchQuery,
