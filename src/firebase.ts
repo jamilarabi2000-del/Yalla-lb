@@ -15,6 +15,9 @@ import {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail,
   sendEmailVerification,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
   // Note: fetchSignInMethodsForEmail intentionally omitted to prevent account-enumeration attacks
   Auth
 } from 'firebase/auth';
@@ -146,6 +149,9 @@ export {
   createUserWithEmailAndPassword, 
   sendPasswordResetEmail, 
   sendEmailVerification,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
   httpsCallable
 };
 export type { FirebaseUser, Functions };

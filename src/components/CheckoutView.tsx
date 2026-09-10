@@ -59,6 +59,7 @@ export const CheckoutView: React.FC = () => {
     checkPhoneUniqueness,
     signInWithEmail,
     signUpWithEmail,
+    sendEmailSignInLink,
     resetPassword,
     signInWithGoogle,
     signInWithApple,
@@ -312,18 +313,15 @@ export const CheckoutView: React.FC = () => {
       return;
     }
     
-    setOtpTargetContact(authEmail);
-    setOtpActionType('login');
-    setPendingAuthAction(() => async () => {
-      setIsAuthLoading(true);
-      try {
-        await signInWithEmail(authEmail, authPassword);
-        showToast(isArabic ? 'تم تسجيل الدخول بنجاح! يمكنك الآن إتمام الطلب.' : 'Logged in successfully! You can now complete your order.', 'success');
-      } finally {
-        setIsAuthLoading(false);
-      }
-    });
-    setShowOtpModal(true);
+    setIsAuthLoading(true);
+    try {
+      await signInWithEmail(authEmail, authPassword);
+      showToast(isArabic ? 'تم تسجيل الدخول بنجاح! يمكنك الآن إتمام الطلب.' : 'Logged in successfully! You can now complete your order.', 'success');
+    } catch {
+      // Error handled with toast in context
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   // Sign Up Handler from Checkout
@@ -360,54 +358,48 @@ export const CheckoutView: React.FC = () => {
       setIsAuthLoading(false);
       return;
     }
-    setIsAuthLoading(false);
 
     const fullName = `${signupFirstName.trim()} ${signupLastName.trim()}`;
     const formattedPhone = `+961 ${cleanPhone}`;
-    const contactInfo = authEmail || formattedPhone;
 
-    setOtpTargetContact(contactInfo);
-    setOtpActionType('signup');
-    setPendingAuthAction(() => async () => {
-      setIsAuthLoading(true);
+    try {
       try {
-        try {
-          localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
-            firstName: signupFirstName.trim(),
-            lastName: signupLastName.trim(),
-            phone: formattedPhone,
-            defaultCity: formData.city || 'Achrafieh, Beirut',
-            defaultAddress: formData.street || '',
-            defaultBuilding: formData.building || '',
-            defaultNotes: formData.notes || ''
-          }));
-        } catch {}
-        await signUpWithEmail(authEmail, authPassword, cleanPhone);
-        await updateUser({
-          name: fullName,
+        localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
           firstName: signupFirstName.trim(),
           lastName: signupLastName.trim(),
-          email: authEmail,
           phone: formattedPhone,
           defaultCity: formData.city || 'Achrafieh, Beirut',
           defaultAddress: formData.street || '',
           defaultBuilding: formData.building || '',
           defaultNotes: formData.notes || ''
-        });
-        // Auto fill form data
-        setFormData(prev => ({
-          ...prev,
-          firstName: signupFirstName.trim(),
-          lastName: signupLastName.trim(),
-          phone: formattedPhone,
-          email: authEmail
         }));
-        showToast(isArabic ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' : 'Account created and signed in successfully!', 'success');
-      } finally {
-        setIsAuthLoading(false);
-      }
-    });
-    setShowOtpModal(true);
+      } catch {}
+      await signUpWithEmail(authEmail, authPassword, cleanPhone);
+      await updateUser({
+        name: fullName,
+        firstName: signupFirstName.trim(),
+        lastName: signupLastName.trim(),
+        email: authEmail,
+        phone: formattedPhone,
+        defaultCity: formData.city || 'Achrafieh, Beirut',
+        defaultAddress: formData.street || '',
+        defaultBuilding: formData.building || '',
+        defaultNotes: formData.notes || ''
+      });
+      // Auto fill form data
+      setFormData(prev => ({
+        ...prev,
+        firstName: signupFirstName.trim(),
+        lastName: signupLastName.trim(),
+        phone: formattedPhone,
+        email: authEmail
+      }));
+      showToast(isArabic ? 'تم إنشاء الحساب وتسجيل الدخول بنجاح!' : 'Account created and signed in successfully!', 'success');
+    } catch {
+      // Error handled with toast in context
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   // Google Sign In Handler
@@ -912,6 +904,38 @@ export const CheckoutView: React.FC = () => {
                       >
                         <LogIn className="w-4 h-4 text-[#B89753]" />
                         <span>{isAuthLoading ? (isArabic ? 'جاري التحقق...' : 'Signing in...') : (isArabic ? 'تسجيل الدخول ومتابعة الطلب' : 'Sign In & Continue Checkout')}</span>
+                      </button>
+
+                      <div className="relative flex py-1 items-center">
+                        <div className="flex-grow border-t border-[#E5E5E5]"></div>
+                        <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-[#A3A3A3]">
+                          {isArabic ? 'أو بدون كلمة مرور' : 'Or Passwordless'}
+                        </span>
+                        <div className="flex-grow border-t border-[#E5E5E5]"></div>
+                      </div>
+
+                      <button
+                        type="button"
+                        id="checkout-email-link-btn"
+                        disabled={isAuthLoading || !authEmail}
+                        onClick={async () => {
+                          if (!authEmail) {
+                            showToast(isArabic ? 'يرجى إدخال البريد الإلكتروني أولاً' : 'Please enter your email address first', 'warning');
+                            return;
+                          }
+                          setIsAuthLoading(true);
+                          try {
+                            await sendEmailSignInLink(authEmail);
+                          } catch {
+                            // Error toast is handled in sendEmailSignInLink
+                          } finally {
+                            setIsAuthLoading(false);
+                          }
+                        }}
+                        className="w-full py-2.5 bg-[#8F7137]/10 hover:bg-[#8F7137]/20 text-[#8F7137] border border-[#8F7137]/30 font-bold rounded-lg text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'إرسال رابط تسجيل دخول مباشر إلى البريد' : 'Send Direct Email Sign-In Link'}</span>
                       </button>
                     </div>
                   ) : (

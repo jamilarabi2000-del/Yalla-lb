@@ -13,7 +13,7 @@ import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
 import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
-import { auth, db, functionsInstance, httpsCallable, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification } from '../firebase';
+import { auth, db, functionsInstance, httpsCallable, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from '../firebase';
 import { 
   dbLogger, 
   sanitizeFirestorePayload, 
@@ -264,6 +264,8 @@ interface ShopContextType {
   isEmailVerified: boolean;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, phone?: string) => Promise<void>;
+  sendEmailSignInLink: (email: string) => Promise<void>;
+  completeEmailLinkSignIn: (email?: string, url?: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;
@@ -2852,6 +2854,90 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const sendEmailSignInLink = async (email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      const msg = language === 'ar' ? 'الرجاء إدخال بريد إلكتروني صالح' : 'Please enter a valid email address.';
+      showToast(msg, 'warning');
+      throw new Error(msg);
+    }
+
+    const actionCodeSettings = {
+      // URL to redirect back to. In preview / production, use current origin
+      url: window.location.origin + '/account?emailSignIn=true',
+      handleCodeInApp: true,
+    };
+
+    try {
+      await sendSignInLinkToEmail(auth, cleanEmail, actionCodeSettings);
+      // Save the email locally so you don't need to ask the user for it again
+      // if they open the link on the same device.
+      window.localStorage.setItem('emailForSignIn', cleanEmail);
+      const successMsg = language === 'ar'
+        ? `تم إرسال رابط الدخول الآمن إلى ${cleanEmail}! تحقق من صندوق بريدك الإلكتروني.`
+        : `Secure sign-in link sent to ${cleanEmail}! Please check your email inbox.`;
+      showToast(successMsg, 'success');
+    } catch (err: any) {
+      console.error("[ShopContext] sendSignInLinkToEmail error:", err);
+      let msg = err.message || 'Failed to send sign-in link';
+      if (err.code === 'auth/argument-error' || err.code === 'auth/invalid-email') {
+        msg = language === 'ar' ? 'صيغة البريد الإلكتروني غير صالحة' : 'Invalid email address.';
+      } else if (err.code === 'auth/unauthorized-continue-uri') {
+        msg = language === 'ar' 
+          ? 'نطاق التطبيق غير مصرح به في إعدادات Firebase Auth Console.'
+          : 'Domain not authorized in Firebase Auth Console. Please add current domain to Authorized Domains.';
+      }
+      showToast(msg, 'warning');
+      throw err;
+    }
+  };
+
+  const completeEmailLinkSignIn = async (emailInput?: string, urlInput?: string) => {
+    const currentUrl = urlInput || window.location.href;
+    if (!isSignInWithEmailLink(auth, currentUrl)) {
+      return;
+    }
+
+    let email = emailInput || window.localStorage.getItem('emailForSignIn');
+    if (!email) {
+      // Prompt user for their email if missing
+      email = window.prompt(
+        language === 'ar'
+          ? 'يرجى تأكيد بريدك الإلكتروني لإتمام تسجيل الدخول:'
+          : 'Please enter your email to complete sign-in:'
+      ) || '';
+    }
+
+    if (!email) {
+      showToast(language === 'ar' ? 'البريد الإلكتروني مطلوب لتأكيد تسجيل الدخول' : 'Email is required to complete sign-in', 'warning');
+      return;
+    }
+
+    try {
+      await signInWithEmailLink(auth, email.trim().toLowerCase(), currentUrl);
+      window.localStorage.removeItem('emailForSignIn');
+      // Clean query parameters from URL without reloading
+      const url = new URL(currentUrl);
+      url.searchParams.delete('apiKey');
+      url.searchParams.delete('oobCode');
+      url.searchParams.delete('mode');
+      url.searchParams.delete('lang');
+      url.searchParams.delete('emailSignIn');
+      window.history.replaceState({}, document.title, url.pathname || '/');
+      showToast(language === 'ar' ? 'تم تسجيل الدخول بنجاح عبر الرابط!' : 'Successfully signed in via email link!', 'success');
+    } catch (error: any) {
+      console.error("[ShopContext] signInWithEmailLink error:", error);
+      let msg = error.message || 'Sign in link is invalid or has expired.';
+      if (error.code === 'auth/invalid-action-code') {
+        msg = language === 'ar' ? 'رابط الدخول غير صالح أو تم استخدامه مسبقاً.' : 'Sign-in link is invalid or has already been used.';
+      } else if (error.code === 'auth/expired-action-code') {
+        msg = language === 'ar' ? 'انتهت صلاحية رابط الدخول. يرجى طلب رابط جديد.' : 'Sign-in link has expired. Please request a new one.';
+      }
+      showToast(msg, 'warning');
+      throw error;
+    }
+  };
+
   const signInWithEmail = async (email: string, pass: string) => {
     try {
       await executeWithRetry(() => signInWithEmailAndPassword(auth, email, pass));
@@ -4329,6 +4415,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isEmailVerified,
     signInWithEmail,
     signUpWithEmail,
+    sendEmailSignInLink,
+    completeEmailLinkSignIn,
     resetPassword,
     signInWithGoogle,
     signInWithApple,

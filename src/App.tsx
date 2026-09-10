@@ -67,7 +67,8 @@ const MainAppContent: React.FC = () => {
     user,
     isSellerUser,
     language,
-    setLanguage
+    setLanguage,
+    completeEmailLinkSignIn
   } = useShop();
   const isPopStateRef = useRef(false);
 
@@ -116,7 +117,14 @@ const MainAppContent: React.FC = () => {
     if (urlLang === 'ar' || urlLang === 'en') {
       setLanguage(urlLang);
     }
-  }, [setLanguage]);
+
+    // Detect and handle incoming Firebase Auth email link sign-in
+    if (searchParams.has('apiKey') && (searchParams.has('oobCode') || searchParams.has('emailSignIn'))) {
+      completeEmailLinkSignIn().catch(err => {
+        console.warn('[App] Automatic email link sign-in check notice:', err);
+      });
+    }
+  }, [setLanguage, completeEmailLinkSignIn]);
 
   const productsRef = useRef(products);
   productsRef.current = products;

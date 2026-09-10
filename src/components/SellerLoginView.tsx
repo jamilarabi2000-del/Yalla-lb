@@ -123,119 +123,115 @@ export const SellerLoginView: React.FC = () => {
       return;
     }
 
-    setPendingSellerLoginAction(() => async () => {
-      setIsLoading(true);
-      try {
-        // 2. Authenticate against Firebase Auth with Email and Password
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const uid = userCredential.user.uid;
+    setIsLoading(true);
+    try {
+      // 2. Authenticate against Firebase Auth with Email and Password
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const uid = userCredential.user.uid;
 
-        // 3. Fetch User Profile from Firestore
-        const userDocRef = doc(db, 'users', uid);
-        const userSnap = await getDoc(userDocRef);
-        const userData = userSnap.exists() ? userSnap.data() : null;
+      // 3. Fetch User Profile from Firestore
+      const userDocRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userDocRef);
+      const userData = userSnap.exists() ? userSnap.data() : null;
 
-        // Verify custom claims authoritatively from Firebase Auth
-        const tokenResult = await userCredential.user.getIdTokenResult(true);
-        const hasAdminClaim = Boolean(tokenResult.claims.admin === true);
-        const hasSellerClaim = Boolean(tokenResult.claims.seller === true);
-        const claimSellerId = typeof tokenResult.claims.sellerId === 'string' ? tokenResult.claims.sellerId : null;
+      // Verify custom claims authoritatively from Firebase Auth
+      const tokenResult = await userCredential.user.getIdTokenResult(true);
+      const hasAdminClaim = Boolean(tokenResult.claims.admin === true);
+      const hasSellerClaim = Boolean(tokenResult.claims.seller === true);
+      const claimSellerId = typeof tokenResult.claims.sellerId === 'string' ? tokenResult.claims.sellerId : null;
 
-        if (!hasAdminClaim && !hasSellerClaim) {
-          await signOut(auth);
-          const deniedMsg = isArabic
-            ? 'عذراً، هذا الحساب ليس لديه صلاحيات البائع المعتمد. يرجى تسجيل الدخول بحساب بائع معتمد.'
-            : 'Access Denied: This account is not provisioned with authorized seller privileges.';
-          setErrorMessage(deniedMsg);
-          showToast(deniedMsg, 'error');
-          setIsLoading(false);
-          return;
-        }
-
-        const isUserAdmin = hasAdminClaim;
-
-        // Email verification enforcement (OWASP / Enterprise Standard)
-        if (!userCredential.user.emailVerified && !isUserAdmin) {
-          await signOut(auth);
-          const unverifiedMsg = isArabic
-            ? 'يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل إلى بريدك قبل تسجيل الدخول إلى بوابة البائعين.'
-            : 'Please verify your email address via the link sent to your inbox before accessing the Seller Merchant Portal.';
-          setErrorMessage(unverifiedMsg);
-          showToast(unverifiedMsg, 'warning');
-          setIsLoading(false);
-          return;
-        }
-
-        // 4. Find matching Seller exclusively via secure provisioned credentials (token claim sellerId, accountUid, or accountEmail)
-        const matchedSeller = sellers.find(s => 
-          (claimSellerId && s.id === claimSellerId) ||
-          s.accountUid === uid ||
-          (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase())
-        );
-
-        if (!matchedSeller && !isUserAdmin) {
-          await signOut(auth);
-          const noSellerMsg = isArabic
-            ? 'لم يتم العثور على شركة أو حساب بائع معتمد مرتبط بهذا البريد الإلكتروني. يرجى التواصل مع إدارة منصة يلا.'
-            : 'No authorized seller company account found matching this email. Please contact Yalla marketplace administration.';
-          setErrorMessage(noSellerMsg);
-          showToast(noSellerMsg, 'error');
-          setIsLoading(false);
-          return;
-        }
-
-        // 5. Gather registered candidate phone numbers for identity verification
-        const registeredPhones: string[] = [
-          userData?.phone,
-          matchedSeller?.contactPhone,
-          userCredential.user.phoneNumber
-        ].filter(Boolean) as string[];
-
-        // 6. Security Check: Mobile Phone Number Match
-        if (registeredPhones.length > 0) {
-          const isPhoneMatched = registeredPhones.some(p => {
-            const normReg = normalizeLebanesePhone(p);
-            return normReg.cleanDigits === normPhone.cleanDigits;
-          });
-
-          if (!isPhoneMatched && !isUserAdmin) {
-            // Reject authentication and sign out immediately
-            await signOut(auth);
-            const failMsg = isArabic 
-              ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب. يرجى إدخال رقم هاتفك المعتمد.`
-              : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file for this account. Please enter your registered mobile number.`;
-            setErrorMessage(failMsg);
-            showToast(failMsg, 'error');
-            setIsLoading(false);
-            return;
-          }
-        }
-
-        showToast(
-          isArabic 
-            ? `مرحباً بك في بوابة البائعين، ${matchedSeller?.nameAr || matchedSeller?.nameEn || userData?.name || 'أيها البائع'}!` 
-            : `Welcome to your Seller Merchant Portal, ${matchedSeller?.nameEn || userData?.name || 'Seller'}!`, 
-          'success'
-        );
-      } catch (err: any) {
-        console.error('[SellerLoginView] Sign-in error:', err);
-        const code = err?.code || '';
-        let msg = isArabic ? 'تعذر تسجيل الدخول. يرجى التحقق من بياناتك.' : 'Failed to sign in. Please verify your credentials.';
-        if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
-          msg = isArabic ? 'البريد الإلكتروني (Gmail) أو كلمة المرور غير صحيحة.' : 'Invalid Gmail address or password. Please verify your credentials.';
-        } else if (code === 'auth/too-many-requests') {
-          msg = isArabic ? 'محاولات كثيرة خاطئة. يرجى الانتظار قليلاً أو إعادة تعيين كلمة المرور.' : 'Too many failed attempts. Please wait a moment or reset your password.';
-        } else if (code === 'auth/invalid-email') {
-          msg = isArabic ? 'صيغة البريد الإلكتروني غير صحيحة.' : 'Invalid email format.';
-        }
-        setErrorMessage(msg);
-        showToast(msg, 'error');
-        throw new Error(msg);
-      } finally {
+      if (!hasAdminClaim && !hasSellerClaim) {
+        await signOut(auth);
+        const deniedMsg = isArabic
+          ? 'عذراً، هذا الحساب ليس لديه صلاحيات البائع المعتمد. يرجى تسجيل الدخول بحساب بائع معتمد.'
+          : 'Access Denied: This account is not provisioned with authorized seller privileges.';
+        setErrorMessage(deniedMsg);
+        showToast(deniedMsg, 'error');
         setIsLoading(false);
+        return;
       }
-    });
-    setShowSellerOtpModal(true);
+
+      const isUserAdmin = hasAdminClaim;
+
+      // Email verification enforcement (OWASP / Enterprise Standard)
+      if (!userCredential.user.emailVerified && !isUserAdmin) {
+        await signOut(auth);
+        const unverifiedMsg = isArabic
+          ? 'يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل إلى بريدك قبل تسجيل الدخول إلى بوابة البائعين.'
+          : 'Please verify your email address via the link sent to your inbox before accessing the Seller Merchant Portal.';
+        setErrorMessage(unverifiedMsg);
+        showToast(unverifiedMsg, 'warning');
+        setIsLoading(false);
+        return;
+      }
+
+      // 4. Find matching Seller exclusively via secure provisioned credentials (token claim sellerId, accountUid, or accountEmail)
+      const matchedSeller = sellers.find(s => 
+        (claimSellerId && s.id === claimSellerId) ||
+        s.accountUid === uid ||
+        (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase())
+      );
+
+      if (!matchedSeller && !isUserAdmin) {
+        await signOut(auth);
+        const noSellerMsg = isArabic
+          ? 'لم يتم العثور على شركة أو حساب بائع معتمد مرتبط بهذا البريد الإلكتروني. يرجى التواصل مع إدارة منصة يلا.'
+          : 'No authorized seller company account found matching this email. Please contact Yalla marketplace administration.';
+        setErrorMessage(noSellerMsg);
+        showToast(noSellerMsg, 'error');
+        setIsLoading(false);
+        return;
+      }
+
+      // 5. Gather registered candidate phone numbers for identity verification
+      const registeredPhones: string[] = [
+        userData?.phone,
+        matchedSeller?.contactPhone,
+        userCredential.user.phoneNumber
+      ].filter(Boolean) as string[];
+
+      // 6. Security Check: Mobile Phone Number Match
+      if (registeredPhones.length > 0) {
+        const isPhoneMatched = registeredPhones.some(p => {
+          const normReg = normalizeLebanesePhone(p);
+          return normReg.cleanDigits === normPhone.cleanDigits;
+        });
+
+        if (!isPhoneMatched && !isUserAdmin) {
+          // Reject authentication and sign out immediately
+          await signOut(auth);
+          const failMsg = isArabic 
+            ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب. يرجى إدخال رقم هاتفك المعتمد.`
+            : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file for this account. Please enter your registered mobile number.`;
+          setErrorMessage(failMsg);
+          showToast(failMsg, 'error');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      showToast(
+        isArabic 
+          ? `مرحباً بك في بوابة البائعين، ${matchedSeller?.nameAr || matchedSeller?.nameEn || userData?.name || 'أيها البائع'}!` 
+          : `Welcome to your Seller Merchant Portal, ${matchedSeller?.nameEn || userData?.name || 'Seller'}!`, 
+        'success'
+      );
+    } catch (err: any) {
+      console.error('[SellerLoginView] Sign-in error:', err);
+      const code = err?.code || '';
+      let msg = isArabic ? 'تعذر تسجيل الدخول. يرجى التحقق من بياناتك.' : 'Failed to sign in. Please verify your credentials.';
+      if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
+        msg = isArabic ? 'البريد الإلكتروني (Gmail) أو كلمة المرور غير صحيحة.' : 'Invalid Gmail address or password. Please verify your credentials.';
+      } else if (code === 'auth/too-many-requests') {
+        msg = isArabic ? 'محاولات كثيرة خاطئة. يرجى الانتظار قليلاً أو إعادة تعيين كلمة المرور.' : 'Too many failed attempts. Please wait a moment or reset your password.';
+      } else if (code === 'auth/invalid-email') {
+        msg = isArabic ? 'صيغة البريد الإلكتروني غير صحيحة.' : 'Invalid email format.';
+      }
+      setErrorMessage(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handlePasswordResetSubmit = async (e: React.FormEvent) => {

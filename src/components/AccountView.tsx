@@ -50,6 +50,7 @@ export const AccountView: React.FC = () => {
     signOutUser,
     signInWithEmail,
     signUpWithEmail,
+    sendEmailSignInLink,
     resetPassword
   } = useShop();
 
@@ -199,19 +200,15 @@ export const AccountView: React.FC = () => {
       return;
     }
     
-    setOtpTargetContact(authEmail);
-    setOtpActionType('login');
-    setPendingAuthAction(() => async () => {
-      setIsAuthLoading(true);
-      try {
-        await signInWithEmail(authEmail, authPassword);
-        setProfileEmail(authEmail);
-        showToast(language === 'ar' ? 'تم تسجيل الدخول بنجاح!' : 'Successfully signed in!', 'success');
-      } finally {
-        setIsAuthLoading(false);
-      }
-    });
-    setShowOtpModal(true);
+    setIsAuthLoading(true);
+    try {
+      await signInWithEmail(authEmail, authPassword);
+      setProfileEmail(authEmail);
+    } catch (err) {
+      // Error is already handled with friendly toast in context
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -268,42 +265,39 @@ export const AccountView: React.FC = () => {
     setIsAuthLoading(false);
 
     const fullName = `${profileFirstName.trim()} ${profileLastName.trim()}`;
-    const contactInfo = authEmail || `+961 ${profilePhone}`;
+    const formattedPhone = `+961 ${profilePhone}`;
 
-    setOtpTargetContact(contactInfo);
-    setOtpActionType('signup');
-    setPendingAuthAction(() => async () => {
-      setIsAuthLoading(true);
+    setIsAuthLoading(true);
+    try {
       try {
-        try {
-          localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
-            firstName: profileFirstName.trim(),
-            lastName: profileLastName.trim(),
-            phone: '+961 ' + profilePhone,
-            defaultCity: profileCity,
-            defaultAddress: profileAddress,
-            defaultBuilding: profileBuilding,
-            defaultNotes: profileNotes
-          }));
-        } catch {}
-        await signUpWithEmail(authEmail, authPassword, profilePhone);
-        await updateUser({
-          name: fullName,
+        localStorage.setItem('yallalb_signup_profile_temp', JSON.stringify({
           firstName: profileFirstName.trim(),
           lastName: profileLastName.trim(),
-          email: authEmail,
-          phone: '+961 ' + profilePhone,
+          phone: formattedPhone,
           defaultCity: profileCity,
           defaultAddress: profileAddress,
           defaultBuilding: profileBuilding,
           defaultNotes: profileNotes
-        });
-        showToast(language === 'ar' ? 'تم إنشاء الحساب بنجاح!' : 'Account registered successfully!', 'success');
-      } finally {
-        setIsAuthLoading(false);
-      }
-    });
-    setShowOtpModal(true);
+        }));
+      } catch {}
+      await signUpWithEmail(authEmail, authPassword, profilePhone);
+      await updateUser({
+        name: fullName,
+        firstName: profileFirstName.trim(),
+        lastName: profileLastName.trim(),
+        email: authEmail,
+        phone: formattedPhone,
+        defaultCity: profileCity,
+        defaultAddress: profileAddress,
+        defaultBuilding: profileBuilding,
+        defaultNotes: profileNotes
+      });
+      showToast(language === 'ar' ? 'تم إنشاء الحساب بنجاح!' : 'Account registered successfully!', 'success');
+    } catch (err) {
+      // Error handled with toast in context
+    } finally {
+      setIsAuthLoading(false);
+    }
   };
 
   const wishlistProducts = products.filter(p => wishlist.includes(p.id));
@@ -736,6 +730,37 @@ export const AccountView: React.FC = () => {
                         className="w-full py-3 bg-[#171717] hover:bg-black text-white font-bold rounded-lg text-xs uppercase tracking-wider transition-all shadow-sm cursor-pointer disabled:bg-neutral-300"
                       >
                         {isAuthLoading ? 'Signing In...' : 'Sign In'}
+                      </button>
+
+                      <div className="relative flex py-1 items-center">
+                        <div className="flex-grow border-t border-[#E5E5E5]"></div>
+                        <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-[#A3A3A3]">
+                          {language === 'ar' ? 'أو بدون كلمة مرور' : 'Or Passwordless'}
+                        </span>
+                        <div className="flex-grow border-t border-[#E5E5E5]"></div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isAuthLoading || !authEmail}
+                        onClick={async () => {
+                          if (!authEmail) {
+                            showToast(language === 'ar' ? 'يرجى إدخال البريد الإلكتروني أولاً' : 'Please enter your email address first', 'warning');
+                            return;
+                          }
+                          setIsAuthLoading(true);
+                          try {
+                            await sendEmailSignInLink(authEmail);
+                          } catch {
+                            // Error toast is handled in sendEmailSignInLink
+                          } finally {
+                            setIsAuthLoading(false);
+                          }
+                        }}
+                        className="w-full py-2.5 bg-[#8F7137]/10 hover:bg-[#8F7137]/20 text-[#8F7137] border border-[#8F7137]/30 font-bold rounded-lg text-xs uppercase tracking-wider transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        <span>{language === 'ar' ? 'إرسال رابط تسجيل دخول مباشر' : 'Send Direct Email Sign-In Link'}</span>
                       </button>
 
                       {/* Seller Login Shortcut */}
