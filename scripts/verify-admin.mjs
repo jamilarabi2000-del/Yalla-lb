@@ -4,7 +4,7 @@ import { getAuth } from 'firebase-admin/auth';
 const serviceAccountJson = process.env.SERVICE_ACCOUNT_JSON;
 if (!serviceAccountJson) {
   console.error('Error: SERVICE_ACCOUNT_JSON environment variable is required.');
-  console.error('Please run with: SERVICE_ACCOUNT_JSON="$(cat serviceAccount.json)" npm run grant-admin -- email@example.com');
+  console.error('Please run with: SERVICE_ACCOUNT_JSON="$(cat serviceAccount.json)" npm run verify-admin -- email@example.com');
   process.exit(1);
 }
 
@@ -31,38 +31,22 @@ try {
 
 const email = process.argv[2];
 if (!email) {
-  console.error('Usage: npm run grant-admin -- <email>');
+  console.error('Usage: npm run verify-admin -- <email>');
   process.exit(1);
 }
 
 try {
-  console.log(`Firebase project: ${expectedProjectId}`);
   const user = await getAuth().getUserByEmail(email);
+  const claims = user.customClaims || {};
+  const isAdminTrue = claims.admin === true;
+
+  console.log(`Firebase project: ${expectedProjectId}`);
   console.log(`User email: ${user.email}`);
   console.log(`UID: ${user.uid}`);
   console.log(`Email verified: ${user.emailVerified}`);
-
-  const existingClaims = user.customClaims || {};
-  console.log(`Existing custom claims:`, existingClaims);
-
-  const mergedClaims = { ...existingClaims, admin: true };
-  await getAuth().setCustomUserClaims(user.uid, mergedClaims);
-
-  // Read user again to verify
-  const verifiedUser = await getAuth().getUser(user.uid);
-  const finalClaims = verifiedUser.customClaims || {};
-  console.log(`Final custom claims:`, finalClaims);
-
-  const isAdminTrue = finalClaims.admin === true;
+  console.log(`Custom claims:`, claims);
   console.log(`Admin claim: ${isAdminTrue ? 'TRUE' : 'FALSE'}`);
-
-  if (!isAdminTrue) {
-    console.error('Error: Failed to confirm admin: true in final custom claims.');
-    process.exit(1);
-  }
-
-  console.log(`Successfully and securely granted admin privileges to ${user.email} (${user.uid}) on project ${expectedProjectId}`);
 } catch (error) {
-  console.error(`Error granting admin privileges to ${email}:`, error instanceof Error ? error.message : error);
+  console.error(`Error verifying admin for ${email}:`, error instanceof Error ? error.message : error);
   process.exit(1);
 }
