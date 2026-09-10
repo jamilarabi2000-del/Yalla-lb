@@ -50,12 +50,22 @@ export const OTPModal: React.FC<OTPModalProps> = ({
       if (response.ok && data.success) {
         setResendTimer(data.cooldownSeconds || 60);
         setCanResend(false);
-        setPreviewCode(null);
-        setDeliveryNotice(
-          isArabic
-            ? `تم إرسال الرمز بنجاح إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
-            : `Verification code successfully sent to (${targetContact}). Please check your inbox or spam folder.`
-        );
+        if (data.deliveredVia === 'preview_fallback' && data.previewCode) {
+          setPreviewCode(data.previewCode);
+          sessionStorage.setItem(`yalla_preview_otp_${targetContact}_${actionType}`, data.previewCode);
+          setDeliveryNotice(
+            isArabic
+              ? `رمز التحقق المباشر (وضع التطوير): ${data.previewCode}`
+              : `Security OTP (Development Preview): ${data.previewCode}`
+          );
+        } else {
+          setPreviewCode(null);
+          setDeliveryNotice(
+            isArabic
+              ? `تم إرسال الرمز بنجاح إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
+              : `Verification code successfully sent to (${targetContact}). Please check your inbox or spam folder.`
+          );
+        }
         return;
       }
       if (data?.message && !data?.message?.includes('not configured')) {
@@ -336,6 +346,21 @@ export const OTPModal: React.FC<OTPModalProps> = ({
               <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 py-1 px-3 rounded-lg mt-2 font-medium">
                 ✓ {deliveryNotice}
               </p>
+            )}
+            {previewCode && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const digits = previewCode.slice(0, 6).split('');
+                    setOtpDigits(digits);
+                    setErrorMsg('');
+                  }}
+                  className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-[#8F7137] border border-amber-200 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <span>{isArabic ? `تعبئة الرمز تلقائياً (${previewCode})` : `Auto-fill Code (${previewCode})`}</span>
+                </button>
+              </div>
             )}
           </div>
 

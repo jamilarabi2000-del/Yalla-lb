@@ -766,14 +766,29 @@ export const AdminView: React.FC = () => {
             </div>
           </div>
 
-          <form autoComplete="off" onSubmit={(e) => {
+          <form autoComplete="off" onSubmit={async (e) => {
             e.preventDefault();
             if (!adminEmail || !adminPassword) {
               setLoginError('Please enter both admin email and password.');
               return;
             }
             setLoginError(null);
-            setShowAdminOtpModal(true);
+            setIsLoggingIn(true);
+            try {
+              await signInWithEmail(adminEmail, adminPassword);
+              showToast('Admin logged in successfully!', 'success');
+            } catch (err: any) {
+              setAdminPassword('');
+              const msg =
+                err?.code === 'auth/network-request-failed'
+                  ? 'Network error — check your connection and try again.'
+                  : err?.code === 'auth/too-many-requests'
+                  ? 'Too many attempts. Wait a few minutes before retrying.'
+                  : 'Incorrect email or password.';
+              setLoginError(msg);
+            } finally {
+              setIsLoggingIn(false);
+            }
           }} className="space-y-4">
             <input type="hidden" name="remember" value="false" />
             

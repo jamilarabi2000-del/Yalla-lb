@@ -42,16 +42,16 @@ app.post("/api/send-otp", async (req, res) => {
       attempts: 0,
     });
 
-    console.log(`[OTP Server] Generated code for ${trimmedContact} (${actionType}): ${code}`);
+    console.log(`[OTP Server] Generated OTP verification request for ${trimmedContact} (${actionType})`);
 
     // If it's an email, dispatch via Resend
     if (isEmail) {
       const resendApiKey = process.env.RESEND_API_KEY;
       if (!resendApiKey) {
-        console.warn("[OTP Server] RESEND_API_KEY not set in environment.");
-        return res.status(500).json({
+        console.warn("[OTP Server] RESEND_API_KEY not configured on server.");
+        return res.status(503).json({
           success: false,
-          message: "RESEND_API_KEY environment variable is not configured on the server",
+          message: "Verification service is temporarily unavailable. Please try again later.",
         });
       }
 
@@ -91,7 +91,7 @@ app.post("/api/send-otp", async (req, res) => {
         </div>
       `;
 
-      const subject = `${code} is your Yalla Lebanon verification code`;
+      const subject = `Your Yalla Lebanon verification code`;
 
       const resendResponse = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -110,14 +110,14 @@ app.post("/api/send-otp", async (req, res) => {
       const resendData = (await resendResponse.json()) as any;
 
       if (!resendResponse.ok) {
-        console.warn("[OTP Server] Resend dispatch note:", resendData?.message || resendData);
-        return res.status(resendResponse.status).json({
+        console.warn(`[OTP Server] Resend dispatch failed (HTTP ${resendResponse.status}):`, resendData?.message || "Unknown provider error");
+        return res.status(502).json({
           success: false,
-          message: resendData?.message || "Failed to deliver email via Resend",
+          message: "We couldn't send the verification code. Please try again.",
         });
       }
 
-      console.log(`[OTP Server] Resend email successfully dispatched directly to ${destinationEmail}. Resend ID: ${resendData?.id}`);
+      console.log(`[OTP Server] Resend email successfully dispatched to ${destinationEmail}. Resend ID: ${resendData?.id}`);
       return res.json({
         success: true,
         deliveredVia: "email",
@@ -128,6 +128,43 @@ app.post("/api/send-otp", async (req, res) => {
     }
 
     // Phone / SMS fallback (or other contacts)
+    const twilioSid = process.env.TWILIO_ACCOUNT_SID;
+    const twilioToken = process.env.TWILIO_AUTH_TOKEN;
+    const twilioFrom = process.env.TWILIO_PHONE_NUMBER || process.env.TWILIO_FROM_NUMBER;
+
+    if (!twilioSid || !twilioToken || !twilioFrom) {
+      console.warn("[OTP Server] Twilio credentials not configured.");
+      return res.status(503).json({
+        success: false,
+        message: "SMS verification service is not configured. Please try again later.",
+      });
+    }
+
+    const messageBody = `Your Yalla Lebanon verification code is ${code}. Valid for 5 minutes.`;
+    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`;
+    const authHeader = 'Basic ' + Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
+    const bodyParams = new URLSearchParams();
+    bodyParams.append('To', trimmedContact);
+    bodyParams.append('From', twilioFrom);
+    bodyParams.append('Body', messageBody);
+
+    const twilioRes = await fetch(twilioUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+
+    if (!twilioRes.ok) {
+      console.warn(`[OTP Server] Twilio SMS dispatch failed (HTTP ${twilioRes.status})`);
+      return res.status(502).json({
+        success: false,
+        message: "We couldn't send the verification code. Please try again.",
+      });
+    }
+
     return res.json({
       success: true,
       deliveredVia: "sms",

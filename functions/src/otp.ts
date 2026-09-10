@@ -24,6 +24,8 @@ const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
 
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
+ * In production, requires Secret Manager OTP_SECRET.
+ * In test/emulator environments, uses deterministic test secret.
  */
 function getOtpSecret(): string {
   if (
@@ -38,11 +40,18 @@ function getOtpSecret(): string {
   try {
     secret = OTP_SECRET.value();
   } catch {
-    // Fallback if Secret Manager parameter is not provisioned
+    // Parameter not loaded via Secret Manager runtime
   }
 
   if (!secret) {
-    secret = process.env.OTP_SECRET || 'fallback-dev-hmac-secret-key-1234567890';
+    secret = process.env.OTP_SECRET || '';
+  }
+
+  if (!secret) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Security configuration error: OTP_SECRET is not configured.'
+    );
   }
 
   return secret;
@@ -139,6 +148,7 @@ export function normalizeContact(input: string): NormalizedContact {
 /**
  * Dispatch SMS via real production SMS provider (Twilio).
  * Credentials loaded securely from Secret Manager or environment variables.
+ * Fails closed if credentials are missing or if Twilio returns a non-2xx response.
  */
 async function sendSmsOtp(phone: string, actionType: string, numericCode: string): Promise<void> {
   let accountSid = '';
@@ -165,10 +175,12 @@ async function sendSmsOtp(phone: string, actionType: string, numericCode: string
 
   if (!accountSid || !authToken || !fromNumber) {
     if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true' || process.env.VITEST === 'true') {
-      return; // Allow test/emulator execution if credentials are not configured
+      return; // Allow simulated test/emulator execution
     }
-    console.warn(`[OTP Preview Fallback] Twilio credentials missing. SMS verification code for ${phone} (${actionType}): ${numericCode}`);
-    return;
+    throw new HttpsError(
+      'failed-precondition',
+      'SMS verification service is not configured. Please try again later.'
+    );
   }
 
   const messageBody = `Your Yalla Lebanon verification code is ${numericCode}. Valid for 5 minutes.`;
@@ -180,25 +192,30 @@ async function sendSmsOtp(phone: string, actionType: string, numericCode: string
   bodyParams.append('From', fromNumber);
   bodyParams.append('Body', messageBody);
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': authHeader,
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: bodyParams.toString()
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: bodyParams.toString()
+    });
+  } catch (networkErr: any) {
+    console.error('[SMS Dispatch] Twilio network fetch failed');
+    throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+  }
 
   if (!response.ok) {
-    const errText = await response.text();
-    console.warn('[Twilio API Warning - Falling back to console log]:', errText);
-    console.warn(`[OTP Fallback] SMS verification code for ${phone} (${actionType}): ${numericCode}`);
-    return;
+    console.warn(`[SMS Dispatch] Twilio returned HTTP status ${response.status}`);
+    throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
   }
 }
 
 /**
  * Dispatch Email via Resend or SendGrid.
+ * Fails closed if credentials are missing or if the provider returns a non-2xx response.
  */
 async function sendEmailOtp(email: string, actionType: string, numericCode: string): Promise<void> {
   const resendApiKey = process.env.RESEND_API_KEY;
@@ -206,60 +223,73 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
 
   if (resendApiKey) {
     let sender = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
-    if (sender.includes('@gmail.com') || sender.includes('@yahoo.com') || sender.includes('@hotmail.com')) {
+    if (sender.includes('@gmail.com') || sender.includes('@yahoo.com') || sender.includes('@hotmail.com') || sender.includes('@outlook.com')) {
       sender = 'onboarding@resend.dev';
     }
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        from: sender,
-        to: email,
-        subject: `Your Verification Code (${actionType.toUpperCase()})`,
-        html: `<p>Your single-use verification code is: <strong>${numericCode}</strong>. It expires in 5 minutes.</p>`
-      })
-    });
+
+    let response: Response;
+    try {
+      response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: sender,
+          to: email,
+          subject: `Your Verification Code (${actionType.toUpperCase()})`,
+          html: `<p>Your single-use verification code is: <strong>${numericCode}</strong>. It expires in 5 minutes.</p>`
+        })
+      });
+    } catch (networkErr: any) {
+      console.error('[Email Dispatch] Resend network fetch failed');
+      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+    }
+
     if (!response.ok) {
-      const errText = await response.text();
-      console.warn("[Resend API Warning - Falling back to console log]:", errText);
-      console.warn(`[OTP Fallback] Email verification code for ${email} (${actionType}): ${numericCode}`);
-      return;
+      console.warn(`[Email Dispatch] Resend returned HTTP status ${response.status}`);
+      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
     }
     return;
   }
 
   if (sendgridKey) {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sendgridKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        personalizations: [{ to: [{ email }] }],
-        from: { email: process.env.SENDER_EMAIL || 'security@yalla.lb' },
-        subject: `Your Verification Code (${actionType.toUpperCase()})`,
-        content: [{ type: 'text/html', value: `<p>Your verification code is: <strong>${numericCode}</strong></p>` }]
-      })
-    });
+    let response: Response;
+    try {
+      response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sendgridKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email }] }],
+          from: { email: process.env.SENDER_EMAIL || 'security@yalla.lb' },
+          subject: `Your Verification Code (${actionType.toUpperCase()})`,
+          content: [{ type: 'text/html', value: `<p>Your verification code is: <strong>${numericCode}</strong></p>` }]
+        })
+      });
+    } catch (networkErr: any) {
+      console.error('[Email Dispatch] SendGrid network fetch failed');
+      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+    }
+
     if (!response.ok) {
-      const errText = await response.text();
-      console.warn("[SendGrid API Warning - Falling back to console log]:", errText);
-      console.warn(`[OTP Fallback] Email verification code for ${email} (${actionType}): ${numericCode}`);
-      return;
+      console.warn(`[Email Dispatch] SendGrid returned HTTP status ${response.status}`);
+      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
     }
     return;
   }
 
   if (process.env.NODE_ENV === 'test' || process.env.FUNCTIONS_EMULATOR === 'true' || process.env.VITEST === 'true') {
-    return;
+    return; // Allow simulated test/emulator execution
   }
 
-  console.warn(`[OTP Preview Fallback] Email provider credentials missing. Email verification code for ${email} (${actionType}): ${numericCode}`);
-  return;
+  throw new HttpsError(
+    'failed-precondition',
+    'Verification service is temporarily unavailable. Please try again later.'
+  );
 }
 
 /**
@@ -370,9 +400,12 @@ export const requestOtp = onCall(
     // 3. Attempt delivery BEFORE permanently consuming the rate limit slot or saving OTP
     try {
       await sendOtpDelivery(contactObj, actionType, numericCode);
-    } catch (deliveryErr) {
-      console.error('[OTP Delivery Error]:', deliveryErr);
-      throw new HttpsError('internal', 'Verification code delivery failed. Please try again.');
+    } catch (deliveryErr: any) {
+      if (deliveryErr instanceof HttpsError) {
+        throw deliveryErr;
+      }
+      console.error('[OTP Delivery Error]: Sanitized delivery exception occurred for action:', actionType);
+      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
     }
 
     // 4. Delivery succeeded! Now commit rate limit update and save OTP record atomically

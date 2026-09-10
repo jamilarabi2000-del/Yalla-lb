@@ -425,4 +425,24 @@ describe('Comprehensive Production OTP & Authorization Security Suite (24 Test C
     expect(() => normalizeContact('invalid-phone')).toThrow();
     expect(() => normalizeContact('+961123')).toThrow();
   });
+
+  it('28. Source code does not log raw numeric OTP codes in functions/src/otp.ts', () => {
+    const otpSource = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf-8');
+    // Ensure no console.log, warn, error prints numericCode or code
+    expect(otpSource).not.toMatch(/console\.(log|warn|info|debug)\([^\)]*numericCode/);
+    expect(otpSource).not.toMatch(/console\.(log|warn|info|debug)\([^\)]*verification code for/i);
+    expect(otpSource).not.toMatch(/fallback-dev-hmac-secret-key/);
+  });
+
+  it('29. Source code enforces fail-closed OTP_SECRET requirement in production', () => {
+    const otpSource = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf-8');
+    expect(otpSource).toContain("Security configuration error: OTP_SECRET is not configured");
+    expect(otpSource).toContain("failed-precondition");
+  });
+
+  it('30. SMS and Email delivery logic fails closed when credentials missing in production', () => {
+    const otpSource = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf-8');
+    expect(otpSource).toContain("SMS verification service is not configured");
+    expect(otpSource).toContain("Verification service is temporarily unavailable");
+  });
 });
