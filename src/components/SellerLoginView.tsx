@@ -97,24 +97,9 @@ export const SellerLoginView: React.FC = () => {
     const phone = authPhone.trim();
     const password = authPassword;
 
-    // 1. Validate inputs
+    // 1. Validate inputs (Email and Password required; phone is only required for non-admin sellers)
     if (!email) {
-      setErrorMessage(isArabic ? 'يرجى إدخال بريد Gmail أو البريد الإلكتروني للبائع.' : 'Please enter your seller Gmail or email address.');
-      return;
-    }
-
-    if (!phone) {
-      setErrorMessage(isArabic ? 'يرجى إدخال رقم الهاتف المحمول المعتمد للبائع.' : 'Please enter your registered seller mobile phone number.');
-      return;
-    }
-
-    const normPhone = normalizeLebanesePhone(phone);
-    if (!normPhone.isValid) {
-      setErrorMessage(
-        isArabic 
-          ? 'يرجى إدخال رقم هاتف محمول لبناني صحيح من 8 أرقام (مثال: 70 123 456 أو 03 123 456).'
-          : 'Please enter a valid 8-digit Lebanese mobile phone number (e.g. 70 123 456, 03 123 456, or +961 71 234 567).'
-      );
+      setErrorMessage(isArabic ? 'يرجى إدخال البريد الإلكتروني.' : 'Please enter your email address.');
       return;
     }
 
@@ -129,18 +114,44 @@ export const SellerLoginView: React.FC = () => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
 
-      // 3. Fetch User Profile from Firestore
-      const userDocRef = doc(db, 'users', uid);
-      const userSnap = await getDoc(userDocRef);
-      const userData = userSnap.exists() ? userSnap.data() : null;
-
-      // Verify custom claims authoritatively from Firebase Auth
+      // 3. Verify custom claims authoritatively from Firebase Auth
       const tokenResult = await userCredential.user.getIdTokenResult(true);
       const hasAdminClaim = Boolean(tokenResult.claims.admin === true);
       const hasSellerClaim = Boolean(tokenResult.claims.seller === true);
       const claimSellerId = typeof tokenResult.claims.sellerId === 'string' ? tokenResult.claims.sellerId : null;
 
-      if (!hasAdminClaim && !hasSellerClaim) {
+      // 4. IF ADMIN: Grant admin access immediately without requiring seller phone, company, record, or seller claim
+      if (hasAdminClaim) {
+        showToast(
+          isArabic ? 'مرحباً بك، مشرف النظام!' : 'Welcome, Administrator!',
+          'success'
+        );
+        setActiveTab('admin');
+        setIsLoading(false);
+        return;
+      }
+
+      // 5. IF NOT ADMIN: Proceed with Seller Merchant Portal checks (require phone, seller claim, matched seller, phone verification, email verification)
+      if (!phone) {
+        await signOut(auth);
+        const phoneReqMsg = isArabic ? 'يرجى إدخال رقم الهاتف المحمول المعتمد للبائع.' : 'Please enter your registered seller mobile phone number.';
+        setErrorMessage(phoneReqMsg);
+        setIsLoading(false);
+        return;
+      }
+
+      const normPhone = normalizeLebanesePhone(phone);
+      if (!normPhone.isValid) {
+        await signOut(auth);
+        const invalidPhoneMsg = isArabic 
+          ? 'يرجى إدخال رقم هاتف محمول لبناني صحيح من 8 أرقام (مثال: 70 123 456).'
+          : 'Please enter a valid 8-digit Lebanese mobile phone number (e.g. 70 123 456).';
+        setErrorMessage(invalidPhoneMsg);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!hasSellerClaim) {
         await signOut(auth);
         const deniedMsg = isArabic
           ? 'عذراً، هذا الحساب ليس لديه صلاحيات البائع المعتمد. يرجى تسجيل الدخول بحساب بائع معتمد.'
@@ -151,10 +162,8 @@ export const SellerLoginView: React.FC = () => {
         return;
       }
 
-      const isUserAdmin = hasAdminClaim;
-
       // Email verification enforcement (OWASP / Enterprise Standard)
-      if (!userCredential.user.emailVerified && !isUserAdmin) {
+      if (!userCredential.user.emailVerified) {
         await signOut(auth);
         const unverifiedMsg = isArabic
           ? 'يرجى تأكيد بريدك الإلكتروني عبر الرابط المرسل إلى بريدك قبل تسجيل الدخول إلى بوابة البائعين.'
@@ -165,14 +174,19 @@ export const SellerLoginView: React.FC = () => {
         return;
       }
 
-      // 4. Find matching Seller exclusively via secure provisioned credentials (token claim sellerId, accountUid, or accountEmail)
+      // Fetch User Profile from Firestore
+      const userDocRef = doc(db, 'users', uid);
+      const userSnap = await getDoc(userDocRef);
+      const userData = userSnap.exists() ? userSnap.data() : null;
+
+      // Find matching Seller exclusively via secure provisioned credentials
       const matchedSeller = sellers.find(s => 
         (claimSellerId && s.id === claimSellerId) ||
         s.accountUid === uid ||
         (s.accountEmail && s.accountEmail.toLowerCase() === email.toLowerCase())
       );
 
-      if (!matchedSeller && !isUserAdmin) {
+      if (!matchedSeller) {
         await signOut(auth);
         const noSellerMsg = isArabic
           ? 'لم يتم العثور على شركة أو حساب بائع معتمد مرتبط بهذا البريد الإلكتروني. يرجى التواصل مع إدارة منصة يلا.'
@@ -183,26 +197,25 @@ export const SellerLoginView: React.FC = () => {
         return;
       }
 
-      // 5. Gather registered candidate phone numbers for identity verification
+      // Gather registered candidate phone numbers for identity verification
       const registeredPhones: string[] = [
         userData?.phone,
         matchedSeller?.contactPhone,
         userCredential.user.phoneNumber
       ].filter(Boolean) as string[];
 
-      // 6. Security Check: Mobile Phone Number Match
+      // Security Check: Mobile Phone Number Match
       if (registeredPhones.length > 0) {
         const isPhoneMatched = registeredPhones.some(p => {
           const normReg = normalizeLebanesePhone(p);
           return normReg.cleanDigits === normPhone.cleanDigits;
         });
 
-        if (!isPhoneMatched && !isUserAdmin) {
-          // Reject authentication and sign out immediately
+        if (!isPhoneMatched) {
           await signOut(auth);
           const failMsg = isArabic 
-            ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب. يرجى إدخال رقم هاتفك المعتمد.`
-            : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file for this account. Please enter your registered mobile number.`;
+            ? `فشل التحقق الأمني: رقم الهاتف المحمول (${normPhone.formatted}) لا يطابق رقم هاتف البائع المسجل لهذا الحساب.`
+            : `Security Verification Failed: The mobile phone number entered (${normPhone.formatted}) does not match the registered seller phone on file for this account.`;
           setErrorMessage(failMsg);
           showToast(failMsg, 'error');
           setIsLoading(false);

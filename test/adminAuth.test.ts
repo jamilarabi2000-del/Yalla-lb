@@ -13,9 +13,9 @@ describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', (
   const adminViewCode = fs.readFileSync(adminViewPath, 'utf-8');
   const sellerLoginCode = fs.readFileSync(sellerLoginPath, 'utf-8');
 
-  it('1. Admin claim only (admin:true, seller:false) is permitted in SellerLoginView without rejecting non-sellers', () => {
-    expect(sellerLoginCode).toContain('if (!hasAdminClaim && !hasSellerClaim)');
-    expect(sellerLoginCode).toContain('const isUserAdmin = hasAdminClaim;');
+  it('1. Admin claim only (admin:true, seller:false) is permitted in SellerLoginView without requiring seller record or phone', () => {
+    expect(sellerLoginCode).toContain('if (hasAdminClaim)');
+    expect(sellerLoginCode).toContain('setActiveTab(\'admin\')');
   });
 
   it('2. Admin + seller (admin:true, seller:true) is successfully authenticated', () => {
@@ -47,12 +47,12 @@ describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', (
     expect(authContextCode).toContain('snap.exists()');
   });
 
-  it('8. Admin with no seller record is not rejected by seller matching logic', () => {
-    expect(sellerLoginCode).toContain('if (!matchedSeller && !isUserAdmin)');
+  it('8. Admin with no seller record is not rejected because admin bypasses seller lookup', () => {
+    expect(sellerLoginCode).toContain('if (hasAdminClaim)');
   });
 
-  it('9. Admin with no seller phone is not rejected by seller phone verification', () => {
-    expect(sellerLoginCode).toContain('if (!isPhoneMatched && !isUserAdmin)');
+  it('9. Admin with no seller phone is not rejected because phone check only runs for non-admin sellers', () => {
+    expect(sellerLoginCode).toContain('if (!phone)');
   });
 
   it('10. Failed token refresh fails closed gracefully without crashing or false admin elevation', () => {
