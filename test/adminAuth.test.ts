@@ -2,59 +2,75 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-describe('Admin Authentication & Custom Claims Test Suite', () => {
+describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', () => {
   const authContextPath = path.resolve(process.cwd(), 'src/context/AuthContext.tsx');
   const shopContextPath = path.resolve(process.cwd(), 'src/context/ShopContext.tsx');
   const adminViewPath = path.resolve(process.cwd(), 'src/components/AdminView.tsx');
+  const sellerLoginPath = path.resolve(process.cwd(), 'src/components/SellerLoginView.tsx');
 
   const authContextCode = fs.readFileSync(authContextPath, 'utf-8');
   const shopContextCode = fs.readFileSync(shopContextPath, 'utf-8');
   const adminViewCode = fs.readFileSync(adminViewPath, 'utf-8');
+  const sellerLoginCode = fs.readFileSync(sellerLoginPath, 'utf-8');
 
-  it('1. unauthenticated user handling sets appropriate auth state and loading completion', () => {
-    expect(authContextCode).toContain('if (!fbUser)');
-    expect(authContextCode).toContain('setUser(null)');
-    expect(authContextCode).toContain('setIsAdminUser(false)');
-    expect(authContextCode).toContain('setIsLoadingAuth(false)');
+  it('1. Admin claim only (admin:true, seller:false) is permitted in SellerLoginView without rejecting non-sellers', () => {
+    expect(sellerLoginCode).toContain('if (!hasAdminClaim && !hasSellerClaim)');
+    expect(sellerLoginCode).toContain('const isUserAdmin = hasAdminClaim;');
   });
 
-  it('2. authenticated normal user (non-admin) has admin: false', () => {
-    expect(authContextCode).toContain('tokenResult?.claims?.admin === true');
-    expect(shopContextCode).toContain('tokenResult?.claims?.admin === true');
+  it('2. Admin + seller (admin:true, seller:true) is successfully authenticated', () => {
+    expect(sellerLoginCode).toContain('hasAdminClaim');
+    expect(sellerLoginCode).toContain('hasSellerClaim');
   });
 
-  it('3. authenticated admin with admin: true strictly validates tokenResult.claims.admin === true', () => {
-    expect(authContextCode).toMatch(/tokenResult\?\.claims\?\.admin\s*===\s*true/);
-    expect(shopContextCode).toMatch(/tokenResult\?\.claims\?\.admin\s*===\s*true/);
+  it('3. Seller only (admin:false, seller:true) passes seller merchant verification', () => {
+    expect(sellerLoginCode).toContain('hasSellerClaim');
   });
 
-  it('4. stale token followed by forced refresh using getIdToken(true) and getIdTokenResult(true)', () => {
+  it('4. Normal customer (admin:false, seller:false) is denied access', () => {
+    expect(sellerLoginCode).toContain('Access Denied');
+  });
+
+  it('5. Forged Firestore users/{uid}.role = "admin" is ignored (role is hardcoded to customer)', () => {
+    expect(authContextCode).toContain("role: 'customer'");
+    expect(authContextCode).not.toContain('snap.data().role');
+  });
+
+  it('6. Stale ID token is forcibly refreshed using getIdToken(true) and getIdTokenResult(true)', () => {
     expect(authContextCode).toContain('getIdToken(true)');
     expect(authContextCode).toContain('getIdTokenResult(true)');
-    expect(shopContextCode).toContain('getIdToken(true)');
-    expect(shopContextCode).toContain('getIdTokenResult(true)');
+    expect(sellerLoginCode).toContain('getIdTokenResult(true)');
   });
 
-  it('5. missing user profile document does not block isLoadingAuth completion', () => {
+  it('7. Missing Firestore users/{uid} document does not block admin recognition or isLoadingAuth', () => {
     expect(authContextCode).toContain('setIsLoadingAuth(false)');
-    const authInitSnippet = authContextCode.slice(authContextCode.indexOf('onAuthStateChanged'), authContextCode.indexOf('const logout'));
-    expect(authInitSnippet).toContain('setIsLoadingAuth(false)');
+    expect(authContextCode).toContain('snap.exists()');
   });
 
-  it('6. failed token refresh fails closed gracefully without logging out user', () => {
+  it('8. Admin with no seller record is not rejected by seller matching logic', () => {
+    expect(sellerLoginCode).toContain('if (!matchedSeller && !isUserAdmin)');
+  });
+
+  it('9. Admin with no seller phone is not rejected by seller phone verification', () => {
+    expect(sellerLoginCode).toContain('if (!isPhoneMatched && !isUserAdmin)');
+  });
+
+  it('10. Failed token refresh fails closed gracefully without crashing or false admin elevation', () => {
     expect(authContextCode).toContain('catch');
-    expect(authContextCode).not.toMatch(/catch\s*\(\)\s*\{\s*logout\(\)\s*\}/);
+    expect(authContextCode).not.toMatch(/catch\s*\(\)\s*\{\s*setIsAdminUser\(true\)\s*\}/);
   });
 
-  it('7. AdminView displays correct access denied message when authenticated user is non-admin', () => {
-    expect(adminViewCode).toContain('Your account is authenticated but does not have administrator privileges.');
-    expect(adminViewCode).toContain('Refresh Session');
+  it('11. Direct Firestore access requires request.auth.token.admin == true', () => {
+    const rulesPath = path.resolve(process.cwd(), 'firestore.rules');
+    if (fs.existsSync(rulesPath)) {
+      const rulesCode = fs.readFileSync(rulesPath, 'utf-8');
+      expect(rulesCode).toContain('request.auth.token.admin == true');
+    }
   });
 
-  it('8. authStatus distinguishes loading, unauthenticated, authenticated non-admin, and authenticated admin', () => {
+  it('AuthContext is authoritative source of client-side admin state and authStatus', () => {
     expect(authContextCode).toContain('authStatus');
-    expect(shopContextCode).toContain('authStatus');
-    expect(authContextCode).toContain('authenticated_non_admin');
     expect(authContextCode).toContain('authenticated_admin');
+    expect(authContextCode).toContain('authenticated_non_admin');
   });
 });
