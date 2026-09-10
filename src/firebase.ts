@@ -18,6 +18,9 @@ import {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
+  ConfirmationResult,
   // Note: fetchSignInMethodsForEmail intentionally omitted to prevent account-enumeration attacks
   Auth
 } from 'firebase/auth';
@@ -152,7 +155,9 @@ export {
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
+  RecaptchaVerifier,
+  signInWithPhoneNumber,
   httpsCallable
 };
-export type { FirebaseUser, Functions };
+export type { FirebaseUser, Functions, ConfirmationResult };
 

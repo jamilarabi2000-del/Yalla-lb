@@ -7,6 +7,7 @@ import { calcDeliveryFeeUSD } from '../lib/delivery';
 import { CustomBlocksRenderer } from './CustomBlocksRenderer';
 import { LebanonFlag } from './LebanonFlag';
 import { OTPModal } from './OTPModal';
+import { PhoneAuthModal } from './PhoneAuthModal';
 import { generateIdempotencyKey } from '../utils/uuid';
 import { 
   ShieldCheck, 
@@ -20,6 +21,7 @@ import {
   MapPin,
   Sparkles,
   PhoneCall,
+  Smartphone,
   ArrowLeft,
   LogIn,
   UserPlus,
@@ -301,6 +303,7 @@ export const CheckoutView: React.FC = () => {
   const finalTotalUSD = cartTotalUSD + (cart.length > 0 ? deliveryFeeUSD : 0);
 
   const [showOtpModal, setShowOtpModal] = useState<boolean>(false);
+  const [showPhoneAuthModal, setShowPhoneAuthModal] = useState<boolean>(false);
   const [otpTargetContact, setOtpTargetContact] = useState<string>('');
   const [otpActionType, setOtpActionType] = useState<'login' | 'signup'>('login');
   const [pendingAuthAction, setPendingAuthAction] = useState<(() => Promise<void>) | null>(null);
@@ -813,8 +816,19 @@ export const CheckoutView: React.FC = () => {
                       : 'To track courier dispatch, receive WhatsApp notifications, and auto-fill your delivery coordinates, please sign in or register below.'}
                   </p>
 
-                  {/* Social Instant Sign In */}
-                  <div>
+                  {/* Social & Phone Instant Sign In */}
+                  <div className="space-y-2.5">
+                    <button
+                      type="button"
+                      id="checkout-phone-signin-btn"
+                      onClick={() => setShowPhoneAuthModal(true)}
+                      disabled={isAuthLoading}
+                      className="w-full py-2.5 px-4 rounded-lg bg-[#171717] hover:bg-black text-white font-bold text-xs flex items-center justify-center gap-3 transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
+                    >
+                      <Smartphone className="w-4 h-4 text-[#B89753]" />
+                      <span>{isArabic ? 'تسجيل الدخول برقم الهاتف اللبناني (SMS)' : 'Sign In with Lebanese Phone (SMS)'}</span>
+                    </button>
+
                     <button
                       type="button"
                       id="checkout-google-signin-btn"
@@ -1715,6 +1729,14 @@ export const CheckoutView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Native Firebase Phone Auth Modal */}
+      <PhoneAuthModal
+        isOpen={showPhoneAuthModal}
+        onClose={() => setShowPhoneAuthModal(false)}
+        language={isArabic ? 'ar' : 'en'}
+        initialPhone={formData.phone}
+      />
 
       {/* Security OTP Modal */}
       <OTPModal
