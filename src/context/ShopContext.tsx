@@ -324,8 +324,8 @@ interface ShopContextType {
   discountUSD: number;
   finalCartTotalUSD: number;
   appliedDiscountRules: { rule: DiscountRule; savedUSD: number }[];
-  addDiscountRule: (rule: Omit<DiscountRule, 'id'>) => Promise<void>;
-  updateDiscountRule: (id: string, updates: Partial<DiscountRule>) => Promise<void>;
+  addDiscountRule: (rule: Omit<DiscountRule, 'id'>, couponCode?: string, maxTotalUses?: number, maxUsesPerUser?: number) => Promise<void>;
+  updateDiscountRule: (id: string, updates: Partial<DiscountRule>, couponCode?: string, maxTotalUses?: number, maxUsesPerUser?: number) => Promise<void>;
   deleteDiscountRule: (id: string) => Promise<void>;
 
   // Bundles & Combo Deals
@@ -829,13 +829,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (snapshot) => {
         if (snapshot.empty && !hasSeededDiscountsRef.current) {
           hasSeededDiscountsRef.current = true;
+          // seed logic unchanged, but UI now has no coupons without adding to coupons collection... we'll just omit seeding for now or let the user create.
           const initialRules = [
             {
               id: 'rule-1',
               name: 'Koura Olive Oil Special (15% Off)',
-              type: 'percentage',
+              type: 'percentage' as const,
               value: 15,
-              target: 'brand',
+              target: 'brand' as const,
               targetValue: 'Koura, North Lebanon',
               couponCode: 'KOURA15',
               isActive: true
@@ -843,9 +844,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             {
               id: 'rule-2',
               name: 'Checkout Extra $5 Off',
-              type: 'fixed',
+              type: 'fixed' as const,
               value: 5,
-              target: 'checkout',
+              target: 'checkout' as const,
               couponCode: 'WELCOME5',
               isActive: true,
               minPurchaseUSD: 30
@@ -858,19 +859,50 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               initialRules.forEach(rule => {
                 const docRef = doc(db, 'discounts', rule.id);
                 batch.set(docRef, sanitizeDocumentData(rule));
+                if (rule.couponCode) {
+                  const couponRef = doc(db, 'coupons', rule.id);
+                  batch.set(couponRef, {
+                    discountId: rule.id,
+                    couponCode: rule.couponCode,
+                    usageCount: 0,
+                    usedBy: []
+                  });
+                }
               });
-              await monitoredBatchCommit(batch, initialRules.length, 'discounts', 'ShopContext:AutoSeedDiscounts');
+              await monitoredBatchCommit(batch, initialRules.length * 2, 'discounts', 'ShopContext:AutoSeedDiscounts');
             } catch (seedErr) {
               console.error("[ShopContext] Error seeding discount rules:", seedErr);
             }
           }
           setDiscountRules(initialRules as DiscountRule[]);
         } else if (!snapshot.empty) {
-          const rules: DiscountRule[] = [];
-          snapshot.forEach(docSnap => {
-            rules.push(docSnap.data() as DiscountRule);
-          });
-          setDiscountRules(rules);
+          try {
+            const couponsSnap = await getDocs(collection(db, 'coupons'));
+            const couponsMap = new Map();
+            couponsSnap.forEach(d => {
+              couponsMap.set(d.data().discountId || d.id, d.data());
+            });
+
+            const rules: DiscountRule[] = [];
+            snapshot.forEach(docSnap => {
+              const r = docSnap.data() as DiscountRule;
+              const c = couponsMap.get(r.id);
+              if (c) {
+                r.couponCode = c.couponCode;
+                r.maxTotalUses = c.maxTotalUses;
+                r.maxUsesPerUser = c.maxUsesPerUser;
+              }
+              rules.push(r);
+            });
+            setDiscountRules(rules);
+          } catch (err) {
+            console.error('Failed to fetch coupons', err);
+            const rules: DiscountRule[] = [];
+            snapshot.forEach(docSnap => {
+              rules.push(docSnap.data() as DiscountRule);
+            });
+            setDiscountRules(rules);
+          }
         }
       },
       (error) => {
@@ -878,9 +910,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
     return () => unsubscribe();
-  }, []);
+  }, [isAdminUser]);
 
-  const addDiscountRule = async (ruleData: Omit<DiscountRule, 'id'>) => {
+  const addDiscountRule = async (ruleData: Omit<DiscountRule, 'id'>, couponCode?: string, maxTotalUses?: number, maxUsesPerUser?: number) => {
     const id = 'rule-' + secureRandomString(7);
     const newRule: DiscountRule = {
       ...ruleData,
@@ -889,6 +921,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(newRule), undefined, 'ShopContext:addDiscountRule');
+        if (couponCode && couponCode.trim() !== '') {
+          await monitoredSetDoc(doc(db, 'coupons', id), { 
+            discountId: id, 
+            couponCode: couponCode.trim().toUpperCase(), 
+            usageCount: 0, 
+            usedBy: [],
+            maxTotalUses: maxTotalUses || null,
+            maxUsesPerUser: maxUsesPerUser || null
+          }, undefined, 'ShopContext:addCoupon');
+        }
       }
     } catch (err) {
       console.error("[ShopContext] Error saving discount rule to Firestore:", err);
@@ -899,7 +941,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await logAdminActivity('meta_change', 'Created Discount Rule', `Created discount: ${newRule.name}`);
   };
 
-  const updateDiscountRule = async (id: string, updates: Partial<DiscountRule>) => {
+  const updateDiscountRule = async (id: string, updates: Partial<DiscountRule>, couponCode?: string, maxTotalUses?: number, maxUsesPerUser?: number) => {
     const target = discountRules.find(r => r.id === id);
     if (!target) return;
     const updatedRule: DiscountRule = { ...target, ...updates };
@@ -907,6 +949,18 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (IS_FIREBASE_ENABLED) {
         await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(updatedRule), { merge: true }, 'ShopContext:updateDiscountRule');
+        if (couponCode !== undefined) {
+          if (couponCode.trim() === '') {
+            await monitoredDeleteDoc(doc(db, 'coupons', id), 'ShopContext:deleteCoupon').catch(() => {});
+          } else {
+            await monitoredSetDoc(doc(db, 'coupons', id), { 
+              discountId: id, 
+              couponCode: couponCode.trim().toUpperCase(),
+              ...(maxTotalUses !== undefined && { maxTotalUses: maxTotalUses || null }),
+              ...(maxUsesPerUser !== undefined && { maxUsesPerUser: maxUsesPerUser || null })
+            }, { merge: true }, 'ShopContext:updateCoupon');
+          }
+        }
       }
       setDiscountRules(prev => prev.map(r => r.id === id ? updatedRule : r));
     } catch (err) {
@@ -921,6 +975,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (IS_FIREBASE_ENABLED) {
         await monitoredDeleteDoc(doc(db, 'discounts', id), 'ShopContext:deleteDiscountRule');
+        await monitoredDeleteDoc(doc(db, 'coupons', id), 'ShopContext:deleteCoupon').catch(() => {});
       }
       setDiscountRules(prev => prev.filter(r => r.id !== id));
     } catch (err) {
@@ -3797,17 +3852,33 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Duplicate Description validation removed for flexibility
 
-    const { rating = 0, reviewsCount = 0, ...restProdData } = newProdData;
+    const { rating = 0, reviewsCount = 0, sellerItemCode, lowStockThreshold, lowStockNotice, customStockLabel, costPriceUSD, ...restProdData } = newProdData;
     const id = newProdData.id || `prod-custom-${Date.now()}`;
     const nowIso = new Date().toISOString();
-    const newProduct: Product = ensureSellerItemCode({
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      rating,
-      reviewsCount,
-      ...restProdData,
-      id
-    });
+    
+    let newProduct: Product;
+    if (!isAdminUser && isSellerUser) {
+      newProduct = {
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        ...restProdData,
+        id
+      } as Product;
+    } else {
+      newProduct = ensureSellerItemCode({
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        rating,
+        reviewsCount,
+        sellerItemCode,
+        lowStockThreshold,
+        lowStockNotice,
+        customStockLabel,
+        costPriceUSD,
+        ...restProdData,
+        id
+      });
+    }
     const sanitizedProduct = sanitizeDocumentData(newProduct);
     
     dbLogger.logFormInput({

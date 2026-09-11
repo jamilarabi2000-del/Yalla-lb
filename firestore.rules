@@ -56,12 +56,13 @@ service cloud.firestore {
     }
 
     function getSellerId() {
-      return request.auth.token.sellerId;
+      return ('sellerId' in request.auth.token && request.auth.token.sellerId is string) ? request.auth.token.sellerId : null;
     }
 
     function isActiveSeller() {
       return isSeller()
         && getSellerId() != null
+        && exists(/databases/$(database)/documents/sellers/$(getSellerId()))
         && get(/databases/$(database)/documents/sellers/$(getSellerId())).data.get('isActive', true) == true;
     }
 
@@ -108,20 +109,37 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 250;
     }
 
-    function sellerProductPayloadOk() {
-      return !request.resource.data.keys().hasAny([
+    function sellerForbiddenProductKeys() {
+      return [
+        'sellerActive',
+        'rating',
+        'reviewCount',
+        'reviewsCount',
+        'ordersCount',
+        'soldCount',
+        'featured',
+        'isPromoted',
+        'isNewArrival',
+        'isFeatured',
+        'isBestseller',
+        'displayOrder',
+        'discountPercentage',
         'sellerItemCode',
         'lowStockThreshold',
         'lowStockNotice',
         'customStockLabel',
         'costPriceUSD'
-      ]);
+      ];
+    }
+
+    function sellerProductPayloadOk() {
+      return !request.resource.data.keys().hasAny(sellerForbiddenProductKeys());
     }
 
     match /products/{productId} {
       allow get, list: if resource.data.get('isPublished', true) == true
         || isAdmin()
-        || (isActiveSeller() && resource.data.get('sellerId', '') == getSellerId());
+        || (resource.data.get('sellerId', '') == getSellerId() && isActiveSeller());
 
       allow create: if isAdmin()
         || (
@@ -130,21 +148,6 @@ service cloud.firestore {
           && request.resource.data.get('sellerId', '') == getSellerId()
           && sellerProductPayloadOk()
           && productShapeOk()
-          && !request.resource.data.keys().hasAny([
-            'sellerActive',
-            'rating',
-            'reviewCount',
-            'reviewsCount',
-            'ordersCount',
-            'soldCount',
-            'featured',
-            'isPromoted',
-            'isNewArrival',
-            'isFeatured',
-            'isBestseller',
-            'displayOrder',
-            'discountPercentage'
-          ])
         );
 
       allow update: if isAdmin()
@@ -153,8 +156,37 @@ service cloud.firestore {
           && resource.data.get('sellerId', '') == getSellerId()
           && request.resource.data.get('sellerId', '') == getSellerId()
           && request.resource.data.get('id', productId) == productId
-          && sellerProductPayloadOk()
           && productShapeOk()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'name',
+            'arabicName',
+            'artisan',
+            'seller',
+            'arabicSeller',
+            'origin',
+            'category',
+            'priceUSD',
+            'originalPriceUSD',
+            'image',
+            'additionalImages',
+            'videoUrl',
+            'additionalVideos',
+            'videos',
+            'description',
+            'craftStory',
+            'stock',
+            'isPublished',
+            'tags',
+            'keywords',
+            'arabicKeywords',
+            'seoTitle',
+            'seoArabicTitle',
+            'seoDescription',
+            'seoArabicDescription',
+            'weightOrVolume',
+            'createdAt',
+            'updatedAt'
+          ])
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
             'id',
             'sellerId',
@@ -167,9 +199,15 @@ service cloud.firestore {
             'featured',
             'isPromoted',
             'isNewArrival',
+            'isFeatured',
             'isBestseller',
             'displayOrder',
-            'discountPercentage'
+            'discountPercentage',
+            'sellerItemCode',
+            'lowStockThreshold',
+            'lowStockNotice',
+            'customStockLabel',
+            'costPriceUSD'
           ])
         );
 
@@ -400,6 +438,7 @@ service cloud.firestore {
 
       allow create: if (
           isOwner(userId)
+          && isNotBanned()
           && request.resource.data.get('uid', '') == userId
           && request.resource.data.keys().hasOnly(userSelfEditableKeys())
           && userEmailMatchesAuth()
@@ -414,6 +453,7 @@ service cloud.firestore {
 
       allow update: if (
           isOwner(userId)
+          && isNotBanned()
           && request.resource.data.diff(resource.data)
                .affectedKeys()
                .hasOnly(userSelfEditableKeys())
@@ -468,18 +508,21 @@ service cloud.firestore {
     }
 
     match /phone_registry/{phoneKey} {
-      allow get: if isAdmin();
+      allow get: if isAdmin()
+        || (isSignedIn() && resource.data.get('uid', '') == request.auth.uid);
       allow list: if isAdmin();
 
       allow create: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && phoneRegistryPayloadOk(phoneKey)
         );
 
       allow update: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && resource.data.get('uid', '') == request.auth.uid
           && phoneRegistryPayloadOk(phoneKey)
         );
@@ -487,6 +530,7 @@ service cloud.firestore {
       allow delete: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && resource.data.get('uid', '') == request.auth.uid
         );
     }
@@ -517,14 +561,14 @@ service cloud.firestore {
 
     match /carts/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if (isOwner(userId) && cartPayloadOk(userId)) || isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
+      allow create, update: if (isOwner(userId) && isNotBanned() && cartPayloadOk(userId)) || isAdmin();
+      allow delete: if (isOwner(userId) && isNotBanned()) || isAdmin();
     }
 
     match /wishlists/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if (isOwner(userId) && wishlistPayloadOk(userId)) || isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
+      allow create, update: if (isOwner(userId) && isNotBanned() && wishlistPayloadOk(userId)) || isAdmin();
+      allow delete: if (isOwner(userId) && isNotBanned()) || isAdmin();
     }
 
     // ---------------------------------------------------------------------
@@ -631,15 +675,12 @@ service cloud.firestore {
     // ---------------------------------------------------------------------
 
     function reviewOrderProvesPurchase(orderId, productId) {
-      let order = get(
-        /databases/$(database)/documents/orders/$(orderId)
-      ).data;
-
-      return order.get('userId', '') == request.auth.uid
-        && order.get('status', '') == 'delivered'
-        && 'productIds' in order
-        && order.productIds is list
-        && order.productIds.hasAny([productId]);
+      return exists(/databases/$(database)/documents/orders/$(orderId))
+        && get(/databases/$(database)/documents/orders/$(orderId)).data.get('userId', '') == request.auth.uid
+        && get(/databases/$(database)/documents/orders/$(orderId)).data.get('status', '') == 'delivered'
+        && 'productIds' in get(/databases/$(database)/documents/orders/$(orderId)).data
+        && get(/databases/$(database)/documents/orders/$(orderId)).data.productIds is list
+        && get(/databases/$(database)/documents/orders/$(orderId)).data.productIds.hasAny([productId]);
     }
 
     function reviewBodyOk() {
@@ -671,6 +712,7 @@ service cloud.firestore {
       allow read: if true;
 
       allow create: if isSignedIn()
+        && isNotBanned()
         && request.resource.data.keys().hasOnly([
           'id',
           'productId',
@@ -690,6 +732,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && exists(/databases/$(database)/documents/review_private/$(reviewId))
           && get(/databases/$(database)/documents/review_private/$(reviewId)).data.get('userId', '') == request.auth.uid
           && !request.resource.data.keys().hasAny(['userId', 'orderId', 'adminReply', 'adminReplyAt'])
@@ -706,6 +749,7 @@ service cloud.firestore {
       allow delete: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && exists(/databases/$(database)/documents/review_private/$(reviewId))
           && get(/databases/$(database)/documents/review_private/$(reviewId)).data.get('userId', '') == request.auth.uid
         );
@@ -719,6 +763,7 @@ service cloud.firestore {
         );
 
       allow create: if isSignedIn()
+        && isNotBanned()
         && request.resource.data.keys().hasOnly([
           'id',
           'reviewId',
@@ -738,6 +783,7 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && resource.data.get('userId', '') == request.auth.uid
           && request.resource.data.get('userId', '') == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
@@ -746,6 +792,7 @@ service cloud.firestore {
       allow delete: if isAdmin()
         || (
           isSignedIn()
+          && isNotBanned()
           && resource.data.get('userId', '') == request.auth.uid
         );
     }
@@ -784,6 +831,7 @@ service cloud.firestore {
       allow read: if isAdmin();
 
       allow create: if isSignedIn()
+        && isNotBanned()
         && 'userId' in request.resource.data
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.keys().hasOnly([

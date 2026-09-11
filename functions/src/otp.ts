@@ -600,3 +600,47 @@ export const verifyOtp = onCall(
     };
   }
 );
+
+export const checkPhoneAvailability = onCall(
+  {
+    cors: true,
+  },
+  async (request) => {
+    const data = request.data || {};
+    const phone = typeof data.phone === 'string' ? data.phone : '';
+    const excludeUid = typeof data.excludeUid === 'string' ? data.excludeUid : undefined;
+
+    if (!phone) {
+      throw new HttpsError('invalid-argument', 'Phone number parameter is required.');
+    }
+
+    let contactObj: NormalizedContact;
+    try {
+      contactObj = normalizeContact(phone);
+    } catch (e: any) {
+      return { available: false, reason: e?.message || 'Invalid phone format.' };
+    }
+
+    if (contactObj.type !== 'phone') {
+      return { available: false, reason: 'Identifier must be a valid phone number.' };
+    }
+
+    const digitsOnly = contactObj.value.replace(/\D/g, '');
+    const registryKey = `lb_phone_${digitsOnly}`;
+
+    const db = getDb();
+    const regSnap = await db.collection('phone_registry').doc(registryKey).get();
+    if (regSnap.exists) {
+      const regData = regSnap.data();
+      if (regData && regData.uid && (!excludeUid || regData.uid !== excludeUid)) {
+        return {
+          available: false,
+          reason: 'This phone number is already registered to another account. Please sign in or use a different phone number.'
+        };
+      }
+    }
+
+    return { available: true };
+  }
+);
+

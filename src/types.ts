@@ -29,6 +29,11 @@ export interface Product {
   isBestseller?: boolean;
   isPublished?: boolean; // Admin can publish/hide individual products
   displayOrder?: number; // Custom merchandising rank/order in category and store
+  sellerItemCode?: string;
+  lowStockThreshold?: number;
+  lowStockNotice?: string;
+  customStockLabel?: string;
+  costPriceUSD?: number;
   tags: string[];
   keywords?: string[];
   arabicKeywords?: string[];
@@ -37,10 +42,6 @@ export interface Product {
   seoDescription?: string;
   seoArabicDescription?: string;
   weightOrVolume?: string;
-  sellerItemCode?: string;
-  lowStockThreshold?: number;
-  lowStockNotice?: string;
-  customStockLabel?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -691,7 +692,9 @@ export interface DiscountRule {
   value: number; // e.g. 15 for 15%, 5 for $5, or 100 for 100% free BOGO / 50 for 50% off second item
   target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
   targetValue?: string; // specific product id, category id/name, artisan/seller name, or origin/brand name
-  couponCode?: string; // optional coupon code e.g. SUMMER20
+  couponCode?: string;
+  maxTotalUses?: number;
+  maxUsesPerUser?: number;
   isActive: boolean;
   minPurchaseUSD?: number;
   startDate?: string; // ISO date-time string e.g. "2026-08-20T00:00"
@@ -701,6 +704,16 @@ export interface DiscountRule {
   buyQty?: number; // e.g. 1 in Buy 1 Get 1, or 2 in Buy 2 Get 1
   getQty?: number; // e.g. 1 in Buy 1 Get 1 or Buy 2 Get 1
   getDiscountPercent?: number; // discount on the Y items (e.g. 100 for 100% Free, or 50 for 50% off)
+}
+
+export interface Coupon {
+  id: string; // usually matches the discountId
+  discountId: string;
+  couponCode: string;
+  maxTotalUses?: number;
+  maxUsesPerUser?: number;
+  usageCount: number;
+  usedBy?: string[];
 }
 
 export interface SearchLog {

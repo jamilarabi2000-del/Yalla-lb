@@ -1266,9 +1266,9 @@ describe('Security Regression Suite - Application Controls', () => {
 
       // reviewOrderProvesPurchase must require order status == 'delivered'
       expect(rules).toMatch(/function\s+reviewOrderProvesPurchase\s*\(\s*orderId\s*,\s*productId\s*\)\s*\{/);
-      expect(rules).toMatch(/order\.get\(\s*['"]status['"]\s*,\s*['"]['"]\s*\)\s*==\s*['"]delivered['"]/);
-      expect(rules).toMatch(/order\.get\(\s*['"]userId['"]\s*,\s*['"]['"]\s*\)\s*==\s*request\.auth\.uid/);
-      expect(rules).toMatch(/order\.productIds\.hasAny\(\s*\[\s*productId\s*\]\s*\)/);
+      expect(rules).toMatch(/get\(\/databases\/\$\(database\)\/documents\/orders\/\$\(orderId\)\)\.data\.get\(\s*['"]status['"]\s*,\s*['"]['"]\s*\)\s*==\s*['"]delivered['"]/);
+      expect(rules).toMatch(/get\(\/databases\/\$\(database\)\/documents\/orders\/\$\(orderId\)\)\.data\.get\(\s*['"]userId['"]\s*,\s*['"]['"]\s*\)\s*==\s*request\.auth\.uid/);
+      expect(rules).toMatch(/get\(\/databases\/\$\(database\)\/documents\/orders\/\$\(orderId\)\)\.data\.productIds\.hasAny\(\s*\[\s*productId\s*\]\s*\)/);
     });
 
     it('TEST 2: ProductDetailView frontend only permits reviews for successfully delivered orders', () => {

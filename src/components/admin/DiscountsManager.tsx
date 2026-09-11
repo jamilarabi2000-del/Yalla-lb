@@ -182,13 +182,12 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
     }
 
     try {
-      const payload: Omit<DiscountRule, 'id'> = {
+      const rawPayload = {
         name: form.name.trim(),
         type: form.type,
         value: form.type === 'bogo' ? (form.getDiscountPercent || 100) : Number(form.value),
         target: form.target,
         targetValue: (form.target !== 'checkout' && form.target !== 'all') ? form.targetValue.trim() : undefined,
-        couponCode: form.couponCode.trim() ? form.couponCode.trim().toUpperCase() : undefined,
         isActive: form.isActive,
         minPurchaseUSD: Number(form.minPurchaseUSD) || 0,
         startDate: form.startDate ? form.startDate : undefined,
@@ -199,11 +198,17 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
         getDiscountPercent: form.type === 'bogo' ? Number(form.getDiscountPercent) : undefined
       };
 
+      const couponCode = (form as any).couponCode?.trim() ? (form as any).couponCode.trim().toUpperCase() : undefined;
+      const maxTotalUses = (form as any).maxTotalUses ? Number((form as any).maxTotalUses) : undefined;
+      const maxUsesPerUser = (form as any).maxUsesPerUser ? Number((form as any).maxUsesPerUser) : undefined;
+
+      const payload: Omit<DiscountRule, 'id'> = rawPayload;
+
       if (editingId) {
-        await updateDiscountRule(editingId, payload);
+        await updateDiscountRule(editingId, payload, couponCode, maxTotalUses, maxUsesPerUser);
         showToast('Discount rule updated successfully!', 'success');
       } else {
-        await addDiscountRule(payload);
+        await addDiscountRule(payload, couponCode, maxTotalUses, maxUsesPerUser);
         showToast('Discount rule created successfully!', 'success');
       }
       setIsModalOpen(false);

@@ -1,5 +1,6 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const serviceAccountJson = process.env.SERVICE_ACCOUNT_JSON;
 if (!serviceAccountJson) {
@@ -25,12 +26,24 @@ if (!email) {
 try {
   const user = await getAuth().getUserByEmail(email);
   const currentClaims = user.customClaims || {};
+  const effectiveSellerId = sellerId ? sellerId.trim() : (currentClaims.sellerId || `seller-${user.uid}`);
+  
   await getAuth().setCustomUserClaims(user.uid, { 
     ...currentClaims, 
     seller: true,
-    ...(sellerId ? { sellerId: sellerId.trim() } : {})
+    sellerActive: true,
+    sellerId: effectiveSellerId
   });
-  console.log(`Successfully granted seller privileges (seller: true${sellerId ? `, sellerId: "${sellerId.trim()}"` : ''}) to ${user.email} (${user.uid})`);
+
+  const db = getFirestore();
+  const sellerRef = db.collection('sellers').doc(effectiveSellerId);
+  await sellerRef.set({
+    id: effectiveSellerId,
+    isActive: true,
+    updatedAt: FieldValue.serverTimestamp()
+  }, { merge: true });
+
+  console.log(`Successfully granted seller privileges (seller: true, sellerActive: true, sellerId: "${effectiveSellerId}") to ${user.email} (${user.uid}) and initialized sellers/${effectiveSellerId}`);
 } catch (error) {
   console.error(`Error granting seller privileges to ${email}:`, error instanceof Error ? error.message : error);
   process.exit(1);

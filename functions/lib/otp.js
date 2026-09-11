@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyOtp = exports.requestOtp = void 0;
+exports.checkPhoneAvailability = exports.verifyOtp = exports.requestOtp = void 0;
 exports.deriveHmacId = deriveHmacId;
 exports.hashOtp = hashOtp;
 exports.normalizeContact = normalizeContact;
@@ -510,5 +510,39 @@ exports.verifyOtp = (0, https_1.onCall)({
         success: true,
         verifiedAtMs: now
     };
+});
+exports.checkPhoneAvailability = (0, https_1.onCall)({
+    cors: true,
+}, async (request) => {
+    const data = request.data || {};
+    const phone = typeof data.phone === 'string' ? data.phone : '';
+    const excludeUid = typeof data.excludeUid === 'string' ? data.excludeUid : undefined;
+    if (!phone) {
+        throw new https_1.HttpsError('invalid-argument', 'Phone number parameter is required.');
+    }
+    let contactObj;
+    try {
+        contactObj = normalizeContact(phone);
+    }
+    catch (e) {
+        return { available: false, reason: e?.message || 'Invalid phone format.' };
+    }
+    if (contactObj.type !== 'phone') {
+        return { available: false, reason: 'Identifier must be a valid phone number.' };
+    }
+    const digitsOnly = contactObj.value.replace(/\D/g, '');
+    const registryKey = `lb_phone_${digitsOnly}`;
+    const db = getDb();
+    const regSnap = await db.collection('phone_registry').doc(registryKey).get();
+    if (regSnap.exists) {
+        const regData = regSnap.data();
+        if (regData && regData.uid && (!excludeUid || regData.uid !== excludeUid)) {
+            return {
+                available: false,
+                reason: 'This phone number is already registered to another account. Please sign in or use a different phone number.'
+            };
+        }
+    }
+    return { available: true };
 });
 //# sourceMappingURL=otp.js.map

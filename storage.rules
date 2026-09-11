@@ -19,7 +19,7 @@ service firebase.storage {
     }
 
     function getSellerId() {
-      return request.auth.token.sellerId;
+      return ('sellerId' in request.auth.token && request.auth.token.sellerId is string) ? request.auth.token.sellerId : null;
     }
 
     function isSafeImage() {
@@ -32,7 +32,7 @@ service firebase.storage {
     function isActiveSeller(sellerId) {
       return isSeller()
         && getSellerId() == sellerId
-        && firestore.get(/databases/(default)/documents/sellers/$(sellerId)).data.get('isActive', true) == true;
+        && (!('sellerActive' in request.auth.token) || request.auth.token.sellerActive == true);
     }
 
     // Public product images: readable by everyone, uploaded by Admin or Active Seller

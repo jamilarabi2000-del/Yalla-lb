@@ -445,12 +445,18 @@ export const placeOrder = onCall<PlaceOrderRequest>(
       const idempotencyRef = db.doc(`order_idempotency/${uid}_${idempotencyKey}`);
       const productRefs = items.map(i => db.doc(`products/${i.productId.trim()}`));
 
-      const [idempotencySnap, productSnaps, discountsSnap, bundlesSnap, userSnap] = await Promise.all([
+      let couponQuery = undefined;
+      if (couponCode) {
+        couponQuery = db.collection('coupons').where('couponCode', '==', couponCode.trim().toUpperCase()).limit(1);
+      }
+
+      const [idempotencySnap, productSnaps, discountsSnap, bundlesSnap, userSnap, couponQuerySnap] = await Promise.all([
         tx.get(idempotencyRef),
         tx.getAll(...productRefs),
         tx.get(db.collection('discounts').where('isActive', '==', true)),
         tx.get(db.collection('product_bundles').where('isActive', '==', true)),
         tx.get(db.doc(`users/${uid}`)),
+        couponQuery ? tx.get(couponQuery) : Promise.resolve(null),
       ]);
 
       const requestFingerprint = computeRequestFingerprint({
@@ -523,9 +529,35 @@ export const placeOrder = onCall<PlaceOrderRequest>(
 
       const isNewCustomer = !userSnap.exists || (userSnap.data()?.ordersPlaced ?? 0) === 0;
 
+      let verifiedCouponDoc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData> | null = null;
+      if (couponQuerySnap && !couponQuerySnap.empty) {
+        const cDoc = couponQuerySnap.docs[0];
+        const cData = cDoc.data();
+        const usageCount = cData.usageCount || 0;
+        const usedBy = cData.usedBy || [];
+        const userUses = usedBy.filter((u: string) => u === uid).length;
+        
+        let valid = true;
+        if (typeof cData.maxTotalUses === 'number' && usageCount >= cData.maxTotalUses) valid = false;
+        if (typeof cData.maxUsesPerUser === 'number' && userUses >= cData.maxUsesPerUser) valid = false;
+        
+        if (valid) {
+          verifiedCouponDoc = cDoc;
+        }
+      }
+
+      const rawDiscounts = discountsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as any[];
+      if (verifiedCouponDoc) {
+        const cData = verifiedCouponDoc.data();
+        const ruleIndex = rawDiscounts.findIndex(r => r.id === (cData.discountId || verifiedCouponDoc!.id));
+        if (ruleIndex >= 0) {
+          rawDiscounts[ruleIndex].couponCode = cData.couponCode;
+        }
+      }
+
       const { discountUSD, appliedCoupon } = computeDiscounts({
         lines,
-        discounts: discountsSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+        discounts: rawDiscounts,
         bundles: bundlesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
         couponCode,
         isNewCustomer,
@@ -539,9 +571,16 @@ export const placeOrder = onCall<PlaceOrderRequest>(
       );
       const totalUSD = round2(subtotalUSD - discountUSD + deliveryFeeUSD);
 
-      // 4. Atomic stock decrement
+      // 4. Atomic stock & coupon updates
       for (const l of lines) {
         tx.update(l.ref, { stock: FieldValue.increment(-l.quantity) });
+      }
+      
+      if (appliedCoupon && verifiedCouponDoc) {
+        tx.update(verifiedCouponDoc.ref, {
+          usageCount: FieldValue.increment(1),
+          usedBy: FieldValue.arrayUnion(uid)
+        });
       }
 
       // 5. Authoritative user profile handling
