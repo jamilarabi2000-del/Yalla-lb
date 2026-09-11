@@ -113,4 +113,25 @@ describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', (
     expect(adminGuardCode).toContain("httpsCallable(functionsInstance, 'verifyOtp')");
     expect(adminGuardCode).not.toContain("httpsCallable(functionsInstance, 'sendOtp')");
   });
+
+  it('16. Server-side bootstrapAdmin function exists and enforces secure initial admin promotion', () => {
+    const bootstrapPath = path.resolve(process.cwd(), 'functions/src/adminBootstrap.ts');
+    expect(fs.existsSync(bootstrapPath)).toBe(true);
+
+    const bootstrapCode = fs.readFileSync(bootstrapPath, 'utf-8');
+    expect(bootstrapCode).toContain('bootstrapAdmin');
+    expect(bootstrapCode).toContain('setCustomUserClaims');
+    expect(bootstrapCode).toContain('unauthenticated');
+    expect(bootstrapCode).toContain('isBootstrapped');
+    expect(bootstrapCode).toContain('permission-denied');
+    expect(bootstrapCode).toContain('wuGq9Uh8aShXFpUsrLi3abfpkCC2');
+  });
+
+  it('17. Frontend does not hard-code initial admin UID or fake admin claims', () => {
+    const adminGuardPath = path.resolve(process.cwd(), 'src/components/AdminGuard.tsx');
+    const adminGuardCode = fs.readFileSync(adminGuardPath, 'utf-8');
+    expect(adminGuardCode).not.toContain("claims.admin = true");
+    expect(adminGuardCode).not.toContain("admin: true");
+    expect(shopContextCode).not.toContain("claims.admin = true");
+  });
 });
