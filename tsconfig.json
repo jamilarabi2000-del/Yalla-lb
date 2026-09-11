@@ -28,7 +28,8 @@
   "include": [
     "src",
     "test",
-    "vite.config.ts"
+    "vite.config.ts",
+    "server.ts"
   ],
   "exclude": [
     "functions",

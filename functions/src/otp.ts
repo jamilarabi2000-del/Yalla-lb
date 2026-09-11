@@ -575,6 +575,16 @@ export const verifyOtp = onCall(
         verifiedUid: request.auth?.uid || null
       });
 
+      if (actionType === 'admin' && request.auth?.uid) {
+        const stepUpRef = db.collection('admin_stepup').doc(request.auth.uid);
+        transaction.set(stepUpRef, {
+          uid: request.auth.uid,
+          verifiedAtMs: now,
+          expiresAtMs: now + 30 * 60 * 1000,
+          updatedAt: FieldValue.serverTimestamp()
+        });
+      }
+
       return { outcome: 'success' };
     });
 

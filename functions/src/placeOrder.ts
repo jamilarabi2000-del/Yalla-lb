@@ -450,13 +450,14 @@ export const placeOrder = onCall<PlaceOrderRequest>(
         couponQuery = db.collection('coupons').where('couponCode', '==', couponCode.trim().toUpperCase()).limit(1);
       }
 
-      const [idempotencySnap, productSnaps, discountsSnap, bundlesSnap, userSnap, couponQuerySnap] = await Promise.all([
+      const [idempotencySnap, productSnaps, discountsSnap, bundlesSnap, userSnap, couponQuerySnap, currencyConfigSnap] = await Promise.all([
         tx.get(idempotencyRef),
         tx.getAll(...productRefs),
         tx.get(db.collection('discounts').where('isActive', '==', true)),
         tx.get(db.collection('product_bundles').where('isActive', '==', true)),
         tx.get(db.doc(`users/${uid}`)),
         couponQuery ? tx.get(couponQuery) : Promise.resolve(null),
+        tx.get(db.doc('site_settings/currency')),
       ]);
 
       const requestFingerprint = computeRequestFingerprint({
@@ -621,30 +622,35 @@ export const placeOrder = onCall<PlaceOrderRequest>(
         )
       );
 
-      const orderData = {
-        id: orderRef.id,
-        userId: uid,
-        status: 'pending',
-        date: new Date().toISOString(),
-        trackingNumber,
-        items: lines.map(l => ({
-          product: l.product,
-          quantity: l.quantity,
-          selectedOption: l.selectedOption
-        })),
-        productIds: Array.from(new Set(lines.map(l => l.product.id).filter(Boolean))),
-        sellerIds: canonicalSellerIds,
-        shipping: cleanShipping,
-        paymentMethod: effectivePaymentMethod,
-        currency: 'USD',
-        subtotalUSD,
-        discountUSD,
-        deliveryFeeUSD,
-        totalUSD,
-        totalLBP: Math.round(totalUSD * 89500),
-        appliedCoupon: appliedCoupon || null,
-        createdAt: FieldValue.serverTimestamp(),
-      };
+        const currencyData = currencyConfigSnap.exists ? (currencyConfigSnap.data() as any) : null;
+        const lbpUsdRate = typeof currencyData?.lbpUsdRate === 'number' && currencyData.lbpUsdRate > 0
+          ? currencyData.lbpUsdRate
+          : 89500;
+
+        const orderData = {
+          id: orderRef.id,
+          userId: uid,
+          status: 'pending',
+          date: new Date().toISOString(),
+          trackingNumber,
+          items: lines.map(l => ({
+            product: l.product,
+            quantity: l.quantity,
+            selectedOption: l.selectedOption
+          })),
+          productIds: Array.from(new Set(lines.map(l => l.product.id).filter(Boolean))),
+          sellerIds: canonicalSellerIds,
+          shipping: cleanShipping,
+          paymentMethod: effectivePaymentMethod,
+          currency: 'USD',
+          subtotalUSD,
+          discountUSD,
+          deliveryFeeUSD,
+          totalUSD,
+          totalLBP: Math.round(totalUSD * lbpUsdRate),
+          appliedCoupon: appliedCoupon || null,
+          createdAt: FieldValue.serverTimestamp(),
+        };
 
       tx.set(orderRef, orderData);
 

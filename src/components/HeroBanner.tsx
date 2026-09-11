@@ -371,9 +371,14 @@ export const HeroBanner: React.FC = () => {
 
   const handleSecondaryActionClick = () => {
     const secondaryTarget = (heroData as any)?.secondaryTargetUrl || 'artisans';
-    if (secondaryTarget.startsWith('/')) {
-      window.location.href = secondaryTarget;
-      return;
+    if (secondaryTarget.startsWith('/') || secondaryTarget.startsWith('http://') || secondaryTarget.startsWith('https://')) {
+      if (secondaryTarget.startsWith('/') && !secondaryTarget.startsWith('//')) {
+        window.location.href = secondaryTarget;
+        return;
+      } else if (isSafeUrl(secondaryTarget)) {
+        window.location.href = secondaryTarget;
+        return;
+      }
     }
     setSelectedCategory(secondaryTarget);
     setSearchQuery('');

@@ -277,17 +277,15 @@ test('adversarial: customer cannot arbitrarily inflate discountUSD to create a f
 test('adversarial: customer cannot review a product they never purchased', async () => {
   await assertFails(
     setDoc(
-      doc(customer(), 'reviews', 'cust-1_unbought-prod'),
+      doc(customer(), 'review_private', 'cust-1_unbought-prod'),
       {
         id: 'cust-1_unbought-prod',
+        reviewId: 'cust-1_unbought-prod',
         userId: 'cust-1',
-        userName: 'Attacker',
         productId: 'unbought-prod',
         orderId: 'o1',
-        rating: 5,
-        comment: 'Fake positive review',
         createdAt: '2026-09-07',
-        date: '2026-09-07',
+        updatedAt: '2026-09-07'
       }
     )
   );
@@ -332,74 +330,76 @@ test('adversarial: customer cannot review a product from a pending, shipped, or 
     });
   });
 
-  // Review referencing pending order -> DENY
+  // Review referencing pending order -> DENY on review_private
   await assertFails(
-    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+    setDoc(doc(customer(), 'review_private', 'cust-1_p-order'), {
       id: 'cust-1_p-order',
+      reviewId: 'cust-1_p-order',
       userId: 'cust-1',
-      userName: 'Customer 1',
       productId: 'p-order',
       orderId: 'ord-pending-1',
-      rating: 5,
-      comment: 'Attempt on pending order',
       createdAt: '2026-09-07',
-      date: '2026-09-07',
+      updatedAt: '2026-09-07',
     })
   );
 
-  // Review referencing in-transit order -> DENY
+  // Review referencing in-transit order -> DENY on review_private
   await assertFails(
-    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+    setDoc(doc(customer(), 'review_private', 'cust-1_p-order'), {
       id: 'cust-1_p-order',
+      reviewId: 'cust-1_p-order',
       userId: 'cust-1',
-      userName: 'Customer 1',
       productId: 'p-order',
       orderId: 'ord-transit-1',
-      rating: 5,
-      comment: 'Attempt on in-transit order',
       createdAt: '2026-09-07',
-      date: '2026-09-07',
+      updatedAt: '2026-09-07',
     })
   );
 
-  // Review referencing cancelled order -> DENY
+  // Review referencing cancelled order -> DENY on review_private
   await assertFails(
-    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+    setDoc(doc(customer(), 'review_private', 'cust-1_p-order'), {
       id: 'cust-1_p-order',
+      reviewId: 'cust-1_p-order',
       userId: 'cust-1',
-      userName: 'Customer 1',
       productId: 'p-order',
       orderId: 'ord-cancelled-1',
-      rating: 5,
-      comment: 'Attempt on cancelled order',
       createdAt: '2026-09-07',
-      date: '2026-09-07',
+      updatedAt: '2026-09-07',
     })
   );
 
-  // Review referencing other customer's delivered order -> DENY
+  // Review referencing other customer's delivered order -> DENY on review_private
   await assertFails(
-    setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
+    setDoc(doc(customer(), 'review_private', 'cust-1_p-order'), {
       id: 'cust-1_p-order',
+      reviewId: 'cust-1_p-order',
       userId: 'cust-1',
-      userName: 'Customer 1',
       productId: 'p-order',
       orderId: 'ord-delivered-other',
-      rating: 5,
-      comment: 'Attempt stealing other order',
       createdAt: '2026-09-07',
-      date: '2026-09-07',
+      updatedAt: '2026-09-07',
     })
   );
 
-  // Legitimate review referencing own delivered order -> ALLOW
+  // Legitimate review referencing own delivered order -> ALLOW on review_private then ALLOW on reviews
+  await assertSucceeds(
+    setDoc(doc(customer(), 'review_private', 'cust-1_p-order'), {
+      id: 'cust-1_p-order',
+      reviewId: 'cust-1_p-order',
+      userId: 'cust-1',
+      productId: 'p-order',
+      orderId: 'ord-delivered-cust1',
+      createdAt: '2026-09-07',
+      updatedAt: '2026-09-07',
+    })
+  );
+
   await assertSucceeds(
     setDoc(doc(customer(), 'reviews', 'cust-1_p-order'), {
       id: 'cust-1_p-order',
-      userId: 'cust-1',
-      userName: 'Customer 1',
       productId: 'p-order',
-      orderId: 'ord-delivered-cust1',
+      userName: 'Customer 1',
       rating: 5,
       comment: 'Authentic handmade Lebanese craft! Delivered in perfect condition.',
       createdAt: '2026-09-07',
@@ -547,6 +547,9 @@ test('adversarial: seller cannot manipulate sellerActive, rating, reviewCount, o
   const sellerContext = env.authenticatedContext('user-seller-x', {
     email: 'sellerx@example.com',
     email_verified: true,
+    seller: true,
+    sellerId: 'seller-x',
+    sellerActive: true
   }).firestore();
 
   // Seed seller profile mapping
@@ -556,6 +559,7 @@ test('adversarial: seller cannot manipulate sellerActive, rating, reviewCount, o
       accountUid: 'user-seller-x',
       nameEn: 'Seller X',
       sellerCode: 'SELLER-X',
+      isActive: true,
     });
     await setDoc(doc(ctx.firestore(), 'products', 'p-seller-x'), {
       id: 'p-seller-x',
@@ -602,6 +606,9 @@ test('adversarial: seller cannot create or update product with mismatched ID', a
   const sellerContext = env.authenticatedContext('user-seller-x', {
     email: 'sellerx@example.com',
     email_verified: true,
+    seller: true,
+    sellerId: 'seller-x',
+    sellerActive: true
   }).firestore();
 
   // Mismatched ID on create
@@ -1280,12 +1287,17 @@ describe('19. Public/Private Firestore Data Separation Security Hardening', () =
     await assertFails(getDoc(doc(customer(), 'seller_private', 'seller-123')));
   });
 
-  test('unauthenticated user cannot read review_private data', async () => {
+  test('unauthenticated user cannot read review_private data; owner can read', async () => {
     await env.withSecurityRulesDisabled(async (ctx: any) => {
       await setDoc(doc(ctx.firestore(), 'review_private', 'r1'), { userId: 'cust-1', orderId: 'ord-1' });
     });
+    const otherCust = env.authenticatedContext('cust-other', {
+      email: 'other@example.com',
+      email_verified: true,
+    }).firestore();
     await assertFails(getDoc(doc(unauthenticated(), 'review_private', 'r1')));
-    await assertFails(getDoc(doc(customer(), 'review_private', 'r1')));
+    await assertFails(getDoc(doc(otherCust, 'review_private', 'r1')));
+    await assertSucceeds(getDoc(doc(customer(), 'review_private', 'r1')));
   });
 
   test('unauthenticated user cannot read admin CMS collection directly (must use cms_public)', async () => {
@@ -1365,10 +1377,9 @@ describe('19. Public/Private Firestore Data Separation Security Hardening', () =
     }).firestore();
 
     await assertFails(
-      setDoc(doc(bannedClient, 'users', 'banned-user-1', 'cart', 'item-1'), {
-        id: 'item-1',
-        productId: 'p-order',
-        quantity: 1
+      setDoc(doc(bannedClient, 'carts', 'banned-user-1'), {
+        userId: 'banned-user-1',
+        items: [{ productId: 'p-order', quantity: 1 }]
       })
     );
   });
@@ -1380,10 +1391,9 @@ describe('19. Public/Private Firestore Data Separation Security Hardening', () =
     }).firestore();
 
     await assertSucceeds(
-      setDoc(doc(activeClient, 'users', 'active-cust-99', 'cart', 'item-1'), {
-        id: 'item-1',
-        productId: 'p-order',
-        quantity: 1
+      setDoc(doc(activeClient, 'carts', 'active-cust-99'), {
+        userId: 'active-cust-99',
+        items: [{ productId: 'p-order', quantity: 1 }]
       })
     );
   });

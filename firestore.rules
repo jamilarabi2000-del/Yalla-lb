@@ -823,6 +823,11 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Admin step-up verification audit collection - server only via Admin SDK
+    match /admin_stepup/{uid} {
+      allow read, write: if false;
+    }
+
     // ---------------------------------------------------------------------
     // Search analytics
     // ---------------------------------------------------------------------

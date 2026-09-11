@@ -1,4 +1,4 @@
-export function generateSecurePassword(length: number = 12): string {
+export function generateSecurePassword(length: number = 16): string {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=';
   const array = new Uint32Array(length);
   const cryptoObj = (typeof window !== 'undefined' && window.crypto) || (typeof globalThis !== 'undefined' && globalThis.crypto);
@@ -13,8 +13,8 @@ export function generateSecurePassword(length: number = 12): string {
     password += charset[array[i] % charset.length];
   }
   
-  // Ensure it meets requirements: upper, lower, digit, symbol
-  if (!validatePassword(password).isValid) {
+  // Ensure it meets privileged requirements: upper, lower, digit, symbol
+  if (!validatePassword(password, true).isValid) {
     return generateSecurePassword(length);
   }
   
@@ -26,15 +26,19 @@ const OBVIOUS_PATTERNS: RegExp[] = [
   /password/i, /qwerty/i, /^yalla\d*!?$/i,
 ];
 
-export function validatePassword(password: string): { isValid: boolean; message: string } {
-  if (password.length < 8) {
-    return { isValid: false, message: 'Password must be at least 8 characters long.' };
+export function validatePassword(password: string, isPrivilegedRole: boolean = false): { isValid: boolean; message: string } {
+  const minLength = isPrivilegedRole ? 12 : 8;
+  if (!password || password.length < minLength) {
+    return { isValid: false, message: `Password must be at least ${minLength} characters long.` };
   }
-  if (!/[a-zA-Z]/.test(password)) {
-    return { isValid: false, message: 'Password must contain at least one letter.' };
+  if (!/[a-z]/.test(password) || !/[A-Z]/.test(password)) {
+    return { isValid: false, message: 'Password must contain both uppercase and lowercase letters.' };
   }
   if (!/[0-9]/.test(password)) {
     return { isValid: false, message: 'Password must contain at least one digit.' };
+  }
+  if (isPrivilegedRole && !/[!@#$%^&*()_+~`|}{[\]:;?><,./\-=]/.test(password)) {
+    return { isValid: false, message: 'Privileged accounts (admin/seller) require at least one special symbol.' };
   }
   
   if (OBVIOUS_PATTERNS.some(re => re.test(password))) {

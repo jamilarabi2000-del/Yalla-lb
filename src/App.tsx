@@ -341,14 +341,10 @@ const MainAppContent: React.FC = () => {
   );
 };
 
-import { CmsProvider } from './context/CmsContext';
-
 export default function App() {
   return (
-    <CmsProvider>
-      <ShopProvider>
-        <MainAppContent />
-      </ShopProvider>
-    </CmsProvider>
+    <ShopProvider>
+      <MainAppContent />
+    </ShopProvider>
   );
 }
