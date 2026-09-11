@@ -884,11 +884,17 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setDiscountRules(initialRules as DiscountRule[]);
         } else if (!snapshot.empty) {
           try {
-            const couponsSnap = await getDocs(collection(db, 'coupons'));
-            const couponsMap = new Map();
-            couponsSnap.forEach(d => {
-              couponsMap.set(d.data().discountId || d.id, d.data());
-            });
+            let couponsMap = new Map();
+            if (isAdminUser) {
+              try {
+                const couponsSnap = await getDocs(collection(db, 'coupons'));
+                couponsSnap.forEach(d => {
+                  couponsMap.set(d.data().discountId || d.id, d.data());
+                });
+              } catch (couponFetchErr: any) {
+                console.warn('[ShopContext] Non-admin or limited permissions reading coupons collection:', couponFetchErr?.message || couponFetchErr);
+              }
+            }
 
             const rules: DiscountRule[] = [];
             snapshot.forEach(docSnap => {
@@ -902,8 +908,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               rules.push(r);
             });
             setDiscountRules(rules);
-          } catch (err) {
-            console.error('Failed to fetch coupons', err);
+          } catch (err: any) {
+            console.warn('Failed to fetch coupons (falling back gracefully):', err?.message || err);
             const rules: DiscountRule[] = [];
             snapshot.forEach(docSnap => {
               rules.push(docSnap.data() as DiscountRule);
@@ -2714,11 +2720,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
             defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || '',
             defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || '',
             defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || '',
-            role: 'customer',
-            sellerId: claimSellerId || undefined,
             emailVerified: userObj.emailVerified
           };
-          await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
+          try {
+            await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
+          } catch (createErr: any) {
+            console.warn('[ShopContext] Non-blocking user profile document write notice:', createErr?.message || createErr);
+          }
           
           // Register phone number in unique phone registry
           if (newUserData.phone) {
