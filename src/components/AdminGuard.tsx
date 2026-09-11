@@ -211,7 +211,7 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
   if (authStatus === 'authenticated_non_admin') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="bg-white border border-slate-200 p-10 rounded-3xl max-w-sm w-full space-y-8 shadow-sm text-center">
+        <div className="bg-white border border-slate-200 p-10 rounded-3xl max-w-2xl w-full space-y-8 shadow-sm text-center">
           <div className="mx-auto w-16 h-16 rounded-[22px] bg-rose-50 flex items-center justify-center text-rose-600 shadow-sm border border-rose-100">
             <AlertCircle className="w-7 h-7" />
           </div>
@@ -223,6 +223,21 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
               Your account is authenticated but does not have administrator privileges. Please refresh your session or contact the system administrator.
             </p>
           </div>
+          {diagnosticData && (
+            <div className="text-left bg-slate-900 text-green-400 font-mono text-[10px] p-4 rounded-xl overflow-x-auto w-full">
+              <h3 className="text-white font-bold mb-2 text-xs">RUNTIME DIAGNOSTIC</h3>
+              <p>Project ID: {diagnosticData.projectId}</p>
+              <p>App ID: {diagnosticData.appId}</p>
+              <p>UID: {diagnosticData.uid}</p>
+              <p>Email: {diagnosticData.email}</p>
+              <p>Admin Claim: {String(diagnosticData.isAdminClaim)}</p>
+              <p>Issued At: {diagnosticData.issuedAtTime}</p>
+              <p>Expires At: {diagnosticData.expirationTime}</p>
+              <p>Hostname: {diagnosticData.hostname}</p>
+              <p>Pathname: {diagnosticData.pathname}</p>
+              <p>Build ID: {diagnosticData.buildId}</p>
+            </div>
+          )}
           <div className="space-y-3 pt-2">
             <button
               type="button"

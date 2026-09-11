@@ -28,8 +28,6 @@ import {
 import { 
   getFirestore, 
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   memoryLocalCache,
   setLogLevel, 
   Firestore 
@@ -89,20 +87,8 @@ if (typeof window !== 'undefined') {
 
 let firestoreInstance: Firestore;
 try {
-  let cacheConfig;
-  try {
-    cacheConfig = typeof window !== 'undefined'
-      ? persistentLocalCache({
-          tabManager: persistentMultipleTabManager()
-        })
-      : memoryLocalCache();
-  } catch (cacheErr) {
-    console.warn("[Firebase] Persistent cache not supported, falling back to memory cache:", cacheErr);
-    cacheConfig = memoryLocalCache();
-  }
-
   firestoreInstance = initializeFirestore(app, {
-    localCache: cacheConfig
+    localCache: memoryLocalCache()
   }, firebaseConfig.firestoreDatabaseId);
 } catch (err) {
   try {

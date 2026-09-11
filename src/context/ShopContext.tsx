@@ -2508,7 +2508,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (isAdminUser) {
       q = query(collection(db, 'orders'), orderBy('date', 'desc'), limit(500));
     } else if (isSellerUser && sellerId) {
-      q = query(collectionGroup(db, 'sellers'), where('sellerId', '==', sellerId), limit(200));
+      // Sellers cannot list all orders via a global collectionGroup due to strict security rules.
+      // They only fetch their own customer orders here.
+      q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), limit(100));
     } else {
       // Query solely by userId without composite index requirement, then sort in JS memory
       q = query(collection(db, 'orders'), where('userId', '==', firebaseUser.uid), limit(100));
