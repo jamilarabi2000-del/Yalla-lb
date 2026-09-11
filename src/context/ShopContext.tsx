@@ -13,6 +13,8 @@ import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
 import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
+import { filterPublicCmsContent } from '../utils/cmsPublicProjection';
+import { assertHighRiskAuthorization } from '../utils/adminMfa';
 import { auth, db, functionsInstance, httpsCallable, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, onIdTokenChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from '../firebase';
 import { 
   dbLogger, 
@@ -798,7 +800,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         value: 15,
         target: 'brand',
         targetValue: 'Koura, North Lebanon',
-        couponCode: 'KOURA15',
         isActive: true
       },
       {
@@ -807,7 +808,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         type: 'fixed',
         value: 5,
         target: 'checkout',
-        couponCode: 'WELCOME5',
         isActive: true,
         minPurchaseUSD: 30
       }
@@ -829,7 +829,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (snapshot) => {
         if (snapshot.empty && !hasSeededDiscountsRef.current) {
           hasSeededDiscountsRef.current = true;
-          // seed logic unchanged, but UI now has no coupons without adding to coupons collection... we'll just omit seeding for now or let the user create.
           const initialRules = [
             {
               id: 'rule-1',
@@ -838,7 +837,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               value: 15,
               target: 'brand' as const,
               targetValue: 'Koura, North Lebanon',
-              couponCode: 'KOURA15',
+              couponCode: 'KOURA_SEC26',
               isActive: true
             },
             {
@@ -847,7 +846,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               type: 'fixed' as const,
               value: 5,
               target: 'checkout' as const,
-              couponCode: 'WELCOME5',
+              couponCode: 'WELCOME_SEC26',
               isActive: true,
               minPurchaseUSD: 30
             }
@@ -858,12 +857,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const batch = writeBatch(db);
               initialRules.forEach(rule => {
                 const docRef = doc(db, 'discounts', rule.id);
-                batch.set(docRef, sanitizeDocumentData(rule));
-                if (rule.couponCode) {
+                const { couponCode, ...ruleWithoutCoupon } = rule;
+                batch.set(docRef, sanitizeDocumentData(ruleWithoutCoupon));
+                if (couponCode) {
                   const couponRef = doc(db, 'coupons', rule.id);
                   batch.set(couponRef, {
                     discountId: rule.id,
-                    couponCode: rule.couponCode,
+                    couponCode: couponCode,
                     usageCount: 0,
                     usedBy: []
                   });
@@ -888,9 +888,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const r = docSnap.data() as DiscountRule;
               const c = couponsMap.get(r.id);
               if (c) {
-                r.couponCode = c.couponCode;
-                r.maxTotalUses = c.maxTotalUses;
-                r.maxUsesPerUser = c.maxUsesPerUser;
+                (r as any).couponCode = c.couponCode;
+                (r as any).maxTotalUses = c.maxTotalUses;
+                (r as any).maxUsesPerUser = c.maxUsesPerUser;
               }
               rules.push(r);
             });
@@ -920,7 +920,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     try {
       if (IS_FIREBASE_ENABLED) {
-        await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(newRule), undefined, 'ShopContext:addDiscountRule');
+        const { couponCode: _c, maxTotalUses: _m, maxUsesPerUser: _u, ...safeDiscountDoc } = newRule as any;
+        await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(safeDiscountDoc), undefined, 'ShopContext:addDiscountRule');
         if (couponCode && couponCode.trim() !== '') {
           await monitoredSetDoc(doc(db, 'coupons', id), { 
             discountId: id, 
@@ -937,7 +938,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       showToast('Failed to save discount rule to database', 'warning');
       throw err;
     }
-    setDiscountRules(prev => [newRule, ...prev]);
+    const ruleWithMeta = { ...newRule, couponCode, maxTotalUses, maxUsesPerUser };
+    setDiscountRules(prev => [ruleWithMeta, ...prev]);
     await logAdminActivity('meta_change', 'Created Discount Rule', `Created discount: ${newRule.name}`);
   };
 
@@ -948,7 +950,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       if (IS_FIREBASE_ENABLED) {
-        await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(updatedRule), { merge: true }, 'ShopContext:updateDiscountRule');
+        const { couponCode: _c, maxTotalUses: _m, maxUsesPerUser: _u, ...safeUpdatesDoc } = updatedRule as any;
+        await monitoredSetDoc(doc(db, 'discounts', id), sanitizeDocumentData(safeUpdatesDoc), { merge: true }, 'ShopContext:updateDiscountRule');
         if (couponCode !== undefined) {
           if (couponCode.trim() === '') {
             await monitoredDeleteDoc(doc(db, 'coupons', id), 'ShopContext:deleteCoupon').catch(() => {});
@@ -962,7 +965,8 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       }
-      setDiscountRules(prev => prev.map(r => r.id === id ? updatedRule : r));
+      const ruleWithMeta = { ...updatedRule, ...(couponCode !== undefined ? { couponCode } : {}), ...(maxTotalUses !== undefined ? { maxTotalUses } : {}), ...(maxUsesPerUser !== undefined ? { maxUsesPerUser } : {}) };
+      setDiscountRules(prev => prev.map(r => r.id === id ? ruleWithMeta : r));
     } catch (err) {
       console.error("[ShopContext] Error updating discount rule in Firestore:", err);
       showToast('Failed to update discount rule in database', 'warning');
@@ -1321,6 +1325,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteCategory = async (id: string, reassignCategoryId?: string, deleteAttachedProducts?: boolean) => {
+    if (isAdminUser) {
+      const authorized = await assertHighRiskAuthorization(firebaseUser?.uid);
+      if (!authorized) {
+        showToast('High-risk action cancelled or verification expired.', 'error');
+        throw new Error('High-risk authorization failed');
+      }
+    }
+
     const target = categories.find(c => c.id === id);
     const affectedProducts = products.filter(p => p.category === id);
 
@@ -1626,6 +1638,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         });
 
+        if (hasPrivateUpdates && isAdminUser) {
+          const authorized = await assertHighRiskAuthorization(firebaseUser?.uid);
+          if (!authorized) {
+            setSellers(previous);
+            showToast('High-risk action cancelled or verification expired.', 'error');
+            throw new Error('High-risk authorization failed');
+          }
+        }
+
         if (Object.keys(publicUpdates).filter(k => k !== 'updatedAt').length > 0 || !hasPrivateUpdates) {
            await monitoredUpdateDoc(doc(db, 'sellers', id), sanitizeDocumentData(publicUpdates), 'ShopContext:updateSeller');
         }
@@ -1923,27 +1944,32 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  // Real-time CMS Sync from Firestore Database
+  // Real-time CMS Sync from Firestore Database (cms for admin, cms_public for public storefront)
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
     const isCmsPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('cmsPreview') === '1';
     if (isCmsPreview) return; // Preview draft takes precedence
-    const cmsDocRef = doc(db, 'cms', 'main');
+    const targetCollection = isAdminUser ? 'cms' : 'cms_public';
+    const cmsDocRef = doc(db, targetCollection, 'main');
     const unsubscribe = onSnapshot(
       cmsDocRef,
       async (snapshot) => {
         if (!snapshot.exists()) {
-          console.log("[ShopContext] CMS main document does not exist.");
+          console.log(`[ShopContext] CMS ${targetCollection}/main document does not exist.`);
           if (isAdminUser) {
-            console.log("[ShopContext] Seeding DEFAULT_SITE_CONTENT to Firestore...");
+            console.log("[ShopContext] Seeding DEFAULT_SITE_CONTENT to Firestore (cms and cms_public)...");
             try {
               const sanitizedDefault = sanitizeDocumentData(DEFAULT_SITE_CONTENT);
-              await monitoredSetDoc(cmsDocRef, sanitizedDefault, undefined, 'ShopContext:AutoSeedCMS');
+              const publicDefault = sanitizeDocumentData(filterPublicCmsContent(DEFAULT_SITE_CONTENT));
+              await Promise.all([
+                monitoredSetDoc(doc(db, 'cms', 'main'), sanitizedDefault, undefined, 'ShopContext:AutoSeedCMS'),
+                monitoredSetDoc(doc(db, 'cms_public', 'main'), publicDefault, undefined, 'ShopContext:AutoSeedCMSPublic')
+              ]);
               console.log("[ShopContext] Successfully seeded CMS default site content to Firestore.");
               dbLogger.logSnapshotSync({
                 targetPath: 'cms/main',
                 sourceComponent: 'ShopContext (AutoSeed)',
-                summary: 'Seeded initial DEFAULT_SITE_CONTENT to Firestore (cms/main).'
+                summary: 'Seeded initial DEFAULT_SITE_CONTENT to Firestore (cms/main and cms_public/main).'
               });
             } catch (seedErr) {
               console.error("[ShopContext] Error seeding CMS content to Firestore:", seedErr);
@@ -2043,7 +2069,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [isAdminUser]);
 
   const updateSiteContent = async (updates: Partial<SiteContent> | ((prev: SiteContent) => SiteContent)) => {
     // Determine the next state safely
@@ -2106,15 +2132,21 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const cmsDocRef = doc(db, 'cms', 'main');
-      await monitoredSetDoc(cmsDocRef, sanitized, { merge: true }, 'ShopContext:updateSiteContent');
+      const cmsPublicDocRef = doc(db, 'cms_public', 'main');
+      const publicSanitized = sanitizeDocumentData(filterPublicCmsContent(sanitized as SiteContent));
+
+      await Promise.all([
+        monitoredSetDoc(cmsDocRef, sanitized, { merge: true }, 'ShopContext:updateSiteContent'),
+        monitoredSetDoc(cmsPublicDocRef, publicSanitized, { merge: true }, 'ShopContext:updateSiteContentPublic')
+      ]);
 
       // Stage 4: Firestore Acknowledgment
       dbLogger.logFirestoreWriteSuccess({
         operation: 'setDoc',
         targetPath: 'cms/main',
         sourceComponent: 'ShopContext',
-        actionName: 'setDoc(cms/main)',
-        summary: 'Firestore document cms/main successfully persisted and acknowledged by database.',
+        actionName: 'setDoc(cms/main & cms_public/main)',
+        summary: 'Firestore documents cms/main and cms_public/main successfully persisted and acknowledged by database.',
         startTime,
         payload: sanitized
       });
@@ -4086,6 +4118,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Delete Product - Removes item from Firestore database
   const deleteProduct = async (id: string) => {
+    if (isAdminUser) {
+      const authorized = await assertHighRiskAuthorization(firebaseUser?.uid);
+      if (!authorized) {
+        showToast('High-risk action cancelled or verification expired.', 'error');
+        throw new Error('High-risk authorization failed');
+      }
+    }
+
     const target = products.find(p => p.id === id);
     
     // Seller authorization check: non-admin sellers can only delete their own products
@@ -4310,24 +4350,29 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (IS_FIREBASE_ENABLED) {
       try {
-        // 1. Direct O(1) document check on unique phone registry
-        if (norm.registryKey) {
-          const regDocRef = doc(db, 'phone_registry', norm.registryKey);
-          const regSnap = await safeGetDoc(regDocRef);
-          if (regSnap.exists()) {
-            const regData = regSnap.data();
-            if (regData && regData.uid && (!excludeUid || regData.uid !== excludeUid)) {
-              return {
-                available: false,
-                reason: language === 'ar'
-                  ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر. يرجى استخدام رقم آخر أو تسجيل الدخول.'
-                  : 'This phone number is already registered to another account. Please sign in or use a different phone number.'
-              };
-            }
-          }
+        const checkFn = httpsCallable<{ phone: string; excludeUid?: string }, { available: boolean; reason?: string }>(
+          functionsInstance,
+          'checkPhoneAvailability'
+        );
+        const result = await checkFn({ phone: norm.formatted, excludeUid });
+        if (!result.data || !result.data.available) {
+          return {
+            available: false,
+            reason: result.data?.reason || (
+              language === 'ar'
+                ? 'رقم الهاتف هذا مسجل مسبقاً بحساب آخر. يرجى استخدام رقم آخر أو تسجيل الدخول.'
+                : 'This phone number is already registered to another account. Please sign in or use a different phone number.'
+            )
+          };
         }
-      } catch (err) {
-        console.warn('[ShopContext] Phone uniqueness validation warning:', err);
+      } catch (err: any) {
+        console.warn('[ShopContext] Phone uniqueness check failed (failing closed):', err);
+        return {
+          available: false,
+          reason: language === 'ar'
+            ? 'تعذر التحقق من توفر رقم الهاتف. يرجى المحاولة مرة أخرى لاحقاً.'
+            : (err?.message || 'Unable to verify phone number availability. Please try again later.')
+        };
       }
     }
 

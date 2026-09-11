@@ -198,9 +198,10 @@ export function applyDiscounts(
       continue; // Exclude if rule is for new users only and customer is existing
     }
 
-    // If rule has a coupon code, it must match the entered coupon
-    if (rule.couponCode && rule.couponCode.trim() !== '') {
-      if (rule.couponCode.trim().toUpperCase() !== normalizedCoupon) {
+    // If rule has an associated coupon code, it must match the entered coupon
+    const ruleCoupon = (rule as any).couponCode;
+    if (ruleCoupon && typeof ruleCoupon === 'string' && ruleCoupon.trim() !== '') {
+      if (ruleCoupon.trim().toUpperCase() !== normalizedCoupon) {
         continue;
       }
     }

@@ -692,9 +692,6 @@ export interface DiscountRule {
   value: number; // e.g. 15 for 15%, 5 for $5, or 100 for 100% free BOGO / 50 for 50% off second item
   target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
   targetValue?: string; // specific product id, category id/name, artisan/seller name, or origin/brand name
-  couponCode?: string;
-  maxTotalUses?: number;
-  maxUsesPerUser?: number;
   isActive: boolean;
   minPurchaseUSD?: number;
   startDate?: string; // ISO date-time string e.g. "2026-08-20T00:00"

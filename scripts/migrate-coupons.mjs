@@ -1,5 +1,6 @@
 import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getDb } from './lib/db.mjs';
 
 const serviceAccountJson = process.env.SERVICE_ACCOUNT_JSON;
 if (!serviceAccountJson) {
@@ -17,7 +18,7 @@ try {
   process.exit(1);
 }
 
-const db = getFirestore();
+const db = getDb();
 
 async function migrateCoupons() {
   console.log(`Starting coupon migration... ${isDryRun ? '(DRY RUN)' : ''}`);

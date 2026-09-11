@@ -367,7 +367,7 @@ service cloud.firestore {
 
     match /discounts/{discountId} {
       allow get, list: if resource.data.get('isActive', true) == true || isAdmin();
-      allow write: if isAdmin();
+      allow write: if isAdmin() && !request.resource.data.keys().hasAny(['couponCode', 'maxTotalUses', 'maxUsesPerUser']);
     }
 
     match /coupons/{couponId} {

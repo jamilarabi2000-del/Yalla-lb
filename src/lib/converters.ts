@@ -165,7 +165,6 @@ export const discountConverter: FirestoreDataConverter<DiscountRule> = {
       value: typeof data.value === 'number' ? data.value : 0,
       target: data.target || 'checkout',
       targetValue: data.targetValue,
-      couponCode: data.couponCode,
       minPurchaseUSD: data.minPurchaseUSD,
       startDate: data.startDate,
       endDate: data.endDate,

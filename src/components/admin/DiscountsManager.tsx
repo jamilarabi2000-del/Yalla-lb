@@ -63,6 +63,8 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
     target: 'all' | 'checkout' | 'product' | 'category' | 'seller' | 'brand';
     targetValue: string;
     couponCode: string;
+    maxTotalUses: number | '';
+    maxUsesPerUser: number | '';
     isActive: boolean;
     minPurchaseUSD: number;
     startDate: string;
@@ -78,6 +80,8 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
     target: 'all',
     targetValue: '',
     couponCode: '',
+    maxTotalUses: '',
+    maxUsesPerUser: '',
     isActive: true,
     minPurchaseUSD: 0,
     startDate: '',
@@ -102,6 +106,8 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
       target: 'all',
       targetValue: '',
       couponCode: '',
+      maxTotalUses: '',
+      maxUsesPerUser: '',
       isActive: true,
       minPurchaseUSD: 0,
       startDate: '',
@@ -116,13 +122,16 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
 
   const handleOpenEdit = (rule: DiscountRule) => {
     setEditingId(rule.id);
+    const ruleWithCoupon = rule as DiscountRule & { couponCode?: string; maxTotalUses?: number; maxUsesPerUser?: number };
     setForm({
       name: rule.name,
       type: rule.type,
       value: rule.value,
       target: rule.target || 'all',
       targetValue: rule.targetValue || '',
-      couponCode: rule.couponCode || '',
+      couponCode: ruleWithCoupon.couponCode || '',
+      maxTotalUses: ruleWithCoupon.maxTotalUses !== undefined && ruleWithCoupon.maxTotalUses !== null ? ruleWithCoupon.maxTotalUses : '',
+      maxUsesPerUser: ruleWithCoupon.maxUsesPerUser !== undefined && ruleWithCoupon.maxUsesPerUser !== null ? ruleWithCoupon.maxUsesPerUser : '',
       isActive: rule.isActive,
       minPurchaseUSD: rule.minPurchaseUSD || 0,
       startDate: rule.startDate || '',
@@ -198,9 +207,9 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
         getDiscountPercent: form.type === 'bogo' ? Number(form.getDiscountPercent) : undefined
       };
 
-      const couponCode = (form as any).couponCode?.trim() ? (form as any).couponCode.trim().toUpperCase() : undefined;
-      const maxTotalUses = (form as any).maxTotalUses ? Number((form as any).maxTotalUses) : undefined;
-      const maxUsesPerUser = (form as any).maxUsesPerUser ? Number((form as any).maxUsesPerUser) : undefined;
+      const couponCode = form.couponCode?.trim() ? form.couponCode.trim().toUpperCase() : undefined;
+      const maxTotalUses = form.maxTotalUses !== '' && form.maxTotalUses !== undefined ? Number(form.maxTotalUses) : undefined;
+      const maxUsesPerUser = form.maxUsesPerUser !== '' && form.maxUsesPerUser !== undefined ? Number(form.maxUsesPerUser) : undefined;
 
       const payload: Omit<DiscountRule, 'id'> = rawPayload;
 
@@ -449,10 +458,10 @@ export const DiscountsManager: React.FC<DiscountsManagerProps> = ({ initialTab =
 
                     {/* Coupon Code & Minimum Purchase */}
                     <div className="flex flex-wrap gap-2 pt-1">
-                      {rule.couponCode && (
+                      {(rule as any).couponCode && (
                         <div className="bg-purple-50 border border-purple-200 text-purple-800 px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5">
                           <Tag className="w-3 h-3 text-purple-600" />
-                          <span>Code: {rule.couponCode}</span>
+                          <span>Code: {(rule as any).couponCode}</span>
                         </div>
                       )}
                       {rule.minPurchaseUSD ? (

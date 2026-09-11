@@ -1,27 +1,18 @@
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import fs from 'fs';
+import { initializeApp } from 'firebase-admin/app';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getDb, projectId } from './lib/db.mjs';
 
 const args = process.argv.slice(2);
 const isDryRun = args.includes('--dry-run');
 
 async function runMigration() {
-  const configPath = './firebase-applet-config.json';
-  if (!fs.existsSync(configPath)) {
-    console.error('Cannot find firebase-applet-config.json');
-    process.exit(1);
-  }
-
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  const projectId = config.projectId;
-  
   if (!projectId) {
     console.error('No projectId found in firebase-applet-config.json');
     process.exit(1);
   }
 
   initializeApp({ projectId });
-  const db = getFirestore();
+  const db = getDb();
   db.settings({ ignoreUndefinedProperties: true });
 
   console.log(`Starting migration on project ${projectId} (Dry run: ${isDryRun})`);

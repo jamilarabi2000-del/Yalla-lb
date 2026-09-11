@@ -601,11 +601,33 @@ export const verifyOtp = onCall(
   }
 );
 
+const phoneCheckRateLimits = new Map<string, { count: number; resetTime: number }>();
+function checkPhoneRateLimit(key: string, maxCalls = 20, windowMs = 60 * 1000): boolean {
+  const now = Date.now();
+  const entry = phoneCheckRateLimits.get(key);
+  if (!entry || now > entry.resetTime) {
+    phoneCheckRateLimits.set(key, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  if (entry.count >= maxCalls) {
+    return false;
+  }
+  entry.count += 1;
+  return true;
+}
+
 export const checkPhoneAvailability = onCall(
   {
+    region: 'europe-west1',
+    enforceAppCheck: true,
     cors: true,
   },
   async (request) => {
+    const callerKey = request.auth?.uid || request.rawRequest.ip || 'anonymous';
+    if (!checkPhoneRateLimit(callerKey, 20, 60 * 1000)) {
+      throw new HttpsError('resource-exhausted', 'Too many requests. Please try again in a moment.');
+    }
+
     const data = request.data || {};
     const phone = typeof data.phone === 'string' ? data.phone : '';
     const excludeUid = typeof data.excludeUid === 'string' ? data.excludeUid : undefined;
@@ -625,8 +647,19 @@ export const checkPhoneAvailability = onCall(
       return { available: false, reason: 'Identifier must be a valid phone number.' };
     }
 
-    const digitsOnly = contactObj.value.replace(/\D/g, '');
-    const registryKey = `lb_phone_${digitsOnly}`;
+    let digits = contactObj.value.replace(/\D/g, '');
+    if (digits.startsWith('961') && digits.length >= 10) {
+      digits = digits.slice(3);
+    }
+    if (digits.length === 7 && digits.startsWith('3')) {
+      digits = '0' + digits;
+    }
+
+    if (digits.length !== 8 || !/^[0-9]{8}$/.test(digits)) {
+      return { available: false, reason: 'Invalid Lebanese phone number format.' };
+    }
+
+    const registryKey = `phone_${digits}`;
 
     const db = getDb();
     const regSnap = await db.collection('phone_registry').doc(registryKey).get();

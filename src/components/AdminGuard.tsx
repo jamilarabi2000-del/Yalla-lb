@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useShop } from '../context/ShopContext';
-import { Lock, AlertCircle, Loader2, KeyRound } from 'lucide-react';
+import { Lock, AlertCircle, Loader2, KeyRound, ShieldAlert, X } from 'lucide-react';
 import { auth, httpsCallable, functionsInstance } from '../firebase';
 import { SellerLoginView } from './SellerLoginView';
+import {
+  isMfaSessionValid,
+  setAdminMfaSession,
+  clearAdminMfaSession,
+  registerMfaPromptHandler
+} from '../utils/adminMfa';
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -15,11 +21,43 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   
-  const [isMfaVerified, setIsMfaVerified] = useState(false);
+  const [isMfaVerified, setIsMfaVerified] = useState<boolean>(() => isMfaSessionValid(firebaseUser?.uid));
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // High-risk step-up modal state
+  const [showStepUpModal, setShowStepUpModal] = useState(false);
+  const [stepUpCode, setStepUpCode] = useState('');
+  const [stepUpError, setStepUpError] = useState<string | null>(null);
+  const [isStepUpVerifying, setIsStepUpVerifying] = useState(false);
+  const stepUpResolverRef = useRef<((success: boolean) => void) | null>(null);
+
+  // Check persisted MFA session whenever user changes
+  useEffect(() => {
+    if (firebaseUser?.uid) {
+      setIsMfaVerified(isMfaSessionValid(firebaseUser.uid));
+    } else {
+      setIsMfaVerified(false);
+    }
+  }, [firebaseUser?.uid]);
+
+  // Register high-risk step-up prompt listener
+  useEffect(() => {
+    const unregister = registerMfaPromptHandler((resolve) => {
+      stepUpResolverRef.current = resolve;
+      setShowStepUpModal(true);
+      setStepUpCode('');
+      setStepUpError(null);
+      // Auto-send OTP for step-up
+      const sendOtp = httpsCallable(functionsInstance, 'sendOtp');
+      sendOtp({ actionType: 'admin' }).catch(err => {
+        console.error('Failed to send step-up OTP:', err);
+      });
+    });
+    return () => unregister();
+  }, []);
 
   useEffect(() => {
     if (authStatus === 'authenticated_admin' && !isMfaVerified && !otpSent) {
@@ -227,6 +265,9 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
               const verifyOtp = httpsCallable(functionsInstance, 'verifyOtp');
               const res = await verifyOtp({ actionType: 'admin', code: otpCode });
               if ((res.data as any)?.success) {
+                if (firebaseUser?.uid) {
+                  setAdminMfaSession(firebaseUser.uid);
+                }
                 setIsMfaVerified(true);
               } else {
                 setOtpError('Invalid or expired verification code.');
@@ -282,6 +323,7 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
               <button
                 type="button"
                 onClick={() => {
+                  clearAdminMfaSession(firebaseUser?.uid);
                   auth.signOut();
                   window.location.reload();
                 }}
@@ -296,5 +338,120 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {showStepUpModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white border border-slate-200 p-6 sm:p-8 rounded-3xl max-w-sm w-full space-y-6 shadow-2xl animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
+                  <ShieldAlert className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">High-Risk Action</h2>
+                  <p className="text-xs text-slate-500">Security step-up required</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStepUpModal(false);
+                  if (stepUpResolverRef.current) {
+                    stepUpResolverRef.current(false);
+                    stepUpResolverRef.current = null;
+                  }
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This destructive operation requires confirmation. Enter the 6-digit verification code sent to your admin email.
+            </p>
+
+            <form
+              autoComplete="off"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!stepUpCode) {
+                  setStepUpError('Please enter the verification code.');
+                  return;
+                }
+                setIsStepUpVerifying(true);
+                setStepUpError(null);
+                try {
+                  const verifyOtp = httpsCallable(functionsInstance, 'verifyOtp');
+                  const res = await verifyOtp({ actionType: 'admin', code: stepUpCode });
+                  if ((res.data as any)?.success) {
+                    if (firebaseUser?.uid) {
+                      setAdminMfaSession(firebaseUser.uid);
+                    }
+                    setShowStepUpModal(false);
+                    if (stepUpResolverRef.current) {
+                      stepUpResolverRef.current(true);
+                      stepUpResolverRef.current = null;
+                    }
+                  } else {
+                    setStepUpError('Invalid or expired code.');
+                  }
+                } catch (err: any) {
+                  setStepUpError(err.message || 'Verification failed.');
+                } finally {
+                  setIsStepUpVerifying(false);
+                }
+              }}
+              className="space-y-4"
+            >
+              {stepUpError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-rose-600 text-xs shadow-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <p className="leading-snug">{stepUpError}</p>
+                </div>
+              )}
+
+              <input
+                type="text"
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                value={stepUpCode}
+                onChange={(e) => setStepUpCode(e.target.value)}
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-mono tracking-widest text-center text-lg"
+                placeholder="000000"
+                disabled={isStepUpVerifying}
+                autoFocus
+              />
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStepUpModal(false);
+                    if (stepUpResolverRef.current) {
+                      stepUpResolverRef.current(false);
+                      stepUpResolverRef.current = null;
+                    }
+                  }}
+                  className="flex-1 py-3 px-4 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-semibold text-sm transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isStepUpVerifying}
+                  className="flex-1 py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-semibold text-sm shadow-md shadow-amber-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  {isStepUpVerifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
 };

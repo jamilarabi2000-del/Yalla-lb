@@ -70,6 +70,14 @@ beforeAll(async () => {
         email: 'seller1@example.com'
       }
     );
+    await setDoc(
+      doc(ctx.firestore(), 'sellers', 'seller-tripoli'),
+      {
+        id: 'seller-tripoli',
+        name: 'Tripoli Workshop',
+        isActive: true
+      }
+    );
   });
 });
 afterAll(() => env.cleanup());
@@ -995,6 +1003,11 @@ describe('17. Authorization claims authoritative verification tests', () => {
         sellerId: 'seller-tripoli',
         role: 'seller'
       });
+      await setDoc(doc(ctx.firestore(), 'sellers', 'seller-sidon'), {
+        id: 'seller-sidon',
+        name: 'Sidon Workshop',
+        isActive: true
+      });
     });
 
     // Attempting to write TRIPOLI products -> DENY because claims sellerId is still 'seller-sidon'
@@ -1291,6 +1304,147 @@ describe('19. Public/Private Firestore Data Separation Security Hardening', () =
     });
     await assertFails(getDoc(doc(unauthenticated(), 'discounts', 'd-inactive')));
     await assertFails(getDoc(doc(unauthenticated(), 'shipping_rules', 's-inactive')));
+  });
+
+  // ── Round 3 Regression Test Suite ──
+  test('Seller with isActive: false cannot create products', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'sellers', 'seller-inactive'), {
+        id: 'seller-inactive',
+        name: 'Inactive Workshop',
+        isActive: false
+      });
+    });
+    const inactiveSellerClient = env.authenticatedContext('seller-inactive-uid', {
+      email: 'inactive@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'seller-inactive'
+    }).firestore();
+
+    await assertFails(
+      setDoc(doc(inactiveSellerClient, 'products', 'p-inactive-seller-prod'), {
+        id: 'p-inactive-seller-prod',
+        name: 'Inactive Seller Prod',
+        priceUSD: 10,
+        stock: 5,
+        sellerId: 'seller-inactive'
+      })
+    );
+  });
+
+  test('Seller with no sellers/{id} document cannot create products (denied cleanly)', async () => {
+    const orphanSellerClient = env.authenticatedContext('seller-orphan-uid', {
+      email: 'orphan@example.com',
+      email_verified: true,
+      seller: true,
+      sellerId: 'seller-nonexistent-999'
+    }).firestore();
+
+    await assertFails(
+      setDoc(doc(orphanSellerClient, 'products', 'p-orphan-prod'), {
+        id: 'p-orphan-prod',
+        name: 'Orphan Seller Prod',
+        priceUSD: 10,
+        stock: 5,
+        sellerId: 'seller-nonexistent-999'
+      })
+    );
+  });
+
+  test('Banned user cannot write to cart', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'users', 'banned-user-1'), {
+        uid: 'banned-user-1',
+        isBanned: true
+      });
+    });
+    const bannedClient = env.authenticatedContext('banned-user-1', {
+      email: 'banned@example.com',
+      email_verified: true
+    }).firestore();
+
+    await assertFails(
+      setDoc(doc(bannedClient, 'users', 'banned-user-1', 'cart', 'item-1'), {
+        id: 'item-1',
+        productId: 'p-order',
+        quantity: 1
+      })
+    );
+  });
+
+  test('Non-banned user can write to own cart', async () => {
+    const activeClient = env.authenticatedContext('active-cust-99', {
+      email: 'active@example.com',
+      email_verified: true
+    }).firestore();
+
+    await assertSucceeds(
+      setDoc(doc(activeClient, 'users', 'active-cust-99', 'cart', 'item-1'), {
+        id: 'item-1',
+        productId: 'p-order',
+        quantity: 1
+      })
+    );
+  });
+
+  test('Non-admin cannot read cms/site_content (denied); any visitor can read cms_public/site_content (allowed)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'cms', 'site_content'), { adminNotes: 'secret' });
+      await setDoc(doc(ctx.firestore(), 'cms_public', 'site_content'), { title: 'Welcome to Yalla' });
+    });
+
+    await assertFails(getDoc(doc(customer(), 'cms', 'site_content')));
+    await assertFails(getDoc(doc(unauthenticated(), 'cms', 'site_content')));
+
+    await assertSucceeds(getDoc(doc(customer(), 'cms_public', 'site_content')));
+    await assertSucceeds(getDoc(doc(unauthenticated(), 'cms_public', 'site_content')));
+    await assertSucceeds(getDoc(doc(admin(), 'cms', 'site_content')));
+  });
+
+  test('Discount write containing couponCode or coupon usage fields is denied', async () => {
+    await assertFails(
+      setDoc(doc(admin(), 'discounts', 'disc-coupon-leak'), {
+        id: 'disc-coupon-leak',
+        title: 'Spring Promo',
+        couponCode: 'LEAK10',
+        isActive: true
+      })
+    );
+    await assertFails(
+      setDoc(doc(admin(), 'discounts', 'disc-uses-leak'), {
+        id: 'disc-uses-leak',
+        title: 'Spring Promo',
+        maxTotalUses: 100,
+        isActive: true
+      })
+    );
+  });
+
+  test('Discount write without couponCode is allowed for admin', async () => {
+    await assertSucceeds(
+      setDoc(doc(admin(), 'discounts', 'disc-clean-rule'), {
+        id: 'disc-clean-rule',
+        title: 'Spring Promo Automatic',
+        discountType: 'percentage',
+        value: 15,
+        isActive: true
+      })
+    );
+  });
+
+  test('phone_registry cannot be read by unauthenticated users', async () => {
+    await env.withSecurityRulesDisabled(async (ctx: any) => {
+      await setDoc(doc(ctx.firestore(), 'phone_registry', 'phone_70123456'), {
+        phone: '+96170123456',
+        uid: 'user-70'
+      });
+    });
+    await assertFails(getDoc(doc(unauthenticated(), 'phone_registry', 'phone_70123456')));
+  });
+
+  test('phone_registry cannot be listed or queried by authenticated non-admins', async () => {
+    await assertFails(getDocs(collection(customer(), 'phone_registry')));
   });
 });
 

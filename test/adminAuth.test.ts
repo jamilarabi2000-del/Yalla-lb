@@ -73,4 +73,41 @@ describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', (
     expect(authContextCode).toContain('authenticated_admin');
     expect(authContextCode).toContain('authenticated_non_admin');
   });
+
+  it('12. Admin MFA session persists across navigation/refresh and expires after 30 minutes', async () => {
+    const { isMfaSessionValid, setAdminMfaSession, clearAdminMfaSession, _setMfaSessionRawForTesting, MFA_VALIDITY_MS } = await import('../src/utils/adminMfa');
+    const testUid = 'admin-test-uid-123';
+    
+    clearAdminMfaSession(testUid);
+    expect(isMfaSessionValid(testUid)).toBe(false);
+
+    setAdminMfaSession(testUid);
+    expect(isMfaSessionValid(testUid)).toBe(true);
+
+    // Mock expired time (>30 min)
+    _setMfaSessionRawForTesting(testUid, Date.now() - (MFA_VALIDITY_MS + 1000));
+    expect(isMfaSessionValid(testUid)).toBe(false);
+
+    clearAdminMfaSession(testUid);
+  });
+
+  it('13. Destructive/high-risk actions require step-up re-auth if older than 15 minutes', async () => {
+    const { isHighRiskStepUpValid, setAdminMfaSession, clearAdminMfaSession, _setMfaSessionRawForTesting, HIGH_RISK_VALIDITY_MS } = await import('../src/utils/adminMfa');
+    const testUid = 'admin-high-risk-uid-456';
+
+    setAdminMfaSession(testUid);
+    expect(isHighRiskStepUpValid(testUid)).toBe(true);
+
+    // Age session past 15 min but within 30 min
+    _setMfaSessionRawForTesting(testUid, Date.now() - (HIGH_RISK_VALIDITY_MS + 1000));
+    expect(isHighRiskStepUpValid(testUid)).toBe(false);
+
+    clearAdminMfaSession(testUid);
+  });
+
+  it('14. Destructive admin operations in ShopContext invoke assertHighRiskAuthorization', () => {
+    expect(shopContextCode).toContain('assertHighRiskAuthorization');
+    expect(shopContextCode).toContain('deleteProduct');
+    expect(shopContextCode).toContain('deleteCategory');
+  });
 });
