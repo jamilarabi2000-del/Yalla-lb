@@ -374,23 +374,38 @@ describe('Security Regression Suite - Application Controls', () => {
   });
 
   describe('10. Retest & Bypass Invariants', () => {
-    it('Canary: Accepts maximum 8 line items cart within rules evaluation budget', async () => {
+    it('Canary: client line-item cap matches the authoritative server cap', async () => {
+      // The server is authoritative. The client constant exists only so the UI can reject an
+      // oversized cart before the round trip, so a client cap BELOW the server cap silently
+      // blocks orders placeOrder would accept, and one ABOVE it defers the error to the server.
       const { MAX_ORDER_LINE_ITEMS } = await import('../src/context/ShopContext');
-      expect(MAX_ORDER_LINE_ITEMS).toBe(8);
+      const { MAX_LINE_ITEMS } = await import('../functions/src/placeOrder');
+      expect(MAX_ORDER_LINE_ITEMS).toBe(MAX_LINE_ITEMS);
 
-      const items8 = Array.from({ length: 8 }, (_, i) => ({
+      const atLimit = Array.from({ length: MAX_ORDER_LINE_ITEMS }, (_, i) => ({
         product: { id: `prod_${i}`, name: `Prod ${i}`, priceUSD: 10 + i },
         quantity: 1
       }));
 
-      const isUnderBudgetLimit = (items: any[]) => items.length <= MAX_ORDER_LINE_ITEMS;
-      expect(isUnderBudgetLimit(items8)).toBe(true);
+      const isUnderLimit = (items: any[]) => items.length <= MAX_ORDER_LINE_ITEMS;
+      expect(isUnderLimit(atLimit)).toBe(true);
 
-      const items9 = Array.from({ length: 9 }, (_, i) => ({
+      const overLimit = Array.from({ length: MAX_ORDER_LINE_ITEMS + 1 }, (_, i) => ({
         product: { id: `prod_${i}`, name: `Prod ${i}`, priceUSD: 10 + i },
         quantity: 1
       }));
-      expect(isUnderBudgetLimit(items9)).toBe(false);
+      expect(isUnderLimit(overLimit)).toBe(false);
+
+      // And the server must actually reject a cart one item past the shared cap.
+      expect(() => validatePlaceOrderPayload({
+        items: overLimit.map((_, i) => ({ productId: `prod_${i}`, quantity: 1 })),
+        shipping: {
+          fullName: 'A B', phone: '70123456', governorate: 'Beirut',
+          city: 'Beirut', street: 'Rue 1', building: 'B1'
+        },
+        paymentMethod: 'cod_usd',
+        idempotencyKey: '123e4567-e89b-42d3-a456-426614174000'
+      })).toThrow();
     });
 
     it('Bypass protection: totalLBP is strictly bounded against overflow and negative values', () => {

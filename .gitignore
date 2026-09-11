@@ -1,5 +1,6 @@
 node_modules/
 build/
+functions/lib/
 # dist/ is included for deployment artifact packaging
 coverage/
 .DS_Store

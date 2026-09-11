@@ -93,6 +93,19 @@ const admin = () => env.authenticatedContext('admin-1', {
   email: 'a@example.com', email_verified: true, admin: true,
 }).firestore();
 
+// Destructive admin writes additionally require a recent OTP step-up, recorded by the
+// verifyOtp Cloud Function in admin_stepup/{uid}. That document is server-only
+// (allow read, write: if false), so tests must seed it with rules disabled.
+const grantAdminStepUp = async (uid = 'admin-1', ttlMs = 30 * 60 * 1000) => {
+  await env.withSecurityRulesDisabled(async (ctx: any) => {
+    await setDoc(doc(ctx.firestore(), 'admin_stepup', uid), {
+      uid,
+      verifiedAtMs: Date.now(),
+      expiresAtMs: Date.now() + ttlMs,
+    });
+  });
+};
+
 // ── Strict Security Tests: Order creation is backend-only via placeOrder Cloud Function ───
 
 test('TEST A: Unauthenticated client cannot create an order', async () => {
@@ -1413,6 +1426,8 @@ describe('19. Public/Private Firestore Data Separation Security Hardening', () =
   });
 
   test('Discount write containing couponCode or coupon usage fields is denied', async () => {
+    // Step-up granted, so these must fail on the forbidden fields alone, not on the step-up gate.
+    await grantAdminStepUp();
     await assertFails(
       setDoc(doc(admin(), 'discounts', 'disc-coupon-leak'), {
         id: 'disc-coupon-leak',
@@ -1432,6 +1447,7 @@ describe('19. Public/Private Firestore Data Separation Security Hardening', () =
   });
 
   test('Discount write without couponCode is allowed for admin', async () => {
+    await grantAdminStepUp();
     await assertSucceeds(
       setDoc(doc(admin(), 'discounts', 'disc-clean-rule'), {
         id: 'disc-clean-rule',

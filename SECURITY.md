@@ -41,7 +41,7 @@ Yalla Lebanon is an e-commerce platform bridging Lebanese artisan workshops with
 | **M-8: Profile UID Mutation** | Medium | Added `uid` to protected key set in `firestore.rules` | Invariant test |
 | **L-2: Malicious URL Schemes** | Low | Scheme allowlist in `src/lib/safeUrl.ts` (`http:`, `https:`, `mailto:`, `tel:`) | Unit tests |
 | **L-3: Local Storage Leakage** | Low | Public projection filtering applied to client-side artisan caches | Invariant test |
-| **Expression Evaluation Budget** | Invariant | Capped order line items to 50 (`MAX_LINE_ITEMS`) to fit within resource limits | Canary test in suite |
+| **Order Line-Item Cap** | Invariant | Server-authoritative cap of 50 (`MAX_LINE_ITEMS` in `functions/src/placeOrder.ts`); the client constant `MAX_ORDER_LINE_ITEMS` mirrors it purely as a pre-flight UX check | Canary test asserts the two constants stay in sync |
 
 ---
 

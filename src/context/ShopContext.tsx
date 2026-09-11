@@ -67,8 +67,13 @@ const safeGetDoc = async (docRef: any): Promise<any> => {
   }
 };
 
-// Reconciled with placeOrder.ts MAX_LINE_ITEMS and firestore.rules
-export const MAX_ORDER_LINE_ITEMS = 8;
+// Client-side checkout cap. MUST equal MAX_LINE_ITEMS in functions/src/placeOrder.ts,
+// which is the authoritative limit; this constant only lets the UI reject an oversized
+// cart before the round trip. test/security.test.ts asserts the two stay in sync.
+// (The former value of 8 predated server-authoritative checkout, when order payloads were
+// still evaluated by firestore.rules. Orders are now `allow create: if false`, so no rule
+// evaluates an order and that budget constraint no longer applies.)
+export const MAX_ORDER_LINE_ITEMS = 50;
 
 export const ensureSellerItemCode = (p: Product): Product => {
   if (!p) return p;
