@@ -46,6 +46,18 @@ export interface Product {
   updatedAt?: string;
 }
 
+export interface ProductPrivate {
+  productId: string;
+  sellerId?: string | null;
+  sellerItemCode?: string;
+  lowStockThreshold?: number;
+  lowStockNotice?: string;
+  customStockLabel?: string;
+  costPriceUSD?: number;
+  updatedAt?: string;
+  migratedAt?: string;
+}
+
 export interface Seller {
   id: string;                  // slug: 'chouf-eco-soap'
   sellerCode?: string;         // unique code e.g. 'SLR-001'

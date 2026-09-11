@@ -18,7 +18,7 @@ async function runMigration() {
   console.log(`Starting product_private migration on project ${projectId} (Dry run: ${isDryRun})`);
   const snapshot = await db.collection('products').get();
   
-  const PRIVATE_FIELDS = ['sellerItemCode', 'lowStockThreshold', 'lowStockNotice', 'customStockLabel'];
+  const PRIVATE_FIELDS = ['sellerItemCode', 'lowStockThreshold', 'lowStockNotice', 'customStockLabel', 'costPriceUSD'];
   const migratedAt = new Date().toISOString();
   
   let count = 0;

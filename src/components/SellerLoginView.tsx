@@ -30,6 +30,7 @@ import { LebanonFlag } from './LebanonFlag';
 import { doc, getDoc } from 'firebase/firestore';
 import { db, auth, signInWithEmailAndPassword, signOut, functionsInstance, httpsCallable } from '../firebase';
 import { normalizeLebanesePhone, isValidLebanesePhone } from '../utils/phoneUtils';
+import { clearAdminMfaSession } from '../utils/adminMfa';
 
 export const SellerLoginView: React.FC = () => {
   const { 
@@ -120,10 +121,11 @@ export const SellerLoginView: React.FC = () => {
       const hasSellerClaim = Boolean(tokenResult.claims.seller === true);
       const claimSellerId = typeof tokenResult.claims.sellerId === 'string' ? tokenResult.claims.sellerId : null;
 
-      // 4. IF ADMIN: Grant admin access immediately without requiring seller phone, company, record, or seller claim
+      // 4. IF ADMIN: Route admin through the two-step verification step-up flow
       if (hasAdminClaim) {
+        clearAdminMfaSession(uid);
         showToast(
-          isArabic ? 'مرحباً بك، مشرف النظام!' : 'Welcome, Administrator!',
+          isArabic ? 'مرحباً بك، مشرف النظام! يرجى إكمال التحقق بخطوتين.' : 'Welcome, Administrator! Please complete two-step verification.',
           'success'
         );
         setActiveTab('admin');

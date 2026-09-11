@@ -7,8 +7,7 @@ import { checkDuplicateProductNumber } from '../src/lib/productValidation';
 import { Product } from '../src/types';
 import { validatePlaceOrderPayload, placeOrder } from '../functions/src/placeOrder';
 import { validateSellerApplicationPayload, normalizeServerLebanesePhone, handleSellerApplicationSubmission, syncSellerApplicationLockLifecycle, hashIdentifier } from '../functions/src/sellerApplication';
-import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
-import { mapSafeShopUserProfile } from '../src/context/ShopContext';
+import { mapUserProfile, mapSafeUserProfile, mapSafeShopUserProfile } from '../src/context/ShopContext';
 
 describe('Security Regression Suite - Application Controls', () => {
   describe('0. Architecture Boundaries (Admin & Seller URL Security)', () => {
@@ -826,7 +825,6 @@ describe('Security Regression Suite - Application Controls', () => {
 
   describe('12. Authoritative Custom Claims Security Enforcement (No Firestore Fallbacks)', () => {
     const rulesSource = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf-8');
-    const authContextSource = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthContext.tsx'), 'utf-8');
     const shopContextSource = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf-8');
 
     it('25. firestore.rules: isAdmin() strictly requires request.auth.token.admin == true without Firestore lookups', () => {
@@ -853,13 +851,13 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(body).not.toMatch(/users/);
     });
 
-    it('28. AuthContext.tsx: isAdminUser, isSellerUser, and sellerId strictly originate from tokenResult.claims', () => {
-      expect(authContextSource).toMatch(/tokenResult\?\.claims\?\.admin === true/);
-      expect(authContextSource).toMatch(/tokenResult\?\.claims\?\.seller === true/);
-      expect(authContextSource).toMatch(/tokenResult\?\.claims\?\.sellerId/);
+    it('28. ShopContext.tsx: isAdminUser, isSellerUser, and sellerId strictly originate from tokenResult.claims', () => {
+      expect(shopContextSource).toMatch(/result\.claims\.admin === true/);
+      expect(shopContextSource).toMatch(/result\.claims\.seller === true/);
+      expect(shopContextSource).toMatch(/result\.claims\.sellerId/);
       // Ensure removed fallback: claimSellerId || data.sellerId
-      expect(authContextSource).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
-      expect(authContextSource).not.toMatch(/claimSellerId\s*\|\|\s*userData\.sellerId/);
+      expect(shopContextSource).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+      expect(shopContextSource).not.toMatch(/claimSellerId\s*\|\|\s*userData\.sellerId/);
     });
 
     it('29. ShopContext.tsx: isAdminUser, isSellerUser, and sellerId strictly originate from token claims', () => {
@@ -916,7 +914,6 @@ describe('Security Regression Suite - Application Controls', () => {
 
   describe('13. Adversarial Security Verification: Strict Firebase Auth Claims Only (Requirements A through K)', () => {
     const rulesCode = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
-    const authCode = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthContext.tsx'), 'utf8');
     const shopCode = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf8');
     const otpCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf8');
     const placeOrderCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/placeOrder.ts'), 'utf8');
@@ -1055,10 +1052,6 @@ describe('Security Regression Suite - Application Controls', () => {
     });
 
     it('Requirement K: All authorization fallbacks from Firestore user documents are strictly removed and forbidden', () => {
-      // Verify no fallback pattern `claimSellerId || data.sellerId` or `claimSellerId || userData.sellerId` in AuthContext
-      expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
-      expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*userData\.sellerId/);
-
       // Verify no fallback in ShopContext
       expect(shopCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
 
@@ -1071,8 +1064,8 @@ describe('Security Regression Suite - Application Controls', () => {
     });
   });
 
-  describe('14. Firestore User Profile Isolation (AuthContext Hardening)', () => {
-    const authCode = fs.readFileSync(path.resolve(__dirname, '../src/context/AuthContext.tsx'), 'utf8');
+  describe('14. Firestore User Profile Isolation (ShopContext Hardening)', () => {
+    const shopCode = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf8');
 
     const mockFirebaseUser = {
       uid: 'user-auth-123',
@@ -1152,15 +1145,14 @@ describe('Security Regression Suite - Application Controls', () => {
 
     it('TEST 5: Source-code security test must reject unrestricted profile merging such as setUser(prev => prev ? ({ ...prev, ...data }) : null)', () => {
       // Must not spread raw firestore doc: { ...prev, ...data } or ...data
-      expect(authCode).not.toMatch(/\{\s*\.\.\.prev\s*,\s*\.\.\.data\s*\}/);
-      expect(authCode).not.toMatch(/setUser\(\s*prev\s*=>\s*prev\s*\?\s*\(\{\s*\.\.\.prev\s*,\s*\.\.\.data\s*\}\)\s*:\s*null\s*\)/);
-      expect(authCode).not.toMatch(/setUser\(\s*\(\s*\{\s*\.\.\.prev/);
+      expect(shopCode).not.toMatch(/\{\s*\.\.\.prev\s*,\s*\.\.\.data\s*\}/);
+      expect(shopCode).not.toMatch(/setUser\(\s*prev\s*=>\s*prev\s*\?\s*\(\{\s*\.\.\.prev\s*,\s*\.\.\.data\s*\}\)\s*:\s*null\s*\)/);
 
-      // Must explicitly use mapUserProfile or allowlisted field mapping
-      expect(authCode).toMatch(/mapUserProfile/);
-      expect(authCode).not.toMatch(/role:\s*data\.role/);
-      expect(authCode).not.toMatch(/sellerId:\s*data\.sellerId/);
-      expect(authCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
+      // Must explicitly use mapSafeShopUserProfile or allowlisted field mapping
+      expect(shopCode).toMatch(/mapSafeShopUserProfile/);
+      expect(shopCode).not.toMatch(/role:\s*data\.role/);
+      expect(shopCode).not.toMatch(/sellerId:\s*data\.sellerId/);
+      expect(shopCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
     });
   });
 

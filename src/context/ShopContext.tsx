@@ -67,19 +67,11 @@ const safeGetDoc = async (docRef: any): Promise<any> => {
   }
 };
 
+// Reconciled with placeOrder.ts MAX_LINE_ITEMS and firestore.rules
 export const MAX_ORDER_LINE_ITEMS = 8;
 
 export const ensureSellerItemCode = (p: Product): Product => {
   if (!p) return p;
-  if (!p.sellerItemCode) {
-    let hash = 0;
-    const str = p.id || p.name || '';
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const numeric = Math.abs(hash % 900000) + 100000;
-    return { ...p, sellerItemCode: `SIC-${numeric}` };
-  }
   return p;
 };
 
@@ -452,6 +444,16 @@ export function mapSafeShopUserProfile(
     emailVerified: fbUser.emailVerified,
     isOtpVerified: typeof data.isOtpVerified === 'boolean' ? data.isOtpVerified : undefined
   };
+}
+
+export const mapUserProfile = mapSafeShopUserProfile;
+export function mapSafeUserProfile(
+  fbUser: FirebaseUser,
+  _uid: string,
+  data: Record<string, any> | undefined,
+  claimSellerId: string | null
+): UserProfile {
+  return mapSafeShopUserProfile(data || {}, fbUser, claimSellerId);
 }
 
 const INITIAL_ORDERS: Order[] = [];
@@ -2416,6 +2418,52 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isFetchingMore, hasMoreProducts]);
 
+  // Real-time product_private Sync from Firestore Database (strictly scoped to admin or owning seller)
+  useEffect(() => {
+    if (!IS_FIREBASE_ENABLED || (!isAdminUser && (!isSellerUser || !sellerId))) {
+      return;
+    }
+
+    let q;
+    if (isAdminUser) {
+      q = collection(db, 'product_private');
+    } else {
+      q = query(collection(db, 'product_private'), where('sellerId', '==', sellerId));
+    }
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const privMap = new Map<string, any>();
+          snapshot.forEach((docSnap) => {
+            privMap.set(docSnap.id, docSnap.data());
+          });
+
+          setProducts((prev) =>
+            prev.map((p) => {
+              const priv = privMap.get(p.id);
+              if (!priv) return p;
+              return {
+                ...p,
+                sellerItemCode: priv.sellerItemCode ?? p.sellerItemCode,
+                lowStockThreshold: priv.lowStockThreshold ?? p.lowStockThreshold,
+                lowStockNotice: priv.lowStockNotice ?? p.lowStockNotice,
+                customStockLabel: priv.customStockLabel ?? p.customStockLabel,
+                costPriceUSD: priv.costPriceUSD ?? p.costPriceUSD
+              };
+            })
+          );
+        }
+      },
+      (err) => {
+        console.warn('[ShopContext] product_private listener warning:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isAdminUser, isSellerUser, sellerId]);
+
   // Real-time Orders Sync from Firestore Database (strictly scoped to current user or admin)
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) {
@@ -3888,30 +3936,44 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const id = newProdData.id || `prod-custom-${Date.now()}`;
     const nowIso = new Date().toISOString();
     
-    let newProduct: Product;
-    if (!isAdminUser && isSellerUser) {
-      newProduct = {
-        createdAt: nowIso,
-        updatedAt: nowIso,
-        ...restProdData,
-        id
-      } as Product;
-    } else {
-      newProduct = ensureSellerItemCode({
-        createdAt: nowIso,
-        updatedAt: nowIso,
-        rating,
-        reviewsCount,
-        sellerItemCode,
-        lowStockThreshold,
-        lowStockNotice,
-        customStockLabel,
-        costPriceUSD,
-        ...restProdData,
-        id
-      });
-    }
-    const sanitizedProduct = sanitizeDocumentData(newProduct);
+    // Public product object stored in /products/{id} (does not expose merchant/cost internals)
+    const publicProduct: Product = {
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      rating,
+      reviewsCount,
+      ...restProdData,
+      id
+    } as Product;
+    delete (publicProduct as any).sellerItemCode;
+    delete (publicProduct as any).lowStockThreshold;
+    delete (publicProduct as any).lowStockNotice;
+    delete (publicProduct as any).customStockLabel;
+    delete (publicProduct as any).costPriceUSD;
+
+    const sanitizedProduct = sanitizeDocumentData(publicProduct);
+
+    // Private metadata payload stored in /product_private/{id}
+    const privatePayload: Record<string, any> = {
+      productId: id,
+      sellerId: publicProduct.sellerId || (isSellerUser ? sellerId : null) || null,
+      updatedAt: nowIso
+    };
+    if (sellerItemCode !== undefined && sellerItemCode !== '') privatePayload.sellerItemCode = sellerItemCode;
+    if (lowStockThreshold !== undefined) privatePayload.lowStockThreshold = lowStockThreshold;
+    if (lowStockNotice !== undefined) privatePayload.lowStockNotice = lowStockNotice;
+    if (customStockLabel !== undefined) privatePayload.customStockLabel = customStockLabel;
+    if (costPriceUSD !== undefined) privatePayload.costPriceUSD = costPriceUSD;
+
+    // Full in-memory product representation for the current UI session
+    const newProduct: Product = {
+      ...publicProduct,
+      sellerItemCode,
+      lowStockThreshold,
+      lowStockNotice,
+      customStockLabel,
+      costPriceUSD
+    };
     
     dbLogger.logFormInput({
       sourceComponent: 'AdminView (AddProductModal)',
@@ -3955,6 +4017,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Persist to Firestore
     try {
       await monitoredSetDoc(doc(db, 'products', id), sanitizedProduct, undefined, 'AdminView:addProduct');
+      if (Object.keys(privatePayload).length > 3 || sellerItemCode || lowStockThreshold !== undefined || costPriceUSD !== undefined) {
+        try {
+          await monitoredSetDoc(doc(db, 'product_private', id), sanitizeDocumentData(privatePayload), { merge: true }, 'AdminView:addProductPrivate');
+        } catch (privErr) {
+          console.warn('[ShopContext] Error writing product_private:', privErr);
+        }
+      }
       
       await logAdminActivity(
         'product_add',
@@ -4024,11 +4093,31 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Duplicate Description validation removed for flexibility
+    const {
+      sellerItemCode,
+      lowStockThreshold,
+      lowStockNotice,
+      customStockLabel,
+      costPriceUSD,
+      ...publicUpdates
+    } = updates;
 
     const nowIso = new Date().toISOString();
     const mergedUpdates = { ...updates, updatedAt: nowIso };
-    const sanitizedUpdates = sanitizeDocumentData(mergedUpdates);
+    const mergedPublicUpdates = { ...publicUpdates, updatedAt: nowIso };
+    const sanitizedUpdates = sanitizeDocumentData(mergedPublicUpdates);
+
+    const privateUpdates: Record<string, any> = {
+      productId: id,
+      sellerId: updates.sellerId || existing?.sellerId || (isSellerUser ? sellerId : null) || null,
+      updatedAt: nowIso
+    };
+    let hasPrivateUpdates = false;
+    if (sellerItemCode !== undefined) { privateUpdates.sellerItemCode = sellerItemCode; hasPrivateUpdates = true; }
+    if (lowStockThreshold !== undefined) { privateUpdates.lowStockThreshold = lowStockThreshold; hasPrivateUpdates = true; }
+    if (lowStockNotice !== undefined) { privateUpdates.lowStockNotice = lowStockNotice; hasPrivateUpdates = true; }
+    if (customStockLabel !== undefined) { privateUpdates.customStockLabel = customStockLabel; hasPrivateUpdates = true; }
+    if (costPriceUSD !== undefined) { privateUpdates.costPriceUSD = costPriceUSD; hasPrivateUpdates = true; }
     
     dbLogger.logFormInput({
       sourceComponent: 'AdminView',
@@ -4070,7 +4159,16 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      await monitoredSetDoc(doc(db, 'products', id), sanitizedUpdates, { merge: true }, 'AdminView:updateProduct');
+      if (Object.keys(sanitizedUpdates).length > 1 || !sanitizedUpdates.updatedAt) {
+        await monitoredSetDoc(doc(db, 'products', id), sanitizedUpdates, { merge: true }, 'AdminView:updateProduct');
+      }
+      if (hasPrivateUpdates) {
+        try {
+          await monitoredSetDoc(doc(db, 'product_private', id), sanitizeDocumentData(privateUpdates), { merge: true }, 'AdminView:updateProductPrivate');
+        } catch (privErr) {
+          console.warn('[ShopContext] Error updating product_private:', privErr);
+        }
+      }
       
       await logAdminActivity(
         'product_update',
@@ -4175,6 +4273,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteProduct');
+      try {
+        await monitoredDeleteDoc(doc(db, 'product_private', id), 'AdminView:deleteProductPrivate');
+      } catch {}
       
       await logAdminActivity(
         'product_delete',
@@ -4250,7 +4351,13 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      const results = await Promise.allSettled(ids.map(id => monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteMultipleProducts')));
+      const results = await Promise.allSettled(ids.map(async id => {
+        const res = await monitoredDeleteDoc(doc(db, 'products', id), 'AdminView:deleteMultipleProducts');
+        try {
+          await monitoredDeleteDoc(doc(db, 'product_private', id), 'AdminView:deleteMultipleProductsPrivate');
+        } catch {}
+        return res;
+      }));
       const fulfilledCount = results.filter(r => r.status === 'fulfilled').length;
       const rejectedCount = results.filter(r => r.status === 'rejected').length;
 

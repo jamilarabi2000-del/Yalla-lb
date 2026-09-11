@@ -627,6 +627,19 @@ export const placeOrder = onCall<PlaceOrderRequest>(
           ? currencyData.lbpUsdRate
           : 89500;
 
+        const orderSafeProduct = (p: any) => ({
+          id: p?.id || '',
+          name: p?.name || '',
+          arabicName: p?.arabicName || '',
+          priceUSD: typeof p?.priceUSD === 'number' ? p.priceUSD : 0,
+          image: p?.image || '',
+          seller: p?.seller || '',
+          arabicSeller: p?.arabicSeller || '',
+          sellerId: p?.sellerId || '',
+          category: p?.category || '',
+          origin: p?.origin || ''
+        });
+
         const orderData = {
           id: orderRef.id,
           userId: uid,
@@ -634,9 +647,9 @@ export const placeOrder = onCall<PlaceOrderRequest>(
           date: new Date().toISOString(),
           trackingNumber,
           items: lines.map(l => ({
-            product: l.product,
+            product: orderSafeProduct(l.product),
             quantity: l.quantity,
-            selectedOption: l.selectedOption
+            selectedOption: l.selectedOption || null
           })),
           productIds: Array.from(new Set(lines.map(l => l.product.id).filter(Boolean))),
           sellerIds: canonicalSellerIds,

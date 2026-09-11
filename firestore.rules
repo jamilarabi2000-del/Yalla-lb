@@ -66,6 +66,16 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/sellers/$(getSellerId())).data.get('isActive', true) == true;
     }
 
+    // Step-up verification marker:
+    // Requires that an authoritative server-issued verification record exists in admin_stepup/{uid}
+    // and has not expired (within 30-minute validity window).
+    function hasRecentAdminStepUp() {
+      return isAdmin()
+        && exists(/databases/$(database)/documents/admin_stepup/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admin_stepup/$(request.auth.uid))
+             .data.get('expiresAtMs', 0) > request.time.toMillis();
+    }
+
     function isNotBanned() {
       return isSignedIn()
         && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
@@ -211,7 +221,7 @@ service cloud.firestore {
           ])
         );
 
-      allow delete: if isAdmin()
+      allow delete: if hasRecentAdminStepUp()
         || (
           isActiveSeller()
           && resource.data.get('sellerId', '') == getSellerId()
@@ -235,12 +245,13 @@ service cloud.firestore {
 
     match /product_bundles/{bundleId} {
       allow get, list: if resource.data.get('isActive', true) == true || isAdmin();
-      allow write: if isAdmin();
+      allow write: if hasRecentAdminStepUp();
     }
 
     match /categories/{catId} {
       allow get, list: if resource.data.get('isPublished', true) == true || isAdmin();
-      allow write: if isAdmin();
+      allow create, update: if isAdmin();
+      allow delete: if hasRecentAdminStepUp();
     }
 
     // ---------------------------------------------------------------------
@@ -303,7 +314,7 @@ service cloud.firestore {
                .hasOnly(sellerSelfEditableKeys())
         );
 
-      allow delete: if isAdmin();
+      allow delete: if hasRecentAdminStepUp();
     }
 
     // ---------------------------------------------------------------------
@@ -339,7 +350,7 @@ service cloud.firestore {
                ])
         );
 
-      allow delete: if isAdmin();
+      allow delete: if hasRecentAdminStepUp();
     }
 
     // ---------------------------------------------------------------------
@@ -367,11 +378,12 @@ service cloud.firestore {
 
     match /discounts/{discountId} {
       allow get, list: if resource.data.get('isActive', true) == true || isAdmin();
-      allow write: if isAdmin() && !request.resource.data.keys().hasAny(['couponCode', 'maxTotalUses', 'maxUsesPerUser']);
+      allow write: if hasRecentAdminStepUp() && !request.resource.data.keys().hasAny(['couponCode', 'maxTotalUses', 'maxUsesPerUser']);
     }
 
     match /coupons/{couponId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if hasRecentAdminStepUp();
     }
 
     match /shipping_rules/{ruleId} {
@@ -470,7 +482,7 @@ service cloud.firestore {
         )
         || isAdmin();
 
-      allow delete: if isAdmin();
+      allow delete: if hasRecentAdminStepUp();
     }
 
     // ---------------------------------------------------------------------
@@ -613,7 +625,7 @@ service cloud.firestore {
 
       allow update: if isAdmin();
 
-      allow delete: if isAdmin();
+      allow delete: if hasRecentAdminStepUp();
     }
 
     // ---------------------------------------------------------------------
@@ -659,7 +671,7 @@ service cloud.firestore {
           && sellerFulfillmentPatchOk()
         );
 
-      allow delete: if isAdmin();
+      allow delete: if hasRecentAdminStepUp();
     }
 
     // ---------------------------------------------------------------------
@@ -746,7 +758,7 @@ service cloud.firestore {
           && reviewBodyOk()
         );
 
-      allow delete: if isAdmin()
+      allow delete: if hasRecentAdminStepUp()
         || (
           isSignedIn()
           && isNotBanned()
@@ -789,7 +801,7 @@ service cloud.firestore {
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['updatedAt'])
         );
 
-      allow delete: if isAdmin()
+      allow delete: if hasRecentAdminStepUp()
         || (
           isSignedIn()
           && isNotBanned()

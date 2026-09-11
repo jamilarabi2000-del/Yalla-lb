@@ -1,18 +1,20 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { FieldValue } from 'firebase-admin/firestore';
-import { getDb } from './lib/db.mjs';
+import { getDb, projectId } from './lib/db.mjs';
 
 const serviceAccountJson = process.env.SERVICE_ACCOUNT_JSON;
-if (!serviceAccountJson) {
-  console.error('Error: SERVICE_ACCOUNT_JSON environment variable is required.');
-  process.exit(1);
-}
 
 const args = process.argv.slice(2);
 const isDryRun = args.includes('--dry-run');
 
 try {
-  initializeApp({ cert: cert(JSON.parse(serviceAccountJson)) });
+  if (serviceAccountJson) {
+    initializeApp({ cert: cert(JSON.parse(serviceAccountJson)) });
+  } else if (projectId) {
+    initializeApp({ projectId });
+  } else {
+    initializeApp();
+  }
 } catch (err) {
   console.error('Failed to initialize Firebase Admin SDK.', err);
   process.exit(1);
