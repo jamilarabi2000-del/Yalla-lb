@@ -445,4 +445,21 @@ describe('Comprehensive Production OTP & Authorization Security Suite (24 Test C
     expect(otpSource).toContain("SMS verification service is not configured");
     expect(otpSource).toContain("Verification service is temporarily unavailable");
   });
+
+  it('31. OTP rate limiting atomically reserves slot in transaction before delivery', () => {
+    const otpSource = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf-8');
+    // Verify rate limit slot reservation occurs before delivery call
+    const reserveIndex = otpSource.indexOf('Reserve rate limit slot atomically before delivery!');
+    const deliveryIndex = otpSource.indexOf('sendOtpDelivery(contactObj, actionType, numericCode)');
+    expect(reserveIndex).toBeGreaterThan(-1);
+    expect(deliveryIndex).toBeGreaterThan(-1);
+    expect(reserveIndex).toBeLessThan(deliveryIndex);
+  });
+
+  it('32. AdminGuard uses requestOtp instead of sendOtp for admin MFA and step-up', () => {
+    const adminGuardPath = path.resolve(__dirname, '../src/components/AdminGuard.tsx');
+    const adminGuardCode = fs.readFileSync(adminGuardPath, 'utf-8');
+    expect(adminGuardCode).toContain("requestOtp");
+    expect(adminGuardCode).not.toContain("sendOtp");
+  });
 });

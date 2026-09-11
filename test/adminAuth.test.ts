@@ -105,4 +105,12 @@ describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', (
     expect(shopContextCode).toContain('deleteProduct');
     expect(shopContextCode).toContain('deleteCategory');
   });
+
+  it('15. AdminGuard calls requestOtp and verifyOtp cloud functions and never calls undefined sendOtp', () => {
+    const adminGuardPath = path.resolve(process.cwd(), 'src/components/AdminGuard.tsx');
+    const adminGuardCode = fs.readFileSync(adminGuardPath, 'utf-8');
+    expect(adminGuardCode).toContain("httpsCallable(functionsInstance, 'requestOtp')");
+    expect(adminGuardCode).toContain("httpsCallable(functionsInstance, 'verifyOtp')");
+    expect(adminGuardCode).not.toContain("httpsCallable(functionsInstance, 'sendOtp')");
+  });
 });

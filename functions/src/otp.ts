@@ -371,33 +371,47 @@ export const requestOtp = onCall(
     const hmacId = deriveHmacId(contact, actionType);
     const rateLimitRef = db.collection('otp_rate_limits').doc(hmacId);
 
-    // 1. Check Cooldown & Sliding Window Rate Limit inside a read-only check (or transaction check)
-    // without permanently committing yet until delivery is confirmed.
+    // 1. Atomically check and reserve rate limit slot BEFORE attempting delivery
     await db.runTransaction(async (transaction) => {
       const rateLimitSnap = await transaction.get(rateLimitRef);
+      let requests: number[] = [];
+      let cooldownUntilMs = 0;
+
       if (rateLimitSnap.exists) {
         const rlData = rateLimitSnap.data()!;
-        const cooldownUntilMs = rlData.cooldownUntilMs || 0;
-        let requests = Array.isArray(rlData.requests) ? rlData.requests : [];
-
-        if (now < cooldownUntilMs) {
-          const remainingSecs = Math.ceil((cooldownUntilMs - now) / 1000);
-          throw new HttpsError(
-            'resource-exhausted',
-            `Resend cooldown active. Please wait ${remainingSecs} second(s) before requesting a new code.`
-          );
-        }
-
-        const fifteenMinsAgo = now - 15 * 60 * 1000;
-        requests = requests.filter((ts: number) => ts > fifteenMinsAgo);
-
-        if (requests.length >= 5) {
-          throw new HttpsError(
-            'resource-exhausted',
-            'Maximum OTP request rate limit reached. Please wait 15 minutes before trying again.'
-          );
-        }
+        cooldownUntilMs = rlData.cooldownUntilMs || 0;
+        requests = Array.isArray(rlData.requests) ? rlData.requests : [];
       }
+
+      if (now < cooldownUntilMs) {
+        const remainingSecs = Math.ceil((cooldownUntilMs - now) / 1000);
+        throw new HttpsError(
+          'resource-exhausted',
+          `Resend cooldown active. Please wait ${remainingSecs} second(s) before requesting a new code.`
+        );
+      }
+
+      const fifteenMinsAgo = now - 15 * 60 * 1000;
+      requests = requests.filter((ts: number) => ts > fifteenMinsAgo);
+
+      if (requests.length >= 5) {
+        throw new HttpsError(
+          'resource-exhausted',
+          'Maximum OTP request rate limit reached. Please wait 15 minutes before trying again.'
+        );
+      }
+
+      // Reserve rate limit slot atomically before delivery!
+      requests.push(now);
+      const newCooldownUntilMs = now + 60 * 1000;
+
+      transaction.set(rateLimitRef, {
+        actionType,
+        uid: request.auth?.uid || null,
+        cooldownUntilMs: newCooldownUntilMs,
+        requests,
+        updatedAt: FieldValue.serverTimestamp()
+      });
     });
 
     // 2. Generate secure code and hash
@@ -406,10 +420,30 @@ export const requestOtp = onCall(
     const expiresAtMs = now + 5 * 60 * 1000;
     const newOtpRef = db.collection('otps').doc(hmacId);
 
-    // 3. Attempt delivery BEFORE permanently consuming the rate limit slot or saving OTP
+    // 3. Attempt delivery. If delivery fails, release/rollback the reserved slot!
     try {
       await sendOtpDelivery(contactObj, actionType, numericCode);
     } catch (deliveryErr: any) {
+      try {
+        await db.runTransaction(async (rollbackTx) => {
+          const rateLimitSnap = await rollbackTx.get(rateLimitRef);
+          if (rateLimitSnap.exists) {
+            const rlData = rateLimitSnap.data()!;
+            let requests = Array.isArray(rlData.requests) ? rlData.requests : [];
+            requests = requests.filter((ts: number) => ts !== now);
+            const newCooldown = requests.length > 0 ? Math.max(...requests) + 60 * 1000 : 0;
+            rollbackTx.set(rateLimitRef, {
+              ...rlData,
+              cooldownUntilMs: Math.min(rlData.cooldownUntilMs || 0, newCooldown),
+              requests,
+              updatedAt: FieldValue.serverTimestamp()
+            });
+          }
+        });
+      } catch (rollbackErr) {
+        console.error('[OTP Rate Limit Rollback Error]:', rollbackErr);
+      }
+
       if (deliveryErr instanceof HttpsError) {
         throw deliveryErr;
       }
@@ -417,43 +451,22 @@ export const requestOtp = onCall(
       throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
     }
 
-    // 4. Delivery succeeded! Now commit rate limit update and save OTP record atomically
-    await db.runTransaction(async (transaction) => {
-      const rateLimitSnap = await transaction.get(rateLimitRef);
-      let requests: number[] = [];
-      if (rateLimitSnap.exists) {
-        const rlData = rateLimitSnap.data()!;
-        requests = Array.isArray(rlData.requests) ? rlData.requests : [];
-      }
-      const fifteenMinsAgo = now - 15 * 60 * 1000;
-      requests = requests.filter((ts: number) => ts > fifteenMinsAgo);
-      requests.push(now);
-
-      const newCooldownUntilMs = now + 60 * 1000;
-
-      transaction.set(rateLimitRef, {
-        actionType,
-        cooldownUntilMs: newCooldownUntilMs,
-        requests,
-        updatedAt: FieldValue.serverTimestamp()
-      });
-
-      transaction.set(newOtpRef, {
-        id: hmacId,
-        uid: request.auth?.uid || null,
-        contact,
-        purpose: actionType,
-        actionType,
-        otpHash,
-        createdAt: FieldValue.serverTimestamp(),
-        createdAtMs: now,
-        expiresAtMs,
-        failedAttempts: 0,
-        attempts: 0,
-        maxAttempts: 5,
-        used: false,
-        consumedAt: null
-      });
+    // 4. Delivery succeeded! Save OTP record.
+    await newOtpRef.set({
+      id: hmacId,
+      uid: request.auth?.uid || null,
+      contact,
+      purpose: actionType,
+      actionType,
+      otpHash,
+      createdAt: FieldValue.serverTimestamp(),
+      createdAtMs: now,
+      expiresAtMs,
+      failedAttempts: 0,
+      attempts: 0,
+      maxAttempts: 5,
+      used: false,
+      consumedAt: null
     });
 
     return {

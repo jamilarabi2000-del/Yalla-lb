@@ -20,7 +20,20 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
-  
+
+  const [diagnosticData, setDiagnosticData] = useState<{
+    projectId: string;
+    appId: string;
+    uid: string;
+    email: string | null;
+    isAdminClaim: boolean;
+    issuedAtTime: string;
+    expirationTime: string;
+    hostname: string;
+    pathname: string;
+    buildId: string;
+  } | null>(null);
+
   const [isMfaVerified, setIsMfaVerified] = useState<boolean>(() => isMfaSessionValid(firebaseUser?.uid));
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -46,11 +59,33 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
         console.log("Token issuedAtTime:", token.issuedAtTime);
         console.log("Token expirationTime:", token.expirationTime);
         console.log("=============================");
+
+        if (import.meta.env.DEV && authStatus === 'authenticated_non_admin') {
+          const redactedEmail = firebaseUser.email
+            ? `${firebaseUser.email.charAt(0)}***@${firebaseUser.email.split('@')[1] || ''}`
+            : null;
+          setDiagnosticData({
+            projectId: auth.app.options.projectId || 'yalla-lb-2026',
+            appId: auth.app.options.appId || '',
+            uid: firebaseUser.uid,
+            email: redactedEmail,
+            isAdminClaim: token.claims.admin === true,
+            issuedAtTime: token.issuedAtTime,
+            expirationTime: token.expirationTime,
+            hostname: window.location.hostname,
+            pathname: window.location.pathname,
+            buildId: '81837ac642762623dc40df46289a7462a465504d'
+          });
+        } else {
+          setDiagnosticData(null);
+        }
       }).catch(err => {
         console.error("Diagnostic error fetching token:", err);
       });
+    } else {
+      setDiagnosticData(null);
     }
-  }, [firebaseUser]);
+  }, [firebaseUser, authStatus]);
 
   // Check persisted MFA session whenever user changes
   useEffect(() => {
@@ -69,8 +104,8 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
       setStepUpCode('');
       setStepUpError(null);
       // Auto-send OTP for step-up
-      const sendOtp = httpsCallable(functionsInstance, 'sendOtp');
-      sendOtp({ actionType: 'admin' }).catch(err => {
+      const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
+      requestOtp({ actionType: 'admin' }).catch(err => {
         console.error('Failed to send step-up OTP:', err);
       });
     });
@@ -81,8 +116,8 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
     if (authStatus === 'authenticated_admin' && !isMfaVerified && !otpSent) {
       const sendMfaOtp = async () => {
         try {
-          const sendOtp = httpsCallable(functionsInstance, 'sendOtp');
-          await sendOtp({ actionType: 'admin' });
+          const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
+          await requestOtp({ actionType: 'admin' });
           setOtpSent(true);
         } catch (error: any) {
           console.error('Failed to send admin MFA OTP:', error);

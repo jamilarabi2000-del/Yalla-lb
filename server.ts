@@ -11,7 +11,7 @@ app.use(express.json());
 app.use((_req, res, next) => {
   res.setHeader(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' https://apis.google.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https: wss:; frame-src 'self' https://*.firebaseapp.com https://*.google.com https://www.youtube.com https://player.vimeo.com; frame-ancestors 'self' https://*.google.com https://*.run.app https://ai.studio; object-src 'none'; base-uri 'self'; form-action 'self';"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https: wss:; frame-src 'self' https://*.firebaseapp.com https://*.google.com https://www.youtube.com https://player.vimeo.com; frame-ancestors 'self' https://*.google.com https://*.run.app https://ai.studio; object-src 'none'; base-uri 'self'; form-action 'self';"
   );
   res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   res.setHeader("X-Content-Type-Options", "nosniff");
