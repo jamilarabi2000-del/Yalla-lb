@@ -34,6 +34,24 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
   const [isStepUpVerifying, setIsStepUpVerifying] = useState(false);
   const stepUpResolverRef = useRef<((success: boolean) => void) | null>(null);
 
+  useEffect(() => {
+    if (firebaseUser) {
+      firebaseUser.getIdTokenResult(true).then((token) => {
+        console.log("=== DEPLOYMENT DIAGNOSTIC ===");
+        console.log("Build Commit/Version: 81837ac642762623dc40df46289a7462a465504d (Latest AI Studio deploy)");
+        console.log("Firebase Project:", auth.app.options.projectId);
+        console.log("User UID:", firebaseUser.uid);
+        console.log("User Email:", firebaseUser.email);
+        console.log("Token claims.admin:", token.claims.admin);
+        console.log("Token issuedAtTime:", token.issuedAtTime);
+        console.log("Token expirationTime:", token.expirationTime);
+        console.log("=============================");
+      }).catch(err => {
+        console.error("Diagnostic error fetching token:", err);
+      });
+    }
+  }, [firebaseUser]);
+
   // Check persisted MFA session whenever user changes
   useEffect(() => {
     if (firebaseUser?.uid) {

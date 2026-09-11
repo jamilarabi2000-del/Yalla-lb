@@ -48,7 +48,8 @@ import {
   limit,
   startAfter,
   runTransaction,
-  serverTimestamp
+  serverTimestamp,
+  or
 } from 'firebase/firestore';
 
 const safeGetDoc = async (docRef: any): Promise<any> => {
@@ -831,8 +832,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
     const discountsColRef = collection(db, 'discounts');
+    const q = isAdminUser ? discountsColRef : query(discountsColRef, where('isActive', '==', true));
     const unsubscribe = onSnapshot(
-      discountsColRef,
+      q,
       async (snapshot) => {
         if (snapshot.empty && !hasSeededDiscountsRef.current) {
           hasSeededDiscountsRef.current = true;
@@ -1050,8 +1052,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
     const bundlesColRef = collection(db, 'product_bundles');
+    const q = isAdminUser ? bundlesColRef : query(bundlesColRef, where('isActive', '==', true));
     const unsubscribe = onSnapshot(
-      bundlesColRef,
+      q,
       async (snapshot) => {
         const hasInitialized = localStorage.getItem('yallalb_bundles_initialized') === 'true';
         if (snapshot.empty && !hasSeededBundlesRef.current && !hasInitialized) {
@@ -1551,8 +1554,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!IS_FIREBASE_ENABLED) return;
     const sellersColRef = collection(db, 'sellers');
+    const q = isAdminUser ? sellersColRef : query(sellersColRef, where('isActive', '==', true));
     const unsubscribe = onSnapshot(
-      sellersColRef,
+      q,
       async (snapshot) => {
         if (snapshot.empty) {
           if (isAdminUser) {
@@ -2315,8 +2319,9 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const productsColRef = collection(db, 'products');
+    const q = isAdminUser ? productsColRef : (isSellerUser && sellerId) ? query(productsColRef, or(where('isPublished', '==', true), where('sellerId', '==', sellerId))) : query(productsColRef, where('isPublished', '==', true));
     const unsubscribe = onSnapshot(
-      productsColRef,
+      q,
       async (snapshot) => {
         if (snapshot.empty && !hasSeededProductsRef.current) {
           hasSeededProductsRef.current = true;
@@ -2385,12 +2390,15 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsFetchingMore(true);
     try {
       const productsColRef = collection(db, 'products');
-      const q = query(
-        productsColRef,
-        orderBy('id'),
-        startAfter(lastVisibleDocRef.current),
-        limit(24)
-      );
+      let constraints: any[] = [orderBy('id'), startAfter(lastVisibleDocRef.current), limit(24)];
+      if (!isAdminUser) {
+        if (isSellerUser && sellerId) {
+          constraints.unshift(or(where('isPublished', '==', true), where('sellerId', '==', sellerId)));
+        } else {
+          constraints.unshift(where('isPublished', '==', true));
+        }
+      }
+      const q = query(productsColRef, ...constraints);
       const snapshot = await getDocs(q);
 
       if (!snapshot.empty) {
