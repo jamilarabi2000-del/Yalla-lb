@@ -29,21 +29,23 @@ service firebase.storage {
         && !request.resource.contentType.matches('image/svg\\+xml');
     }
 
-    // Public product images: readable by everyone, uploaded by Admin or Seller
+    function isActiveSeller(sellerId) {
+      return isSeller()
+        && getSellerId() == sellerId
+        && firestore.get(/databases/(default)/documents/sellers/$(sellerId)).data.get('isActive', true) == true;
+    }
+
+    // Public product images: readable by everyone, uploaded by Admin or Active Seller
     match /products/{sellerId}/{allPaths=**} {
       allow read: if true;
       allow write: if isAdmin()
         || (
-          isSeller()
-          && getSellerId() == sellerId
+          isActiveSeller(sellerId)
           && isSafeImage()
           && request.resource.size <= 5 * 1024 * 1024 // 5MB max
         );
       allow delete: if isAdmin()
-        || (
-          isSeller()
-          && getSellerId() == sellerId
-        );
+        || isActiveSeller(sellerId);
     }
 
     // User avatars: readable by public, uploadable only by the owner

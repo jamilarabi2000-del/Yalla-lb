@@ -52,9 +52,11 @@ export interface DiscountOptions {
   productBundles?: ProductBundle[];
 }
 
+export const MAX_TOTAL_DISCOUNT_PCT = 70;
+
 function matchesTarget(product: Product, rule: DiscountRule): boolean {
-  if (rule.target === 'checkout' || rule.target === 'all') return true;
-  if (!rule.targetValue || rule.targetValue.trim() === '') return true;
+  if (!rule.target || rule.target === 'checkout' || rule.target === 'all') return true;
+  if (!rule.targetValue || rule.targetValue.trim() === '') return false; // FAIL CLOSED
 
   const targetVal = rule.targetValue.toLowerCase().trim();
 
@@ -210,7 +212,7 @@ export function applyDiscounts(
 
     // Target calculation
     let baseApplicableAmount = 0;
-    if (rule.target === 'checkout' || rule.target === 'all') {
+    if (!rule.target || rule.target === 'checkout' || rule.target === 'all') {
       baseApplicableAmount = subtotal;
     } else {
       const eligibleItems = items.filter(item => matchesTarget(item.product, rule));
@@ -227,7 +229,7 @@ export function applyDiscounts(
       const groupSize = buyX + getY;
 
       // Group eligible items into individual unit price list
-      const eligibleItems = rule.target === 'checkout' || rule.target === 'all'
+      const eligibleItems = !rule.target || rule.target === 'checkout' || rule.target === 'all'
         ? items
         : items.filter(item => matchesTarget(item.product, rule));
 
@@ -275,8 +277,9 @@ export function applyDiscounts(
     }
   }
 
-  // Never allow discounts to exceed the order subtotal
-  totalDiscount = Math.min(Math.round(totalDiscount * 100) / 100, subtotal);
+  // Enforce global maximum discount cap
+  const maxAllowedDiscount = Math.round(subtotal * (MAX_TOTAL_DISCOUNT_PCT / 100) * 100) / 100;
+  totalDiscount = Math.min(Math.round(totalDiscount * 100) / 100, maxAllowedDiscount);
   const finalSubtotal = Math.max(0, Math.round((subtotal - totalDiscount) * 100) / 100);
 
   return {

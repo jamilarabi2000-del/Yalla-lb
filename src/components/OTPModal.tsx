@@ -23,7 +23,6 @@ export const OTPModal: React.FC<OTPModalProps> = ({
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [deliveryNotice, setDeliveryNotice] = useState<string>('');
-  const [previewCode, setPreviewCode] = useState<string | null>(null);
   const [isRequesting, setIsRequesting] = useState<boolean>(false);
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [resendTimer, setResendTimer] = useState<number>(60);
@@ -39,44 +38,6 @@ export const OTPModal: React.FC<OTPModalProps> = ({
     setDeliveryNotice('');
     setOtpDigits(['', '', '', '', '', '']);
 
-    // 1. First attempt: Use the full-stack server-side /api/send-otp with Resend
-    try {
-      const response = await fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contact: targetContact, actionType }),
-      });
-      const data = await response.json();
-      if (response.ok && data.success) {
-        setResendTimer(data.cooldownSeconds || 60);
-        setCanResend(false);
-        if (data.deliveredVia === 'preview_fallback' && data.previewCode) {
-          setPreviewCode(data.previewCode);
-          sessionStorage.setItem(`yalla_preview_otp_${targetContact}_${actionType}`, data.previewCode);
-          setDeliveryNotice(
-            isArabic
-              ? `رمز التحقق المباشر (وضع التطوير): ${data.previewCode}`
-              : `Security OTP (Development Preview): ${data.previewCode}`
-          );
-        } else {
-          setPreviewCode(null);
-          setDeliveryNotice(
-            isArabic
-              ? `تم إرسال الرمز بنجاح إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
-              : `Verification code successfully sent to (${targetContact}). Please check your inbox or spam folder.`
-          );
-        }
-        return;
-      }
-      if (data?.message && !data?.message?.includes('not configured')) {
-        setErrorMsg(data.message);
-        return;
-      }
-    } catch (apiErr) {
-      console.warn('[OTPModal] /api/send-otp failed, falling back to Firebase Cloud Functions:', apiErr);
-    }
-
-    // 2. Second attempt: Firebase Cloud Function with App Check (kept for production & tests)
     try {
       const requestOtpFn = httpsCallable<{ contact: string; actionType: string }, { success: boolean; cooldownSeconds: number }>(
         functionsInstance,
@@ -87,38 +48,16 @@ export const OTPModal: React.FC<OTPModalProps> = ({
       if (res.data?.success) {
         setResendTimer(res.data.cooldownSeconds || 60);
         setCanResend(false);
-        setPreviewCode(null);
+        setDeliveryNotice(
+          isArabic
+            ? `تم إرسال الرمز بنجاح إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
+            : `Verification code successfully sent to (${targetContact}). Please check your inbox or spam folder.`
+        );
       }
     } catch (err: any) {
-      const isAppCheckError = err?.message?.includes('AppCheck') || err?.message?.includes('appCheck');
-      const isFunctionUnavailable =
-        err?.code === 'internal' ||
-        err?.message === 'internal' ||
-        err?.code === 'functions/internal' ||
-        err?.code === 'not-found' ||
-        err?.code === 'functions/not-found';
-
-      if (isAppCheckError) {
-        console.warn('[OTPModal] App Check token acquisition failed (domain or key verification):', err?.message || err);
-        const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-        setPreviewCode(fallbackCode);
-        sessionStorage.setItem(`yalla_preview_otp_${targetContact}_${actionType}`, fallbackCode);
-        console.info(`[Security OTP - Development Mode] Single-use verification code for ${targetContact}: ${fallbackCode}`);
-        setResendTimer(60);
-        setCanResend(false);
-      } else if (isFunctionUnavailable) {
-        console.warn('[OTPModal] Cloud Function "requestOtp" is not deployed on Firebase.');
-        const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-        setPreviewCode(fallbackCode);
-        sessionStorage.setItem(`yalla_preview_otp_${targetContact}_${actionType}`, fallbackCode);
-        console.info(`[Security OTP - Development Mode] Single-use verification code for ${targetContact}: ${fallbackCode}`);
-        setResendTimer(60);
-        setCanResend(false);
-      } else {
-        console.error('[OTPModal] requestOtp failed:', err);
-        const msg = err?.message || (isArabic ? 'فشل إرسال رمز التحقق. يرجى إعادة المحاولة.' : 'Failed to send OTP code. Please try again.');
-        setErrorMsg(msg);
-      }
+      console.error('[OTPModal] requestOtp failed:', err);
+      const msg = err?.message || (isArabic ? 'فشل إرسال رمز التحقق. يرجى إعادة المحاولة.' : 'Failed to send OTP code. Please try again.');
+      setErrorMsg(msg);
     } finally {
       setIsRequesting(false);
     }
@@ -205,46 +144,6 @@ export const OTPModal: React.FC<OTPModalProps> = ({
     setErrorMsg('');
 
     try {
-      // 1. First attempt: Verify with the server /api/verify-otp endpoint
-      try {
-        const response = await fetch('/api/verify-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contact: targetContact, actionType, code: enteredCode }),
-        });
-        const data = await response.json();
-        if (response.ok && data.success) {
-          sessionStorage.removeItem(`yalla_preview_otp_${targetContact}_${actionType}`);
-          await onVerifySuccess();
-          onClose();
-          return;
-        } else if (response.status === 400 || response.status === 429) {
-          setErrorMsg(data.message || (isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.'));
-          setOtpDigits(['', '', '', '', '', '']);
-          if (inputRefs.current[0]) inputRefs.current[0].focus();
-          return;
-        }
-      } catch (apiErr) {
-        console.warn('[OTPModal] /api/verify-otp fetch failed, falling back to Firebase/preview:', apiErr);
-      }
-
-      const savedPreviewCode = previewCode || sessionStorage.getItem(`yalla_preview_otp_${targetContact}_${actionType}`);
-
-      // If in preview fallback mode:
-      if (savedPreviewCode) {
-        if (enteredCode === savedPreviewCode) {
-          sessionStorage.removeItem(`yalla_preview_otp_${targetContact}_${actionType}`);
-          await onVerifySuccess();
-          onClose();
-          return;
-        } else {
-          setErrorMsg(isArabic ? 'رمز التحقق غير صحيح. يرجى إعادة المحاولة.' : 'Invalid verification code. Please try again.');
-          setOtpDigits(['', '', '', '', '', '']);
-          if (inputRefs.current[0]) inputRefs.current[0].focus();
-          return;
-        }
-      }
-
       const verifyOtpFn = httpsCallable<{ contact: string; actionType: string; code: string }, { success: boolean }>(
         functionsInstance,
         'verifyOtp',
@@ -259,39 +158,8 @@ export const OTPModal: React.FC<OTPModalProps> = ({
         throw new Error(isArabic ? 'فشل التحقق من رمز OTP.' : 'OTP verification failed.');
       }
     } catch (err: any) {
-      const isAppCheckError = err?.message?.includes('AppCheck') || err?.message?.includes('appCheck');
-      const isFunctionUnavailable =
-        err?.code === 'internal' ||
-        err?.message === 'internal' ||
-        err?.code === 'functions/internal' ||
-        err?.code === 'not-found' ||
-        err?.code === 'functions/not-found';
-
-      const savedPreviewCode = sessionStorage.getItem(`yalla_preview_otp_${targetContact}_${actionType}`);
-      if ((isFunctionUnavailable || isAppCheckError) && savedPreviewCode) {
-        if (enteredCode === savedPreviewCode) {
-          sessionStorage.removeItem(`yalla_preview_otp_${targetContact}_${actionType}`);
-          await onVerifySuccess();
-          onClose();
-          return;
-        }
-      }
-
-      if (isAppCheckError) {
-        console.warn('[OTPModal] App Check token acquisition failed during verifyOtp:', err?.message || err);
-        const detail = err?.message ? ` (${err.message})` : '';
-        const msg = `${isArabic ? 'فشل التحقق الأمني (App Check). يرجى إعادة المحاولة.' : 'App Check security verification failed. Please try again.'}${detail}`;
-        setErrorMsg(msg);
-      } else if (isFunctionUnavailable) {
-        setErrorMsg(
-          isArabic
-            ? 'خدمة التحقق غير منشورة على السيرفر (Cloud Function not deployed). يرجى التأكد من نشر الدوال.'
-            : 'Verification service is not deployed on Firebase. Please deploy Cloud Functions to verify.'
-        );
-      } else {
-        console.error('[OTPModal] verifyOtp error:', err);
-        setErrorMsg(err?.message || (isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.'));
-      }
+      console.error('[OTPModal] verifyOtp error:', err);
+      setErrorMsg(err?.message || (isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.'));
       setOtpDigits(['', '', '', '', '', '']);
       if (inputRefs.current[0]) {
         inputRefs.current[0].focus();
@@ -346,21 +214,6 @@ export const OTPModal: React.FC<OTPModalProps> = ({
               <p className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 py-1 px-3 rounded-lg mt-2 font-medium">
                 ✓ {deliveryNotice}
               </p>
-            )}
-            {previewCode && (
-              <div className="pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const digits = previewCode.slice(0, 6).split('');
-                    setOtpDigits(digits);
-                    setErrorMsg('');
-                  }}
-                  className="px-3 py-1 bg-amber-50 hover:bg-amber-100 text-[#8F7137] border border-amber-200 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <span>{isArabic ? `تعبئة الرمز تلقائياً (${previewCode})` : `Auto-fill Code (${previewCode})`}</span>
-                </button>
-              </div>
             )}
           </div>
 

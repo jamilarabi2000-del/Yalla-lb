@@ -9,10 +9,13 @@ export function round2(num: number): number {
   return Math.round((num + Number.EPSILON) * 100) / 100;
 }
 
+export const MAX_TOTAL_DISCOUNT_PCT = 70;
+
 function matchesTarget(product: any, rule: any): boolean {
+  if (!rule || typeof rule !== 'object') return false;
   if (!rule.target || rule.target === 'checkout' || rule.target === 'all') return true;
   const targetVal = String(rule.targetValue || '').toLowerCase().trim();
-  if (!targetVal) return true;
+  if (!targetVal) return false; // FAIL CLOSED: empty target value must NOT match all items
   if (rule.target === 'product') {
     return String(product.id || '').toLowerCase() === targetVal;
   }
@@ -25,6 +28,13 @@ function matchesTarget(product: any, rule: any): boolean {
       (product.seller && String(product.seller).toLowerCase() === targetVal) ||
       (product.artisan && String(product.artisan).toLowerCase().includes(targetVal)) ||
       (product.origin && String(product.origin).toLowerCase().includes(targetVal))
+    );
+  }
+  if (rule.target === 'brand') {
+    return (
+      (product.artisan && String(product.artisan).toLowerCase().includes(targetVal)) ||
+      (product.origin && String(product.origin).toLowerCase().includes(targetVal)) ||
+      (product.name && String(product.name).toLowerCase().includes(targetVal))
     );
   }
   return false;
@@ -200,7 +210,8 @@ export function computeDiscounts(params: {
     }
   }
 
-  const boundedDiscount = Math.max(0, Math.min(round2(totalDiscount), subtotalUSD));
+  const maxAllowedDiscount = round2(subtotalUSD * (MAX_TOTAL_DISCOUNT_PCT / 100));
+  const boundedDiscount = Math.max(0, Math.min(round2(totalDiscount), maxAllowedDiscount));
   return {
     discountUSD: boundedDiscount,
     appliedCoupon: matchedCouponCode

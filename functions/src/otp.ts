@@ -21,6 +21,8 @@ const OTP_SECRET = defineSecret('OTP_SECRET');
 const TWILIO_ACCOUNT_SID = defineSecret('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = defineSecret('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
+const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
+const SENDGRID_API_KEY = defineSecret('SENDGRID_API_KEY');
 
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
@@ -218,8 +220,15 @@ async function sendSmsOtp(phone: string, actionType: string, numericCode: string
  * Fails closed if credentials are missing or if the provider returns a non-2xx response.
  */
 async function sendEmailOtp(email: string, actionType: string, numericCode: string): Promise<void> {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const sendgridKey = process.env.SENDGRID_API_KEY;
+  let resendApiKey = process.env.RESEND_API_KEY || '';
+  try {
+    resendApiKey = resendApiKey || RESEND_API_KEY.value();
+  } catch {}
+
+  let sendgridKey = process.env.SENDGRID_API_KEY || '';
+  try {
+    sendgridKey = sendgridKey || SENDGRID_API_KEY.value();
+  } catch {}
 
   if (resendApiKey) {
     let sender = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
@@ -316,7 +325,7 @@ export const requestOtp = onCall(
     region: 'europe-west1',
     enforceAppCheck: true,
     consumeAppCheckToken: true,
-    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER]
+    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, SENDGRID_API_KEY]
   },
   async (request) => {
     const data = request.data || {};
@@ -463,7 +472,7 @@ export const verifyOtp = onCall(
     region: 'europe-west1',
     enforceAppCheck: true,
     consumeAppCheckToken: true,
-    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER]
+    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, SENDGRID_API_KEY]
   },
   async (request) => {
     const data = request.data || {};

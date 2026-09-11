@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useShop } from '../context/ShopContext';
+import { isSafeUrl } from '../lib/safeUrl';
 import { 
   ChevronLeft,
   ChevronRight,
@@ -348,7 +349,7 @@ export const HeroBanner: React.FC = () => {
     }
     const customTarget = targetOverride || (heroData as any)?.targetUrl || currentSlide.targetCategory || 'all';
     
-    if (customTarget.startsWith('/')) {
+    if (customTarget.startsWith('/') && !customTarget.startsWith('//')) {
       if (customTarget === '/checkout') {
         setActiveTab('checkout');
       } else if (customTarget === '/account') {
@@ -356,7 +357,7 @@ export const HeroBanner: React.FC = () => {
       } else if (customTarget === '/products') {
         setActiveTab('products');
         setSelectedCategory('all');
-      } else {
+      } else if (isSafeUrl(customTarget)) {
         window.location.href = customTarget;
         return;
       }

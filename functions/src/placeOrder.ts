@@ -276,8 +276,21 @@ export function validatePlaceOrderPayload(data: any): {
   if (typeof shipping.phone !== 'string' || !shipping.phone.trim()) {
     throw new HttpsError('invalid-argument', 'shipping.phone is required and must be a non-empty string.');
   }
+  const ALLOWED_GOVERNORATES = [
+    'beirut', 'mount_lebanon', 'north', 'south', 'bekaa', 'diaspora_global',
+    'beirut (all districts)', 'mount lebanon', 'north lebanon & akkar',
+    'south lebanon & nabatieh', 'bekaa & baalbek-hermel', 'international / diaspora express (dhl/aramex)',
+    'بيروت', 'جبل لبنان', 'الشمال', 'الجنوب', 'البقاع'
+  ];
+
   if (typeof shipping.governorate !== 'string' || !shipping.governorate.trim()) {
     throw new HttpsError('invalid-argument', 'shipping.governorate is required and must be a non-empty string.');
+  }
+
+  const govClean = shipping.governorate.trim().toLowerCase();
+  const isGovValid = ALLOWED_GOVERNORATES.some(g => govClean.includes(g));
+  if (!isGovValid) {
+    throw new HttpsError('invalid-argument', `Invalid shipping governorate: "${shipping.governorate}". Must be a recognized Lebanese region or diaspora.`);
   }
   if (typeof shipping.city !== 'string' || !shipping.city.trim()) {
     throw new HttpsError('invalid-argument', 'shipping.city is required and must be a non-empty string.');

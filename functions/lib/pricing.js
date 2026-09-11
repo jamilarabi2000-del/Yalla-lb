@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MAX_TOTAL_DISCOUNT_PCT = void 0;
 exports.round2 = round2;
 exports.computeDiscounts = computeDiscounts;
 function round2(num) {
@@ -7,12 +8,15 @@ function round2(num) {
         return 0;
     return Math.round((num + Number.EPSILON) * 100) / 100;
 }
+exports.MAX_TOTAL_DISCOUNT_PCT = 70;
 function matchesTarget(product, rule) {
+    if (!rule || typeof rule !== 'object')
+        return false;
     if (!rule.target || rule.target === 'checkout' || rule.target === 'all')
         return true;
     const targetVal = String(rule.targetValue || '').toLowerCase().trim();
     if (!targetVal)
-        return true;
+        return false; // FAIL CLOSED: empty target value must NOT match all items
     if (rule.target === 'product') {
         return String(product.id || '').toLowerCase() === targetVal;
     }
@@ -24,6 +28,11 @@ function matchesTarget(product, rule) {
             (product.seller && String(product.seller).toLowerCase() === targetVal) ||
             (product.artisan && String(product.artisan).toLowerCase().includes(targetVal)) ||
             (product.origin && String(product.origin).toLowerCase().includes(targetVal)));
+    }
+    if (rule.target === 'brand') {
+        return ((product.artisan && String(product.artisan).toLowerCase().includes(targetVal)) ||
+            (product.origin && String(product.origin).toLowerCase().includes(targetVal)) ||
+            (product.name && String(product.name).toLowerCase().includes(targetVal)));
     }
     return false;
 }
@@ -186,7 +195,8 @@ function computeDiscounts(params) {
             }
         }
     }
-    const boundedDiscount = Math.max(0, Math.min(round2(totalDiscount), subtotalUSD));
+    const maxAllowedDiscount = round2(subtotalUSD * (exports.MAX_TOTAL_DISCOUNT_PCT / 100));
+    const boundedDiscount = Math.max(0, Math.min(round2(totalDiscount), maxAllowedDiscount));
     return {
         discountUSD: boundedDiscount,
         appliedCoupon: matchedCouponCode

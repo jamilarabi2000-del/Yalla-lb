@@ -3,6 +3,7 @@ import { SiteContent } from '../types';
 import { db, IS_FIREBASE_ENABLED } from '../firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { DEFAULT_SITE_CONTENT } from '../data/cmsContent';
+import { filterPublicCmsContent } from '../utils/cmsPublicProjection';
 
 export interface CmsContextType {
   siteContent: SiteContent;
@@ -39,8 +40,9 @@ export const CmsProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      const cmsRef = doc(db, 'cms', 'main');
-      const unsub = onSnapshot(cmsRef, (snap) => {
+      // H-8: Storefront reads from cms_public/main which is readable by all visitors
+      const publicCmsRef = doc(db, 'cms_public', 'main');
+      const unsub = onSnapshot(publicCmsRef, (snap) => {
         if (snap.exists()) {
           const data = snap.data() as Partial<SiteContent>;
           setSiteContent(prev => ({
@@ -52,10 +54,14 @@ export const CmsProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } catch {}
         }
         setIsCmsLoading(false);
-      }, () => setIsCmsLoading(false));
+      }, (err) => {
+        console.error('[CmsContext] Failed to read cms_public/main from Firestore:', err);
+        setIsCmsLoading(false);
+      });
 
       return () => unsub();
-    } catch {
+    } catch (err) {
+      console.error('[CmsContext] Exception in CMS snapshot listener:', err);
       setIsCmsLoading(false);
     }
   }, []);
@@ -69,7 +75,12 @@ export const CmsProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (IS_FIREBASE_ENABLED && db) {
       try {
+        // Write full draft to admin-only doc
         await setDoc(doc(db, 'cms', 'main'), content, { merge: true });
+
+        // Write sanitized public projection to public doc
+        const publicProjection = filterPublicCmsContent(updated);
+        await setDoc(doc(db, 'cms_public', 'main'), publicProjection, { merge: true });
       } catch (err) {
         console.error('[CmsContext] Failed to persist siteContent to Firestore:', err);
         throw err;

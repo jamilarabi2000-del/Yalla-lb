@@ -105,8 +105,8 @@ describe('Authoritative Pricing and Discount Engine', () => {
       subtotalUSD: 10
     });
 
-    expect(result.discountUSD).toBe(10);
-    expect(result.finalSubtotalUSD).toBe(0);
+    expect(result.discountUSD).toBe(7);
+    expect(result.finalSubtotalUSD).toBe(3);
 
     const fnResult = computeFunctionsDiscounts({
       lines,
@@ -115,7 +115,7 @@ describe('Authoritative Pricing and Discount Engine', () => {
       couponCode: 'HUGE500',
       subtotalUSD: 10
     });
-    expect(fnResult.discountUSD).toBe(10);
+    expect(fnResult.discountUSD).toBe(7);
   });
 
   it('resists adversarial inputs with NaN, negative, or infinite values', () => {

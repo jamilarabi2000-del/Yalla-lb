@@ -13,7 +13,7 @@ import Papa from 'papaparse';
 import { translations, Language } from '../utils/translations';
 import { resolveSeller, resolveCategory, parsePrice, parseStock, isCsvRowEmpty } from '../utils/importerResolvers';
 import { checkDuplicateProductNumber, checkDuplicateDescription } from '../lib/productValidation';
-import { auth, db, functionsInstance, httpsCallable, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from '../firebase';
+import { auth, db, functionsInstance, httpsCallable, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, onIdTokenChanged, FirebaseUser, IS_FIREBASE_ENABLED, signInWithPopup, GoogleAuthProvider, googleProvider, OAuthProvider, appleProvider, sendPasswordResetEmail, sendEmailVerification, sendSignInLinkToEmail, isSignInWithEmailLink, signInWithEmailLink } from '../firebase';
 import { 
   dbLogger, 
   sanitizeFirestorePayload, 
@@ -2436,12 +2436,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     console.log("[ShopContext] Initializing Firebase Auth listener...");
-    const unsubscribe = onAuthStateChanged(auth, async (userObj) => {
-      console.log("[ShopContext] Auth state changed. User:", userObj ? userObj.uid : "None (Guest)");
+    const unsubscribe = onIdTokenChanged(auth, async (userObj) => {
+      console.log("[ShopContext] Auth state/token changed. User:", userObj ? userObj.uid : "None (Guest)");
       if (!userObj) {
         setFirebaseUser(null);
         setUser(INITIAL_USER);
         setIsAdminUser(false);
+        setIsSellerUser(false);
+        setSellerId(null);
         setIsLocalAdminUnlockedState(false);
         setIsLoadingAuth(false);
         setOrders([]);
@@ -2470,132 +2472,139 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setFirebaseUser(userObj);
       const userKey = userObj.uid;
 
-      // Sync User Profile
-      if (userObj) {
+      // 1. Authoritatively resolve custom claims FIRST, guaranteeing state resolution even if Firestore errors out
+      let hasAdminClaim = false;
+      let hasSellerClaim = false;
+      let claimSellerId: string | null = null;
+
+      try {
+        await userObj.getIdToken(true).catch(() => {});
+        const tokenResult = await userObj.getIdTokenResult(true).catch(() => null);
+        hasAdminClaim = tokenResult?.claims?.admin === true;
+        hasSellerClaim = tokenResult?.claims?.seller === true;
+        claimSellerId =
+          typeof tokenResult?.claims?.sellerId === 'string'
+            ? tokenResult.claims.sellerId
+            : null;
+      } catch (tokenErr) {
+        console.warn("[ShopContext] Error resolving custom claims token result:", tokenErr);
+      }
+
+      setIsAdminUser(hasAdminClaim);
+      setIsSellerUser(hasSellerClaim);
+      setSellerId(claimSellerId);
+      setIsEmailVerified(userObj.emailVerified);
+      setIsLoadingAuth(false);
+
+      // 2. Sync User Profile from Firestore safely without blocking auth claims
+      try {
+        const userDocRef = doc(db, 'users', userObj.uid);
+        const userSnap = await safeGetDoc(userDocRef);
+        
+        // Helper to extract first/last name from display name or email
+        const deriveNames = (displayName?: string | null, email?: string | null) => {
+          if (displayName && displayName.trim()) {
+            const parts = displayName.trim().split(/\s+/);
+            return {
+              firstName: parts[0],
+              lastName: parts.slice(1).join(' ') || '',
+              name: displayName.trim()
+            };
+          }
+          if (email && email.includes('@')) {
+            const raw = email.split('@')[0].replace(/[0-9]+/g, ' ').trim();
+            const parts = raw.split(/[\._\-\s]+/).filter(Boolean);
+            if (parts.length >= 2) {
+              const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+              const l = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
+              return { firstName: f, lastName: l, name: `${f} ${l}` };
+            } else if (parts.length === 1 && parts[0].length > 0) {
+              const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+              return { firstName: f, lastName: '', name: f };
+            }
+          }
+          return { firstName: '', lastName: '', name: '' };
+        };
+
+        const fallbackNames = deriveNames(userObj.displayName, userObj.email);
+
+        // Check if local cache has shipping defaults
+        let cachedShipping: Partial<UserProfile> = {};
         try {
-          const userDocRef = doc(db, 'users', userObj.uid);
-          const userSnap = await safeGetDoc(userDocRef);
-          
-          // Helper to extract first/last name from display name or email
-          const deriveNames = (displayName?: string | null, email?: string | null) => {
-            if (displayName && displayName.trim()) {
-              const parts = displayName.trim().split(/\s+/);
-              return {
-                firstName: parts[0],
-                lastName: parts.slice(1).join(' ') || '',
-                name: displayName.trim()
-              };
-            }
-            if (email && email.includes('@')) {
-              const raw = email.split('@')[0].replace(/[0-9]+/g, ' ').trim();
-              const parts = raw.split(/[\._\-\s]+/).filter(Boolean);
-              if (parts.length >= 2) {
-                const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-                const l = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).toLowerCase();
-                return { firstName: f, lastName: l, name: `${f} ${l}` };
-              } else if (parts.length === 1 && parts[0].length > 0) {
-                const f = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-                return { firstName: f, lastName: '', name: f };
-              }
-            }
-            return { firstName: '', lastName: '', name: '' };
-          };
+          const rawCache = localStorage.getItem('yallalb_saved_checkout_data');
+          if (rawCache) {
+            cachedShipping = JSON.parse(rawCache);
+          }
+        } catch {}
 
-          const fallbackNames = deriveNames(userObj.displayName, userObj.email);
+        if (userSnap.exists()) {
+          const data = (userSnap.data() || {}) as Record<string, any>;
+          const safeProfile = mapSafeShopUserProfile(
+            data,
+            userObj,
+            claimSellerId,
+            cachedShipping,
+            fallbackNames
+          );
 
-          // Check if local cache has shipping defaults
-          let cachedShipping: Partial<UserProfile> = {};
+          setUser(safeProfile);
+        } else {
+          console.log("[ShopContext] User document does not exist, creating new user data.");
+          let tempSignup: any = {};
           try {
-            const rawCache = localStorage.getItem('yallalb_saved_checkout_data');
-            if (rawCache) {
-              cachedShipping = JSON.parse(rawCache);
+            const rawTemp = localStorage.getItem('yallalb_signup_profile_temp');
+            if (rawTemp) {
+              tempSignup = JSON.parse(rawTemp);
+              localStorage.removeItem('yallalb_signup_profile_temp');
             }
           } catch {}
 
-          // Force refresh ID token to ensure latest claims (e.g. admin claim) are fetched immediately
-          await userObj.getIdToken(true).catch(() => {});
-          const tokenResult = await userObj.getIdTokenResult(true).catch(() => null);
-          const hasAdminClaim = tokenResult?.claims?.admin === true;
-          const hasSellerClaim = tokenResult?.claims?.seller === true;
-          const claimSellerId =
-            typeof tokenResult?.claims?.sellerId === 'string'
-              ? tokenResult.claims.sellerId
-              : null;
-
-          setIsAdminUser(hasAdminClaim);
-          setIsSellerUser(hasSellerClaim);
-          setSellerId(claimSellerId);
-          setIsLoadingAuth(false);
-
-          if (userSnap.exists()) {
-            const data = (userSnap.data() || {}) as Record<string, any>;
-            const safeProfile = mapSafeShopUserProfile(
-              data,
-              userObj,
-              claimSellerId,
-              cachedShipping,
-              fallbackNames
-            );
-
-            setUser(safeProfile);
-          } else {
-            console.log("[ShopContext] User document does not exist, creating new user data.");
-            let tempSignup: any = {};
-            try {
-              const rawTemp = localStorage.getItem('yallalb_signup_profile_temp');
-              if (rawTemp) {
-                tempSignup = JSON.parse(rawTemp);
-                localStorage.removeItem('yallalb_signup_profile_temp');
-              }
-            } catch {}
-
-            const newUserData: UserProfile = {
-              uid: userKey,
-              name: tempSignup.firstName && tempSignup.lastName 
-                ? `${tempSignup.firstName} ${tempSignup.lastName}`.trim()
-                : fallbackNames.name,
-              firstName: tempSignup.firstName || cachedShipping.firstName || fallbackNames.firstName,
-              lastName: tempSignup.lastName || cachedShipping.lastName || fallbackNames.lastName,
-              email: userObj.email || INITIAL_USER.email,
-              phone: tempSignup.phone || cachedShipping.phone || '',
-              avatar: userObj.photoURL || INITIAL_USER.avatar,
-              defaultGovernorate: INITIAL_USER.defaultGovernorate,
-              defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || '',
-              defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || '',
-              defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || '',
-              defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || '',
-              role: 'customer',
-              sellerId: claimSellerId || undefined,
-              emailVerified: userObj.emailVerified
-            };
-            await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
-            
-            // Register phone number in unique phone registry
-            if (newUserData.phone) {
-              const normPhone = normalizeLebanesePhone(newUserData.phone);
-              if (normPhone.isValid && normPhone.registryKey) {
-                try {
-                  await setDoc(doc(db, 'phone_registry', normPhone.registryKey), {
-                    uid: userObj.uid,
-                    phone: normPhone.formatted,
-                    cleanDigits: normPhone.cleanDigits,
-                    updatedAt: new Date().toISOString()
-                  });
-                } catch (regErr) {
-                  console.warn("[ShopContext] Non-blocking phone_registry write:", regErr);
-                }
+          const newUserData: UserProfile = {
+            uid: userKey,
+            name: tempSignup.firstName && tempSignup.lastName 
+              ? `${tempSignup.firstName} ${tempSignup.lastName}`.trim()
+              : fallbackNames.name,
+            firstName: tempSignup.firstName || cachedShipping.firstName || fallbackNames.firstName,
+            lastName: tempSignup.lastName || cachedShipping.lastName || fallbackNames.lastName,
+            email: userObj.email || INITIAL_USER.email,
+            phone: tempSignup.phone || cachedShipping.phone || '',
+            avatar: userObj.photoURL || INITIAL_USER.avatar,
+            defaultGovernorate: INITIAL_USER.defaultGovernorate,
+            defaultCity: tempSignup.defaultCity || cachedShipping.defaultCity || '',
+            defaultAddress: tempSignup.defaultAddress || cachedShipping.defaultAddress || '',
+            defaultBuilding: tempSignup.defaultBuilding || cachedShipping.defaultBuilding || '',
+            defaultNotes: tempSignup.defaultNotes || cachedShipping.defaultNotes || '',
+            role: 'customer',
+            sellerId: claimSellerId || undefined,
+            emailVerified: userObj.emailVerified
+          };
+          await setDoc(userDocRef, sanitizeFirestorePayload({ uid: userObj.uid, ...newUserData }));
+          
+          // Register phone number in unique phone registry
+          if (newUserData.phone) {
+            const normPhone = normalizeLebanesePhone(newUserData.phone);
+            if (normPhone.isValid && normPhone.registryKey) {
+              try {
+                await setDoc(doc(db, 'phone_registry', normPhone.registryKey), {
+                  uid: userObj.uid,
+                  phone: normPhone.formatted,
+                  cleanDigits: normPhone.cleanDigits,
+                  updatedAt: new Date().toISOString()
+                });
+              } catch (regErr) {
+                console.warn("[ShopContext] Non-blocking phone_registry write:", regErr);
               }
             }
+          }
 
-            setUser(newUserData);
-          }
-        } catch (err: any) {
-          const isOffline = err.code === 'unavailable' || err.message?.includes('offline') || err.message?.includes('Failed to get document');
-          if (isOffline) {
-            console.warn("[ShopContext] User profile sync notice: client is offline or serving cached copy.", err.message);
-          } else {
-            console.error("[ShopContext] Error syncing user profile from Firestore:", err);
-          }
+          setUser(newUserData);
+        }
+      } catch (err: any) {
+        const isOffline = err.code === 'unavailable' || err.message?.includes('offline') || err.message?.includes('Failed to get document');
+        if (isOffline) {
+          console.warn("[ShopContext] User profile sync notice: client is offline or serving cached copy.", err.message);
+        } else {
+          console.error("[ShopContext] Error syncing user profile from Firestore:", err);
         }
       }
 
@@ -2946,7 +2955,10 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithEmail = async (email: string, pass: string) => {
     try {
-      await executeWithRetry(() => signInWithEmailAndPassword(auth, email, pass));
+      const cred = await executeWithRetry(() => signInWithEmailAndPassword(auth, email, pass));
+      if (cred?.user) {
+        await cred.user.getIdToken(true).catch(() => {});
+      }
       showToast('Successfully signed in!', 'success');
     } catch (error: any) {
       console.error("Auth error:", error);

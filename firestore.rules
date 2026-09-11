@@ -59,6 +59,18 @@ service cloud.firestore {
       return request.auth.token.sellerId;
     }
 
+    function isActiveSeller() {
+      return isSeller()
+        && getSellerId() != null
+        && get(/databases/$(database)/documents/sellers/$(getSellerId())).data.get('isActive', true) == true;
+    }
+
+    function isNotBanned() {
+      return isSignedIn()
+        && (!exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('isBanned', false) == false);
+    }
+
     // ---------------------------------------------------------------------
     // Value guards
     // ---------------------------------------------------------------------
@@ -97,49 +109,50 @@ service cloud.firestore {
     }
 
     function sellerProductPayloadOk() {
-      return request.resource.data.keys().hasOnly([
-        'id', 'name', 'arabicName', 'artisan', 'seller', 'arabicSeller',
-        'sellerId', 'origin', 'category', 'priceUSD',
-        'originalPriceUSD', 'image', 'additionalImages', 'videoUrl',
-        'additionalVideos', 'videos', 'description', 'craftStory', 'stock',
-        'isPublished', 'tags', 'keywords', 'arabicKeywords', 'seoTitle',
-        'seoArabicTitle', 'seoDescription', 'seoArabicDescription',
-        'weightOrVolume', 'sellerItemCode', 'lowStockThreshold',
-        'lowStockNotice', 'customStockLabel', 'createdAt', 'updatedAt'
-      ])
-      && !request.resource.data.keys().hasAny([
-        'sellerActive',
-        'rating',
-        'reviewCount',
-        'ordersCount',
-        'soldCount',
-        'featured',
-        'isPromoted'
+      return !request.resource.data.keys().hasAny([
+        'sellerItemCode',
+        'lowStockThreshold',
+        'lowStockNotice',
+        'customStockLabel',
+        'costPriceUSD'
       ]);
     }
 
     match /products/{productId} {
       allow get, list: if resource.data.get('isPublished', true) == true
         || isAdmin()
-        || (isSeller() && resource.data.get('sellerId', '') == getSellerId());
+        || (isActiveSeller() && resource.data.get('sellerId', '') == getSellerId());
 
       allow create: if isAdmin()
         || (
-          isSeller()
+          isActiveSeller()
           && request.resource.data.get('id', '') == productId
           && request.resource.data.get('sellerId', '') == getSellerId()
-          && !request.resource.data.keys().hasAny(['sellerItemCode', 'lowStockThreshold', 'lowStockNotice', 'customStockLabel', 'costPriceUSD'])
           && sellerProductPayloadOk()
           && productShapeOk()
+          && !request.resource.data.keys().hasAny([
+            'sellerActive',
+            'rating',
+            'reviewCount',
+            'reviewsCount',
+            'ordersCount',
+            'soldCount',
+            'featured',
+            'isPromoted',
+            'isNewArrival',
+            'isFeatured',
+            'isBestseller',
+            'displayOrder',
+            'discountPercentage'
+          ])
         );
 
       allow update: if isAdmin()
         || (
-          isSeller()
+          isActiveSeller()
           && resource.data.get('sellerId', '') == getSellerId()
           && request.resource.data.get('sellerId', '') == getSellerId()
           && request.resource.data.get('id', productId) == productId
-          && !request.resource.data.keys().hasAny(['sellerItemCode', 'lowStockThreshold', 'lowStockNotice', 'customStockLabel', 'costPriceUSD'])
           && sellerProductPayloadOk()
           && productShapeOk()
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
@@ -148,16 +161,21 @@ service cloud.firestore {
             'sellerActive',
             'rating',
             'reviewCount',
+            'reviewsCount',
             'ordersCount',
             'soldCount',
             'featured',
-            'isPromoted'
+            'isPromoted',
+            'isNewArrival',
+            'isBestseller',
+            'displayOrder',
+            'discountPercentage'
           ])
         );
 
       allow delete: if isAdmin()
         || (
-          isSeller()
+          isActiveSeller()
           && resource.data.get('sellerId', '') == getSellerId()
         );
     }
@@ -450,11 +468,7 @@ service cloud.firestore {
     }
 
     match /phone_registry/{phoneKey} {
-      allow get: if isAdmin()
-        || (
-          isSignedIn()
-          && (resource == null || resource.data.get('uid', '') == request.auth.uid)
-        );
+      allow get: if isAdmin();
       allow list: if isAdmin();
 
       allow create: if isAdmin()
@@ -540,7 +554,7 @@ service cloud.firestore {
       allow get: if isAdmin()
         || (
           isSignedIn()
-          && (resource == null || resource.data.get('userId', '') == request.auth.uid)
+          && resource.data.get('userId', '') == request.auth.uid
         );
 
       allow list: if isAdmin()
@@ -665,11 +679,9 @@ service cloud.firestore {
           'comment',
           'date',
           'createdAt',
-          'updatedAt',
-          'adminReply',
-          'adminReplyAt'
+          'updatedAt'
         ])
-        && !request.resource.data.keys().hasAny(['userId', 'orderId', 'userEmail', 'email'])
+        && !request.resource.data.keys().hasAny(['userId', 'orderId', 'userEmail', 'email', 'adminReply', 'adminReplyAt'])
         && request.resource.data.get('productId', '') is string
         && reviewId == request.auth.uid + '_' + request.resource.data.get('productId', '')
         && reviewBodyOk()
@@ -680,15 +692,13 @@ service cloud.firestore {
           isSignedIn()
           && exists(/databases/$(database)/documents/review_private/$(reviewId))
           && get(/databases/$(database)/documents/review_private/$(reviewId)).data.get('userId', '') == request.auth.uid
-          && !request.resource.data.keys().hasAny(['userId', 'orderId'])
+          && !request.resource.data.keys().hasAny(['userId', 'orderId', 'adminReply', 'adminReplyAt'])
           && request.resource.data.diff(resource.data)
                .affectedKeys()
                .hasOnly([
                  'rating',
                  'comment',
-                 'updatedAt',
-                 'adminReply',
-                 'adminReplyAt'
+                 'updatedAt'
                ])
           && reviewBodyOk()
         );

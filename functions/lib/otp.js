@@ -25,6 +25,8 @@ const OTP_SECRET = (0, params_1.defineSecret)('OTP_SECRET');
 const TWILIO_ACCOUNT_SID = (0, params_1.defineSecret)('TWILIO_ACCOUNT_SID');
 const TWILIO_AUTH_TOKEN = (0, params_1.defineSecret)('TWILIO_AUTH_TOKEN');
 const TWILIO_PHONE_NUMBER = (0, params_1.defineSecret)('TWILIO_PHONE_NUMBER');
+const RESEND_API_KEY = (0, params_1.defineSecret)('RESEND_API_KEY');
+const SENDGRID_API_KEY = (0, params_1.defineSecret)('SENDGRID_API_KEY');
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
  * In production, requires Secret Manager OTP_SECRET.
@@ -187,8 +189,16 @@ async function sendSmsOtp(phone, actionType, numericCode) {
  * Fails closed if credentials are missing or if the provider returns a non-2xx response.
  */
 async function sendEmailOtp(email, actionType, numericCode) {
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const sendgridKey = process.env.SENDGRID_API_KEY;
+    let resendApiKey = process.env.RESEND_API_KEY || '';
+    try {
+        resendApiKey = resendApiKey || RESEND_API_KEY.value();
+    }
+    catch { }
+    let sendgridKey = process.env.SENDGRID_API_KEY || '';
+    try {
+        sendgridKey = sendgridKey || SENDGRID_API_KEY.value();
+    }
+    catch { }
     if (resendApiKey) {
         let sender = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
         if (sender.includes('@gmail.com') || sender.includes('@yahoo.com') || sender.includes('@hotmail.com') || sender.includes('@outlook.com')) {
@@ -275,7 +285,7 @@ exports.requestOtp = (0, https_1.onCall)({
     region: 'europe-west1',
     enforceAppCheck: true,
     consumeAppCheckToken: true,
-    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER]
+    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, SENDGRID_API_KEY]
 }, async (request) => {
     const data = request.data || {};
     let rawContact = typeof data.contact === 'string' ? data.contact : '';
@@ -395,7 +405,7 @@ exports.verifyOtp = (0, https_1.onCall)({
     region: 'europe-west1',
     enforceAppCheck: true,
     consumeAppCheckToken: true,
-    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER]
+    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, SENDGRID_API_KEY]
 }, async (request) => {
     const data = request.data || {};
     let rawContact = typeof data.contact === 'string' ? data.contact : '';

@@ -217,49 +217,80 @@ export const ProductDetailView: React.FC = () => {
       return;
     }
 
-    // M-1: Deterministic ID prevents multiple reviews and race conditions
     const newReviewId = firebaseUser ? `${firebaseUser.uid}_${product.id}` : `rev-${Date.now()}`;
-    const newReview: Review = {
-      id: newReviewId,
-      productId: product.id,
-      userId: firebaseUser?.uid || 'guest-uid',
-      userName,
-      rating: ratingInput,
-      comment,
-      createdAt: new Date().toISOString(),
-      orderId: matchedOrder?.id
-    };
-
-    // Optimistic Update: Instantly add the review to the UI and clear inputs
-    setReviews(prev => {
-      const filtered = prev.filter(r => r.id !== newReviewId);
-      return [newReview, ...filtered];
-    });
-    setCommentInput('');
-    setRatingInput(5);
-    setSubmitSuccess(true);
-    setIsSubmitting(false);
+    const nowIso = new Date().toISOString();
+    const orderIdToUse = matchedOrder?.id || '';
 
     if (!IS_FIREBASE_ENABLED) {
+      const newReview: Review = {
+        id: newReviewId,
+        productId: product.id,
+        userId: firebaseUser?.uid || 'guest-uid',
+        userName,
+        rating: ratingInput,
+        comment,
+        createdAt: nowIso,
+        orderId: orderIdToUse
+      };
+      setReviews(prev => [newReview, ...prev.filter(r => r.id !== newReviewId)]);
+      setCommentInput('');
+      setRatingInput(5);
+      setSubmitSuccess(true);
+      setIsSubmitting(false);
       return;
     }
 
-    // Persist to Firestore in the background to avoid blocking the user
-    setDoc(doc(db, 'reviews', newReviewId), newReview)
-      .then(() => {
-        console.log("[ProductDetailView] Review synced with Firestore successfully:", newReviewId);
-      })
-      .catch((err: any) => {
-        console.error("[ProductDetailView] Error syncing review to Firestore:", err);
-        // Rollback on failure
-        setReviews(prev => prev.filter(r => r.id !== newReviewId));
-        setSubmitSuccess(false);
-        try {
-          handleFirestoreError(err, OperationType.WRITE, `reviews/${newReviewId}`, firebaseUser?.uid);
-        } catch (logErr: any) {
-          setSubmitError(logErr.message || 'Failed to sync review.');
-        }
-      });
+    try {
+      // Step 1: Write to review_private first (contains userId and orderId required by rules)
+      const privateData = {
+        id: newReviewId,
+        reviewId: newReviewId,
+        userId: firebaseUser!.uid,
+        orderId: orderIdToUse,
+        productId: product.id,
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      await setDoc(doc(db, 'review_private', newReviewId), privateData);
+
+      // Step 2: Write public review document WITHOUT userId or orderId
+      const publicData = {
+        id: newReviewId,
+        productId: product.id,
+        userName,
+        rating: ratingInput,
+        comment,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        createdAt: nowIso,
+        updatedAt: nowIso
+      };
+      await setDoc(doc(db, 'reviews', newReviewId), publicData);
+
+      const newReview: Review = {
+        id: newReviewId,
+        productId: product.id,
+        userId: firebaseUser!.uid,
+        userName,
+        rating: ratingInput,
+        comment,
+        createdAt: nowIso,
+        orderId: orderIdToUse
+      };
+
+      setReviews(prev => [newReview, ...prev.filter(r => r.id !== newReviewId)]);
+      setCommentInput('');
+      setRatingInput(5);
+      setSubmitSuccess(true);
+    } catch (err: any) {
+      console.error("[ProductDetailView] Error posting review:", err);
+      try {
+        handleFirestoreError(err, OperationType.WRITE, `reviews/${newReviewId}`, firebaseUser?.uid);
+      } catch (logErr: any) {
+        setSubmitError(logErr.message || (language === 'ar' ? 'فشل حفظ التقييم.' : 'Failed to submit review.'));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const totalReviewsCount = reviews.length;

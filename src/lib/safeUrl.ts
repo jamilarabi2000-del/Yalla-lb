@@ -53,11 +53,10 @@ export function isSafeImageUrl(url: string | null | undefined): boolean {
     return true;
   }
 
-  // Safe data:image MIME types
+  // Safe data:image MIME types (excluding svg+xml to prevent embedded XSS)
   if (trimmed.startsWith('data:image/')) {
-    return /^data:image\/[a-z0-9\+\-\.]+;base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed) ||
-           /^data:image\/[a-z0-9\+\-\.]+;utf8,.+$/i.test(trimmed) ||
-           /^data:image\/[a-z0-9\+\-\.]+,.+$/i.test(trimmed);
+    if (trimmed.toLowerCase().includes('svg+xml')) return false;
+    return /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=\s]+$/i.test(trimmed);
   }
 
   if (trimmed.startsWith('blob:')) {

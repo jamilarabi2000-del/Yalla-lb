@@ -1062,8 +1062,8 @@ describe('Security Regression Suite - Application Controls', () => {
       // Verify no fallback in ShopContext
       expect(shopCode).not.toMatch(/claimSellerId\s*\|\|\s*data\.sellerId/);
 
-      // Verify firestore.rules has zero lookups into users collection for isAdmin, isSeller, or getSellerId
-      const rulesHelperSection = rulesCode.slice(rulesCode.indexOf('function isAdmin()'), rulesCode.indexOf('function productShapeOk()'));
+      // Verify firestore.rules core auth helpers (isAdmin, isSeller, getSellerId) have zero lookups into users collection
+      const rulesHelperSection = rulesCode.slice(rulesCode.indexOf('function isAdmin()'), rulesCode.indexOf('function isActiveSeller()'));
       expect(rulesHelperSection).not.toMatch(/get\(/);
       expect(rulesHelperSection).not.toMatch(/users/);
       expect(rulesHelperSection).not.toMatch(/data\.role/);
