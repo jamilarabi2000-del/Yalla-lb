@@ -130,7 +130,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   return `Database error during ${operationType} on ${path || 'unknown'}: ${errorMessage}`;
 }
 
-import { isSecretAdminUrl, isSecretSellerUrl } from '../config/portalSecurity';
 
 interface Toast {
   id: string;
@@ -142,13 +141,13 @@ export type NavTab = 'home' | 'products' | 'product_detail' | 'checkout' | 'acco
 
 const getInitialNavTab = (): NavTab => {
   if (typeof window === 'undefined') return 'home';
-  if (isSecretAdminUrl()) {
+  const path = window.location.pathname.replace(/^\/+/, '');
+  if (path === 'admin') {
     return 'admin';
   }
-  if (isSecretSellerUrl()) {
+  if (path === 'seller') {
     return 'seller';
   }
-  const path = window.location.pathname.replace(/^\/+/, '');
   if (path.startsWith('product/')) {
     return 'product_detail';
   }

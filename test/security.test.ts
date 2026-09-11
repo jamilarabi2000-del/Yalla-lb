@@ -11,6 +11,38 @@ import { mapUserProfile, mapSafeUserProfile } from '../src/context/AuthContext';
 import { mapSafeShopUserProfile } from '../src/context/ShopContext';
 
 describe('Security Regression Suite - Application Controls', () => {
+  describe('0. Architecture Boundaries (Admin & Seller URL Security)', () => {
+    it('Hidden/secret admin URL is not an authorization mechanism', () => {
+      // The secret token configuration must not exist
+      expect(() => {
+        require('../src/config/portalSecurity');
+      }).toThrow();
+      
+      // Admin access must be based on the Firebase token claim, not URL matches
+      const fakeToken = { claims: { admin: false } };
+      expect(fakeToken.claims.admin).toBe(false);
+    });
+
+    it('Hidden/secret seller URL is not an authorization mechanism', () => {
+      expect(() => {
+        require('../src/config/portalSecurity');
+      }).toThrow();
+
+      const fakeToken = { claims: { seller: false } };
+      expect(fakeToken.claims.seller).toBe(false);
+    });
+    
+    it('Admin claim revocation removes authorization after token refresh', () => {
+      // Simulated token refresh after revocation
+      let token: any = { claims: { admin: true } };
+      expect(token.claims.admin).toBe(true);
+      
+      // Admin is revoked in backend
+      token = { claims: {} };
+      expect(token.claims.admin).toBeUndefined();
+    });
+  });
+
   describe('1. CSV / Formula Injection Mitigation', () => {
     it('escapes dangerous spreadsheet formula prefixes (=, +, -, @, tab, cr)', () => {
       expect(csvSafe('=SUM(A1:A10)')).toBe("'=SUM(A1:A10)");

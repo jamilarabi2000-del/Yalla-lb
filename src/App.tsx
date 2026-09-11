@@ -6,6 +6,7 @@ import { ProductsView } from './components/ProductsView';
 import { AccountView } from './components/AccountView';
 import { FavoritesView } from './components/FavoritesView';
 import { AdminErrorBoundary } from './components/AdminErrorBoundary';
+import { AdminGuard } from './components/AdminGuard';
 import { ProductDetailView } from './components/ProductDetailView';
 import { ProductModal } from './components/ProductModal';
 import { CartDrawer } from './components/CartDrawer';
@@ -46,7 +47,6 @@ const CheckoutView = lazyWithRetry(() => import('./components/CheckoutView'));
 const AdminView = lazyWithRetry(() => import('./components/AdminView'));
 const SellerLoginView = lazyWithRetry(() => import('./components/SellerLoginView'));
 
-import { isSecretAdminUrl, isSecretSellerUrl, SECRET_ADMIN_TOKEN, SECRET_SELLER_TOKEN } from './config/portalSecurity';
 
 const MainAppContent: React.FC = () => {
   const { 
@@ -137,17 +137,16 @@ const MainAppContent: React.FC = () => {
       isPopStateRef.current = true;
       const path = window.location.pathname.replace(/^\/+/, '');
       const searchParams = new URLSearchParams(window.location.search);
-      const isAdminQuery = searchParams.get('admin') === 'true' || searchParams.has('admin');
 
       const urlLang = searchParams.get('lang');
       if (urlLang === 'ar' || urlLang === 'en') {
         setLanguage(urlLang);
       }
 
-      if (isSecretAdminUrl()) {
+      if (path === 'admin') {
         setSelectedProductDetail(null);
         setActiveTab('admin');
-      } else if (isSecretSellerUrl()) {
+      } else if (path === 'seller') {
         setSelectedProductDetail(null);
         setActiveTab('seller');
       } else if (path.startsWith('product/')) {
@@ -189,11 +188,7 @@ const MainAppContent: React.FC = () => {
       return;
     }
     let targetPath = activeTab === 'home' ? '' : activeTab;
-    if (activeTab === 'admin') {
-      targetPath = SECRET_ADMIN_TOKEN;
-    } else if (activeTab === 'seller' || (activeTab === 'account' && isSellerUser)) {
-      targetPath = SECRET_SELLER_TOKEN;
-    } else if (activeTab === 'product_detail' && selectedProductDetail) {
+    if (activeTab === 'product_detail' && selectedProductDetail) {
       targetPath = `product/${selectedProductDetail.id}`;
     } else if (activeTab === 'products' && selectedCategory && selectedCategory !== 'all') {
       targetPath = `products/${encodeURIComponent(selectedCategory)}`;
@@ -208,7 +203,7 @@ const MainAppContent: React.FC = () => {
         : 0;
       window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', fullTarget);
     }
-  }, [activeTab, selectedProductDetail, selectedCategory, isSellerUser]);
+  }, [activeTab, selectedProductDetail, selectedCategory]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#1a1a2e] text-slate-100 selection:bg-[#c5a059] selection:text-[#1a1a2e] font-sans antialiased">
@@ -296,7 +291,9 @@ const MainAppContent: React.FC = () => {
                 <Loader2 className="w-8 h-8 animate-spin text-amber-400" />
               </div>
             }>
-              <AdminView />
+              <AdminGuard>
+                <AdminView />
+              </AdminGuard>
             </Suspense>
           </AdminErrorBoundary>
         )}

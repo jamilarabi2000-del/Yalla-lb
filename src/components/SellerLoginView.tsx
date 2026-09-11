@@ -628,7 +628,6 @@ export const SellerLoginView: React.FC = () => {
                     value={authPhone}
                     onChange={(e) => setAuthPhone(e.target.value)}
                     placeholder="70 123 456 or 03 123 456"
-                    required
                     className="w-full pl-22 pr-4 py-3 bg-slate-950/60 text-white placeholder-slate-600 text-sm rounded-xl border border-slate-800 focus:outline-hidden focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all font-mono tracking-wider"
                   />
                 </div>
