@@ -60,3 +60,33 @@ Yalla Lebanon is an e-commerce platform bridging Lebanese artisan workshops with
 
 3. **Deploy Cloud Functions Order Processor (Blaze Plan)**:
    - When ready to upgrade, deploy the transactional order placement function to handle R-1 (coupon verification) and R-2 (atomic stock decrement).
+
+---
+
+## 5. Firebase Authentication SMS Multi-Factor Authentication (MFA) Requirements
+
+Administrator authentication is secured via a two-tier authentication architecture:
+- **First Factor**: Email and password authenticated via Firebase Authentication, with identity claims verified via Firebase custom user claims (`request.auth.token.admin == true`).
+- **Second Factor (MFA)**: SMS Multi-Factor Authentication (OTP) generated, transmitted, and verified natively by **Firebase Authentication** using official Firebase Web Authentication SDK APIs:
+  - `multiFactor()`
+  - `PhoneAuthProvider`
+  - `PhoneMultiFactorGenerator`
+  - `RecaptchaVerifier`
+  - `getMultiFactorResolver()`
+  - `resolver.resolveSignIn()`
+
+### Strict Security Invariants
+1. **Zero Third-Party SMS Gateways**: No third-party SMS or email providers (Twilio, SendGrid, Resend, AWS SNS, etc.) are used in the OTP implementation.
+2. **No Custom OTP Storage or Generation**: OTP codes are generated, handled, and verified exclusively inside Firebase Authentication. No OTP values are logged, hashed, or stored in Cloud Firestore or server state.
+3. **Fail-Closed Policy**: If Firebase MFA is unconfigured or unavailable, access fails closed. No fallback authentication or bypass buttons are permitted.
+4. **Authoritative Access Control**: `request.auth.token.admin == true` remains the immutable requirement for administrative Firestore writes.
+
+### Firebase Console Configuration Checklist
+To support administrator SMS MFA in production, ensure the Firebase project is configured as follows:
+- [x] **Firebase Authentication**: Enabled with Email/Password and Phone providers active.
+- [x] **Identity Platform**: Upgrade project to Identity Platform in Authentication Settings to enable multi-factor capabilities.
+- [x] **SMS Multi-Factor Authentication**: In Firebase Console > Authentication > Settings > Sign-in method > Multi-factor authentication, enable SMS as a second factor.
+- [x] **SMS Region Policy**: In Authentication > Settings > SMS Settings, ensure target caller regions (Lebanon `+961` and relevant international codes) are permitted.
+- [x] **Authorized Domains**: Add production domain (e.g., `https://yalla.lb`) and Cloud Run container domains to Authorized Domains.
+- [x] **Admin Verification**: Ensure administrator user accounts have their email address verified.
+- [x] **Phone Factor Enrollment**: Enroll the administrator's authorized mobile phone number as an active MFA factor.

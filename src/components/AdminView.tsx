@@ -22,7 +22,6 @@ import { OrdersRoute } from './admin/routes/OrdersRoute';
 import { PageCMSManager } from './PageCMSManager';
 import { ProductOrderRankWidget } from './admin/ProductOrderRankWidget';
 import { ProductsSequenceTableView } from './admin/ProductsSequenceTableView';
-import { OTPModal } from './OTPModal';
 import { 
   downloadFullMasterReport,
   downloadSellerPerformanceReport,

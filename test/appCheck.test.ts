@@ -13,18 +13,27 @@ describe('App Check & reCAPTCHA Enterprise Security Suite', () => {
     expect(content).not.toContain('[Firebase] App Check disabled.');
   });
 
-  it('ensures OTPModal requests limited-use App Check tokens for requestOtp and verifyOtp', () => {
-    const otpModalPath = path.resolve(process.cwd(), 'src/components/OTPModal.tsx');
-    const content = fs.readFileSync(otpModalPath, 'utf-8');
+  it('ensures AdminGuard and OTPModal use RecaptchaVerifier for native Firebase Authentication verification', () => {
+    const adminGuardPath = path.resolve(process.cwd(), 'src/components/AdminGuard.tsx');
+    const adminGuardContent = fs.readFileSync(adminGuardPath, 'utf-8');
+    expect(adminGuardContent).toContain('RecaptchaVerifier');
 
-    expect(content).toContain('limitedUseAppCheckTokens: true');
+    const otpModalPath = path.resolve(process.cwd(), 'src/components/OTPModal.tsx');
+    const otpModalContent = fs.readFileSync(otpModalPath, 'utf-8');
+    expect(otpModalContent).toContain('RecaptchaVerifier');
   });
 
   it('ensures backend functions enforce App Check and consume tokens', () => {
-    const otpBackendPath = path.resolve(process.cwd(), 'functions/src/otp.ts');
-    const content = fs.readFileSync(otpBackendPath, 'utf-8');
+    const checkPhonePath = path.resolve(process.cwd(), 'functions/src/checkPhone.ts');
+    const checkPhoneContent = fs.readFileSync(checkPhonePath, 'utf-8');
 
-    expect(content).toContain('enforceAppCheck: true');
-    expect(content).toContain('consumeAppCheckToken: true');
+    expect(checkPhoneContent).toContain('enforceAppCheck: true');
+    expect(checkPhoneContent).toContain('consumeAppCheckToken: true');
+
+    const placeOrderPath = path.resolve(process.cwd(), 'functions/src/placeOrder.ts');
+    const placeOrderContent = fs.readFileSync(placeOrderPath, 'utf-8');
+
+    expect(placeOrderContent).toContain('enforceAppCheck: true');
+    expect(placeOrderContent).toContain('consumeAppCheckToken: true');
   });
 });

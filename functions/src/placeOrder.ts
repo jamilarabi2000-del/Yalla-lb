@@ -450,6 +450,7 @@ export const placeOrder = onCall<PlaceOrderRequest>(
   {
     region: 'europe-west1',
     enforceAppCheck: true,
+    consumeAppCheckToken: true,
   },
   async (req) => {
     const authUser = req.auth;

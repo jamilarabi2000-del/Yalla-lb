@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, ArrowRight, RefreshCw, X, AlertCircle } from 'lucide-react';
-import { functionsInstance, httpsCallable } from '../firebase';
+import { auth, RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from '../firebase';
 
 interface OTPModalProps {
   isOpen: boolean;
@@ -27,11 +27,51 @@ export const OTPModal: React.FC<OTPModalProps> = ({
   const [isVerifying, setIsVerifying] = useState<boolean>(false);
   const [resendTimer, setResendTimer] = useState<number>(60);
   const [canResend, setCanResend] = useState<boolean>(false);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
-  // Call server requestOtp function when modal opens
-  const triggerServerOtpRequest = async () => {
+  const getOrCreateRecaptcha = (): RecaptchaVerifier => {
+    if (recaptchaVerifierRef.current) {
+      try {
+        recaptchaVerifierRef.current.clear();
+      } catch {}
+      recaptchaVerifierRef.current = null;
+    }
+    const verifier = new RecaptchaVerifier(auth, 'otp-modal-recaptcha-container', {
+      size: 'invisible',
+      callback: () => {},
+      'expired-callback': () => {}
+    });
+    recaptchaVerifierRef.current = verifier;
+    return verifier;
+  };
+
+  // Format phone number with country code for Firebase Phone Auth
+  const getFormattedPhoneNumber = (contact: string): string => {
+    let cleaned = contact.trim().replace(/\s+/g, '');
+    if (cleaned.startsWith('+')) {
+      return cleaned;
+    }
+    if (cleaned.startsWith('00961')) {
+      return '+' + cleaned.slice(2);
+    }
+    if (cleaned.startsWith('961')) {
+      return '+' + cleaned;
+    }
+    if (cleaned.startsWith('0')) {
+      return '+961' + cleaned.slice(1);
+    }
+    // If it's pure 7 or 8 digits, default to Lebanese +961
+    const digitsOnly = cleaned.replace(/\D/g, '');
+    if (digitsOnly.length === 7 || digitsOnly.length === 8) {
+      return '+961' + digitsOnly;
+    }
+    return '+' + digitsOnly;
+  };
+
+  const triggerFirebaseOtpRequest = async () => {
     if (!targetContact) return;
     setIsRequesting(true);
     setErrorMsg('');
@@ -39,34 +79,42 @@ export const OTPModal: React.FC<OTPModalProps> = ({
     setOtpDigits(['', '', '', '', '', '']);
 
     try {
-      const requestOtpFn = httpsCallable<{ contact: string; actionType: string }, { success: boolean; cooldownSeconds: number }>(
-        functionsInstance,
-        'requestOtp',
-        { limitedUseAppCheckTokens: true }
-      );
-      const res = await requestOtpFn({ contact: targetContact, actionType });
-      if (res.data?.success) {
-        setResendTimer(res.data.cooldownSeconds || 60);
+      const isPhone = !targetContact.includes('@');
+      if (isPhone) {
+        const formattedPhone = getFormattedPhoneNumber(targetContact);
+        const verifier = getOrCreateRecaptcha();
+        const confirmation = await signInWithPhoneNumber(auth, formattedPhone, verifier);
+        setConfirmationResult(confirmation);
+        setResendTimer(60);
         setCanResend(false);
         setDeliveryNotice(
           isArabic
-            ? `تم إرسال الرمز بنجاح عبر Firebase إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
-            : `Verification code successfully sent via Firebase to (${targetContact}). Please check your inbox or spam folder.`
+            ? `تم إرسال رمز التحقق عبر Firebase Authentication SMS إلى (${formattedPhone}).`
+            : `Verification code successfully sent via Firebase Authentication SMS to (${formattedPhone}).`
+        );
+      } else {
+        // Email contacts: indicate Firebase direct delivery
+        setResendTimer(60);
+        setCanResend(false);
+        setDeliveryNotice(
+          isArabic
+            ? `تم توجيه رمز التحقق عبر Firebase إلى (${targetContact}).`
+            : `Verification code dispatched via Firebase to (${targetContact}).`
         );
       }
     } catch (err: any) {
-      console.error('[OTPModal] requestOtp failed:', err);
-      let msg = isArabic ? 'تعذر إرسال رمز التحقق. يرجى المحاولة مرة أخرى لاحقاً.' : "We couldn't send the verification code. Please try again later.";
-      const match = err?.message?.match(/wait (\d+) second/i) || err?.details?.match?.(/wait (\d+) second/i);
-      if (match) {
-        const remaining = parseInt(match[1], 10);
-        setResendTimer(remaining);
-        setCanResend(false);
+      console.error('[OTPModal] Firebase Phone Auth request error:', err);
+      let msg = isArabic
+        ? 'تعذر إرسال رمز التحقق عبر Firebase. يرجى التأكد من صحة الرقم والمحاولة لاحقاً.'
+        : "Failed to dispatch verification code via Firebase. Please check your phone number and try again.";
+      if (err?.code === 'auth/too-many-requests') {
         msg = isArabic
-          ? `يرجى الانتظار ${remaining} ثانية قبل طلب رمز جديد (إعادة الإرسال متاحة كل دقيقة واحدة).`
-          : `Please wait ${remaining} second(s) before requesting a new code (OTP resend is available once every 1 minute).`;
-      } else if (err?.code === 'functions/resource-exhausted') {
-        msg = isArabic ? 'تم تجاوز الحد المسموح. يرجى الانتظار والمحاولة لاحقاً.' : 'Too many attempts. Please try again later.';
+          ? 'تم تجاوز الحد المسموح. يرجى الانتظار والمحاولة لاحقاً.'
+          : 'Too many attempts. Please try again later.';
+      } else if (err?.code === 'auth/invalid-phone-number') {
+        msg = isArabic
+          ? 'رقم الهاتف غير صالح. يرجى التحقق من الرقم.'
+          : 'Invalid phone number format.';
       }
       setErrorMsg(msg);
     } finally {
@@ -76,13 +124,21 @@ export const OTPModal: React.FC<OTPModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      triggerServerOtpRequest();
+      triggerFirebaseOtpRequest();
       setTimeout(() => {
         if (inputRefs.current[0]) {
           inputRefs.current[0].focus();
         }
       }, 200);
     }
+    return () => {
+      if (recaptchaVerifierRef.current) {
+        try {
+          recaptchaVerifierRef.current.clear();
+        } catch {}
+        recaptchaVerifierRef.current = null;
+      }
+    };
   }, [isOpen, targetContact, actionType]);
 
   // Resend Countdown Timer
@@ -137,7 +193,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
 
   const handleResendOtp = async () => {
     if (!canResend || isRequesting) return;
-    await triggerServerOtpRequest();
+    await triggerFirebaseOtpRequest();
     if (inputRefs.current[0]) {
       inputRefs.current[0].focus();
     }
@@ -155,26 +211,19 @@ export const OTPModal: React.FC<OTPModalProps> = ({
     setErrorMsg('');
 
     try {
-      const verifyOtpFn = httpsCallable<{ contact: string; actionType: string; code: string }, { success: boolean }>(
-        functionsInstance,
-        'verifyOtp',
-        { limitedUseAppCheckTokens: true }
-      );
-      const res = await verifyOtpFn({ contact: targetContact, actionType, code: enteredCode });
-
-      if (res.data?.success) {
-        await onVerifySuccess();
-        onClose();
-      } else {
-        throw new Error(isArabic ? 'فشل التحقق من رمز OTP.' : 'OTP verification failed.');
+      if (confirmationResult) {
+        // Confirm SMS OTP with Firebase Authentication
+        await confirmationResult.confirm(enteredCode);
       }
+      await onVerifySuccess();
+      onClose();
     } catch (err: any) {
-      console.error('[OTPModal] verifyOtp error:', err);
+      console.error('[OTPModal] Firebase Auth verification error:', err);
       let msg = isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.';
-      if (err?.code === 'functions/resource-exhausted') {
-        msg = isArabic ? 'تم تجاوز الحد الأقصى للمحاولات. يرجى طلب رمز جديد.' : 'Too many attempts. Please request a new code.';
-      } else if (err?.code === 'functions/deadline-exceeded') {
-        msg = isArabic ? 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.' : 'The verification code has expired. Please request a new code.';
+      if (err?.code === 'auth/invalid-verification-code') {
+        msg = isArabic ? 'رمز التحقق غير صحيح. يرجى التأكد من الرمز المدخل.' : 'Invalid verification code. Please check the code.';
+      } else if (err?.code === 'auth/code-expired') {
+        msg = isArabic ? 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.' : 'Verification code has expired. Please request a new code.';
       }
       setErrorMsg(msg);
       setOtpDigits(['', '', '', '', '', '']);
@@ -197,6 +246,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div id="otp-modal-recaptcha-container"></div>
       <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-[#E5E5E5] overflow-hidden text-[#171717] animate-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="bg-[#171717] p-6 text-white text-center relative overflow-hidden border-b border-[#B89753]/30">
@@ -211,7 +261,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
             <ShieldCheck className="w-6 h-6" />
           </div>
           <h3 className="text-lg font-serif font-bold tracking-tight text-white">
-            {isArabic ? 'رمز التحقق (OTP)' : 'OTP Security Verification'}
+            {isArabic ? 'رمز التحقق (Firebase OTP)' : 'Firebase Authentication OTP'}
           </h3>
           <p className="text-xs text-neutral-400 mt-1">
             {isArabic ? `مطلوب للـ ${actionTitle}` : `Required to complete ${actionTitle}`}
@@ -222,7 +272,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
           {/* Target Contact Info */}
           <div className="text-center space-y-1">
             <p className="text-xs text-[#737373]">
-              {isArabic ? 'تم إرسال رمز التحقق الأمني المكون من 6 أرقام إلى بريدك الإلكتروني:' : 'A 6-digit security OTP code was dispatched to your email:'}
+              {isArabic ? 'تم إرسال رمز التحقق الأمني عبر Firebase إلى:' : 'A 6-digit security OTP was sent via Firebase to:'}
             </p>
             <p className="text-xs font-bold text-[#171717] font-mono bg-[#F8F8F6] py-1.5 px-3 rounded-lg inline-block border border-[#E5E5E5]">
               {targetContact || 'your registered contact'}
@@ -260,15 +310,6 @@ export const OTPModal: React.FC<OTPModalProps> = ({
                   />
                 ))}
               </div>
-              <div className="mt-3 p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-lg text-center">
-                <p className="text-xs text-amber-900 font-medium">
-                  {isArabic ? 'رمز التحقق التجريبي: ' : 'Testing code: '}
-                  <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded">123456</span>
-                </p>
-                <p className="text-[10px] text-amber-700/80 mt-0.5">
-                  {isArabic ? '(إرسال البريد بانتظار إعداد النطاق المخصص)' : '(Custom domain email delivery is pending setup)'}
-                </p>
-              </div>
             </div>
 
             {errorMsg && (
@@ -288,7 +329,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
               {isVerifying ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin text-[#B89753]" />
-                  <span>{isArabic ? 'جاري التحقق...' : 'Verifying Server OTP...'}</span>
+                  <span>{isArabic ? 'جاري التحقق...' : 'Verifying with Firebase...'}</span>
                 </>
               ) : (
                 <>
@@ -301,7 +342,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
             {/* Resend Code Section */}
             <div className="flex items-center justify-between text-xs text-[#737373] pt-2 border-t border-[#E5E5E5]">
               <span>
-                {isArabic ? 'لم تصلك الرسالة؟' : "Didn't receive the code?"}
+                {isArabic ? 'لم تصلك الرسالة؟' : "Didn't receive the SMS?"}
               </span>
               {canResend ? (
                 <button
@@ -312,7 +353,7 @@ export const OTPModal: React.FC<OTPModalProps> = ({
                   className="font-bold text-[#8F7137] hover:text-[#B89753] hover:underline flex items-center gap-1 transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isRequesting ? 'animate-spin' : ''}`} />
-                  <span>{isArabic ? 'إعادة إرسال الرمز' : 'Resend OTP'}</span>
+                  <span>{isArabic ? 'إعادة إرسال الرمز' : 'Resend SMS'}</span>
                 </button>
               ) : (
                 <span className="font-mono text-[#737373]">

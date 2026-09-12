@@ -816,16 +816,15 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(placeOrderSource).not.toMatch(/Date\.now\(\)/);
     });
 
-    it('23. Cloud Function source code enforces server-side cryptographic OTP generation and hashing without Math.random', () => {
-      const otpSource = fs.readFileSync(
-        path.resolve(__dirname, '../functions/src/otp.ts'),
-        'utf-8'
-      );
-      expect(otpSource).toMatch(/import\s*\{\s*randomInt,\s*(?:createHash|createHmac),\s*timingSafeEqual\s*\}\s*from\s*['"]node:crypto['"]/);
-      expect(otpSource).toMatch(/randomInt\(100000,\s*1000000\)/);
-      expect(otpSource).not.toMatch(/Math\.random/);
-      expect(otpSource).toMatch(/(?:createHash|createHmac)\('sha256'/);
-      expect(otpSource).toMatch(/timingSafeEqual/);
+    it('23. Custom OTP Cloud Function is removed in favor of Firebase Authentication SMS MFA', () => {
+      const otpPath = path.resolve(__dirname, '../functions/src/otp.ts');
+      expect(fs.existsSync(otpPath)).toBe(false);
+
+      const functionsIndexPath = path.resolve(__dirname, '../functions/src/index.ts');
+      const functionsIndexSource = fs.readFileSync(functionsIndexPath, 'utf-8');
+      expect(functionsIndexSource).not.toContain('requestOtp');
+      expect(functionsIndexSource).not.toContain('verifyOtp');
+      expect(functionsIndexSource).not.toMatch(/Math\.random/);
     });
 
     it('24. Password policy generator uses cryptographically secure random values without Math.random', () => {
@@ -930,7 +929,7 @@ describe('Security Regression Suite - Application Controls', () => {
   describe('13. Adversarial Security Verification: Strict Firebase Auth Claims Only (Requirements A through K)', () => {
     const rulesCode = fs.readFileSync(path.resolve(__dirname, '../firestore.rules'), 'utf8');
     const shopCode = fs.readFileSync(path.resolve(__dirname, '../src/context/ShopContext.tsx'), 'utf8');
-    const otpCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/otp.ts'), 'utf8');
+    const checkPhoneCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/checkPhone.ts'), 'utf8');
     const placeOrderCode = fs.readFileSync(path.resolve(__dirname, '../functions/src/placeOrder.ts'), 'utf8');
 
     it('Requirement A: Normal user with forged users/{uid}.admin=true is NOT an admin', () => {
@@ -1045,14 +1044,14 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(rulesCode).toMatch(/request\.resource\.data\.get\('sellerId',\s*''\)\s*==\s*getSellerId\(\)/);
     });
 
-    it('Requirement I: OTP verification cannot grant admin, seller, or sellerId claims', () => {
-      // 1. otp.ts must never import or invoke setCustomUserClaims
-      expect(otpCode).not.toMatch(/setCustomUserClaims/);
+    it('Requirement I: Native Firebase Auth MFA handles OTP and functions never grant unauthorized claims', () => {
+      // 1. checkPhone.ts must never import or invoke setCustomUserClaims
+      expect(checkPhoneCode).not.toMatch(/setCustomUserClaims/);
 
-      // 2. verifyOtp only returns unprivileged payload
-      expect(otpCode).toMatch(/return\s*\{\s*success:\s*true,\s*verifiedAtMs:\s*now\s*\};/);
-      expect(otpCode).not.toMatch(/admin:\s*true/);
-      expect(otpCode).not.toMatch(/seller:\s*true/);
+      // 2. recordAdminStepUp only returns step-up timestamp
+      expect(checkPhoneCode).toMatch(/return\s*\{\s*success:\s*true,\s*verifiedAtMs:\s*now\s*\};/);
+      expect(checkPhoneCode).not.toMatch(/admin:\s*true/);
+      expect(checkPhoneCode).not.toMatch(/seller:\s*true/);
     });
 
     it('Requirement J: Client-controlled request fields cannot override authorization claims', () => {
@@ -1061,9 +1060,8 @@ describe('Security Regression Suite - Application Controls', () => {
       expect(placeOrderCode).not.toMatch(/sellerIds\s*=\s*data\.sellerIds/);
       expect(placeOrderCode).not.toMatch(/sellerId\s*=\s*request\.data\.sellerId/);
 
-      // In otp.ts, admin / seller verification uses request.auth.token claims, ignoring client assertions
-      expect(otpCode).toMatch(/request\.auth\.token\?\.admin === true/);
-      expect(otpCode).toMatch(/request\.auth\.token\?\.seller === true/);
+      // In checkPhone / recordAdminStepUp, admin verification strictly checks request.auth.token.admin
+      expect(checkPhoneCode).toMatch(/request\.auth\.token\.admin !== true/);
     });
 
     it('Requirement K: All authorization fallbacks from Firestore user documents are strictly removed and forbidden', () => {

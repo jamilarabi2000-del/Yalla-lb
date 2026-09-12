@@ -22,6 +22,13 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber,
   ConfirmationResult,
+  multiFactor,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  getMultiFactorResolver,
+  MultiFactorResolver,
+  MultiFactorError,
+  MultiFactorUser,
   // Note: fetchSignInMethodsForEmail intentionally omitted to prevent account-enumeration attacks
   Auth
 } from 'firebase/auth';
@@ -150,7 +157,11 @@ export {
   signInWithEmailLink,
   RecaptchaVerifier,
   signInWithPhoneNumber,
-  httpsCallable
+  httpsCallable,
+  multiFactor,
+  PhoneAuthProvider,
+  PhoneMultiFactorGenerator,
+  getMultiFactorResolver
 };
-export type { FirebaseUser, Functions, ConfirmationResult };
+export type { FirebaseUser, Functions, ConfirmationResult, MultiFactorResolver, MultiFactorError, MultiFactorUser };
 

@@ -840,6 +840,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Legacy OTPs collection - strictly inaccessible (MFA handled by Firebase Auth)
+    match /otps/{otpId} {
+      allow read, write: if false;
+    }
+
     // ---------------------------------------------------------------------
     // Search analytics
     // ---------------------------------------------------------------------
@@ -889,19 +894,6 @@ service cloud.firestore {
         );
 
       allow update, delete: if isAdmin();
-    }
-
-    // ---------------------------------------------------------------------
-    // Server-only OTP collection: Inaccessible to normal clients
-    // Managed exclusively by Cloud Functions via Firebase Admin SDK
-    // ---------------------------------------------------------------------
-
-    match /otps/{otpId} {
-      allow read, write: if false;
-    }
-
-    match /otp_rate_limits/{docId} {
-      allow read, write: if false;
     }
   }
 }
