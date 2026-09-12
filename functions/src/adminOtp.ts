@@ -1,14 +1,10 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
 import * as crypto from 'crypto';
+import { getDb } from './db.js';
 
 if (getApps().length === 0) {
   initializeApp();
-}
-
-function getDb() {
-  return getFirestore();
 }
 
 const OTP_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes

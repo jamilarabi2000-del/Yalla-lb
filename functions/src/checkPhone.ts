@@ -1,13 +1,9 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { getFirestore } from 'firebase-admin/firestore';
 import { getApps, initializeApp } from 'firebase-admin/app';
+import { getDb } from './db.js';
 
 if (getApps().length === 0) {
   initializeApp();
-}
-
-function getDb() {
-  return getFirestore();
 }
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
