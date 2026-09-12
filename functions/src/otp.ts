@@ -258,7 +258,22 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
     sendgridKey = sendgridKey || SENDGRID_API_KEY.value();
   } catch {}
 
-  if (resendApiKey) {
+  const hasResend = resendApiKey && resendApiKey.trim() !== '' && !resendApiKey.startsWith('your_');
+  const hasSendGrid = sendgridKey && sendgridKey.trim() !== '' && !sendgridKey.startsWith('your_');
+
+  const isSandboxDb = DATABASE_ID.startsWith('ai-studio-');
+  const isSandbox = process.env.NODE_ENV !== 'production' || 
+                    process.env.FUNCTIONS_EMULATOR === 'true' || 
+                    process.env.VITEST === 'true' || 
+                    isSandboxDb || 
+                    (!hasResend && !hasSendGrid);
+
+  if (isSandbox) {
+    printSimulatedDelivery(email, numericCode);
+    return; // Allow simulated execution in non-production/preview
+  }
+
+  if (hasResend) {
     let sender = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
     if (sender.includes('@gmail.com') || sender.includes('@yahoo.com') || sender.includes('@hotmail.com') || sender.includes('@outlook.com')) {
       sender = 'onboarding@resend.dev';
@@ -291,7 +306,7 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
     return;
   }
 
-  if (sendgridKey) {
+  if (hasSendGrid) {
     let response: Response;
     try {
       response = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -317,21 +332,6 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
       throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
     }
     return;
-  }
-
-  const hasResend = resendApiKey && resendApiKey.trim() !== '' && !resendApiKey.startsWith('your_');
-  const hasSendGrid = sendgridKey && sendgridKey.trim() !== '' && !sendgridKey.startsWith('your_');
-
-  const isSandboxDb = DATABASE_ID.startsWith('ai-studio-');
-  const isSandbox = process.env.NODE_ENV !== 'production' || 
-                    process.env.FUNCTIONS_EMULATOR === 'true' || 
-                    process.env.VITEST === 'true' || 
-                    isSandboxDb || 
-                    (!hasResend && !hasSendGrid);
-
-  if (isSandbox) {
-    printSimulatedDelivery(email, numericCode);
-    return; // Allow simulated execution in non-production/preview
   }
 
   if (!hasResend && !hasSendGrid) {
