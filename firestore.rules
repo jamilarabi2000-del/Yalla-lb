@@ -378,12 +378,12 @@ service cloud.firestore {
 
     match /discounts/{discountId} {
       allow get, list: if resource.data.get('isActive', true) == true || isAdmin();
-      allow write: if hasRecentAdminStepUp() && !request.resource.data.keys().hasAny(['couponCode', 'maxTotalUses', 'maxUsesPerUser']);
+      allow write: if (isAdmin() || hasRecentAdminStepUp()) && !request.resource.data.keys().hasAny(['couponCode', 'maxTotalUses', 'maxUsesPerUser']);
     }
 
     match /coupons/{couponId} {
       allow read: if isAdmin();
-      allow write: if hasRecentAdminStepUp();
+      allow write: if isAdmin() || hasRecentAdminStepUp();
     }
 
     match /shipping_rules/{ruleId} {
@@ -840,7 +840,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Legacy OTPs collection - strictly inaccessible (MFA handled by Firebase Auth)
+    // Admin email OTP challenge collection - server only via Admin SDK
+    match /admin_otps/{docId} {
+      allow read, write: if false;
+    }
+
+    // Legacy OTPs collection - strictly inaccessible
     match /otps/{otpId} {
       allow read, write: if false;
     }

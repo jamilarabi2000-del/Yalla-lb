@@ -13,11 +13,7 @@ describe('App Check & reCAPTCHA Enterprise Security Suite', () => {
     expect(content).not.toContain('[Firebase] App Check disabled.');
   });
 
-  it('ensures AdminGuard and OTPModal use RecaptchaVerifier for native Firebase Authentication verification', () => {
-    const adminGuardPath = path.resolve(process.cwd(), 'src/components/AdminGuard.tsx');
-    const adminGuardContent = fs.readFileSync(adminGuardPath, 'utf-8');
-    expect(adminGuardContent).toContain('RecaptchaVerifier');
-
+  it('ensures OTPModal uses RecaptchaVerifier for native customer phone verification', () => {
     const otpModalPath = path.resolve(process.cwd(), 'src/components/OTPModal.tsx');
     const otpModalContent = fs.readFileSync(otpModalPath, 'utf-8');
     expect(otpModalContent).toContain('RecaptchaVerifier');

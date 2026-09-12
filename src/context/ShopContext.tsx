@@ -880,7 +880,7 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
               await monitoredBatchCommit(batch, initialRules.length * 2, 'discounts', 'ShopContext:AutoSeedDiscounts');
             } catch (seedErr) {
-              console.error("[ShopContext] Error seeding discount rules:", seedErr);
+              console.warn("[ShopContext] Notice seeding initial discount rules (using in-memory defaults):", seedErr);
             }
           }
           setDiscountRules(initialRules as DiscountRule[]);

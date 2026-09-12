@@ -32,9 +32,10 @@ const getFunctionsLib = async () => {
   }
   functionsLibPromise = (async () => {
     try {
-      return await import("./functions/src/index.ts");
+      return await import("./functions/src/index");
     } catch {
       try {
+        // @ts-ignore
         return await import("./functions/lib/index.js");
       } catch (err) {
         console.warn("[Server Gateway] Could not load functions/lib:", err);

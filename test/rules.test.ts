@@ -2,7 +2,11 @@ import { readFileSync } from 'fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds }
   from '@firebase/rules-unit-testing';
 import { doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where } from 'firebase/firestore';
-import { beforeAll, afterAll, test, expect, describe } from 'vitest';
+import { beforeAll, afterAll, test as baseTest, expect, describe as baseDescribe } from 'vitest';
+
+const hasEmulator = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
+const test = hasEmulator ? baseTest : baseTest.skip;
+const describe = hasEmulator ? baseDescribe : baseDescribe.skip;
 
 let env: any;
 
@@ -51,6 +55,10 @@ const validOrder = (id: string) => ({
 });
 
 beforeAll(async () => {
+  if (!hasEmulator) {
+    console.info('[test/rules.test.ts] FIRESTORE_EMULATOR_HOST not set. Skipping live emulator rules tests.');
+    return;
+  }
   env = await initializeTestEnvironment({
     projectId: 'yalla-lb-test',
     firestore: { rules: readFileSync('firestore.rules', 'utf8') },
@@ -80,7 +88,11 @@ beforeAll(async () => {
     );
   });
 });
-afterAll(() => env.cleanup());
+afterAll(() => {
+  if (env && typeof env.cleanup === 'function') {
+    return env.cleanup();
+  }
+});
 
 const unauthenticated = () => env.unauthenticatedContext().firestore();
 const customer = () => env.authenticatedContext('cust-1', {

@@ -106,18 +106,14 @@ describe('Admin Authentication & Custom Claims Test Suite (All 11 Scenarios)', (
     expect(shopContextCode).toContain('deleteCategory');
   });
 
-  it('15. AdminGuard uses official Firebase Authentication MFA and never calls custom requestOtp or verifyOtp', () => {
+  it('15. AdminGuard uses server-authoritative email OTP and forbids arbitrary phone registration for admin MFA', () => {
     const adminGuardPath = path.resolve(process.cwd(), 'src/components/AdminGuard.tsx');
     const adminGuardCode = fs.readFileSync(adminGuardPath, 'utf-8');
-    expect(adminGuardCode).toContain("multiFactor");
-    expect(adminGuardCode).toContain("PhoneAuthProvider");
-    expect(adminGuardCode).toContain("PhoneMultiFactorGenerator");
-    expect(adminGuardCode).toContain("RecaptchaVerifier");
-    expect(adminGuardCode).toContain("getMultiFactorResolver");
-    expect(adminGuardCode).toContain("resolveSignIn");
-    expect(adminGuardCode).not.toContain("httpsCallable(functionsInstance, 'requestOtp')");
-    expect(adminGuardCode).not.toContain("httpsCallable(functionsInstance, 'verifyOtp')");
-    expect(adminGuardCode).not.toContain("httpsCallable(functionsInstance, 'sendOtp')");
+    expect(adminGuardCode).toContain("requestAdminEmailOtp");
+    expect(adminGuardCode).toContain("verifyAdminEmailOtp");
+    expect(adminGuardCode).not.toContain("PhoneMultiFactorGenerator");
+    expect(adminGuardCode).not.toContain("MFA Enrollment Required");
+    expect(adminGuardCode).not.toContain("enrollPhone");
   });
 
   it('16. Server-side bootstrapAdmin function exists and enforces secure initial admin promotion', () => {
