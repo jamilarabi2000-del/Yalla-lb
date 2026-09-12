@@ -34,7 +34,7 @@ const TARGET_INITIAL_ADMIN_UID = 'wuGq9Uh8aShXFpUsrLi3abfpkCC2';
  * 5. Does not trust client-supplied admin status or role flags.
  */
 export const bootstrapAdmin = onCall(
-  { secrets: [ADMIN_BOOTSTRAP_SECRET] },
+  {},
   async (request) => {
     // 1. Require authentication
     if (!request.auth || !request.auth.uid) {

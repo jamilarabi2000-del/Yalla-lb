@@ -365,8 +365,7 @@ export const requestOtp = onCall(
   {
     region: 'europe-west1',
     enforceAppCheck: true,
-    consumeAppCheckToken: true,
-    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, SENDGRID_API_KEY]
+    consumeAppCheckToken: true
   },
   async (request) => {
     const data = request.data || {};
@@ -536,8 +535,7 @@ export const verifyOtp = onCall(
   {
     region: 'europe-west1',
     enforceAppCheck: true,
-    consumeAppCheckToken: true,
-    secrets: [OTP_SECRET, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, RESEND_API_KEY, SENDGRID_API_KEY]
+    consumeAppCheckToken: true
   },
   async (request) => {
     const data = request.data || {};
