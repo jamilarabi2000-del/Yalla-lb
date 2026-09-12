@@ -13,8 +13,10 @@ if (getApps().length === 0) {
 const DATABASE_ID = 'ai-studio-yallalb-1415b490-9de7-4a31-acee-0f9c6439c18c';
 const getDb = () => {
   try {
-    return getFirestore(DATABASE_ID);
-  } catch {
+    const adminApp = getApps().length === 0 ? initializeApp() : getApps()[0];
+    return getFirestore(adminApp, DATABASE_ID);
+  } catch (err) {
+    console.warn('[getDb] Error initializing with DATABASE_ID, falling back to default:', err);
     return getFirestore();
   }
 };
