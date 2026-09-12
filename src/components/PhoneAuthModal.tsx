@@ -15,7 +15,6 @@ interface PhoneAuthModalProps {
 declare global {
   interface Window {
     recaptchaVerifier?: RecaptchaVerifier;
-    confirmationResult?: ConfirmationResult;
   }
 }
 
@@ -129,7 +128,6 @@ export const PhoneAuthModal: React.FC<PhoneAuthModalProps> = ({
       const confirmation = await signInWithPhoneNumber(auth, e164Phone, verifier);
       
       setConfirmationResult(confirmation);
-      window.confirmationResult = confirmation;
       setStep('code');
       setResendTimer(60);
       setCanResend(false);
@@ -151,9 +149,9 @@ export const PhoneAuthModal: React.FC<PhoneAuthModalProps> = ({
       } else if (err?.code === 'auth/captcha-check-failed') {
         msg = isArabic ? 'فشل التحقق الأمني من reCAPTCHA. يرجى إعادة المحاولة.' : 'reCAPTCHA verification failed. Please try again.';
       } else if (err?.code === 'auth/operation-not-allowed') {
-        msg = isArabic ? 'خدمة تسجيل الدخول برقم الهاتف غير مفعلة حالياً.' : 'Phone authentication is not enabled in Firebase Console.';
-      } else if (err?.message) {
-        msg = err.message;
+        msg = isArabic ? 'خدمة تسجيل الدخول برقم الهاتف غير مفعلة حالياً.' : 'Phone authentication is not enabled.';
+      } else {
+        msg = isArabic ? 'فشل إرسال رمز التحقق. يرجى المحاولة مرة أخرى لاحقاً.' : 'Failed to send SMS verification code. Please try again later.';
       }
       
       setErrorMsg(msg);
@@ -204,8 +202,8 @@ export const PhoneAuthModal: React.FC<PhoneAuthModalProps> = ({
         msg = isArabic ? 'رمز التحقق غير صحيح. يرجى التأكد وإعادة المحاولة.' : 'Invalid verification code. Please try again.';
       } else if (err?.code === 'auth/code-expired') {
         msg = isArabic ? 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.' : 'The verification code has expired. Please request a new one.';
-      } else if (err?.message) {
-        msg = err.message;
+      } else {
+        msg = isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.';
       }
 
       setErrorMsg(msg);

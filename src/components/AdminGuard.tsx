@@ -58,18 +58,29 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
     return () => unregister();
   }, []);
 
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+
+  const sendMfaOtp = async () => {
+    setIsSendingOtp(true);
+    setOtpError(null);
+    try {
+      const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
+      await requestOtp({ actionType: 'admin' });
+      setOtpSent(true);
+    } catch (error: any) {
+      console.error('Failed to send admin MFA OTP:', error);
+      const friendlyMsg = error?.message && error.message !== 'internal'
+        ? error.message
+        : 'Failed to dispatch verification code automatically. You can click "Resend Code" or enter your verification code below.';
+      setOtpError(friendlyMsg);
+      setOtpSent(true);
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
   useEffect(() => {
     if (authStatus === 'authenticated_admin' && !isMfaVerified && !otpSent) {
-      const sendMfaOtp = async () => {
-        try {
-          const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
-          await requestOtp({ actionType: 'admin' });
-          setOtpSent(true);
-        } catch (error: any) {
-          console.error('Failed to send admin MFA OTP:', error);
-          setOtpError(error.message || 'Failed to send verification code.');
-        }
-      };
       sendMfaOtp();
     }
   }, [authStatus, isMfaVerified, otpSent]);
@@ -198,10 +209,10 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
           </div>
           <div className="space-y-2">
             <h1 className="text-xl font-bold text-slate-900">
-              Access Denied
+              Access Unavailable
             </h1>
             <p className="text-xs text-slate-500 pt-2 leading-relaxed">
-              Your account is authenticated but does not have administrator privileges. Please refresh your session or contact the system administrator.
+              You don't have permission to access this area.
             </p>
           </div>
 
@@ -301,6 +312,22 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
                 placeholder="000000"
                 disabled={isVerifying}
               />
+              <div className="flex items-center justify-between text-xs pt-1 px-1">
+                <span className="text-slate-400">Didn't receive code?</span>
+                <button
+                  type="button"
+                  disabled={isSendingOtp || isVerifying}
+                  onClick={() => sendMfaOtp()}
+                  className="text-indigo-600 hover:text-indigo-700 font-semibold disabled:opacity-50 transition-colors cursor-pointer"
+                >
+                  {isSendingOtp ? 'Sending...' : 'Resend Code'}
+                </button>
+              </div>
+              {import.meta.env.DEV && (
+                <p className="text-[11px] text-slate-400 text-center font-mono pt-1">
+                  (Development mode: testing code is 123456)
+                </p>
+              )}
             </div>
 
             <div className="pt-2">
@@ -425,6 +452,25 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
                 disabled={isStepUpVerifying}
                 autoFocus
               />
+
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="text-slate-400">Need another code?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
+                    requestOtp({ actionType: 'admin' }).catch(err => console.error('Step-up resend failed:', err));
+                  }}
+                  className="text-amber-600 hover:text-amber-700 font-semibold transition-colors cursor-pointer"
+                >
+                  Resend Code
+                </button>
+              </div>
+              {import.meta.env.DEV && (
+                <p className="text-[11px] text-slate-400 text-center font-mono">
+                  (Development mode: testing code is 123456)
+                </p>
+              )}
 
               <div className="flex gap-2">
                 <button

@@ -3,18 +3,49 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { randomInt, createHmac, timingSafeEqual } from 'node:crypto';
 import { defineSecret } from 'firebase-functions/params';
+import fs from 'node:fs';
+import path from 'node:path';
 
 if (getApps().length === 0) {
-  initializeApp();
+  const projectId = process.env.GCLOUD_PROJECT || 'yalla-lb-2026';
+  initializeApp({ projectId });
 }
 
-const DATABASE_ID = 'ai-studio-yallalb-1415b490-9de7-4a31-acee-0f9c6439c18c';
+function getDatabaseId(): string | undefined {
+  if (process.env.FIRESTORE_DB_ID) {
+    return process.env.FIRESTORE_DB_ID;
+  }
+  try {
+    const configPath = path.resolve(process.cwd(), '../firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (config.firestoreDatabaseId) {
+        return config.firestoreDatabaseId;
+      }
+    }
+  } catch {}
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (config.firestoreDatabaseId) {
+        return config.firestoreDatabaseId;
+      }
+    }
+  } catch {}
+  return undefined;
+}
+
 const getDb = () => {
   try {
-    const adminApp = getApps().length === 0 ? initializeApp() : getApps()[0];
-    return getFirestore(adminApp, DATABASE_ID);
+    const adminApp = getApps().length === 0 ? initializeApp({ projectId: process.env.GCLOUD_PROJECT || 'yalla-lb-2026' }) : getApps()[0];
+    const dbId = getDatabaseId();
+    if (dbId) {
+      return getFirestore(adminApp, dbId);
+    }
+    return getFirestore(adminApp);
   } catch (err) {
-    console.warn('[getDb] Error initializing with DATABASE_ID, falling back to default:', err);
+    console.warn('[getDb] Error initializing with database ID, falling back to default:', err);
     return getFirestore();
   }
 };
@@ -26,21 +57,19 @@ const TWILIO_PHONE_NUMBER = defineSecret('TWILIO_PHONE_NUMBER');
 const RESEND_API_KEY = defineSecret('RESEND_API_KEY');
 const SENDGRID_API_KEY = defineSecret('SENDGRID_API_KEY');
 
-function printSimulatedDelivery(destination: string, val: string): void {
-  console.info(`[SIMULATED DELIVERY] Destination: ${destination}, Code: ${val}`);
-}
-
 /**
  * Retrieve server-side HMAC secret for cryptographic OTP hashing.
  * In production, requires Secret Manager OTP_SECRET.
  * In test/emulator environments, uses deterministic test secret.
  */
 function getOtpSecret(): string {
-  if (
+  const isTestOrEmulator =
     process.env.NODE_ENV === 'test' ||
     process.env.FUNCTIONS_EMULATOR === 'true' ||
-    process.env.VITEST === 'true'
-  ) {
+    process.env.VITEST === 'true' ||
+    process.env.NODE_ENV === 'development';
+
+  if (isTestOrEmulator) {
     return 'TEST_SERVER_ONLY_HMAC_SECRET_KEY';
   }
 
@@ -53,14 +82,6 @@ function getOtpSecret(): string {
 
   if (!secret) {
     secret = process.env.OTP_SECRET || '';
-  }
-
-  if (!secret) {
-    // Robust fallback secret in non-production/preview environments to let the app run immediately
-    const isProd = process.env.NODE_ENV === 'production';
-    if (!isProd) {
-      secret = 'YALLA_DEVELOPMENT_DEFAULT_SECRET_2026';
-    }
   }
 
   if (!secret) {
@@ -194,16 +215,13 @@ async function sendSmsOtp(phone: string, actionType: string, numericCode: string
                     !authToken.startsWith('your_') && 
                     !fromNumber.startsWith('your_');
 
-  const isSandboxDb = DATABASE_ID.startsWith('ai-studio-');
-  const isSandbox = process.env.NODE_ENV !== 'production' || 
-                    process.env.FUNCTIONS_EMULATOR === 'true' || 
-                    process.env.VITEST === 'true' || 
-                    isSandboxDb || 
-                    !hasTwilio;
+  const isSandbox = process.env.FUNCTIONS_EMULATOR === 'true' || 
+                    process.env.VITEST === 'true' ||
+                    process.env.NODE_ENV === 'test' ||
+                    process.env.NODE_ENV === 'development';
 
   if (isSandbox) {
-    printSimulatedDelivery(phone, numericCode);
-    return; // Allow simulated execution in non-production/preview
+    return; // Allow test/emulator execution silently without logging code
   }
 
   if (!hasTwilio) {
@@ -261,16 +279,13 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
   const hasResend = resendApiKey && resendApiKey.trim() !== '' && !resendApiKey.startsWith('your_');
   const hasSendGrid = sendgridKey && sendgridKey.trim() !== '' && !sendgridKey.startsWith('your_');
 
-  const isSandboxDb = DATABASE_ID.startsWith('ai-studio-');
-  const isSandbox = process.env.NODE_ENV !== 'production' || 
-                    process.env.FUNCTIONS_EMULATOR === 'true' || 
-                    process.env.VITEST === 'true' || 
-                    isSandboxDb || 
-                    (!hasResend && !hasSendGrid);
+  const isSandbox = process.env.FUNCTIONS_EMULATOR === 'true' || 
+                    process.env.VITEST === 'true' ||
+                    process.env.NODE_ENV === 'test' ||
+                    process.env.NODE_ENV === 'development';
 
-  if (isSandbox) {
-    printSimulatedDelivery(email, numericCode);
-    return; // Allow simulated execution in non-production/preview
+  if (isSandbox && !hasResend && !hasSendGrid) {
+    return; // Allow test/emulator execution silently without logging code
   }
 
   if (hasResend) {
@@ -279,7 +294,7 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
       sender = 'onboarding@resend.dev';
     }
 
-    let response: Response;
+    let response: Response | null = null;
     try {
       response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -296,18 +311,29 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
       });
     } catch (networkErr: any) {
       console.error('[Email Dispatch] Resend network fetch failed');
-      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+      if (!hasSendGrid && !isSandbox) {
+        throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+      }
     }
 
-    if (!response.ok) {
+    if (response && response.ok) {
+      return;
+    }
+
+    if (response) {
       console.warn(`[Email Dispatch] Resend returned HTTP status ${response.status}`);
+    }
+
+    if (!hasSendGrid) {
+      if (isSandbox) {
+        return;
+      }
       throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
     }
-    return;
   }
 
   if (hasSendGrid) {
-    let response: Response;
+    let response: Response | null = null;
     try {
       response = await fetch('https://api.sendgrid.com/v3/mail/send', {
         method: 'POST',
@@ -324,17 +350,29 @@ async function sendEmailOtp(email: string, actionType: string, numericCode: stri
       });
     } catch (networkErr: any) {
       console.error('[Email Dispatch] SendGrid network fetch failed');
-      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+      if (!isSandbox) {
+        throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+      }
     }
 
-    if (!response.ok) {
-      console.warn(`[Email Dispatch] SendGrid returned HTTP status ${response.status}`);
-      throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
+    if (response && response.ok) {
+      return;
     }
-    return;
+
+    if (response) {
+      console.warn(`[Email Dispatch] SendGrid returned HTTP status ${response.status}`);
+    }
+
+    if (isSandbox) {
+      return;
+    }
+    throw new HttpsError('internal', "We couldn't send the verification code. Please try again.");
   }
 
   if (!hasResend && !hasSendGrid) {
+    if (isSandbox) {
+      return;
+    }
     throw new HttpsError(
       'failed-precondition',
       'Verification service is temporarily unavailable. Please try again later.'
@@ -596,6 +634,10 @@ export const verifyOtp = onCall(
         return { outcome: 'already_used' };
       }
 
+      if (otpData.uid && otpData.uid !== (request.auth?.uid || null)) {
+        return { outcome: 'uid_mismatch' };
+      }
+
       const maxAttempts = otpData.maxAttempts || 5;
 
       if (now > otpData.expiresAtMs) {
@@ -612,14 +654,13 @@ export const verifyOtp = onCall(
       const expectedHash = otpData.otpHash;
 
       let isMatch = timingSafeEqual(Buffer.from(incomingHash, 'hex'), Buffer.from(expectedHash, 'hex'));
-      
-      const isSandboxDb = DATABASE_ID.startsWith('ai-studio-');
-      const isSandboxEnv = process.env.NODE_ENV !== 'production' || 
-                           process.env.FUNCTIONS_EMULATOR === 'true' || 
-                           process.env.VITEST === 'true' || 
-                           isSandboxDb;
 
-      if (!isMatch && isSandboxEnv && code === '123456') {
+      const isSandbox = process.env.FUNCTIONS_EMULATOR === 'true' || 
+                        process.env.VITEST === 'true' ||
+                        process.env.NODE_ENV === 'test' ||
+                        process.env.NODE_ENV === 'development';
+
+      if (!isMatch && isSandbox && (code === '123456' || code === (process.env.TEST_OTP_CODE || '123456'))) {
         isMatch = true;
       }
 
@@ -664,6 +705,9 @@ export const verifyOtp = onCall(
 
     if (result.outcome === 'not_found') {
       throw new HttpsError('not-found', 'Verification record missing.');
+    }
+    if (result.outcome === 'uid_mismatch') {
+      throw new HttpsError('permission-denied', 'Verification record bound to a different authenticated user.');
     }
     if (result.outcome === 'already_used') {
       throw new HttpsError('not-found', 'Verification code has already been used or invalidated.');

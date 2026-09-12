@@ -3,18 +3,48 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { createHash, randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 if (getApps().length === 0) {
   initializeApp();
 }
 
-const DATABASE_ID = 'ai-studio-yallalb-1415b490-9de7-4a31-acee-0f9c6439c18c';
+function getDatabaseId(): string | undefined {
+  if (process.env.FIRESTORE_DB_ID) {
+    return process.env.FIRESTORE_DB_ID;
+  }
+  try {
+    const configPath = path.resolve(process.cwd(), '../firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (config.firestoreDatabaseId) {
+        return config.firestoreDatabaseId;
+      }
+    }
+  } catch {}
+  try {
+    const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+    if (fs.existsSync(configPath)) {
+      const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+      if (config.firestoreDatabaseId) {
+        return config.firestoreDatabaseId;
+      }
+    }
+  } catch {}
+  return undefined;
+}
+
 const getDb = () => {
   try {
     const adminApp = getApps().length === 0 ? initializeApp() : getApps()[0];
-    return getFirestore(adminApp, DATABASE_ID);
+    const dbId = getDatabaseId();
+    if (dbId) {
+      return getFirestore(adminApp, dbId);
+    }
+    return getFirestore(adminApp);
   } catch (err) {
-    console.warn('[getDb] Error initializing with DATABASE_ID, falling back to default:', err);
+    console.warn('[getDb] Error initializing with database ID, falling back to default:', err);
     return getFirestore();
   }
 };

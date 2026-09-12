@@ -2,29 +2,67 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 
+if (!process.env.GCLOUD_PROJECT) {
+  process.env.GCLOUD_PROJECT = "yalla-lb-2026";
+}
+
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ verify: (req: any, _res, buf) => { req.rawBody = buf; } }));
 
-// Security Headers Middleware (H-3 / C-2 Hardening)
+// Security Headers Middleware
 app.use((_req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https: wss:; frame-src 'self' https://*.firebaseapp.com https://*.google.com https://www.youtube.com https://player.vimeo.com; frame-ancestors 'self' https://*.google.com https://*.run.app https://ai.studio; object-src 'none'; base-uri 'self'; form-action 'self';"
-  );
-  res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
-  res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
-  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   next();
 });
 
 // Health endpoint
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Cloud Functions Gateway for development and container environments
+let functionsLibPromise: Promise<any> | null = null;
+const getFunctionsLib = () => {
+  if (!functionsLibPromise) {
+    functionsLibPromise = import("./functions/lib/index.js").catch((err) => {
+      console.warn("[Server Gateway] Could not load functions/lib:", err);
+      return null;
+    });
+  }
+  return functionsLibPromise;
+};
+
+app.post("/api/functions/:name", async (req, res) => {
+  const lib = await getFunctionsLib();
+  const fnName = req.params.name;
+  const handler = lib ? lib[fnName] : null;
+  if (typeof handler === "function") {
+    return handler(req, res);
+  }
+  return res.status(404).json({
+    error: {
+      message: `Function ${fnName} not found`,
+      status: "NOT_FOUND",
+    },
+  });
+});
+
+app.post("/:projectId/:region/:name", async (req, res, next) => {
+  const { projectId, region, name } = req.params;
+  if (
+    (projectId === "yalla-lb-2026" || projectId.includes("yalla")) &&
+    region === "europe-west1"
+  ) {
+    const lib = await getFunctionsLib();
+    const handler = lib ? lib[name] : null;
+    if (typeof handler === "function") {
+      return handler(req, res);
+    }
+  }
+  next();
 });
 
 // Vite middleware setup

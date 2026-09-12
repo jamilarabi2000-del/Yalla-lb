@@ -374,33 +374,6 @@ export const HomeView: React.FC = () => {
               </div>
             </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex overflow-x-auto gap-2 pb-3 mb-6 scrollbar-hide">
-              <button
-                onClick={() => setHomeCategoryFilter('all')}
-                className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap cursor-pointer border ${
-                  homeCategoryFilter === 'all'
-                    ? 'bg-[#171717] text-white border-[#171717]'
-                    : 'bg-white text-[#171717] border-[#E5E5E5] hover:border-[#8F7137]'
-                }`}
-              >
-                {language === 'ar' ? 'الكل' : 'All'}
-              </button>
-              {sortedCategories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setHomeCategoryFilter(cat.id)}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition-colors whitespace-nowrap cursor-pointer border ${
-                    homeCategoryFilter === cat.id
-                      ? 'bg-[#171717] text-white border-[#171717]'
-                      : 'bg-white text-[#171717] border-[#E5E5E5] hover:border-[#8F7137]'
-                  }`}
-                >
-                  {language === 'ar' ? cat.nameAr : cat.nameEn}
-                </button>
-              ))}
-            </div>
-
             <ProductCarousel products={filteredFeaturedProducts} idPrefix="featured" />
           </section>
         ) : null;

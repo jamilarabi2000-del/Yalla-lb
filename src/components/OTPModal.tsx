@@ -56,7 +56,10 @@ export const OTPModal: React.FC<OTPModalProps> = ({
       }
     } catch (err: any) {
       console.error('[OTPModal] requestOtp failed:', err);
-      const msg = err?.message || (isArabic ? 'فشل إرسال رمز التحقق. يرجى إعادة المحاولة.' : 'Failed to send OTP code. Please try again.');
+      let msg = isArabic ? 'تعذر إرسال رمز التحقق. يرجى المحاولة مرة أخرى لاحقاً.' : "We couldn't send the verification code. Please try again later.";
+      if (err?.code === 'functions/resource-exhausted') {
+        msg = isArabic ? 'تم تجاوز الحد المسموح. يرجى الانتظار والمحاولة لاحقاً.' : 'Too many attempts. Please try again later.';
+      }
       setErrorMsg(msg);
     } finally {
       setIsRequesting(false);
@@ -159,7 +162,13 @@ export const OTPModal: React.FC<OTPModalProps> = ({
       }
     } catch (err: any) {
       console.error('[OTPModal] verifyOtp error:', err);
-      setErrorMsg(err?.message || (isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired OTP code.'));
+      let msg = isArabic ? 'رمز التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.';
+      if (err?.code === 'functions/resource-exhausted') {
+        msg = isArabic ? 'تم تجاوز الحد الأقصى للمحاولات. يرجى طلب رمز جديد.' : 'Too many attempts. Please request a new code.';
+      } else if (err?.code === 'functions/deadline-exceeded') {
+        msg = isArabic ? 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.' : 'The verification code has expired. Please request a new code.';
+      }
+      setErrorMsg(msg);
       setOtpDigits(['', '', '', '', '', '']);
       if (inputRefs.current[0]) {
         inputRefs.current[0].focus();

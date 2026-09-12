@@ -6,6 +6,7 @@ import { ProductsView } from './components/ProductsView';
 import { AccountView } from './components/AccountView';
 import { FavoritesView } from './components/FavoritesView';
 import { AdminErrorBoundary } from './components/AdminErrorBoundary';
+import { StorefrontErrorBoundary } from './components/StorefrontErrorBoundary';
 import { AdminGuard } from './components/AdminGuard';
 import { ProductDetailView } from './components/ProductDetailView';
 import { ProductModal } from './components/ProductModal';
@@ -343,8 +344,10 @@ const MainAppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <ShopProvider>
-      <MainAppContent />
-    </ShopProvider>
+    <StorefrontErrorBoundary>
+      <ShopProvider>
+        <MainAppContent />
+      </ShopProvider>
+    </StorefrontErrorBoundary>
   );
 }

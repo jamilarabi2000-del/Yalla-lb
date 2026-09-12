@@ -67,21 +67,18 @@ if (typeof window !== 'undefined') {
 
   const siteKey = (firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY || '').trim();
 
-  if (!siteKey) {
-    console.warn("[Firebase] Warning: reCAPTCHA Enterprise site key is not configured.");
-  }
-
-  try {
-    initializeAppCheck(app, {
-      provider: new ReCaptchaEnterpriseProvider(siteKey),
-      isTokenAutoRefreshEnabled: true
-    });
-    console.info(`[Firebase] App Check initialized with ReCaptchaEnterpriseProvider (siteKey: ${siteKey ? siteKey.slice(0, 6) + '...' : 'missing'}). Origin domain: ${window.location.hostname}. (Note: Ensure "${window.location.hostname}" or "run.app" is in your reCAPTCHA Enterprise key's allowed domains).`);
-  } catch (err: any) {
-    console.error("[Firebase] App Check initialization failed:", err?.message || err);
-    if (import.meta.env.PROD && siteKey) {
-      throw err;
+  if (siteKey) {
+    try {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(siteKey),
+        isTokenAutoRefreshEnabled: true
+      });
+      console.info(`[Firebase] App Check initialized with ReCaptchaEnterpriseProvider (siteKey: ${siteKey.slice(0, 6)}...). Origin domain: ${window.location.hostname}.`);
+    } catch (err: any) {
+      console.warn("[Firebase] App Check initialization notice:", err?.message || err);
     }
+  } else {
+    console.info("[Firebase] App Check skipped: no reCAPTCHA site key provided.");
   }
 }
 
@@ -125,7 +122,14 @@ try {
 
 export const db = firestoreInstance;
 export const auth = authInstance;
-export const functionsInstance: Functions = getFunctions(app, 'europe-west1');
+
+let fnInstance: Functions;
+if (typeof window !== 'undefined') {
+  fnInstance = getFunctions(app, `${window.location.origin}/api/functions`);
+} else {
+  fnInstance = getFunctions(app, 'europe-west1');
+}
+export const functionsInstance: Functions = fnInstance;
 export const googleProvider = new GoogleAuthProvider();
 export const appleProvider = new OAuthProvider('apple.com');
 
