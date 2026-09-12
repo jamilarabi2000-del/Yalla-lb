@@ -25,16 +25,22 @@ function lazyWithRetry<T extends React.ComponentType<any>>(
     while (attempts > 0) {
       try {
         const module = await factory();
-        sessionStorage.removeItem('chunk_reload_attempted');
+        try {
+          if (typeof window !== 'undefined' && window.sessionStorage) {
+            sessionStorage.removeItem('chunk_reload_attempted');
+          }
+        } catch {}
         return { default: module.default || module.AdminView || module.CheckoutView || module.SellerLoginView || Object.values(module)[0] };
       } catch (error) {
         attempts--;
         console.warn(`Dynamic module import failed (${attempts} attempts left), retrying...`, error);
         if (attempts === 0) {
-          if (typeof window !== 'undefined' && !sessionStorage.getItem('chunk_reload_attempted')) {
-            sessionStorage.setItem('chunk_reload_attempted', '1');
-            window.location.reload();
-          }
+          try {
+            if (typeof window !== 'undefined' && window.sessionStorage && !sessionStorage.getItem('chunk_reload_attempted')) {
+              sessionStorage.setItem('chunk_reload_attempted', '1');
+              window.location.reload();
+            }
+          } catch {}
           throw error;
         }
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -109,22 +115,26 @@ const MainAppContent: React.FC = () => {
 
   // On initial mount, ensure current history entry has depth and preserve query parameters (e.g. ?cmsPreview=1&lang=ar)
   useEffect(() => {
-    if (window.history && (!window.history.state || typeof window.history.state.depth !== 'number')) {
-      const fullPath = window.location.pathname + (window.location.search || '');
-      window.history.replaceState({ appNav: true, depth: 0 }, '', fullPath);
-    }
-    const searchParams = new URLSearchParams(window.location.search);
-    const urlLang = searchParams.get('lang');
-    if (urlLang === 'ar' || urlLang === 'en') {
-      setLanguage(urlLang);
-    }
+    try {
+      if (typeof window !== 'undefined' && window.history && (!window.history.state || typeof window.history.state.depth !== 'number')) {
+        const fullPath = window.location.pathname + (window.location.search || '');
+        window.history.replaceState({ appNav: true, depth: 0 }, '', fullPath);
+      }
+    } catch {}
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlLang = searchParams.get('lang');
+      if (urlLang === 'ar' || urlLang === 'en') {
+        setLanguage(urlLang);
+      }
 
-    // Detect and handle incoming Firebase Auth email link sign-in
-    if (searchParams.has('apiKey') && (searchParams.has('oobCode') || searchParams.has('emailSignIn'))) {
-      completeEmailLinkSignIn().catch(err => {
-        console.warn('[App] Automatic email link sign-in check notice:', err);
-      });
-    }
+      // Detect and handle incoming Firebase Auth email link sign-in
+      if (searchParams.has('apiKey') && (searchParams.has('oobCode') || searchParams.has('emailSignIn'))) {
+        completeEmailLinkSignIn().catch(err => {
+          console.warn('[App] Automatic email link sign-in check notice:', err);
+        });
+      }
+    } catch {}
   }, [setLanguage, completeEmailLinkSignIn]);
 
   const productsRef = useRef(products);
@@ -198,12 +208,14 @@ const MainAppContent: React.FC = () => {
     const search = window.location.search || '';
     const fullTarget = search ? `${targetUrl}${search}` : targetUrl;
 
-    if (window.location.pathname !== targetUrl && window.history) {
-      const currentDepth = (window.history.state && typeof window.history.state.depth === 'number')
-        ? window.history.state.depth
-        : 0;
-      window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', fullTarget);
-    }
+    try {
+      if (typeof window !== 'undefined' && window.location.pathname !== targetUrl && window.history) {
+        const currentDepth = (window.history.state && typeof window.history.state.depth === 'number')
+          ? window.history.state.depth
+          : 0;
+        window.history.pushState({ appNav: true, depth: currentDepth + 1 }, '', fullTarget);
+      }
+    } catch {}
   }, [activeTab, selectedProductDetail, selectedCategory]);
 
   return (

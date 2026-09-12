@@ -513,16 +513,26 @@ export const HeroBanner: React.FC = () => {
               {/* Blurred Ambient Backdrop if Mobile Fit Mode is contain OR slide is set to 16:9 Landscape on mobile */}
               {(mobileFitMode === 'contain' || slide.mobileAspectRatio === '16:9') && (
                 <img
-                  src={slide.mobileImageUrl || slide.desktopImageUrl || slide.url}
+                  src={slide.mobileImageUrl || slide.desktopImageUrl || slide.url || raoucheSunsetImg}
                   alt=""
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== raoucheSunsetImg) {
+                      e.currentTarget.src = raoucheSunsetImg;
+                    }
+                  }}
                   className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-50 pointer-events-none transition-opacity duration-1000 scale-110"
                 />
               )}
               <img
-                src={slide.mobileImageUrl || slide.desktopImageUrl || slide.url}
+                src={slide.mobileImageUrl || slide.desktopImageUrl || slide.url || raoucheSunsetImg}
                 alt={slide.titleEn}
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  if (e.currentTarget.src !== raoucheSunsetImg) {
+                    e.currentTarget.src = raoucheSunsetImg;
+                  }
+                }}
                 className={`w-full h-full relative z-10 ${
                   slide.mobileAspectRatio === '16:9' ? 'object-contain' :
                   mobileFitMode === 'contain' ? 'object-contain' : 
@@ -543,16 +553,26 @@ export const HeroBanner: React.FC = () => {
               {/* Blurred Ambient Backdrop if Desktop Fit Mode is contain (Auto-Fit uncropped) */}
               {desktopFitMode === 'contain' && (
                 <img
-                  src={slide.desktopImageUrl || slide.url}
+                  src={slide.desktopImageUrl || slide.url || raoucheSunsetImg}
                   alt=""
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    if (e.currentTarget.src !== raoucheSunsetImg) {
+                      e.currentTarget.src = raoucheSunsetImg;
+                    }
+                  }}
                   className="absolute inset-0 w-full h-full object-cover z-0 blur-2xl opacity-40 pointer-events-none transition-opacity duration-1000 scale-105"
                 />
               )}
               <img
-                src={slide.desktopImageUrl || slide.url}
+                src={slide.desktopImageUrl || slide.url || raoucheSunsetImg}
                 alt={slide.titleEn}
                 referrerPolicy="no-referrer"
+                onError={(e) => {
+                  if (e.currentTarget.src !== raoucheSunsetImg) {
+                    e.currentTarget.src = raoucheSunsetImg;
+                  }
+                }}
                 className={`w-full h-full relative z-10 ${
                   desktopFitMode === 'contain' ? 'object-contain' : 
                   desktopFitMode === 'fill' ? 'object-fill' : 'object-cover'

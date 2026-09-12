@@ -2147,6 +2147,14 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
 
+    // Always update local state and localStorage first so admin preview and storefront reflect changes immediately
+    setSiteContent(sanitized);
+    try {
+      localStorage.setItem('yallalb_site_content', JSON.stringify(sanitized));
+    } catch (localErr) {
+      console.warn('[ShopContext] Failed to persist siteContent to localStorage:', localErr);
+    }
+
     try {
       const cmsDocRef = doc(db, 'cms', 'main');
       const cmsPublicDocRef = doc(db, 'cms_public', 'main');
@@ -2167,12 +2175,6 @@ export const ShopProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startTime,
         payload: sanitized
       });
-
-      // Update local state and localStorage
-      setSiteContent(sanitized);
-      try {
-        localStorage.setItem('yallalb_site_content', JSON.stringify(sanitized));
-      } catch {}
 
       // Check if SEO fields actually changed to log a "meta_change" rather than general "cms_update"
       const isMetaChange = modifiedKeys.includes('seo') || Object.keys(diff).some(k => k.startsWith('seo.'));

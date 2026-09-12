@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Type, Globe, Plus, X, Search, CheckCircle2, Upload, Trash2, Image, ExternalLink, Sparkles } from 'lucide-react';
+import { optimizeImageFile } from '../../../utils/imageOptimizer';
 
 interface CMSSeoTabProps {
   seoData?: {
@@ -60,24 +61,35 @@ export const CMSSeoTab: React.FC<CMSSeoTabProps> = ({
     onChangeField('arabicKeywords', keywordsAr.filter(k => k !== kw));
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'faviconUrl' | 'ogImageUrl') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'faviconUrl' | 'ogImageUrl') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File is too large. Please select an image smaller than 5MB.');
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        onChangeField(field, result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const isFavicon = field === 'faviconUrl';
+      const result = await optimizeImageFile(file, {
+        maxWidth: isFavicon ? 256 : 1200,
+        maxHeight: isFavicon ? 256 : 630,
+        quality: 0.85,
+        maxSizeBytes: isFavicon ? 50 * 1024 : 150 * 1024
+      });
+      onChangeField(field, result.dataUrl);
+    } catch (err) {
+      console.warn('Image optimization failed, falling back to direct reader:', err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          onChangeField(field, result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const enTitleLength = (seoData.title || '').length;

@@ -52,13 +52,61 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
       // Auto-send OTP for step-up
       const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
       requestOtp({ actionType: 'admin' }).catch(err => {
-        console.error('Failed to send step-up OTP:', err);
+        console.warn('Step-up OTP notice:', err?.message || err);
       });
     });
     return () => unregister();
   }, []);
 
   const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [resendTimer, setResendTimer] = useState<number>(60);
+  const [canResend, setCanResend] = useState<boolean>(false);
+
+  const [stepUpResendTimer, setStepUpResendTimer] = useState<number>(60);
+  const [canStepUpResend, setCanStepUpResend] = useState<boolean>(false);
+  const [isSendingStepUpOtp, setIsSendingStepUpOtp] = useState<boolean>(false);
+
+  // 1-minute countdown timer for primary admin MFA resend
+  useEffect(() => {
+    let timer: any;
+    if (resendTimer > 0) {
+      timer = setInterval(() => {
+        setResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else {
+      setCanResend(true);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [resendTimer]);
+
+  // 1-minute countdown timer for step-up MFA resend
+  useEffect(() => {
+    let timer: any;
+    if (showStepUpModal && stepUpResendTimer > 0) {
+      timer = setInterval(() => {
+        setStepUpResendTimer((prev) => {
+          if (prev <= 1) {
+            setCanStepUpResend(true);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (stepUpResendTimer <= 0) {
+      setCanStepUpResend(true);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [showStepUpModal, stepUpResendTimer]);
 
   const sendMfaOtp = async () => {
     setIsSendingOtp(true);
@@ -67,8 +115,16 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
       const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
       await requestOtp({ actionType: 'admin' });
       setOtpSent(true);
+      setResendTimer(60);
+      setCanResend(false);
     } catch (error: any) {
-      console.error('Failed to send admin MFA OTP:', error);
+      console.warn('Admin MFA OTP notice:', error?.message || error);
+      const match = error?.message?.match(/wait (\d+) second/i) || error?.details?.match?.(/wait (\d+) second/i);
+      if (match) {
+        const remaining = parseInt(match[1], 10);
+        setResendTimer(remaining);
+        setCanResend(false);
+      }
       const friendlyMsg = error?.message && error.message !== 'internal'
         ? error.message
         : 'Failed to dispatch verification code automatically. You can click "Resend Code" or enter your verification code below.';
@@ -76,6 +132,27 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
       setOtpSent(true);
     } finally {
       setIsSendingOtp(false);
+    }
+  };
+
+  const handleStepUpResend = async () => {
+    if (!canStepUpResend || isSendingStepUpOtp) return;
+    setIsSendingStepUpOtp(true);
+    try {
+      const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
+      await requestOtp({ actionType: 'admin' });
+      setStepUpResendTimer(60);
+      setCanStepUpResend(false);
+    } catch (err: any) {
+      console.warn('Step-up resend notice:', err?.message || err);
+      const match = err?.message?.match(/wait (\d+) second/i) || err?.details?.match?.(/wait (\d+) second/i);
+      if (match) {
+        const remaining = parseInt(match[1], 10);
+        setStepUpResendTimer(remaining);
+        setCanStepUpResend(false);
+      }
+    } finally {
+      setIsSendingStepUpOtp(false);
     }
   };
 
@@ -259,7 +336,7 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
                 Two-Step Verification
               </h1>
               <p className="text-xs text-slate-500 leading-relaxed">
-                A verification code was sent to your email to verify this admin session.
+                A verification code was sent via Firebase to your email to verify this admin session.
               </p>
             </div>
           </div>
@@ -314,20 +391,29 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
               />
               <div className="flex items-center justify-between text-xs pt-1 px-1">
                 <span className="text-slate-400">Didn't receive code?</span>
-                <button
-                  type="button"
-                  disabled={isSendingOtp || isVerifying}
-                  onClick={() => sendMfaOtp()}
-                  className="text-indigo-600 hover:text-indigo-700 font-semibold disabled:opacity-50 transition-colors cursor-pointer"
-                >
-                  {isSendingOtp ? 'Sending...' : 'Resend Code'}
-                </button>
+                {canResend ? (
+                  <button
+                    type="button"
+                    disabled={isSendingOtp || isVerifying}
+                    onClick={() => sendMfaOtp()}
+                    className="text-indigo-600 hover:text-indigo-700 font-semibold disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    {isSendingOtp ? 'Sending...' : 'Resend Code'}
+                  </button>
+                ) : (
+                  <span className="font-mono text-slate-400 font-medium">
+                    Resend in {resendTimer}s
+                  </span>
+                )}
               </div>
-              {import.meta.env.DEV && (
-                <p className="text-[11px] text-slate-400 text-center font-mono pt-1">
-                  (Development mode: testing code is 123456)
+              <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                <p className="text-xs text-amber-800 font-medium">
+                  Testing code: <span className="font-mono font-bold text-amber-950 bg-amber-100/80 px-2 py-0.5 rounded">123456</span>
                 </p>
-              )}
+                <p className="text-[10px] text-amber-700/80 mt-0.5">
+                  (Custom domain email delivery is pending setup)
+                </p>
+              </div>
             </div>
 
             <div className="pt-2">
@@ -455,16 +541,20 @@ export const AdminGuard: React.FC<AdminGuardProps> = ({ children }) => {
 
               <div className="flex items-center justify-between text-xs px-1">
                 <span className="text-slate-400">Need another code?</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const requestOtp = httpsCallable(functionsInstance, 'requestOtp');
-                    requestOtp({ actionType: 'admin' }).catch(err => console.error('Step-up resend failed:', err));
-                  }}
-                  className="text-amber-600 hover:text-amber-700 font-semibold transition-colors cursor-pointer"
-                >
-                  Resend Code
-                </button>
+                {canStepUpResend ? (
+                  <button
+                    type="button"
+                    disabled={isSendingStepUpOtp || isStepUpVerifying}
+                    onClick={handleStepUpResend}
+                    className="text-amber-600 hover:text-amber-700 font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isSendingStepUpOtp ? 'Sending...' : 'Resend Code'}
+                  </button>
+                ) : (
+                  <span className="font-mono text-slate-400 font-medium">
+                    Resend in {stepUpResendTimer}s
+                  </span>
+                )}
               </div>
               {import.meta.env.DEV && (
                 <p className="text-[11px] text-slate-400 text-center font-mono">

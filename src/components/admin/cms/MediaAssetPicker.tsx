@@ -1,6 +1,7 @@
 import { safeHref } from '../../../lib/safeUrl';
-import React, { useState } from 'react';
-import { Image as ImageIcon, Upload, Check, Sparkles, X, ExternalLink, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Image as ImageIcon, Upload, Check, Sparkles, X, ExternalLink, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { optimizeImageFile, formatBytes } from '../../../utils/imageOptimizer';
 
 export interface HeritageAssetPreset {
   id: string;
@@ -127,25 +128,59 @@ export const MediaAssetPicker: React.FC<MediaAssetPickerProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'banners' | 'mouneh' | 'crafts' | 'heritage'>('all');
   const [dragActive, setDragActive] = useState(false);
   const [tempUrl, setTempUrl] = useState(value || '');
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeStats, setOptimizeStats] = useState<{ original: string; optimized: string; savings: number } | null>(null);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [value]);
 
   const filteredPresets = selectedCategory === 'all'
     ? LEBANESE_HERITAGE_PRESETS
     : LEBANESE_HERITAGE_PRESETS.filter(p => p.category === selectedCategory);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file (JPG, PNG, WebP, SVG).');
+      alert('Please upload a valid image file (JPG, PNG, WebP, SVG).');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        const dataUrl = e.target.result as string;
-        onChange(dataUrl);
-        setTempUrl(dataUrl);
-      }
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      setIsOptimizing(true);
+      setOptimizeStats(null);
+      setImgError(false);
+
+      const isBanner = recommendedRatio === '16:9' || recommendedRatio === '21:9';
+      const result = await optimizeImageFile(file, {
+        maxWidth: isBanner ? 1440 : 900,
+        maxHeight: isBanner ? 810 : 900,
+        quality: 0.78,
+        maxSizeBytes: isBanner ? 85 * 1024 : 60 * 1024
+      });
+
+      onChange(result.dataUrl);
+      setTempUrl(result.dataUrl);
+      setOptimizeStats({
+        original: formatBytes(result.originalSizeBytes),
+        optimized: formatBytes(result.optimizedSizeBytes),
+        savings: result.savingsPercent
+      });
+      setIsOpen(false);
+    } catch (err) {
+      console.warn('Canvas optimization failed, falling back to direct reader:', err);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          const dataUrl = e.target.result as string;
+          onChange(dataUrl);
+          setTempUrl(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsOptimizing(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -185,67 +220,119 @@ export const MediaAssetPicker: React.FC<MediaAssetPickerProps> = ({
       </div>
 
       {/* Main Input Row with Inline Thumbnail & Actions */}
-      <div className="flex items-center gap-3">
-        {/* Live Thumbnail Preview */}
-        <div className="w-16 h-12 rounded-xl bg-slate-900 border border-white/15 overflow-hidden flex-shrink-0 relative group flex items-center justify-center">
-          {value ? (
-            <>
-              <img
-                src={value}
-                alt="Preview"
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-              <button
-                type="button"
-                onClick={() => onChange('')}
-                className="absolute inset-0 bg-black/70 text-rose-400 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer text-xs"
-                title="Remove image"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <ImageIcon className="w-5 h-5 text-slate-600" />
-          )}
-        </div>
-
-        {/* URL Input */}
-        <div className="flex-1 relative">
-          <input
-            type="text"
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Paste image URL (https://...) or upload file"
-            className="w-full pl-3.5 pr-20 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
-          />
-          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-            <label className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors" title="Upload local file">
-              <Upload className="w-3.5 h-3.5" />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    handleFile(e.target.files[0]);
-                  }
-                }}
-              />
-            </label>
-            {value && (
-              <a
-                href={safeHref(value)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
-                title="Open image in new tab"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-3">
+          {/* Live Thumbnail Preview */}
+          <div className="w-16 h-12 rounded-xl bg-slate-900 border border-white/15 overflow-hidden flex-shrink-0 relative group flex items-center justify-center">
+            {isOptimizing ? (
+              <div className="flex flex-col items-center justify-center text-amber-400">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            ) : value ? (
+              <>
+                {imgError ? (
+                  <div className="w-full h-full bg-red-950/40 flex flex-col items-center justify-center text-red-400 p-1 text-center" title="Image failed to load. Please verify the URL or upload a new file.">
+                    <AlertCircle className="w-4 h-4" />
+                    <span className="text-[8px] mt-0.5 leading-tight">Broken</span>
+                  </div>
+                ) : (
+                  <img
+                    src={value}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                    onError={() => setImgError(true)}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange('');
+                    setOptimizeStats(null);
+                    setImgError(false);
+                  }}
+                  className="absolute inset-0 bg-black/70 text-rose-400 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer text-xs"
+                  title="Remove image"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <ImageIcon className="w-5 h-5 text-slate-600" />
             )}
           </div>
+
+          {/* URL Input */}
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={value || ''}
+              onChange={(e) => {
+                onChange(e.target.value);
+                setImgError(false);
+                setOptimizeStats(null);
+              }}
+              placeholder="Paste image URL (https://...) or upload file"
+              className="w-full pl-3.5 pr-20 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-xs text-white placeholder-slate-500 focus:border-amber-400 focus:outline-none"
+            />
+            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <label 
+                className={`p-1.5 rounded-lg text-slate-300 hover:text-white cursor-pointer transition-colors ${
+                  isOptimizing ? 'bg-amber-500/30 text-amber-300 animate-pulse' : 'bg-slate-800 hover:bg-slate-700'
+                }`} 
+                title="Upload & optimize local image file"
+              >
+                {isOptimizing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={isOptimizing}
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) {
+                      handleFile(e.target.files[0]);
+                    }
+                  }}
+                />
+              </label>
+              {value && !imgError && (
+                <a
+                  href={safeHref(value)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                  title="Open image in new tab"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* Compression / Optimization Feedback */}
+        {optimizeStats && (
+          <div className="flex items-center gap-2 text-[11px] text-emerald-400 bg-emerald-950/30 border border-emerald-500/20 px-3 py-1 rounded-lg">
+            <Check className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+            <span>
+              Web-Optimized: <strong>{optimizeStats.optimized}</strong> ({optimizeStats.savings}% smaller than original {optimizeStats.original})
+            </span>
+          </div>
+        )}
+
+        {isOptimizing && (
+          <div className="flex items-center gap-2 text-[11px] text-amber-300 bg-amber-950/30 border border-amber-500/20 px-3 py-1 rounded-lg animate-pulse">
+            <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />
+            <span>Optimizing image resolution & compressing for web...</span>
+          </div>
+        )}
+
+        {imgError && value && (
+          <div className="flex items-center gap-2 text-[11px] text-rose-400 bg-rose-950/30 border border-rose-500/20 px-3 py-1 rounded-lg">
+            <AlertCircle className="w-3 h-3 flex-shrink-0" />
+            <span>Image URL failed to load. A high-quality fallback is shown on the storefront.</span>
+          </div>
+        )}
       </div>
 
       {/* Asset Gallery & Heritage Preset Modal */}

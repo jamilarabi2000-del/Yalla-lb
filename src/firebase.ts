@@ -60,9 +60,9 @@ if (typeof window !== 'undefined') {
   if (!import.meta.env.PROD && explicitDebugToken) {
     (window as any).FIREBASE_APPCHECK_DEBUG_TOKEN = explicitDebugToken;
     console.info("[Firebase] App Check configured with explicit debug token.");
-  } else if (import.meta.env.DEV && isLocalhost) {
+  } else if (!import.meta.env.PROD) {
     (window as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-    console.info("[Firebase] App Check debug mode active on localhost.");
+    console.info("[Firebase] App Check debug mode active for preview environment.");
   }
 
   const siteKey = (firebaseConfig.recaptchaSiteKey || import.meta.env.VITE_RECAPTCHA_SITE_KEY || '').trim();
@@ -108,12 +108,13 @@ try {
 
 let authInstance: Auth;
 try {
-  authInstance = getAuth(app);
+  // Use localStorage & memory persistence explicitly first to avoid IndexedDB 'Database is closing/hidden' errors in iframe/tabs
+  authInstance = initializeAuth(app, {
+    persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence]
+  });
 } catch (e) {
   try {
-    authInstance = initializeAuth(app, {
-      persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence]
-    });
+    authInstance = getAuth(app);
   } catch (err) {
     console.error("Firebase Auth fallback critical error:", err);
     authInstance = getAuth();

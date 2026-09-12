@@ -25,13 +25,23 @@ app.get("/api/health", (_req, res) => {
 
 // Cloud Functions Gateway for development and container environments
 let functionsLibPromise: Promise<any> | null = null;
-const getFunctionsLib = () => {
-  if (!functionsLibPromise) {
-    functionsLibPromise = import("./functions/lib/index.js").catch((err) => {
-      console.warn("[Server Gateway] Could not load functions/lib:", err);
-      return null;
-    });
+const getFunctionsLib = async () => {
+  if (functionsLibPromise) {
+    const cached = await functionsLibPromise;
+    if (cached) return cached;
   }
+  functionsLibPromise = (async () => {
+    try {
+      return await import("./functions/src/index.ts");
+    } catch {
+      try {
+        return await import("./functions/lib/index.js");
+      } catch (err) {
+        console.warn("[Server Gateway] Could not load functions/lib:", err);
+        return null;
+      }
+    }
+  })();
   return functionsLibPromise;
 };
 

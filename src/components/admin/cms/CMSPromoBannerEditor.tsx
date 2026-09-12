@@ -468,6 +468,9 @@ export const CMSPromoBannerEditor: React.FC<CMSPromoBannerEditorProps> = ({
                           src={slide.imageUrl} 
                           alt="thumb" 
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            e.currentTarget.src = 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800';
+                          }}
                           className="w-10 h-10 rounded-lg object-cover border border-neutral-200 flex-shrink-0"
                         />
                       ) : (

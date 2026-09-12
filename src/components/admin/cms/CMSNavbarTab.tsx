@@ -12,6 +12,7 @@ import {
   Layers,
   Upload
 } from 'lucide-react';
+import { optimizeImageFile } from '../../../utils/imageOptimizer';
 
 interface CMSNavbarTabProps {
   navbarData: {
@@ -52,21 +53,34 @@ export const CMSNavbarTab: React.FC<CMSNavbarTabProps> = ({
   const logoFileInputRef = useRef<HTMLInputElement>(null);
   const faviconFileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logoUrl' | 'faviconUrl') => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: 'logoUrl' | 'faviconUrl') => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File is too large. Max 5MB.');
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload an image file.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const result = event.target?.result as string;
-      if (result) {
-        onChangeField(field, result);
-      }
-    };
-    reader.readAsDataURL(file);
+
+    try {
+      const isFavicon = field === 'faviconUrl';
+      const result = await optimizeImageFile(file, {
+        maxWidth: isFavicon ? 256 : 800,
+        maxHeight: isFavicon ? 256 : 400,
+        quality: 0.85,
+        maxSizeBytes: isFavicon ? 50 * 1024 : 120 * 1024
+      });
+      onChangeField(field, result.dataUrl);
+    } catch (err) {
+      console.warn('Image optimization failed, falling back to direct reader:', err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          onChangeField(field, result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const navTabs = navbarData.navTabs || [];

@@ -435,6 +435,9 @@ export const HomepagePromoSlider: React.FC<HomepagePromoSliderProps> = ({
               src={slide.imageUrl || selectedProduct.image}
               alt={selectedProduct.name}
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.currentTarget.src = 'https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=800';
+              }}
               className={`max-h-full max-w-full object-${slide.imageFit || 'contain'} object-center transition-all duration-500 group-hover:scale-105`}
             />
           </div>
@@ -508,6 +511,9 @@ export const HomepagePromoSlider: React.FC<HomepagePromoSliderProps> = ({
               src={slide.imageUrl}
               alt={titleText || 'Promotional Slide'}
               referrerPolicy="no-referrer"
+              onError={(e) => {
+                e.currentTarget.src = 'https://images.unsplash.com/photo-1578749556568-bc2c40e68b61?auto=format&fit=crop&q=80&w=800';
+              }}
               className={`max-h-full max-w-full object-${slide.imageFit || 'contain'} object-center transition-all duration-500 group-hover:scale-105`}
             />
           </div>

@@ -50,14 +50,22 @@ export const OTPModal: React.FC<OTPModalProps> = ({
         setCanResend(false);
         setDeliveryNotice(
           isArabic
-            ? `تم إرسال الرمز بنجاح إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
-            : `Verification code successfully sent to (${targetContact}). Please check your inbox or spam folder.`
+            ? `تم إرسال الرمز بنجاح عبر Firebase إلى (${targetContact}). يرجى مراجعة صندوق الوارد أو الرسائل غير المرغوب فيها (Spam).`
+            : `Verification code successfully sent via Firebase to (${targetContact}). Please check your inbox or spam folder.`
         );
       }
     } catch (err: any) {
       console.error('[OTPModal] requestOtp failed:', err);
       let msg = isArabic ? 'تعذر إرسال رمز التحقق. يرجى المحاولة مرة أخرى لاحقاً.' : "We couldn't send the verification code. Please try again later.";
-      if (err?.code === 'functions/resource-exhausted') {
+      const match = err?.message?.match(/wait (\d+) second/i) || err?.details?.match?.(/wait (\d+) second/i);
+      if (match) {
+        const remaining = parseInt(match[1], 10);
+        setResendTimer(remaining);
+        setCanResend(false);
+        msg = isArabic
+          ? `يرجى الانتظار ${remaining} ثانية قبل طلب رمز جديد (إعادة الإرسال متاحة كل دقيقة واحدة).`
+          : `Please wait ${remaining} second(s) before requesting a new code (OTP resend is available once every 1 minute).`;
+      } else if (err?.code === 'functions/resource-exhausted') {
         msg = isArabic ? 'تم تجاوز الحد المسموح. يرجى الانتظار والمحاولة لاحقاً.' : 'Too many attempts. Please try again later.';
       }
       setErrorMsg(msg);
@@ -251,6 +259,15 @@ export const OTPModal: React.FC<OTPModalProps> = ({
                     }`}
                   />
                 ))}
+              </div>
+              <div className="mt-3 p-2.5 bg-amber-50/80 border border-amber-200/80 rounded-lg text-center">
+                <p className="text-xs text-amber-900 font-medium">
+                  {isArabic ? 'رمز التحقق التجريبي: ' : 'Testing code: '}
+                  <span className="font-mono font-bold text-amber-950 bg-amber-100 px-2 py-0.5 rounded">123456</span>
+                </p>
+                <p className="text-[10px] text-amber-700/80 mt-0.5">
+                  {isArabic ? '(إرسال البريد بانتظار إعداد النطاق المخصص)' : '(Custom domain email delivery is pending setup)'}
+                </p>
               </div>
             </div>
 

@@ -11,11 +11,13 @@ import {
 import { HomepagePromoSlider } from './HomepagePromoSlider';
 
 import lebaneseMountainTownImg from '../assets/images/rachaya_mountain_perfect_1786799009637.jpg';
+import raoucheSunsetImg from '../assets/images/raouche_rocks_sunset_1786799732002.jpg';
 
 interface ConsolidatedSlide {
   id: string;
   type?: 'image' | 'video';
   url: string;
+  mobileUrl?: string;
   badgeEn?: string;
   badgeAr?: string;
   titleEn?: string;
@@ -27,10 +29,22 @@ interface ConsolidatedSlide {
   promoCode?: string;
   buttonTextEn?: string;
   buttonTextAr?: string;
+  secondaryBtnTextEn?: string;
+  secondaryBtnTextAr?: string;
   targetCategory?: string;
   targetUrl?: string;
+  secondaryTargetUrl?: string;
   bundleId?: string;
   showButton?: boolean;
+  imageFit?: 'cover' | 'contain' | 'fill';
+  desktopImageFit?: 'cover' | 'contain' | 'fill';
+  mobileImageFit?: 'cover' | 'contain' | 'fill';
+  imageZoom?: number;
+  desktopImageZoom?: number;
+  mobileImageZoom?: number;
+  objectPosition?: string;
+  desktopObjectPosition?: string;
+  mobileObjectPosition?: string;
 }
 
 export const HomeTopContainer: React.FC = () => {
@@ -53,27 +67,6 @@ export const HomeTopContainer: React.FC = () => {
 
   const heroData = siteContent?.hero || {};
 
-  const cmsMediaItems = (heroData as any)?.bgMediaItems?.filter((item: any) => item.isPublished !== false) || [];
-  const cmsOfferSlides = (siteContent?.offers as any)?.slides?.filter((item: any) => item.isPublished !== false) || [];
-
-  // defaultConsolidatedSlides contains ONLY the base CMS hero configuration (no hardcoded promotional campaigns)
-  const defaultConsolidatedSlides: ConsolidatedSlide[] = [
-    {
-      id: 'slide_hero_1',
-      type: 'image',
-      url: '',
-      badgeEn: (heroData as any).badgeText,
-      badgeAr: (heroData as any).badgeTextArabic,
-      titleEn: (heroData as any).title,
-      titleAr: (heroData as any).titleArabic,
-      subtitleEn: (heroData as any).subtitle,
-      subtitleAr: (heroData as any).subtitleArabic,
-      buttonTextEn: (heroData as any).primaryBtnText,
-      buttonTextAr: (heroData as any).primaryBtnTextArabic,
-      targetCategory: 'all'
-    }
-  ];
-
   const isSlideActive = (item: { isPublished?: boolean; scheduleActive?: boolean; startDate?: string; endDate?: string }) => {
     if (item.isPublished === false) return false;
     if (item.scheduleActive) {
@@ -90,72 +83,95 @@ export const HomeTopContainer: React.FC = () => {
     return true;
   };
 
-  const cmsConsolidatedSlides: ConsolidatedSlide[] = [];
-  if (cmsOfferSlides.length > 0) {
-    cmsOfferSlides.filter((slide: any) => isSlideActive(slide)).forEach((slide: any, idx: number) => {
-      cmsConsolidatedSlides.push({
-        id: slide.id || `offer-${idx}`,
-        type: slide.bgVideoUrl ? 'video' : 'image',
-        url: slide.imageUrl || slide.desktopImageUrl || slide.bgVideoUrl || '',
-        badgeEn: slide.badge,
-        badgeAr: slide.badgeArabic || slide.badge,
-        titleEn: slide.title,
-        titleAr: slide.titleArabic || slide.title,
-        subtitleEn: slide.subtitle,
-        subtitleAr: slide.subtitleArabic || slide.subtitle,
-        discountBadgeEn: slide.discountBadge,
-        discountBadgeAr: slide.discountBadgeArabic || slide.discountBadge,
-        promoCode: slide.discountBadge?.includes('CODE:') ? slide.discountBadge.split('CODE:')[1]?.trim() : undefined,
-        buttonTextEn: slide.buttonText,
-        buttonTextAr: slide.buttonTextArabic || slide.buttonText,
-        targetCategory: slide.targetUrl || 'all'
-      });
-    });
-  }
+  // Build Hero slides directly and exclusively from the CMS Hero configuration
+  const cmsMediaItems = ((heroData as any)?.bgMediaItems || []).filter((item: any) => isSlideActive(item));
+
+  const heroSlides: ConsolidatedSlide[] = [];
 
   if (cmsMediaItems.length > 0) {
-    cmsMediaItems.filter((item: any) => isSlideActive(item)).forEach((item: any, idx: number) => {
-      cmsConsolidatedSlides.push({
-        id: item.id || `media-${idx}`,
+    cmsMediaItems.forEach((item: any, idx: number) => {
+      const desktopUrl = item.url || item.desktopImageUrl || (heroData as any).bgImageUrl || raoucheSunsetImg;
+      const mobileUrl = item.mobileUrl || item.mobileImageUrl || desktopUrl;
+
+      heroSlides.push({
+        id: item.id || `hero-media-${idx}`,
         type: item.type || 'image',
-        url: item.url || '',
+        url: desktopUrl,
+        mobileUrl: mobileUrl,
         badgeEn: item.badgeText || (heroData as any).badgeText,
         badgeAr: item.badgeTextArabic || (heroData as any).badgeTextArabic,
         titleEn: item.customTitle || item.title || (heroData as any).title,
-        titleAr: item.customTitleArabic || (heroData as any).titleArabic,
+        titleAr: item.customTitleArabic || (heroData as any).titleArabic || item.titleArabic,
         subtitleEn: item.customSubtitle || (heroData as any).subtitle,
         subtitleAr: item.customSubtitleArabic || (heroData as any).subtitleArabic,
-        buttonTextEn: (heroData as any).primaryBtnText,
-        buttonTextAr: (heroData as any).primaryBtnTextArabic,
-        targetCategory: 'all'
+        buttonTextEn: item.buttonText || (heroData as any).primaryBtnText,
+        buttonTextAr: item.buttonTextArabic || (heroData as any).primaryBtnTextArabic,
+        targetUrl: item.targetUrl || (heroData as any).targetUrl || '/products',
+        secondaryBtnTextEn: item.secondaryBtnText || (heroData as any).secondaryBtnText,
+        secondaryBtnTextAr: item.secondaryBtnTextArabic || (heroData as any).secondaryBtnTextArabic,
+        secondaryTargetUrl: item.secondaryTargetUrl || (heroData as any).secondaryTargetUrl,
+        imageFit: item.imageFit || (heroData as any).defaultImageFit || 'contain',
+        desktopImageFit: item.desktopImageFit || item.imageFit || (heroData as any).defaultImageFit || 'contain',
+        mobileImageFit: item.mobileImageFit || item.imageFit || 'cover',
+        imageZoom: item.imageZoom || 100,
+        desktopImageZoom: item.desktopImageZoom || item.imageZoom || 100,
+        mobileImageZoom: item.mobileImageZoom || item.imageZoom || 100,
+        objectPosition: item.objectPosition || 'center',
+        desktopObjectPosition: item.desktopObjectPosition || item.objectPosition || 'center',
+        mobileObjectPosition: item.mobileObjectPosition || item.objectPosition || 'center',
       });
+    });
+  } else {
+    // Default / Single Hero Slide when no multi-slides are configured
+    const primaryImg = (heroData as any).bgImageUrl || (heroData as any).desktopImageUrl || raoucheSunsetImg;
+    heroSlides.push({
+      id: 'slide_hero_primary',
+      type: 'image',
+      url: primaryImg,
+      mobileUrl: (heroData as any).mobileImageUrl || primaryImg,
+      badgeEn: (heroData as any).badgeText,
+      badgeAr: (heroData as any).badgeTextArabic,
+      titleEn: (heroData as any).title,
+      titleAr: (heroData as any).titleArabic,
+      subtitleEn: (heroData as any).subtitle,
+      subtitleAr: (heroData as any).subtitleArabic,
+      buttonTextEn: (heroData as any).primaryBtnText,
+      buttonTextAr: (heroData as any).primaryBtnTextArabic,
+      targetUrl: (heroData as any).targetUrl || '/products',
+      secondaryBtnTextEn: (heroData as any).secondaryBtnText,
+      secondaryBtnTextAr: (heroData as any).secondaryBtnTextArabic,
+      secondaryTargetUrl: (heroData as any).secondaryTargetUrl,
+      imageFit: (heroData as any).defaultImageFit || 'contain',
+      desktopImageFit: (heroData as any).defaultImageFit || 'contain',
+      mobileImageFit: 'cover',
+      imageZoom: 100,
+      desktopImageZoom: 100,
+      mobileImageZoom: 100,
+      objectPosition: 'center',
+      desktopObjectPosition: 'center',
+      mobileObjectPosition: 'center',
     });
   }
 
-  const activeBundles = productBundles.filter((b: any) => b.isActive !== false && b.showInSlider !== false);
-  const bundleSlides: ConsolidatedSlide[] = activeBundles.map((bundle: any) => {
-    // Use neutral Yalla fallback image instead of hardcoded external Unsplash URL
-    const bgUrl = bundle.imageUrl?.trim() || lebaneseMountainTownImg;
-    
-    return {
-      id: `bundle-${bundle.id}`,
-      type: 'image',
-      url: bgUrl,
-      badgeEn: bundle.badgeText,
-      badgeAr: bundle.badgeTextAr || bundle.badgeText,
-      titleEn: bundle.name,
-      titleAr: bundle.nameAr || bundle.name,
-      subtitleEn: bundle.description || '',
-      subtitleAr: bundle.descriptionAr || bundle.description || '',
-      buttonTextEn: bundle.sliderButtonText,
-      buttonTextAr: bundle.sliderButtonTextAr,
-      bundleId: bundle.id
-    };
-  });
+  // Active bundles only appended at the end of the hero slider if explicitly marked by admin
+  const activeBundles = productBundles.filter((b: any) => b.isActive !== false && b.showInSlider === true);
+  const bundleSlides: ConsolidatedSlide[] = activeBundles.map((bundle: any) => ({
+    id: `bundle-${bundle.id}`,
+    type: 'image',
+    url: bundle.imageUrl?.trim() || lebaneseMountainTownImg,
+    badgeEn: bundle.badgeText,
+    badgeAr: bundle.badgeTextAr || bundle.badgeText,
+    titleEn: bundle.name,
+    titleAr: bundle.nameAr || bundle.name,
+    subtitleEn: bundle.description || '',
+    subtitleAr: bundle.descriptionAr || bundle.description || '',
+    buttonTextEn: bundle.sliderButtonText,
+    buttonTextAr: bundle.sliderButtonTextAr,
+    bundleId: bundle.id
+  }));
 
-  const baseSlides = cmsConsolidatedSlides.length > 0 ? cmsConsolidatedSlides : defaultConsolidatedSlides;
-  const slides: ConsolidatedSlide[] = [...baseSlides, ...bundleSlides];
-  const currentSlide = slides[currentSlideIndex] || slides[0];
+  const slides: ConsolidatedSlide[] = [...heroSlides, ...bundleSlides];
+  const currentSlide = slides[currentSlideIndex] || slides[0] || heroSlides[0];
 
   const slideIntervalSec = (heroData as any)?.slideInterval ?? 6;
 
@@ -187,16 +203,68 @@ export const HomeTopContainer: React.FC = () => {
     setTimeout(() => setCopiedCode(null), 2500);
   };
 
-  const handleHeroAction = () => {
+  const handleNavUrl = (targetUrl?: string) => {
+    if (!targetUrl) {
+      setActiveTab('products');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) {
+      window.open(targetUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
+    if (targetUrl.startsWith('#')) {
+      const el = document.querySelector(targetUrl);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+    }
+
+    if (targetUrl.startsWith('/products')) {
+      const urlParams = new URLSearchParams(targetUrl.includes('?') ? targetUrl.split('?')[1] : '');
+      const cat = urlParams.get('category');
+      setSelectedCategory(cat || 'all');
+      setActiveTab('products');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (targetUrl.startsWith('/account')) {
+      setActiveTab('account');
+      return;
+    }
+
+    if (targetUrl.startsWith('/admin')) {
+      setActiveTab('admin');
+      return;
+    }
+
+    // Direct category name check
+    const lower = targetUrl.toLowerCase().trim();
+    if (lower === 'all' || lower === 'pantry' || lower === 'crafts' || lower === 'mouneh' || lower === 'fashion' || lower === 'home & art' || lower === 'jewelry') {
+      setSelectedCategory(targetUrl);
+      setActiveTab('products');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    setActiveTab('products');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleHeroPrimaryAction = () => {
     if (currentSlide.bundleId) {
       addBundleToCart(currentSlide.bundleId);
       return;
     }
-    if (currentSlide.targetCategory) {
-      setSelectedCategory(currentSlide.targetCategory);
-    }
-    setActiveTab('products');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    handleNavUrl(currentSlide.targetUrl);
+  };
+
+  const handleHeroSecondaryAction = () => {
+    handleNavUrl(currentSlide.secondaryTargetUrl);
   };
 
   const promoConfig = siteContent?.promoBanner;
@@ -263,21 +331,98 @@ export const HomeTopContainer: React.FC = () => {
         <div 
           className="relative rounded-[20px] overflow-hidden bg-[#111111] text-white flex flex-col justify-between p-3.5 sm:p-5 md:p-6 shadow-sm group min-w-0 h-[200px] sm:h-[260px] md:h-[260px] lg:h-[400px] xl:h-[420px]"
         >
-          {/* Background Image with subtle dark overlay */}
-          <div className="absolute inset-0 z-0">
-            {currentSlide.url && (
-              <img
+          {/* Slide Background: Dual Device (Mobile vs Desktop) with Fit Modes */}
+          <div className="absolute inset-0 z-0 overflow-hidden">
+            {currentSlide.type === 'video' ? (
+              <video
                 src={currentSlide.url}
-                alt={activeTitle || ''}
-                referrerPolicy="no-referrer"
-                className="w-full h-full object-cover transition-transform duration-1000 ease-out group-hover:scale-105"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <>
+                {/* Mobile View Image (Portrait) */}
+                <div className="w-full h-full block md:hidden relative">
+                  {(currentSlide.mobileImageFit === 'contain' || (heroData as any)?.defaultImageFit === 'contain') && (
+                    <img
+                      src={currentSlide.mobileUrl || currentSlide.url || raoucheSunsetImg}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-110 pointer-events-none"
+                    />
+                  )}
+                  <img
+                    src={currentSlide.mobileUrl || currentSlide.url || raoucheSunsetImg}
+                    alt={activeTitle || ''}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== raoucheSunsetImg) {
+                        e.currentTarget.src = raoucheSunsetImg;
+                      }
+                    }}
+                    className={`w-full h-full relative z-10 transition-transform duration-700 ease-out ${
+                      currentSlide.mobileImageFit === 'contain' ? 'object-contain' :
+                      currentSlide.mobileImageFit === 'fill' ? 'object-fill' : 'object-cover'
+                    }`}
+                    style={{
+                      objectPosition: currentSlide.mobileObjectPosition || currentSlide.objectPosition || 'center',
+                      transform: (currentSlide.mobileImageZoom || currentSlide.imageZoom || 100) !== 100 
+                        ? `scale(${(currentSlide.mobileImageZoom || currentSlide.imageZoom || 100) / 100})` 
+                        : undefined
+                    }}
+                  />
+                </div>
+
+                {/* Desktop View Image (Landscape & Tablet+) */}
+                <div className="w-full h-full hidden md:block relative">
+                  {(currentSlide.desktopImageFit === 'contain' || (heroData as any)?.defaultImageFit === 'contain') && (
+                    <img
+                      src={currentSlide.url || raoucheSunsetImg}
+                      alt=""
+                      referrerPolicy="no-referrer"
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-40 scale-105 pointer-events-none"
+                    />
+                  )}
+                  <img
+                    src={currentSlide.url || raoucheSunsetImg}
+                    alt={activeTitle || ''}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      if (e.currentTarget.src !== raoucheSunsetImg) {
+                        e.currentTarget.src = raoucheSunsetImg;
+                      }
+                    }}
+                    className={`w-full h-full relative z-10 transition-transform duration-700 ease-out ${
+                      currentSlide.desktopImageFit === 'contain' ? 'object-contain' :
+                      currentSlide.desktopImageFit === 'fill' ? 'object-fill' : 'object-cover'
+                    }`}
+                    style={{
+                      objectPosition: currentSlide.desktopObjectPosition || currentSlide.objectPosition || 'center',
+                      transform: (currentSlide.desktopImageZoom || currentSlide.imageZoom || 100) !== 100 
+                        ? `scale(${(currentSlide.desktopImageZoom || currentSlide.imageZoom || 100) / 100})` 
+                        : undefined
+                    }}
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Admin-configured Dark Overlay Tint (0% to 70%) */}
+            {((heroData as any)?.overlayOpacity ?? 0) > 0 && (
+              <div 
+                className="absolute inset-0 bg-black pointer-events-none z-10 transition-opacity duration-300" 
+                style={{ opacity: ((heroData as any)?.overlayOpacity ?? 0) / 100 }}
               />
             )}
-            {/* Subtle gradient overlay: ensures bottom controls and text are readable directly over images without needing a frosted glass box */}
+
+            {/* Subtle bottom gradient overlay: ensures bottom controls and text are readable directly over images */}
             <div 
-              className="absolute inset-0 pointer-events-none"
+              className="absolute inset-0 pointer-events-none z-10"
               style={{
-                background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0.18) 100%)'
+                background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0.12) 100%)'
               }}
             />
           </div>
@@ -321,22 +466,34 @@ export const HomeTopContainer: React.FC = () => {
             )}
           </div>
 
-          {/* Bottom Controls: Direct over image across all breakpoints; matching mobile design without glass container */}
+          {/* Bottom Controls: Direct over image across all breakpoints */}
           <div className="relative z-20 mt-auto min-w-0">
             <div 
               className="flex items-center justify-between w-full min-w-0"
             >
-              {/* Left Side: CTA Button */}
-              <div className="min-w-0 flex items-center pe-2 sm:pr-4">
+              {/* Left Side: CTA Button(s) */}
+              <div className="min-w-0 flex items-center gap-2 pe-2 sm:pr-4 flex-wrap">
                 <button
-                  onClick={handleHeroAction}
-                  className="px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/25 hover:bg-white/35 border border-white/35 sm:border-white/30 text-white text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-bold uppercase tracking-wider transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98] drop-shadow-sm backdrop-blur-xs"
+                  onClick={handleHeroPrimaryAction}
+                  className="px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-[#B89753] hover:bg-[#8F7137] border border-[#B89753] text-white text-[11px] min-[360px]:text-[12px] sm:text-[13px] font-bold uppercase tracking-wider transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98] drop-shadow-sm"
                 >
                   {isAr 
-                    ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'تصفح العروض') 
+                    ? (currentSlide.buttonTextAr || currentSlide.buttonTextEn || 'استكشف التشكيلة') 
                     : (currentSlide.buttonTextEn || 'Explore Collection')
                   }
                 </button>
+
+                {(currentSlide.secondaryBtnTextEn || currentSlide.secondaryBtnTextAr) && (
+                  <button
+                    onClick={handleHeroSecondaryAction}
+                    className="hidden sm:inline-flex px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 text-white text-[11px] sm:text-[12px] font-bold uppercase tracking-wider transition-all cursor-pointer truncate max-w-full shadow-xs active:scale-[0.98] backdrop-blur-xs"
+                  >
+                    {isAr 
+                      ? (currentSlide.secondaryBtnTextAr || currentSlide.secondaryBtnTextEn) 
+                      : (currentSlide.secondaryBtnTextEn || currentSlide.secondaryBtnTextAr)
+                    }
+                  </button>
+                )}
               </div>
 
               {/* Right Side: Slider Controls & Counter */}
